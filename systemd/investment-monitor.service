@@ -1,0 +1,23 @@
+[Unit]
+Description=AI Investment Monitor
+Documentation=https://github.com/your-username/investment-monitor
+After=network.target
+
+[Service]
+Type=simple
+User=robin
+WorkingDirectory=/home/robin/Documents/GitHub/News
+ExecStart=/home/robin/Documents/GitHub/News/venv/bin/python /home/robin/Documents/GitHub/News/main.py
+Restart=always
+RestartSec=10
+
+# Environment
+Environment=PYTHONUNBUFFERED=1
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=investment-monitor
+
+[Install]
+WantedBy=multi-user.target

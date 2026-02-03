@@ -1,0 +1,48 @@
+/* Performance Mode - Disable GPU-intensive effects */
+[data-performance="true"] .glass,
+[data-performance="true"] .glass-card {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: var(--bg-card) !important;
+    border: 1px solid var(--glass-border);
+}
+
+[data-performance="true"] .card:hover,
+[data-performance="true"] .glass-card:hover {
+    transform: none;
+}
+
+[data-performance="true"] .btn::before {
+    display: none;
+}
+
+[data-performance="true"] .progress-bar::after {
+    display: none;
+}
+
+/* Toast Notification Styles */
+.toast {
+    padding: 16px 20px;
+    border-radius: var(--radius-md);
+    color: white;
+    font-weight: 500;
+    box-shadow: var(--shadow-xl);
+    min-width: 250px;
+    transition: opacity 0.3s ease;
+}
+
+.toast-info {
+    background: var(--gradient-primary);
+}
+
+.toast-success {
+    background: var(--gradient-success);
+}
+
+.toast-danger {
+    background: var(--gradient-danger);
+}
+
+.toast-warning {
+    background: linear-gradient(135deg, hsl(38, 96%, 56%) 0%, hsl(45, 96%, 60%) 100%);
+}

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - AI Investment Monitor</title>
+    <link rel="stylesheet" href="/static/css/modern.css">
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .login-card {
+            background: var(--bg-card);
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 400px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 1rem;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            color: #ef4444;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .info-box {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+        }
+        .info-box code {
+            background: var(--bg-secondary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div style="font-size: 2rem; font-weight: 800; text-align: center; margin-bottom: 30px;">
+            🤖 AI Investment Monitor
+        </div>
+
+        {% if error == 'invalid' %}
+        <div class="error">
+            ❌ Ungültiger Benutzername oder Passwort
+        </div>
+        {% endif %}
+
+        <form method="POST" action="/login">
+            <div class="form-group">
+                <label>Benutzername</label>
+                <input type="text" name="username" required autofocus placeholder="admin">
+            </div>
+
+            <div class="form-group">
+                <label>Passwort</label>
+                <input type="password" name="password" required placeholder="Passwort eingeben">
+            </div>
+
+            <button type="submit" class="btn-primary">
+                🔓 Anmelden
+            </button>
+        </form>
+
+        <div class="info-box">
+            <p><strong>Standard-Zugang:</strong></p>
+            <p>Benutzername: <code>admin</code></p>
+            <p>Passwort: <code>changeme123</code></p>
+            <p style="margin-top: 10px; font-size: 0.8rem;">
+                ⚠️ Bitte ändern Sie das Passwort nach dem ersten Login in den Einstellungen!
+            </p>
+        </div>
+    </div>
+</body>
+</html>

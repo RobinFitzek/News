@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="margin-bottom: 20px;">📋 System Logs</h1>
+
+<!-- Scheduler Runs -->
+<div class="card">
+    <h2>⏰ Scheduler Runs</h2>
+    {% if scheduler_logs %}
+    <table>
+        <thead>
+            <tr>
+                <th>Zeitpunkt</th>
+                <th>Aktien gescannt</th>
+                <th>Alerts gesendet</th>
+                <th>Dauer</th>
+                <th>Fehler</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in scheduler_logs %}
+            <tr>
+                <td>{{ log.run_at }}</td>
+                <td>{{ log.tickers_scanned }}</td>
+                <td>{{ log.alerts_sent }}</td>
+                <td>{{ "%.1f"|format(log.duration_seconds) }}s</td>
+                <td>
+                    {% if log.errors %}
+                    <span style="color: var(--danger);">{{ log.errors[:50] }}...</span>
+                    {% else %}
+                    <span style="color: var(--success);">✓ OK</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-secondary);">Noch keine Scheduler-Runs.</p>
+    {% endif %}
+</div>
+
+<!-- Alerts Sent -->
+<div class="card">
+    <h2>📧 Gesendete Alerts</h2>
+    {% if alerts %}
+    <table>
+        <thead>
+            <tr>
+                <th>Zeitpunkt</th>
+                <th>Ticker</th>
+                <th>Signal</th>
+                <th>Gesendet an</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for alert in alerts %}
+            <tr>
+                <td>{{ alert.sent_at }}</td>
+                <td><strong>{{ alert.ticker or '-' }}</strong></td>
+                <td><span class="signal {{ alert.signal }}">{{ alert.signal or '-' }}</span></td>
+                <td>{{ alert.sent_to }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-secondary);">Noch keine Alerts gesendet.</p>
+    {% endif %}
+</div>
+{% endblock %}

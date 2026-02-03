@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod:*)",
+      "Bash(pip install:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(source:*)",
+      "Bash(python:*)",
+      "Bash(ENABLE_HTTPS=true WEB_HOST=0.0.0.0 WEB_PORT=8443 python:*)",
+      "Bash(ss:*)",
+      "Bash(curl:*)",
+      "Bash(journalctl:*)"
+    ]
+  }
+}

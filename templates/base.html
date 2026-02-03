@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AI-powered investment monitoring and analysis system">
+    <title>{% block title %}AI Investment Monitor{% endblock %}</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+
+    <!-- CSS Framework -->
+    <link rel="stylesheet" href="/static/css/modern.css">
+
+    <!-- Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    {% block extra_head %}{% endblock %}
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav style="position: sticky; top: 0; z-index: 100;">
+        <div class="container"
+            style="display: flex; gap: 32px; align-items: center; max-width: 1400px; margin: 0 auto; padding: 0 24px;">
+            <div class="logo"
+                style="font-size: 1.2rem; font-weight: 800; margin-right: auto; text-transform: uppercase;">
+                AI Investment Monitor
+            </div>
+
+            <div class="nav-links" style="display: flex; gap: 4px;">
+                <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">Dashboard</a>
+                <a href="/portfolio"
+                    class="nav-link {% if request.url.path == '/portfolio' %}active{% endif %}">Portfolio</a>
+                <a href="/watchlist"
+                    class="nav-link {% if request.url.path == '/watchlist' %}active{% endif %}">Watchlist</a>
+                <a href="/analyze" class="nav-link {% if request.url.path == '/analyze' %}active{% endif %}">Analyze</a>
+                <a href="/top-picks" class="nav-link {% if request.url.path == '/top-picks' %}active{% endif %}">Top
+                    Picks</a>
+                <a href="/history" class="nav-link {% if request.url.path == '/history' %}active{% endif %}">History</a>
+                <a href="/learning"
+                    class="nav-link {% if request.url.path == '/learning' %}active{% endif %}">Learning</a>
+                <a href="/logs" class="nav-link {% if request.url.path == '/logs' %}active{% endif %}">Logs</a>
+                <a href="/settings"
+                    class="nav-link {% if request.url.path == '/settings' %}active{% endif %}">Settings</a>
+            </div>
+
+            <a href="/logout" class="nav-link"
+                style="margin-left: auto; border: 1px solid black; padding: 4px 12px;">Logout</a>
+        </div>
+    </nav>
+
+    <!-- Security Warning Banner -->
+    <div
+        style="background: #000; color: #fff; padding: 8px 20px; text-align: center; border-bottom: 1px solid #000; font-family: var(--font-mono); font-size: 0.8rem;">
+        [LOCALHOST ONLY] NO AUTHENTICATION ACTIVE
+    </div>
+
+    <div class="container" style="max-width: 1400px; margin: 0 auto; padding: 48px 24px;">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- JavaScript -->
+    <script src="/static/js/dashboard.js"></script>
+    {% block extra_scripts %}{% endblock %}
+
+    <style>
+        /* Navigation link styles locally scoped if needed, but keeping simple */
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 8px 12px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            border: 1px solid transparent;
+        }
+
+        .nav-link:hover {
+            color: var(--text-primary);
+            text-decoration: underline;
+        }
+
+        .nav-link.active {
+            color: var(--text-primary);
+            background: #f4f4f4;
+            border: 1px solid #000;
+        }
+
+        @media (max-width: 1200px) {
+            .nav-link {
+                padding: 8px;
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+</body>
+
+</html>

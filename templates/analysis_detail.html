@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<a href="/history" class="btn btn-secondary" style="margin-bottom: 20px;">← Zurück zur Historie</a>
+
+<h1 style="margin-bottom: 20px;">📊 Analyse: {{ analysis.ticker }}</h1>
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div>
+            <span class="signal {{ analysis.signal }}" style="font-size: 1.2rem; padding: 8px 16px;">
+                {{ analysis.signal }}
+            </span>
+            <span style="margin-left: 15px; font-size: 1.1rem;">
+                Konfidenz: <strong>{{ analysis.confidence }}%</strong>
+            </span>
+        </div>
+        <div style="color: var(--text-secondary);">
+            {{ analysis.timestamp }}
+        </div>
+    </div>
+</div>
+
+<!-- Recommendation -->
+<div class="card">
+    <h2>🎯 Empfehlung</h2>
+    <div style="white-space: pre-wrap; line-height: 1.6;">{{ analysis.recommendation or 'Keine Empfehlung verfügbar' }}
+    </div>
+</div>
+
+<!-- News -->
+{% if analysis.news %}
+<div class="card">
+    <h2>📰 News</h2>
+    <div style="white-space: pre-wrap; line-height: 1.6;">{{ analysis.news }}</div>
+</div>
+{% endif %}
+
+<!-- Fundamental -->
+{% if analysis.fundamental %}
+<div class="card">
+    <h2>📊 Fundamentalanalyse</h2>
+    <div style="white-space: pre-wrap; line-height: 1.6;">{{ analysis.fundamental }}</div>
+</div>
+{% endif %}
+
+<!-- Technical -->
+{% if analysis.technical %}
+<div class="card">
+    <h2>📈 Technische Analyse</h2>
+    <div style="white-space: pre-wrap; line-height: 1.6;">{{ analysis.technical }}</div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="margin-bottom: 20px;">📜 Analyse Historie</h1>
+
+<!-- Filter -->
+<div class="card">
+    <form action="/history" method="GET" style="display: flex; gap: 15px; align-items: flex-end;">
+        <div class="form-group" style="margin: 0; flex: 1;">
+            <label>Nach Ticker filtern</label>
+            <input type="text" name="ticker" value="{{ filter_ticker or '' }}" placeholder="z.B. AAPL">
+        </div>
+        <button type="submit" class="btn btn-primary">🔍 Filtern</button>
+        {% if filter_ticker %}
+        <a href="/history" class="btn btn-secondary">Alle anzeigen</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- History Table -->
+<div class="card">
+    <h2>{% if filter_ticker %}Analysen für {{ filter_ticker }}{% else %}Alle Analysen{% endif %}</h2>
+    {% if analyses %}
+    <table>
+        <thead>
+            <tr>
+                <th>Ticker</th>
+                <th>Signal</th>
+                <th>Konfidenz</th>
+                <th>Zeitpunkt</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in analyses %}
+            <tr>
+                <td><strong>{{ a.ticker }}</strong></td>
+                <td><span class="signal {{ a.signal }}">{{ a.signal }}</span></td>
+                <td>{{ a.confidence }}%</td>
+                <td>{{ a.timestamp }}</td>
+                <td><a href="/analysis/{{ a.id }}" class="btn btn-secondary">Details</a></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-secondary);">Keine Analysen gefunden.</p>
+    {% endif %}
+</div>
+{% endblock %}

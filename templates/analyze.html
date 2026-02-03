@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="margin-bottom: 20px;">🔍 Manuelle Analyse</h1>
+
+<div class="card">
+    <h2>Aktie analysieren</h2>
+    <form action="/analyze" method="POST" style="display: flex; gap: 15px; align-items: flex-end;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="form-group" style="margin: 0; flex: 1;">
+            <label>Ticker Symbol</label>
+            <input type="text" name="ticker" placeholder="z.B. AAPL, MSFT, NVDA" required
+                style="text-transform: uppercase; font-size: 1.5rem; padding: 15px;">
+        </div>
+        <button type="submit" class="btn btn-success" style="padding: 15px 30px; font-size: 1.1rem;">
+            🔍 Analysieren
+        </button>
+    </form>
+    <p style="color: var(--text-secondary); margin-top: 15px;">
+        Die Analyse verwendet alle 4 Agenten und kann 30-60 Sekunden dauern.
+    </p>
+</div>
+
+<div class="card">
+    <h2>💡 Quick Info</h2>
+    <div class="grid grid-2">
+        <div>
+            <h3 style="color: var(--text-primary);">📰 Agent 1: News</h3>
+            <p style="color: var(--text-secondary);">Perplexity API - Aktuelle Nachrichten der letzten 24h</p>
+        </div>
+        <div>
+            <h3 style="color: var(--text-primary);">📊 Agent 2: Fundamental</h3>
+            <p style="color: var(--text-secondary);">Gemini Flash - KGV, Wachstum, Finanzen</p>
+        </div>
+        <div>
+            <h3 style="color: var(--text-primary);">📈 Agent 3: Technical</h3>
+            <p style="color: var(--text-secondary);">Gemini Flash - Trends, Support/Resistance</p>
+        </div>
+        <div>
+            <h3 style="color: var(--text-primary);">🎯 Agent 4: Synthesis</h3>
+            <p style="color: var(--text-secondary);">Gemini Pro - Finale Empfehlung</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

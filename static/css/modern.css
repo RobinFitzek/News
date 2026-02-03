@@ -1,0 +1,352 @@
+/* ===============================================
+   AI Investment Monitor - Minimalist Swiss Design
+   Structure, Function, Typography. No Decoration.
+   =============================================== */
+
+:root {
+  /* Strict Monochrome Palette */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f4f4f4;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f0f0f0;
+
+  /* Text */
+  --text-primary: #000000;
+  --text-secondary: #555555;
+  --text-muted: #888888;
+
+  /* Functional Colors (Represented in Grayscale) */
+  --border-strong: #000000;
+  --border-light: #e0e0e0;
+
+  /* Semantic replacements */
+  --success: #000000;
+  /* Use context/labels instead of color */
+  --warning: #000000;
+  --danger: #000000;
+
+  /* Spacing - Rigid & Consistent */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --space-2xl: 64px;
+
+  /* Typography */
+  --font-primary: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Menlo', monospace;
+
+  /* Transitions - Instant or very explicit */
+  --transition-base: 0.1s ease-in-out;
+
+  /* Radius - None (Industrial/Swiss) */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-full: 0px;
+
+  /* Shadows - None */
+  --shadow-none: none;
+}
+
+/* ===============================================
+   Global Reset
+   =============================================== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ===============================================
+   Typography
+   =============================================== */
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin-bottom: var(--space-md);
+}
+
+h1 {
+  font-size: 2.5rem;
+  text-transform: uppercase;
+  letter-spacing: -1px;
+}
+
+h2 {
+  font-size: 2rem;
+}
+
+h3 {
+  font-size: 1.5rem;
+}
+
+p {
+  margin-bottom: var(--space-md);
+}
+
+/* ===============================================
+   Layout Components
+   =============================================== */
+
+/* Cards are just bordered boxes now */
+.glass,
+.glass-card,
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  box-shadow: none;
+  border-radius: 0;
+  padding: var(--space-lg);
+  margin-bottom: var(--space-lg);
+  transition: background-color var(--transition-base);
+}
+
+.glass-card:hover,
+.card:hover {
+  background: var(--bg-card-hover);
+  transform: none;
+  /* No movement */
+  box-shadow: none;
+}
+
+/* Remove gradient cards */
+.card-gradient {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 2px solid var(--border-strong);
+}
+
+/* ===============================================
+   Navigation
+   =============================================== */
+
+nav {
+  background: var(--bg-primary);
+  border-bottom: 2px solid var(--border-strong);
+  padding: var(--space-md) 0;
+}
+
+/* ===============================================
+   Buttons
+   =============================================== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: 0;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+  cursor: pointer;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition: all var(--transition-base);
+}
+
+/* Primary is Solid Black */
+.btn-primary,
+.btn-success,
+.btn-danger,
+.btn-secondary {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  border-color: var(--text-primary);
+  box-shadow: none;
+}
+
+.btn-primary:hover,
+.btn-success:hover,
+.btn-danger:hover {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  /* Inverted hover */
+  transform: none;
+  box-shadow: none;
+}
+
+/* Ghost buttons */
+.btn-ghost {
+  background: transparent;
+  color: var(--text-primary);
+}
+
+.btn-ghost:hover {
+  text-decoration: underline;
+  background: transparent;
+}
+
+/* Remove hover glow effects */
+.btn::before {
+  display: none;
+}
+
+/* ===============================================
+   Tables
+   =============================================== */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th {
+  text-align: left;
+  padding: var(--space-sm);
+  border-bottom: 2px solid var(--border-strong);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+}
+
+td {
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--border-light);
+}
+
+tbody tr:hover {
+  background: var(--bg-card-hover);
+  transform: none;
+  box-shadow: none;
+}
+
+/* ===============================================
+   Badges
+   =============================================== */
+
+.badge {
+  display: inline-block;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  border: 1px solid var(--border-strong);
+  background: transparent;
+  color: var(--text-primary);
+  border-radius: 0;
+}
+
+/* Distinguish only by border/text style if needed, or keep uniform */
+.badge-success,
+.badge-warning,
+.badge-danger,
+.badge-info {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+}
+
+/* Optionally: Success = Black bg, White text */
+.badge-success {
+  background: #000;
+  color: #fff;
+}
+
+/* ===============================================
+   Progress & Metrics
+   =============================================== */
+
+.progress {
+  width: 100%;
+  height: 12px;
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: 0;
+}
+
+.progress-bar {
+  height: 100%;
+  background: #000;
+  border-radius: 0;
+}
+
+/* No shimmer/glow */
+.progress-bar::after {
+  display: none;
+}
+
+.metric-value {
+  font-weight: 800;
+  letter-spacing: -2px;
+}
+
+/* ===============================================
+   Utilities
+   =============================================== */
+
+.grid {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.grid-2 {
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+
+.grid-3 {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.grid-4 {
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+@media (max-width: 768px) {
+
+  .grid-2,
+  .grid-3,
+  .grid-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Clear colors */
+.text-success,
+.text-warning,
+.text-danger,
+.text-info {
+  color: inherit;
+  font-weight: bold;
+  /* Use weight instead of color */
+}
+
+/* Remove toggle if it exists or style it simply */
+.theme-toggle {
+  border: 2px solid black;
+  background: white;
+  color: black;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.theme-toggle:hover {
+  transform: none;
+  background: black;
+  color: white;
+  box-shadow: none;
+}
