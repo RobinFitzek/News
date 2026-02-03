@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="margin-bottom: 20px;">📋 Watchlist</h1>
+
+<!-- Add Stock -->
+<div class="card">
+    <h2>Aktie hinzufügen</h2>
+    <form action="/watchlist/add" method="POST" style="display: flex; gap: 15px; align-items: flex-end;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="form-group" style="margin: 0; flex: 1;">
+            <label>Ticker Symbol</label>
+            <input type="text" name="ticker" placeholder="z.B. AAPL" required style="text-transform: uppercase;">
+        </div>
+        <div class="form-group" style="margin: 0; flex: 2;">
+            <label>Name (optional)</label>
+            <input type="text" name="name" placeholder="z.B. Apple Inc.">
+        </div>
+        <button type="submit" class="btn btn-success">➕ Hinzufügen</button>
+    </form>
+</div>
+
+<!-- Watchlist Table -->
+<div class="card">
+    <h2>Überwachte Aktien</h2>
+    {% if watchlist %}
+    <table>
+        <thead>
+            <tr>
+                <th>Ticker</th>
+                <th>Name</th>
+                <th>Hinzugefügt am</th>
+                <th>Status</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for stock in watchlist %}
+            <tr>
+                <td><strong>{{ stock.ticker }}</strong></td>
+                <td>{{ stock.name or '-' }}</td>
+                <td>{{ stock.added_at }}</td>
+                <td>
+                    {% if stock.is_active %}
+                    <span class="status running">Aktiv</span>
+                    {% else %}
+                    <span class="status stopped">Inaktiv</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if stock.is_active %}
+                    <form action="/watchlist/remove/{{ stock.ticker }}" method="POST" style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-danger">Entfernen</button>
+                    </form>
+                    {% else %}
+                    <form action="/watchlist/add" method="POST" style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="ticker" value="{{ stock.ticker }}">
+                        <input type="hidden" name="name" value="{{ stock.name }}">
+                        <button type="submit" class="btn btn-success">Reaktivieren</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: var(--text-secondary);">Keine Aktien in der Watchlist.</p>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,332 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - AI Investment Monitor{% endblock %}
+
+{% block content %}
+<div id="dashboard-page" class="animate-fade-in">
+    <div
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xl); border-bottom: 2px solid var(--border-strong); padding-bottom: 20px;">
+        <h1 style="margin: 0;">
+            DASHBOARD
+        </h1>
+        <div style="color: var(--text-secondary); font-size: 0.875rem; font-family: var(--font-mono);">
+            <span id="current-time"></span>
+        </div>
+    </div>
+
+    <!-- Scheduler Status -->
+    <div class="card" style="margin-bottom: var(--space-lg);">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h2 style="margin: 0 0 var(--space-sm) 0; font-size: 1.25rem;">Scheduler Status</h2>
+                {% if scheduler_status.is_running %}
+                <span class="badge badge-success">
+                    RUNNING
+                </span>
+                {% else %}
+                <span class="badge badge-danger">
+                    STOPPED
+                </span>
+                {% endif %}
+            </div>
+            <div style="display: flex; gap: var(--space-md);">
+                {% if scheduler_status.is_running %}
+                <form action="/scheduler/stop" method="POST" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-danger">STOP</button>
+                </form>
+                {% else %}
+                <form action="/scheduler/start" method="POST" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-success">START</button>
+                </form>
+                {% endif %}
+                <form action="/scheduler/run-now" method="POST" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-primary">SCAN NOW</button>
+                </form>
+            </div>
+        </div>
+
+        {% if scheduler_status.jobs %}
+        <div
+            style="margin-top: var(--space-lg); padding-top: var(--space-lg); border-top: 1px solid var(--border-light);">
+            <strong
+                style="color: var(--text-secondary); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.5px;">Next
+                Runs:</strong>
+            <div class="grid grid-3" style="margin-top: var(--space-md); gap: var(--space-md);">
+                {% for job in scheduler_status.jobs %}
+                <div style="padding: var(--space-md); border: 1px solid var(--border-light);">
+                    <div style="font-weight: 600; margin-bottom: var(--space-xs);">{{ job.name }}</div>
+                    <div style="color: var(--text-secondary); font-size: 0.875rem;">{{ job.next_run }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Learning Performance Summary -->
+    {% if learning_stats.total_verified > 0 %}
+    <div class="card" style="margin-bottom: var(--space-lg);">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+            <div>
+                <h2 style="margin: 0 0 var(--space-xs) 0; font-size: 1.25rem;">Learning Performance</h2>
+                <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem;">
+                    {{ learning_stats.total_verified }} predictions verified
+                </p>
+            </div>
+            <a href="/learning" class="btn btn-secondary">DETAILS -></a>
+        </div>
+
+        <div class="grid grid-4" style="gap: var(--space-lg);">
+            <div class="metric">
+                <div class="metric-value">
+                    {{ learning_stats.hit_rate }}%
+                </div>
+                <div class="metric-label">Hit Rate</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ learning_stats.correct_predictions }}</div>
+                <div class="metric-label">Correct</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ learning_stats.wrong_predictions }}</div>
+                <div class="metric-label">Wrong</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ learning_stats.avg_confidence|round(0) }}%
+                </div>
+                <div class="metric-label">Avg Confidence</div>
+            </div>
+        </div>
+
+        <div style="margin-top: var(--space-lg);">
+            <div class="progress" style="height: 12px;">
+                <div class="progress-bar"
+                    style="width: {{ (learning_stats.avg_accuracy * 100)|round(0) }}%; background: #000;">
+                </div>
+            </div>
+            <div
+                style="display: flex; justify-content: space-between; margin-top: var(--space-xs); font-size: 0.75rem; color: var(--text-secondary);">
+                <span>Overall Accuracy: {{ (learning_stats.avg_accuracy * 100)|round(1) }}%</span>
+                <span>Confidence: {{ learning_stats.avg_confidence|round(1) }}%</span>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Top Picks Preview -->
+    {% if top_picks_preview and top_picks_preview|length > 0 %}
+    <div class="card" style="margin-bottom: var(--space-lg);">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+            <div>
+                <h2 style="margin: 0 0 var(--space-xs) 0; font-size: 1.25rem;">Top Picks</h2>
+                <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem;">
+                    Stocks with proven prediction accuracy
+                </p>
+            </div>
+            <a href="/top-picks" class="btn btn-primary">VIEW ALL -></a>
+        </div>
+
+        <div class="grid grid-3">
+            {% for pick in top_picks_preview %}
+            <div class="card" style="text-align: center; position: relative; margin-bottom: 0;">
+                <div style="font-size: 1.5rem; font-weight: bold; margin-bottom: var(--space-sm);">{{ pick.ticker }}
+                </div>
+
+                <div style="margin: var(--space-md) 0;">
+                    <div style="font-size: 2.5rem; font-weight: 800; color: #000;">
+                        {{ pick.pick_score }}
+                    </div>
+                    <div
+                        style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px;">
+                        Pick Score
+                    </div>
+                </div>
+
+                <div
+                    style="display: flex; justify-content: space-around; margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--border-light);">
+                    <div>
+                        <div style="font-weight: bold;">{{ pick.accuracy }}%</div>
+                        <div style="color: var(--text-secondary); font-size: 0.75rem;">Accuracy</div>
+                    </div>
+                    <div>
+                        <div style="font-weight: bold;">{{ pick.total_predictions }}</div>
+                        <div style="color: var(--text-secondary); font-size: 0.75rem;">Predictions</div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- API Status -->
+    <div class="grid grid-3" style="margin-bottom: var(--space-lg);">
+        <!-- Perplexity API -->
+        <div class="card">
+            <h2 style="margin-bottom: var(--space-md); font-size: 1.1rem;">Perplexity API</h2>
+            {% if api_status.perplexity.is_configured %}
+            <div class="metric">
+                <div class="metric-value" id="perplexity-usage">
+                    {{ api_status.perplexity.used_today }}/{{ api_status.perplexity.daily_limit }}
+                </div>
+                <div class="metric-label">Requests Today</div>
+            </div>
+            <div class="progress" style="margin-top: var(--space-md);">
+                <div class="progress-bar" id="perplexity-progress"
+                    style="width: {{ (api_status.perplexity.used_today / api_status.perplexity.daily_limit * 100)|int }}%">
+                </div>
+            </div>
+            {% else %}
+            <p>Not configured</p>
+            <a href="/settings" class="btn btn-secondary" style="margin-top: var(--space-md);">Configure</a>
+            {% endif %}
+        </div>
+
+        <!-- Gemini Flash -->
+        <div class="card">
+            <h2 style="margin-bottom: var(--space-md); font-size: 1.1rem;">Gemini Flash</h2>
+            {% if api_status.gemini.is_configured %}
+            <div class="metric">
+                <div class="metric-value" id="gemini-flash-usage">
+                    {{ api_status.gemini.flash.used_today }}/{{ api_status.gemini.flash.daily_limit }}
+                </div>
+                <div class="metric-label">Requests Today</div>
+            </div>
+            <div class="progress" style="margin-top: var(--space-md);">
+                <div class="progress-bar" id="gemini-flash-progress"
+                    style="width: {{ (api_status.gemini.flash.used_today / api_status.gemini.flash.daily_limit * 100)|int }}%">
+                </div>
+            </div>
+            {% else %}
+            <p>Not configured</p>
+            {% endif %}
+        </div>
+
+        <!-- Gemini Pro -->
+        <div class="card">
+            <h2 style="margin-bottom: var(--space-md); font-size: 1.1rem;">Gemini Pro</h2>
+            {% if api_status.gemini.is_configured %}
+            <div class="metric">
+                <div class="metric-value" id="gemini-pro-usage">
+                    {{ api_status.gemini.pro.used_today }}/{{ api_status.gemini.pro.daily_limit }}
+                </div>
+                <div class="metric-label">Requests Today</div>
+            </div>
+            <div class="progress" style="margin-top: var(--space-md);">
+                <div class="progress-bar" id="gemini-pro-progress"
+                    style="width: {{ (api_status.gemini.pro.used_today / api_status.gemini.pro.daily_limit * 100)|int }}%">
+                </div>
+            </div>
+            {% else %}
+            <p>Not configured</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Recent Analyses -->
+    <div class="card" style="margin-bottom: var(--space-lg);">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+            <h2 style="margin: 0; font-size: 1.25rem;">Recent Analyses</h2>
+            <a href="/history" class="btn btn-secondary">VIEW ALL -></a>
+        </div>
+
+        {% if recent_analyses %}
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Signal</th>
+                        <th>Confidence</th>
+                        <th>Time</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in recent_analyses %}
+                    <tr>
+                        <td>
+                            <strong style="font-size: 1.1rem;">{{ a.ticker }}</strong>
+                            {% if a.ticker in trusted_tickers %}
+                            <span title="Proven accuracy"
+                                style="font-size: 0.8rem; vertical-align: middle;">[TRUSTED]</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <!-- Simple text signals instead of colorful badges -->
+                            <span style="font-weight: 700; text-transform: uppercase;">
+                                {{ a.signal }}
+                            </span>
+                        </td>
+                        <td>
+                            <span style="font-weight: 600;">
+                                {{ a.confidence }}%
+                            </span>
+                        </td>
+                        <td style="color: var(--text-secondary); font-size: 0.875rem;">{{ a.timestamp }}</td>
+                        <td><a href="/analysis/{{ a.id }}" class="btn btn-secondary"
+                                style="padding: 6px 12px; font-size: 0.875rem;">DETAILS</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color: var(--text-secondary); text-align: center; padding: var(--space-xl);">
+            No analyses yet. <a href="/analyze" style="color: var(--text-primary); text-decoration: underline;">Run your
+                first analysis -></a>
+        </p>
+        {% endif %}
+    </div>
+
+    <!-- Watchlist Overview -->
+    <div class="card">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg);">
+            <h2 style="margin: 0; font-size: 1.25rem;">Watchlist ({{ watchlist|length }} stocks)</h2>
+            <a href="/watchlist" class="btn btn-secondary">MANAGE -></a>
+        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: var(--space-md);">
+            {% for stock in watchlist %}
+            <span style="padding: 10px 16px; border: 1px solid var(--border-strong);">
+                <strong>{{ stock.ticker }}</strong>
+                {% if stock.name %}
+                <span style="color: var(--text-secondary); font-size: 0.875rem;"> - {{ stock.name }}</span>
+                {% endif %}
+            </span>
+            {% endfor %}
+            {% if not watchlist %}
+            <p style="color: var(--text-secondary);">No stocks in watchlist. <a href="/watchlist"
+                    style="color: var(--text-primary); text-decoration: underline;">Add some -></a></p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Update current time
+    function updateTime() {
+        const now = new Date();
+        const timeStr = now.toLocaleString('de-DE', {
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        const timeEl = document.getElementById('current-time');
+        if (timeEl) timeEl.textContent = timeStr;
+    }
+    updateTime();
+    setInterval(updateTime, 60000); // Update every minute
+</script>
+{% endblock %}

@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 style="margin-bottom: 20px;">SYSTEM LEARNING</h1>
+
+<!-- Overall Learning Stats -->
+<div class="card">
+    <h2>ACCURACY</h2>
+    {% if learning_stats.total_verified > 0 %}
+    <div class="grid grid-4">
+        <div class="metric">
+            <div class="metric-value">
+                {{ learning_stats.hit_rate }}%
+            </div>
+            <div class="metric-label">Hit Rate</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value">{{ learning_stats.total_verified }}</div>
+            <div class="metric-label">Verified Predictions</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value">{{ learning_stats.correct_predictions }}</div>
+            <div class="metric-label">Correct</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value">{{ learning_stats.wrong_predictions }}</div>
+            <div class="metric-label">Wrong</div>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+            <span>Accuracy</span>
+            <span><strong>{{ (learning_stats.avg_accuracy * 100)|round(1) }}%</strong></span>
+        </div>
+        <div class="progress" style="height: 20px;">
+            <div class="progress-bar"
+                style="width: {{ (learning_stats.avg_accuracy * 100)|round(0) }}%; background: #000;">
+            </div>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 5px; font-size: 0.75rem; color:
+var(--text-secondary);">
+            <span>0%</span>
+            <span>50% (Random)</span>
+            <span>100%</span>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px; padding: 15px; border: 1px solid var(--border-light);">
+        <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">
+            {% if learning_stats.avg_accuracy >= 0.7 %}
+            <strong>EXCELLENT.</strong> System is learning effectively.
+            {% elif learning_stats.avg_accuracy >= 0.6 %}
+            <strong>GOOD.</strong> Positive learning curve.
+            {% elif learning_stats.avg_accuracy >= 0.5 %}
+            <strong>AVERAGE.</strong> Slightly above random.
+            {% else %}
+            <strong>NEEDS IMPROVEMENT.</strong> Predictions need optimization.
+            {% endif %}
+            Average Confidence: <strong>{{ learning_stats.avg_confidence|round(1) }}%</strong>
+        </p>
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 40px;">
+        <div style="font-size: 3rem; margin-bottom: 15px;">?</div>
+        <p style="color: var(--text-secondary); font-size: 1.1rem; margin: 0;">
+            No verified predictions yet.
+        </p>
+        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 10px;">
+            System verifies predictions after 7 days.
+        </p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Recent Predictions -->
+{% if recent_predictions %}
+<div class="card">
+    <h2>RECENT VERIFICATIONS</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Ticker</th>
+                <th>Predicted</th>
+                <th>Actual</th>
+                <th>Result</th>
+                <th>Change</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pred in recent_predictions %}
+            <tr>
+                <td><strong>{{ pred.ticker }}</strong></td>
+                <td>
+                    <span style="font-weight: bold; text-transform: uppercase;">
+                        {% if pred.predicted_direction == 'up' %}UP{% elif pred.predicted_direction == 'down' %}DOWN{%
+                        else %}NEUTRAL{% endif %}
+                    </span>
+                </td>
+                <td>
+                    <span style="font-weight: bold; text-transform: uppercase;">
+                        {% if pred.actual_direction == 'up' %}UP{% elif pred.actual_direction == 'down' %}DOWN{% else
+                        %}NEUTRAL{% endif %}
+                    </span>
+                </td>
+                <td>
+                    {% if pred.accuracy_score == 1.0 %}
+                    <span style="font-weight: bold;">PASS</span>
+                    {% elif pred.accuracy_score == 0.5 %}
+                    <span style="font-weight: bold;">NEAR</span>
+                    {% else %}
+                    <span style="font-weight: bold; text-decoration: line-through;">FAIL</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <span>
+                        {{ ((pred.actual_price_after - pred.actual_price_at_prediction) /
+                        pred.actual_price_at_prediction * 100)|round(2) }}%
+                    </span>
+                </td>
+                <td style="color: var(--text-secondary); font-size: 0.875rem;">
+                    {{ pred.prediction_date[:10] }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Ticker Performance Breakdown -->
+{% if ticker_stats and ticker_stats|length > 0 %}
+<div class="card">
+    <h2>PERFORMANCE BY TICKER</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Ticker</th>
+                <th>Predictions</th>
+                <th>Accuracy</th>
+                <th>Avg Confidence</th>
+                <th>Rating</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for stat in ticker_stats %}
+            <tr>
+                <td><strong>{{ stat.ticker }}</strong></td>
+                <td>{{ stat.total_predictions }}</td>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-weight: bold;">
+                            {{ (stat.accuracy * 100)|round(0) }}%
+                        </span>
+                        <div class="progress" style="flex: 1; height: 8px;">
+                            <div class="progress-bar"
+                                style="width: {{ (stat.accuracy * 100)|round(0) }}%; background: #000;">
+                            </div>
+                        </div>
+                    </div>
+                </td>
+                <td>{{ stat.avg_confidence|round(0) }}%</td>
+                <td>
+                    {% if stat.accuracy >= 0.7 %}
+                    <span>RELIABLE</span>
+                    {% elif stat.accuracy >= 0.5 %}
+                    <span>AVERAGE</span>
+                    {% else %}
+                    <span>UNRELIABLE</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- System Info -->
+<div class="grid grid-3">
+    <div class="card">
+        <h2>CACHE STATUS</h2>
+        <div class="metric">
+            <div class="metric-value">{{ learning_stats.cache_size }}</div>
+            <div class="metric-label">Cached Entries</div>
+        </div>
+        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 10px;">
+            Reducing API calls via intelligent caching (30 Min TTL).
+        </p>
+    </div>
+
+    <div class="card">
+        <h2>VERIFICATION</h2>
+        <p style="color: var(--text-secondary); margin: 0;">
+            Predictions verified automatically after <strong>7 DAYS</strong>.
+        </p>
+        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 10px;">
+            Continuous learning from historical data.
+        </p>
+    </div>
+
+    <div class="card">
+        <h2>OPTIMIZATION</h2>
+        <p style="color: var(--text-secondary); margin: 0;">
+            Adaptive prioritization based on historical accuracy.
+        </p>
+        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 10px;">
+            High-accuracy tickers are prioritized.
+        </p>
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}Portfolio - AI Investment Monitor{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+    <div
+        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-xl); border-bottom: 2px solid var(--border-strong); padding-bottom: 20px;">
+        <h1 style="margin: 0;">
+            PORTFOLIO
+        </h1>
+        <div style="display: flex; gap: var(--space-md);">
+            <a href="/portfolio/export" class="btn btn-secondary">
+                EXPORT CSV
+            </a>
+            <button class="btn btn-primary"
+                onclick="document.getElementById('add-trade-card').classList.toggle('hidden')">
+                + ADD TRADE
+            </button>
+        </div>
+    </div>
+
+    <!-- Portfolio Summary -->
+    <div class="grid grid-3" style="margin-bottom: var(--space-lg);">
+        <div class="card">
+            <h3
+                style="margin: 0 0 var(--space-sm) 0; color: var(--text-secondary); font-size: 0.875rem; text-transform: uppercase;">
+                Total Invested
+            </h3>
+            <div style="font-size: 2rem; font-weight: 800; color: var(--text-primary);">${{
+                "{:,.2f}".format(summary.total_invested) }}</div>
+        </div>
+        <div class="card">
+            <h3
+                style="margin: 0 0 var(--space-sm) 0; color: var(--text-secondary); font-size: 0.875rem; text-transform: uppercase;">
+                Realized Gains
+            </h3>
+            <div style="font-size: 2rem; font-weight: 800;">
+                ${{ "{:,.2f}".format(summary.realized_gains) }}
+            </div>
+        </div>
+        <div class="card">
+            <h3
+                style="margin: 0 0 var(--space-sm) 0; color: var(--text-secondary); font-size: 0.875rem; text-transform: uppercase;">
+                Active
+                Holdings</h3>
+            <div style="font-size: 2rem; font-weight: 800;">{{ summary.holdings_count }}</div>
+        </div>
+    </div>
+
+    <!-- Add Trade Form (Hidden by default) -->
+    <div id="add-trade-card" class="card hidden"
+        style="margin-bottom: var(--space-lg); border: 2px solid var(--text-primary);">
+        <h2 style="margin-bottom: var(--space-md);">ADD NEW TRADE</h2>
+        <form action="/portfolio/add-trade" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="grid grid-4" style="gap: var(--space-md);">
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">TICKER SYMBOL</label>
+                    <input type="text" name="ticker" placeholder="e.g. AAPL" required
+                        style="width: 100%; padding: 10px; border: 1px solid #000; text-transform: uppercase;">
+                </div>
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">TYPE</label>
+                    <select name="type" required
+                        style="width: 100%; padding: 10px; border: 1px solid #000; background: #fff;">
+                        <option value="BUY">BUY</option>
+                        <option value="SELL">SELL</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">AMOUNT (SHARES)</label>
+                    <input type="number" name="amount" step="any" required placeholder="0.0"
+                        style="width: 100%; padding: 10px; border: 1px solid #000;">
+                </div>
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">PRICE PER SHARE ($)</label>
+                    <input type="number" name="price" step="any" required placeholder="0.00"
+                        style="width: 100%; padding: 10px; border: 1px solid #000;">
+                </div>
+            </div>
+            <div class="grid grid-2" style="gap: var(--space-md); margin-top: var(--space-md);">
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">TRANSACTION FEES ($)</label>
+                    <input type="number" name="fees" step="any" value="0.0"
+                        style="width: 100%; padding: 10px; border: 1px solid #000;">
+                </div>
+                <div class="form-group">
+                    <label style="display: block; margin-bottom: 5px; font-weight: 600;">DATE (OPTIONAL)</label>
+                    <input type="datetime-local" name="date"
+                        style="width: 100%; padding: 10px; border: 1px solid #000;">
+                </div>
+            </div>
+            <div class="form-group" style="margin-top: var(--space-md);">
+                <label style="display: block; margin-bottom: 5px; font-weight: 600;">NOTES</label>
+                <input type="text" name="notes" placeholder="Strategy notes..."
+                    style="width: 100%; padding: 10px; border: 1px solid #000;">
+            </div>
+            <div style="margin-top: var(--space-lg); display: flex; justify-content: flex-end; gap: var(--space-md);">
+                <button type="button" class="btn btn-secondary"
+                    onclick="document.getElementById('add-trade-card').classList.add('hidden')">CANCEL</button>
+                <button type="submit" class="btn btn-primary">SAVE TRADE</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Current Holdings -->
+    <div class="card" style="margin-bottom: var(--space-lg);">
+        <h2 style="margin-bottom: var(--space-lg);">CURRENT HOLDINGS</h2>
+        {% if holdings %}
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Shares</th>
+                        <th>Avg Price</th>
+                        <th>Total Cost</th>
+                        <th>Realized G/L</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for h in holdings %}
+                    <tr>
+                        <td><strong>{{ h.ticker }}</strong></td>
+                        <td>{{ h.shares }}</td>
+                        <td>${{ "{:,.2f}".format(h.avg_price) }}</td>
+                        <td>${{ "{:,.2f}".format(h.total_cost) }}</td>
+                        <td style="font-weight: bold;">
+                            ${{ "{:,.2f}".format(h.realized_gain) }}
+                        </td>
+                        <td>
+                            <a href="/history?ticker={{ h.ticker }}" class="btn btn-secondary"
+                                style="padding: 4px 8px; font-size: 0.75rem;">ANALYZE</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color: var(--text-secondary); text-align: center; padding: var(--space-xl);">
+            No active holdings. <button onclick="document.getElementById('add-trade-card').classList.remove('hidden')"
+                style="background: none; border: none; color: var(--text-primary); cursor: pointer; text-decoration: underline; font-weight: 600;">ADD
+                YOUR FIRST TRADE</button>
+        </p>
+        {% endif %}
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="card">
+        <h2 style="margin-bottom: var(--space-lg);">RECENT ACTIVITY</h2>
+        {% if trades %}
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Ticker</th>
+                        <th>Amount</th>
+                        <th>Price</th>
+                        <th>Fees</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in trades %}
+                    <tr>
+                        <td style="color: var(--text-secondary); font-size: 0.875rem;">{{ t.date }}</td>
+                        <td>
+                            <span class="badge" style="border: 1px solid #000; font-weight: 700;">
+                                {{ t.type }}
+                            </span>
+                        </td>
+                        <td><strong>{{ t.ticker }}</strong></td>
+                        <td>{{ t.amount }}</td>
+                        <td>${{ "{:,.2f}".format(t.price) }}</td>
+                        <td>${{ "{:,.2f}".format(t.fees) }}</td>
+                        <td style="font-weight: bold;">
+                            ${{ "{:,.2f}".format((t.amount * t.price) + t.fees if t.type == 'BUY' else (t.amount *
+                            t.price) - t.fees) }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p style="color: var(--text-secondary); text-align: center;">No transaction history.</p>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    .hidden {
+        display: none;
+    }
+</style>
+{% endblock %}
