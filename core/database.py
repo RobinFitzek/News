@@ -9,16 +9,85 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 from core.config import DB_PATH, DEFAULT_SETTINGS
 from core.encryption import encryption
+import logging
+import time
+from contextlib import contextmanager
 
 class Database:
     def __init__(self, db_path: Path = DB_PATH):
         self.db_path = db_path
+        self.logger = logging.getLogger(__name__)
+        self.max_retries = 3
+        self.retry_delay = 0.5  # seconds
+
+        # Ensure database directory exists
+        try:
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            self.logger.error(f"Failed to create database directory: {e}")
+            raise
+
         self._init_db()
-    
-    def _get_conn(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+
+    def _get_conn(self, timeout: float = 10.0) -> sqlite3.Connection:
+        """Get database connection with retry logic and proper configuration"""
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                conn = sqlite3.connect(
+                    self.db_path,
+                    timeout=timeout,
+                    check_same_thread=False
+                )
+                conn.row_factory = sqlite3.Row
+
+                # Enable foreign keys
+                conn.execute("PRAGMA foreign_keys = ON")
+
+                # Set journal mode to WAL for better concurrency
+                conn.execute("PRAGMA journal_mode = WAL")
+
+                # Set synchronous mode for better performance with WAL
+                conn.execute("PRAGMA synchronous = NORMAL")
+
+                return conn
+
+            except sqlite3.OperationalError as e:
+                if "database is locked" in str(e):
+                    if attempt < max_attempts - 1:
+                        wait_time = self.retry_delay * (2 ** attempt)
+                        self.logger.warning(f"Database locked, retrying in {wait_time}s (attempt {attempt + 1}/{max_attempts})")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        self.logger.error("Database locked after all retry attempts")
+                        raise
+                else:
+                    self.logger.error(f"Database connection error: {e}")
+                    raise
+
+            except Exception as e:
+                self.logger.error(f"Unexpected error connecting to database: {e}", exc_info=True)
+                raise
+
+        raise sqlite3.OperationalError("Failed to connect to database after all retries")
+
+    @contextmanager
+    def _get_transaction(self):
+        """Context manager for database transactions with automatic rollback on error"""
+        conn = None
+        try:
+            conn = self._get_conn()
+            yield conn
+            conn.commit()
+        except Exception as e:
+            if conn:
+                conn.rollback()
+                self.logger.error(f"Transaction rolled back due to error: {e}")
+            raise
+        finally:
+            if conn:
+                conn.close()
     
     def _init_db(self):
         """Initialize database tables"""
@@ -254,41 +323,113 @@ class Database:
             print("⚠️  Default admin user created - Password: changeme123")
             print("⚠️  CHANGE THIS IMMEDIATELY AFTER FIRST LOGIN!")
 
+        # Insider transactions table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS insider_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                insider_name TEXT,
+                title TEXT,
+                transaction_date TEXT,
+                filing_date TEXT,
+                transaction_type TEXT,
+                transaction_code TEXT,
+                shares REAL,
+                price REAL,
+                value REAL,
+                significance_score INTEGER,
+                form4_url TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(ticker, insider_name, transaction_date, shares, price)
+            )
+        """)
+
         # Indexes for better performance
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_ticker ON portfolio_trades(ticker)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_date ON portfolio_trades(date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_perf_date ON performance_snapshots(date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_insider_ticker ON insider_transactions(ticker)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_insider_date ON insider_transactions(transaction_date)")
         
         conn.commit()
         conn.close()
     
     # === Settings ===
     def get_setting(self, key: str) -> Any:
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
-        row = cursor.fetchone()
-        conn.close()
-        if row:
-            value = json.loads(row['value'])
-            # Decrypt email password
-            if key == 'email_smtp_password' and value:
-                return encryption.decrypt(value)
-            return value
-        return DEFAULT_SETTINGS.get(key)
+        """Get setting with error handling and default fallback"""
+        if not key or not isinstance(key, str):
+            self.logger.error("Invalid setting key")
+            return None
+
+        try:
+            conn = self._get_conn()
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+                row = cursor.fetchone()
+
+                if row:
+                    try:
+                        value = json.loads(row['value'])
+
+                        # Decrypt email password
+                        if key == 'email_smtp_password' and value:
+                            try:
+                                return encryption.decrypt(value)
+                            except Exception as e:
+                                self.logger.error(f"Failed to decrypt {key}: {e}")
+                                return None
+
+                        return value
+
+                    except json.JSONDecodeError as e:
+                        self.logger.error(f"Invalid JSON for setting {key}: {e}")
+                        return DEFAULT_SETTINGS.get(key)
+
+                return DEFAULT_SETTINGS.get(key)
+
+            finally:
+                conn.close()
+
+        except Exception as e:
+            self.logger.error(f"Error retrieving setting {key}: {e}", exc_info=True)
+            return DEFAULT_SETTINGS.get(key)
     
     def set_setting(self, key: str, value: Any):
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        # Encrypt email password
-        if key == 'email_smtp_password' and value:
-            value = encryption.encrypt(value)
-        cursor.execute("""
-            INSERT OR REPLACE INTO settings (key, value, updated_at)
-            VALUES (?, ?, ?)
-        """, (key, json.dumps(value), datetime.now()))
-        conn.commit()
-        conn.close()
+        """Set setting with validation and error handling"""
+        if not key or not isinstance(key, str):
+            self.logger.error("Invalid setting key")
+            raise ValueError("Setting key must be a non-empty string")
+
+        try:
+            # Encrypt email password
+            if key == 'email_smtp_password' and value:
+                try:
+                    value = encryption.encrypt(value)
+                except Exception as e:
+                    self.logger.error(f"Failed to encrypt password: {e}")
+                    raise
+
+            # Serialize value
+            try:
+                json_value = json.dumps(value)
+            except (TypeError, ValueError) as e:
+                self.logger.error(f"Failed to serialize value for {key}: {e}")
+                raise ValueError(f"Value for {key} cannot be serialized to JSON")
+
+            # Save to database
+            with self._get_transaction() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT OR REPLACE INTO settings (key, value, updated_at)
+                    VALUES (?, ?, ?)
+                """, (key, json_value, datetime.now()))
+
+            self.logger.info(f"Setting updated: {key}")
+
+        except Exception as e:
+            self.logger.error(f"Error setting {key}: {e}", exc_info=True)
+            raise
     
     def get_all_settings(self) -> Dict[str, Any]:
         conn = self._get_conn()
@@ -351,44 +492,76 @@ class Database:
     
     # === Analysis History ===
     def save_analysis(self, ticker: str, results: Dict):
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        
-        # Extract signal from recommendation
+        """Save analysis with comprehensive error handling and validation"""
+        # Input validation
+        if not ticker or not isinstance(ticker, str):
+            self.logger.error("Invalid ticker provided")
+            raise ValueError("Ticker must be a non-empty string")
+
+        if not results or not isinstance(results, dict):
+            self.logger.error("Invalid results provided")
+            raise ValueError("Results must be a non-empty dictionary")
+
+        ticker = ticker.upper().strip()
+
+        # Extract signal from recommendation with error handling
         signal = "HOLD"
         confidence = 50
         rec = results.get('recommendation', '')
-        if rec:
-            if 'Strong Buy' in rec:
-                signal = "STRONG_BUY"
-                confidence = 90
-            elif 'Strong Sell' in rec:
-                signal = "STRONG_SELL"
-                confidence = 90
-            elif 'Buy' in rec:
-                signal = "BUY"
-                confidence = 70
-            elif 'Sell' in rec:
-                signal = "SELL"
-                confidence = 70
-        
-        cursor.execute("""
-            INSERT INTO analysis_history 
-            (ticker, news, fundamental, technical, recommendation, signal, confidence)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (
-            ticker,
-            results.get('news', ''),
-            results.get('fundamental', ''),
-            results.get('technical', ''),
-            results.get('recommendation', ''),
-            signal,
-            confidence
-        ))
-        conn.commit()
-        analysis_id = cursor.lastrowid
-        conn.close()
-        return analysis_id, signal, confidence
+
+        try:
+            if rec:
+                if 'Strong Buy' in rec:
+                    signal = "STRONG_BUY"
+                    confidence = 90
+                elif 'Strong Sell' in rec:
+                    signal = "STRONG_SELL"
+                    confidence = 90
+                elif 'Buy' in rec:
+                    signal = "BUY"
+                    confidence = 70
+                elif 'Sell' in rec:
+                    signal = "SELL"
+                    confidence = 70
+        except Exception as e:
+            self.logger.warning(f"Error parsing recommendation: {e}")
+
+        # Use transaction context manager
+        try:
+            with self._get_transaction() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    INSERT INTO analysis_history
+                    (ticker, news, fundamental, technical, recommendation, signal, confidence, risk_score)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    ticker,
+                    str(results.get('news', ''))[:10000],  # Limit length
+                    str(results.get('fundamental', ''))[:10000],
+                    str(results.get('technical', ''))[:10000],
+                    str(results.get('recommendation', ''))[:10000],
+                    signal,
+                    confidence,
+                    results.get('risk_score', 5)
+                ))
+
+                analysis_id = cursor.lastrowid
+
+                self.logger.info(f"Analysis saved for {ticker}: ID={analysis_id}, Signal={signal}")
+                return analysis_id, signal, confidence
+
+        except sqlite3.IntegrityError as e:
+            self.logger.error(f"Integrity constraint violated while saving analysis for {ticker}: {e}")
+            raise
+
+        except sqlite3.OperationalError as e:
+            self.logger.error(f"Database operational error while saving analysis for {ticker}: {e}")
+            raise
+
+        except Exception as e:
+            self.logger.error(f"Unexpected error saving analysis for {ticker}: {e}", exc_info=True)
+            raise
     
     def get_analysis_history(self, ticker: str = None, limit: int = 50) -> List[Dict]:
         conn = self._get_conn()
@@ -864,6 +1037,152 @@ class Database:
         """, (datetime.now(), username))
         conn.commit()
         conn.close()
+
+    # === Insider Transactions ===
+    def save_insider_transaction(self, transaction: Dict):
+        """Save an insider transaction to database"""
+        try:
+            conn = self._get_conn()
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                INSERT OR IGNORE INTO insider_transactions (
+                    ticker, insider_name, title, transaction_date, filing_date,
+                    transaction_type, transaction_code, shares, price, value,
+                    significance_score, form4_url
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                transaction['ticker'],
+                transaction.get('insider_name'),
+                transaction.get('title'),
+                transaction.get('transaction_date'),
+                transaction.get('filing_date'),
+                transaction.get('transaction_type'),
+                transaction.get('transaction_code'),
+                transaction.get('shares'),
+                transaction.get('price'),
+                transaction.get('value'),
+                transaction.get('significance_score'),
+                transaction.get('form4_url')
+            ))
+
+            conn.commit()
+            conn.close()
+
+        except Exception as e:
+            self.logger.error(f"Error saving insider transaction: {e}")
+
+    def save_insider_transactions_bulk(self, transactions: List[Dict]):
+        """Save multiple insider transactions at once"""
+        for txn in transactions:
+            self.save_insider_transaction(txn)
+
+    def get_insider_transactions(self, ticker: str = None, days_back: int = 90) -> List[Dict]:
+        """
+        Get insider transactions from database
+
+        Args:
+            ticker: Optional ticker filter
+            days_back: How many days of history to fetch
+
+        Returns:
+            List of insider transactions
+        """
+        try:
+            conn = self._get_conn()
+            cursor = conn.cursor()
+
+            cutoff_date = (datetime.now() - timedelta(days=days_back)).isoformat()
+
+            if ticker:
+                cursor.execute("""
+                    SELECT * FROM insider_transactions
+                    WHERE ticker = ? AND transaction_date >= ?
+                    ORDER BY transaction_date DESC, significance_score DESC
+                """, (ticker, cutoff_date))
+            else:
+                cursor.execute("""
+                    SELECT * FROM insider_transactions
+                    WHERE transaction_date >= ?
+                    ORDER BY transaction_date DESC, significance_score DESC
+                """, (cutoff_date,))
+
+            rows = cursor.fetchall()
+            conn.close()
+
+            transactions = []
+            for row in rows:
+                transactions.append({
+                    'id': row['id'],
+                    'ticker': row['ticker'],
+                    'insider_name': row['insider_name'],
+                    'title': row['title'],
+                    'transaction_date': row['transaction_date'],
+                    'filing_date': row['filing_date'],
+                    'transaction_type': row['transaction_type'],
+                    'transaction_code': row['transaction_code'],
+                    'shares': row['shares'],
+                    'price': row['price'],
+                    'value': row['value'],
+                    'significance_score': row['significance_score'],
+                    'form4_url': row['form4_url']
+                })
+
+            return transactions
+
+        except Exception as e:
+            self.logger.error(f"Error fetching insider transactions: {e}")
+            return []
+
+    def get_top_insider_signals(self, limit: int = 10) -> List[Dict]:
+        """Get top insider trading signals (high significance recent transactions)"""
+        try:
+            conn = self._get_conn()
+            cursor = conn.cursor()
+
+            # Get transactions from last 30 days with high significance
+            cutoff_date = (datetime.now() - timedelta(days=30)).isoformat()
+
+            cursor.execute("""
+                SELECT
+                    ticker,
+                    COUNT(*) as transaction_count,
+                    SUM(CASE WHEN transaction_type = 'Purchase' THEN value ELSE 0 END) as buy_value,
+                    SUM(CASE WHEN transaction_type = 'Sale' THEN value ELSE 0 END) as sell_value,
+                    MAX(significance_score) as max_significance,
+                    MAX(transaction_date) as latest_date
+                FROM insider_transactions
+                WHERE transaction_date >= ? AND significance_score >= 70
+                GROUP BY ticker
+                HAVING transaction_count > 0
+                ORDER BY max_significance DESC, transaction_count DESC
+                LIMIT ?
+            """, (cutoff_date, limit))
+
+            rows = cursor.fetchall()
+            conn.close()
+
+            signals = []
+            for row in rows:
+                net_value = row['buy_value'] - row['sell_value']
+                signal = 'BULLISH' if net_value > 0 else 'BEARISH' if net_value < 0 else 'NEUTRAL'
+
+                signals.append({
+                    'ticker': row['ticker'],
+                    'transaction_count': row['transaction_count'],
+                    'buy_value': row['buy_value'],
+                    'sell_value': row['sell_value'],
+                    'net_value': net_value,
+                    'signal': signal,
+                    'max_significance': row['max_significance'],
+                    'latest_date': row['latest_date']
+                })
+
+            return signals
+
+        except Exception as e:
+            self.logger.error(f"Error fetching top insider signals: {e}")
+            return []
 
 # Singleton
 db = Database()

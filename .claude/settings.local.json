@@ -11,7 +11,8 @@
       "Bash(ENABLE_HTTPS=true WEB_HOST=0.0.0.0 WEB_PORT=8443 python:*)",
       "Bash(ss:*)",
       "Bash(curl:*)",
-      "Bash(journalctl:*)"
+      "Bash(journalctl:*)",
+      "Bash(python3 -m py_compile:*)"
     ]
   }
 }

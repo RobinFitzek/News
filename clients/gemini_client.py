@@ -4,12 +4,14 @@ Intelligently chooses models based on available quota and task requirements.
 """
 from google import genai
 from google.genai import types
+from google.api_core import exceptions as google_exceptions
 from core.config import GEMINI_API_KEY, GEMINI_MODELS
 from datetime import datetime, timedelta
 from collections import defaultdict
 from core.database import db
 import time
 import json
+import logging
 
 
 class AdaptiveGeminiClient:
@@ -21,19 +23,34 @@ class AdaptiveGeminiClient:
         self.requests = defaultdict(lambda: {'minute': [], 'day': []})
         self.last_reset_date = datetime.now().date()
         self.models = GEMINI_MODELS
-        
+        self.logger = logging.getLogger(__name__)
+
         # Budget tracking from DB
         self._load_budget_settings()
-        
+
         if self.api_key:
             self._init_client()
     
     def _init_client(self):
-        """Initialize Gemini client with new SDK"""
+        """Initialize Gemini client with new SDK and error handling"""
         try:
+            if not self.api_key or len(self.api_key) < 10:
+                self.logger.warning("Invalid or missing Gemini API key")
+                print("⚠️ Gemini API key missing or invalid")
+                return
+
             self.client = genai.Client(api_key=self.api_key)
+            self.logger.info("Gemini client initialized successfully")
+
+        except ValueError as e:
+            self.logger.error(f"Invalid API key format: {e}")
+            print(f"⚠️ Gemini init error: Invalid API key format")
+            self.client = None
+
         except Exception as e:
+            self.logger.error(f"Failed to initialize Gemini client: {e}", exc_info=True)
             print(f"⚠️ Gemini init error: {e}")
+            self.client = None
     
     def _load_budget_settings(self):
         """Load variable budget settings from DB"""
@@ -212,55 +229,155 @@ class AdaptiveGeminiClient:
     
     def generate(self, prompt: str, tier: str = None, task_type: str = 'analyze') -> str:
         """
-        Generate text with specified or auto-selected model tier.
-        
+        Generate text with specified or auto-selected model tier with comprehensive error handling.
+
         Args:
             prompt: The prompt to send
             tier: Specific tier to use (optional, will auto-select if None)
             task_type: Type of task for adaptive selection
         """
+        # Input validation
+        if not prompt or not isinstance(prompt, str):
+            self.logger.error("Invalid prompt provided")
+            return "⚠️ Ungültiger Prompt"
+
+        if len(prompt) > 100000:  # Reasonable limit
+            self.logger.warning("Prompt exceeds length limit")
+            prompt = prompt[:100000]
+
         if not self.is_configured():
+            self.logger.warning("Gemini API not configured")
             return "⚠️ Gemini API nicht konfiguriert. Bitte API Key in den Einstellungen hinterlegen."
-        
+
         # Auto-select model if not specified
         if tier is None:
             tier = self.select_best_model(task_type)
             if tier is None:
+                self.logger.warning("All models exhausted")
                 return "⚠️ Alle Gemini-Modelle für heute erschöpft."
-        
+
+        # Validate tier
+        if tier not in self.models:
+            self.logger.error(f"Invalid tier: {tier}")
+            return f"⚠️ Ungültiges Modell: {tier}"
+
         # Check if we can use this tier
         if not self._wait_if_needed(tier):
             # Try to fall back to a cheaper model
             fallback = self._get_fallback_tier(tier)
             if fallback:
+                self.logger.info(f"Falling back from {tier} to {fallback}")
                 print(f"🔄 Falling back from {tier} to {fallback}")
                 tier = fallback
             else:
+                self.logger.warning(f"No fallback available for {tier}")
                 return f"⚠️ Gemini {tier} Budget erschöpft, keine Fallback-Option verfügbar."
-        
-        try:
-            config = self.models.get(tier, self.models.get('flash-1.5'))
-            model_name = config['model']
-            
-            response = self.client.models.generate_content(
-                model=model_name,
-                contents=prompt
-            )
-            
-            # Log request
-            now = datetime.now()
-            self.requests[tier]['minute'].append(now)
-            self.requests[tier]['day'].append(now)
-            
-            remaining = self._get_remaining(tier)
-            budget = self.daily_budget.get(tier, config['rpd'])
-            print(f"✅ Gemini {tier}: {budget - remaining}/{budget} today ({model_name})")
-            
-            return response.text
-            
-        except Exception as e:
-            print(f"❌ Gemini {tier} Error: {e}")
-            return f"Fehler bei Gemini API: {str(e)}"
+
+        config = self.models.get(tier, self.models.get('flash-1.5'))
+        model_name = config['model']
+
+        max_retries = 3
+        retry_delay = 2
+
+        for attempt in range(max_retries):
+            try:
+                response = self.client.models.generate_content(
+                    model=model_name,
+                    contents=prompt
+                )
+
+                # Validate response
+                if not response or not hasattr(response, 'text'):
+                    self.logger.error("Invalid response structure")
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay * (attempt + 1))
+                        continue
+                    return "⚠️ Ungültige Antwort von Gemini API"
+
+                response_text = response.text
+
+                if not response_text:
+                    self.logger.warning("Empty response from API")
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay * (attempt + 1))
+                        continue
+                    return "⚠️ Leere Antwort von Gemini API"
+
+                # Success - log request
+                now = datetime.now()
+                self.requests[tier]['minute'].append(now)
+                self.requests[tier]['day'].append(now)
+
+                remaining = self._get_remaining(tier)
+                budget = self.daily_budget.get(tier, config['rpd'])
+                self.logger.info(f"API call successful. Tier: {tier}, Usage: {budget - remaining}/{budget}")
+                print(f"✅ Gemini {tier}: {budget - remaining}/{budget} today ({model_name})")
+
+                return response_text
+
+            except google_exceptions.ResourceExhausted as e:
+                self.logger.error(f"Quota exhausted for {tier}: {e}")
+                print(f"⚠️ Gemini {tier} Quota exhausted")
+                # Try fallback immediately
+                fallback = self._get_fallback_tier(tier)
+                if fallback:
+                    self.logger.info(f"Quota exhausted, falling back to {fallback}")
+                    tier = fallback
+                    config = self.models.get(tier)
+                    model_name = config['model']
+                    continue
+                return f"⚠️ Gemini Quota erschöpft"
+
+            except google_exceptions.InvalidArgument as e:
+                self.logger.error(f"Invalid argument: {e}")
+                print(f"❌ Gemini: Ungültige Anfrage")
+                return f"⚠️ Ungültige Anfrage: {str(e)}"
+
+            except google_exceptions.PermissionDenied as e:
+                self.logger.error(f"Permission denied: {e}")
+                print(f"❌ Gemini: Zugriff verweigert (API Key prüfen)")
+                return "⚠️ Zugriff verweigert. Bitte API Key prüfen."
+
+            except google_exceptions.DeadlineExceeded as e:
+                self.logger.warning(f"Request timeout (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay * (attempt + 1))
+                    continue
+                print(f"❌ Gemini timeout")
+                return "⚠️ Anfrage timeout"
+
+            except google_exceptions.ServiceUnavailable as e:
+                self.logger.warning(f"Service unavailable (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay * (attempt + 1))
+                    continue
+                print(f"❌ Gemini service unavailable")
+                return "⚠️ Gemini Service vorübergehend nicht verfügbar"
+
+            except google_exceptions.GoogleAPIError as e:
+                self.logger.error(f"Google API error (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay * (attempt + 1))
+                    continue
+                print(f"❌ Gemini API error: {e}")
+                return f"⚠️ Gemini API Fehler: {str(e)}"
+
+            except AttributeError as e:
+                self.logger.error(f"Client not initialized: {e}")
+                print("❌ Gemini client not initialized")
+                return "⚠️ Gemini Client nicht initialisiert"
+
+            except Exception as e:
+                self.logger.error(f"Unexpected error (attempt {attempt + 1}/{max_retries}): {e}", exc_info=True)
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay * (attempt + 1))
+                    continue
+                print(f"❌ Gemini {tier} Error: {e}")
+                return f"Fehler bei Gemini API: {str(e)}"
+
+        # All retries exhausted
+        self.logger.error(f"All {max_retries} attempts failed for tier {tier}")
+        return f"⚠️ Gemini Anfrage fehlgeschlagen nach {max_retries} Versuchen"
     
     def _get_fallback_tier(self, current_tier: str) -> str:
         """Get a fallback tier when current is exhausted"""

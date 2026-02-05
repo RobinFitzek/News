@@ -110,6 +110,9 @@ DEFAULT_SETTINGS = {
     "include_fundamental": True,
     "include_technical": True,
     "analysis_variant": "balanced",  # defensive, balanced, high_growth
+
+    # Request Budget Tier
+    "request_budget_tier": "avg",  # min, avg, max
 }
 
 # Web Server
@@ -221,14 +224,54 @@ CYCLE_CONFIG = {
     }
 }
 
-# Default Daily Budget Allocation (can be overridden in DB)
-DEFAULT_DAILY_BUDGET = {
-    'flash-8b': 50,    # High volume, low quality - screening
-    'flash-1.5': 30,   # Balanced - main workhorse
-    'flash-2.5': 15,   # Best quality but limited preview
-    'flash': 15,       # Alias for flash-2.5
-    'pro': 5           # Rare, final synthesis only
+# Request Budget Tiers - 3 levels of API usage
+REQUEST_BUDGET_TIERS = {
+    'min': {
+        'name': 'MINIMAL',
+        'description': 'Conservative API usage - Focus on quality over quantity',
+        'total_requests': 30,
+        'budget': {
+            'perplexity': 5,    # Market insights & news (PRIMARY SOURCE)
+            'flash-8b': 12,     # Basic screening
+            'flash-1.5': 8,     # Core analysis
+            'flash-2.5': 3,     # Quality checks
+            'pro': 2            # Final synthesis
+        },
+        'strategy': 'Quality-first: Analyze fewer stocks but with higher accuracy',
+        'ideal_for': 'Small watchlists (5-10 stocks), deep analysis'
+    },
+    'avg': {
+        'name': 'BALANCED',
+        'description': 'Optimal balance between coverage and API limits',
+        'total_requests': 60,
+        'budget': {
+            'perplexity': 10,   # Market insights & news (PRIMARY SOURCE)
+            'flash-8b': 25,     # Screening
+            'flash-1.5': 15,    # Analysis
+            'flash-2.5': 7,     # Quality
+            'pro': 3            # Synthesis
+        },
+        'strategy': 'Balanced: Good coverage with solid analysis depth',
+        'ideal_for': 'Medium watchlists (10-20 stocks), recommended default'
+    },
+    'max': {
+        'name': 'MAXIMUM',
+        'description': 'Maximum free tier usage - Maximize coverage',
+        'total_requests': 110,
+        'budget': {
+            'perplexity': 20,   # Market insights & news (PRIMARY SOURCE)
+            'flash-8b': 50,     # Heavy screening
+            'flash-1.5': 25,    # Extended analysis
+            'flash-2.5': 10,    # Quality layer
+            'pro': 5            # Multiple syntheses
+        },
+        'strategy': 'Coverage-first: Analyze more stocks, broader market scan',
+        'ideal_for': 'Large watchlists (20-40 stocks), market discovery'
+    }
 }
+
+# Default Daily Budget Allocation (can be overridden in DB)
+DEFAULT_DAILY_BUDGET = REQUEST_BUDGET_TIERS['avg']['budget']  # Use AVG tier as default
 
 # Strategy Presets
 STRATEGY_PRESETS = {

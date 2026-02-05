@@ -11,3 +11,8 @@
 {"timestamp": "2026-02-03T16:00:07.434834", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
 {"timestamp": "2026-02-03T16:03:09.808388", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
 {"timestamp": "2026-02-03T16:05:44.066274", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-04T11:20:36.269812", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-04T11:50:02.382012", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-04T13:05:03.188491", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-05T18:49:00.980744", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-05T19:44:23.422831", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}

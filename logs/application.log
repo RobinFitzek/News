@@ -1,0 +1,50 @@
+2026-02-04 15:26:18 - root - INFO - Logging initialized
+2026-02-04 15:26:18 - __main__ - DEBUG - Debug message
+2026-02-04 15:26:18 - __main__ - INFO - Info message
+2026-02-04 15:26:18 - __main__ - WARNING - Warning message
+2026-02-04 15:26:18 - __main__ - ERROR - Error message
+2026-02-04 15:26:18 - __main__ - ERROR - Exception occurred
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/logging_config.py", line 96, in <module>
+    raise Exception("Test exception")
+Exception: Test exception
+2026-02-05 18:31:51 - root - INFO - Logging initialized
+2026-02-05 18:31:52 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:31:52 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:32:10 - root - INFO - Logging initialized
+2026-02-05 18:32:11 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:32:11 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:32:28 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-02-05 18:32:43 - root - INFO - Logging initialized
+2026-02-05 18:32:44 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:32:44 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:33:51 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-02-05 18:33:54 - root - INFO - Logging initialized
+2026-02-05 18:33:55 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:33:55 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:34:08 - root - INFO - Logging initialized
+2026-02-05 18:34:09 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:34:09 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:35:22 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-02-05 18:35:27 - root - INFO - Logging initialized
+2026-02-05 18:35:28 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:35:28 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:35:47 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-02-05 18:35:59 - root - INFO - Logging initialized
+2026-02-05 18:36:00 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:36:00 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:43:02 - root - INFO - Logging initialized
+2026-02-05 18:43:03 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:43:03 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:45:52 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-02-05 18:46:12 - root - INFO - Logging initialized
+2026-02-05 18:46:12 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:46:12 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:47:14 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-02-05 18:47:39 - root - INFO - Logging initialized
+2026-02-05 18:47:39 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 18:47:39 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 19:44:09 - root - INFO - Logging initialized
+2026-02-05 19:44:10 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 19:44:10 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 19:44:43 - core.database - ERROR - Error fetching top insider signals: name 'timedelta' is not defined

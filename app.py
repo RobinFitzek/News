@@ -2,6 +2,10 @@
 FastAPI Web Dashboard for Investment Monitor
 Control panel for the automated investment analysis system.
 """
+# Initialize logging first
+from logging_config import setup_logging
+setup_logging()
+
 from fastapi import FastAPI, Request, Form, HTTPException, Depends, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -266,6 +270,9 @@ async def save_settings(request: Request, username: str = Depends(require_auth))
     db.set_setting("include_fundamental", form.get("include_fundamental") == "on")
     db.set_setting("include_technical", form.get("include_technical") == "on")
     db.set_setting("analysis_variant", form.get("analysis_variant", "balanced"))
+
+    # Request budget tier
+    db.set_setting("request_budget_tier", form.get("request_budget_tier", "avg"))
     
     # Reload settings in services
     scheduler.reload_settings()
@@ -353,8 +360,37 @@ async def run_scan_now(
 ):
     """Trigger immediate scan"""
     csrf.verify_token(request, csrf_token)
-    scheduler.trigger_manual_scan()
-    return RedirectResponse(url="/", status_code=303)
+
+    try:
+        # Log the scan attempt
+        audit_log.log_event("manual_scan_triggered", username, {"source": "web_dashboard"})
+
+        # Check if APIs are configured
+        pplx_key = db.get_api_key("perplexity")
+        gemini_key = db.get_api_key("gemini")
+
+        if not gemini_key:
+            return RedirectResponse(url="/?message=error&detail=Gemini+API+not+configured", status_code=303)
+
+        # Check watchlist
+        watchlist = db.get_watchlist(active_only=True)
+        if not watchlist or len(watchlist) == 0:
+            return RedirectResponse(url="/?message=error&detail=Watchlist+is+empty", status_code=303)
+
+        # Run the scan
+        scheduler.trigger_manual_scan()
+
+        # Success message
+        return RedirectResponse(url="/?message=success&detail=Scan+started+successfully", status_code=303)
+
+    except Exception as e:
+        # Log the error
+        audit_log.log_event("manual_scan_failed", username, {"error": str(e)})
+        print(f"❌ Manual scan error: {e}")
+
+        # Return with error message
+        error_msg = str(e)[:100]  # Limit error message length
+        return RedirectResponse(url=f"/?message=error&detail={error_msg}", status_code=303)
 
 # ==================== MANUAL ANALYSIS ====================
 
@@ -379,6 +415,128 @@ async def run_analysis(
     results = swarm.analyze_single_stock(ticker.upper())
     analysis_id, signal, confidence = db.save_analysis(ticker.upper(), results)
     return RedirectResponse(url=f"/analysis/{analysis_id}", status_code=303)
+
+# ==================== DISCOVERY ====================
+
+@app.get("/discover", response_class=HTMLResponse)
+async def discover_page(request: Request, username: str = Depends(require_auth)):
+    """Stock discovery page"""
+    from clients.perplexity_client import pplx_client
+
+    usage = pplx_client.get_usage()
+
+    return templates.TemplateResponse("discover.html", {
+        "request": request,
+        "csrf_token": request.state.csrf_token,
+        "perplexity_configured": pplx_client.is_configured(),
+        "api_usage": usage
+    })
+
+@app.post("/discover")
+@limiter.limit("5/hour")
+async def run_discovery(
+    request: Request,
+    sector: str = Form(None),
+    focus: str = Form("balanced"),
+    limit: int = Form(5),
+    csrf_token: str = Form(...),
+    username: str = Depends(require_auth)
+):
+    """Run Perplexity-powered stock discovery"""
+    csrf.verify_token(request, csrf_token)
+
+    from engine.discovery_engine import discovery_engine
+
+    # Run discovery
+    result = discovery_engine.discover_with_perplexity(
+        sector=sector if sector else None,
+        focus=focus,
+        limit=min(limit, 10)  # Cap at 10
+    )
+
+    # Return JSON response
+    return {
+        "success": result['success'],
+        "stocks": result.get('stocks', []),
+        "error": result.get('error'),
+        "raw_analysis": result.get('raw_analysis', ''),
+        "timestamp": result.get('timestamp'),
+        "api_usage": result.get('filtered_count', 0)
+    }
+
+# ==================== INSIDER TRADING ====================
+
+@app.get("/insider-activity", response_class=HTMLResponse)
+async def insider_activity_page(request: Request, username: str = Depends(require_auth)):
+    """Insider trading activity page"""
+    from engine.insider_tracker import insider_tracker
+
+    # Get recent insider signals from database
+    top_signals = db.get_top_insider_signals(limit=20)
+
+    return templates.TemplateResponse("insider_activity.html", {
+        "request": request,
+        "csrf_token": request.state.csrf_token,
+        "top_signals": top_signals
+    })
+
+@app.post("/insider-activity/scan")
+@limiter.limit("3/hour")
+async def scan_insider_activity(
+    request: Request,
+    csrf_token: str = Form(...),
+    username: str = Depends(require_auth)
+):
+    """Scan watchlist for insider activity"""
+    csrf.verify_token(request, csrf_token)
+
+    from engine.insider_tracker import insider_tracker
+
+    try:
+        # Scan watchlist
+        results = insider_tracker.scan_watchlist_insiders(days_back=90)
+
+        # Save to database
+        for result in results:
+            if result.get('recent_transactions'):
+                db.save_insider_transactions_bulk(result['recent_transactions'])
+
+        return {
+            "success": True,
+            "results": results,
+            "count": len(results)
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@app.get("/insider-activity/{ticker}", response_class=HTMLResponse)
+async def insider_detail_page(
+    request: Request,
+    ticker: str,
+    username: str = Depends(require_auth)
+):
+    """Detailed insider activity for a specific ticker"""
+    from engine.insider_tracker import insider_tracker
+
+    ticker = ticker.upper()
+
+    # Get comprehensive analysis
+    analysis = insider_tracker.get_insider_analysis(ticker, days_back=180)
+
+    # Save transactions to database
+    if analysis.get('transactions'):
+        db.save_insider_transactions_bulk(analysis['transactions'])
+
+    return templates.TemplateResponse("insider_detail.html", {
+        "request": request,
+        "csrf_token": request.state.csrf_token,
+        "ticker": ticker,
+        "analysis": analysis
+    })
 
 # ==================== LOGS ====================
 

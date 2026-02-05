@@ -51,23 +51,46 @@ class InvestmentScheduler:
         if not self._is_active_time():
             print(f"⏸️ Outside active hours ({self.active_start}-{self.active_end}), skipping scan")
             return
-        
+
         print(f"\n{'='*50}")
         print(f"🔄 SCHEDULED PIPELINE - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
         print(f"{'='*50}")
-        
+
         try:
             from engine.pipeline import pipeline
-            pipeline.run_daily_cycle()
+            results = pipeline.run_daily_cycle()
+            return results
+        except ImportError as e:
+            error_msg = f"Import Error: {e}. Check if all dependencies are installed."
+            print(f"❌ {error_msg}")
+            db.log_scheduler_run(
+                tickers_scanned=0,
+                alerts_sent=0,
+                errors=error_msg,
+                duration=0
+            )
+            raise Exception(error_msg)
+        except AttributeError as e:
+            error_msg = f"API Method Error: {e}. Check API client configuration."
+            print(f"❌ {error_msg}")
+            db.log_scheduler_run(
+                tickers_scanned=0,
+                alerts_sent=0,
+                errors=error_msg,
+                duration=0
+            )
+            raise Exception(error_msg)
         except Exception as e:
-            print(f"❌ Pipeline Error: {e}")
+            error_msg = f"Pipeline Error: {str(e)}"
+            print(f"❌ {error_msg}")
             # Log error
             db.log_scheduler_run(
                 tickers_scanned=0,
                 alerts_sent=0,
-                errors=str(e),
+                errors=error_msg,
                 duration=0
             )
+            raise Exception(error_msg)
     
     def run_daily_summary(self):
         """Send daily summary email"""
@@ -166,9 +189,9 @@ class InvestmentScheduler:
         }
     
     def trigger_manual_scan(self):
-        """Trigger an immediate scan"""
+        """Trigger an immediate scan (raises exceptions for error handling)"""
         print("🔄 Manual scan triggered")
-        self.run_scan()
+        return self.run_scan()
 
 # Singleton
 scheduler = InvestmentScheduler()

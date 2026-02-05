@@ -1,48 +1,54 @@
-/* Performance Mode - Disable GPU-intensive effects */
-[data-performance="true"] .glass,
-[data-performance="true"] .glass-card {
+/* ===============================================
+   Performance & Notifications
+   German/Swedish Minimalism - No Effects
+   =============================================== */
+
+/* All effects disabled by default */
+* {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
-    background: var(--bg-card) !important;
-    border: 1px solid var(--glass-border);
 }
 
-[data-performance="true"] .card:hover,
-[data-performance="true"] .glass-card:hover {
-    transform: none;
+.card:hover,
+.glass-card:hover,
+.btn:hover {
+    transform: none !important;
 }
 
-[data-performance="true"] .btn::before {
-    display: none;
+.btn::before,
+.btn::after,
+.progress-bar::before,
+.progress-bar::after {
+    display: none !important;
 }
 
-[data-performance="true"] .progress-bar::after {
-    display: none;
-}
-
-/* Toast Notification Styles */
+/* Toast Notifications - Black & White with Dark Red for errors */
 .toast {
-    padding: 16px 20px;
-    border-radius: var(--radius-md);
-    color: white;
-    font-weight: 500;
-    box-shadow: var(--shadow-xl);
-    min-width: 250px;
-    transition: opacity 0.3s ease;
+    padding: 16px 24px;
+    border-radius: 0;
+    border: 2px solid var(--border-strong);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: none;
+    min-width: 280px;
+    transition: none;
+    font-family: var(--font-mono);
 }
 
-.toast-info {
-    background: var(--gradient-primary);
-}
-
+.toast-info,
 .toast-success {
-    background: var(--gradient-success);
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    border: 2px solid var(--text-primary);
 }
 
-.toast-danger {
-    background: var(--gradient-danger);
-}
-
+.toast-danger,
 .toast-warning {
-    background: linear-gradient(135deg, hsl(38, 96%, 56%) 0%, hsl(45, 96%, 60%) 100%);
+    background: var(--bg-primary);
+    color: var(--signal-critical);
+    border: 2px solid var(--signal-critical);
 }

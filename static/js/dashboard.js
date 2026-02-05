@@ -1,79 +1,36 @@
 /**
- * AI Investment Monitor - Dashboard JavaScript
- * Handles charts, real-time updates, and interactivity
+ * Stockholm — Dashboard JavaScript
+ * Clean, minimal interactions for investment intelligence
  */
 
 // ============================================
-// Theme Management
+// Theme & Performance Manager
 // ============================================
 
 class ThemeManager {
     constructor() {
-        this.theme = localStorage.getItem('theme') || 'dark';
-        this.performanceMode = localStorage.getItem('performanceMode') === 'true';
         this.init();
     }
 
     init() {
-        this.applyTheme();
-        this.applyPerformanceMode();
-        this.setupToggleListeners();
-    }
-
-    applyTheme() {
-        document.documentElement.setAttribute('data-theme', this.theme);
-    }
-
-    applyPerformanceMode() {
-        if (this.performanceMode) {
-            document.documentElement.setAttribute('data-performance', 'true');
-        } else {
-            document.documentElement.removeAttribute('data-performance');
-        }
-    }
-
-    toggleTheme() {
-        this.theme = this.theme === 'dark' ? 'light' : 'dark';
-        localStorage.setItem('theme', this.theme);
-        this.applyTheme();
-
-        // Animate transition
-        document.body.style.transition = 'background-color 0.3s ease';
-        setTimeout(() => {
-            document.body.style.transition = '';
-        }, 300);
-    }
-
-    togglePerformanceMode() {
-        this.performanceMode = !this.performanceMode;
-        localStorage.setItem('performanceMode', this.performanceMode);
-        this.applyPerformanceMode();
-
-        // Show toast notification
-        showToast(
-            this.performanceMode ? '⚡ Performance Mode Enabled' : '✨ Visual Effects Enabled',
-            'info'
-        );
-    }
-
-    setupToggleListeners() {
-        const themeToggle = document.getElementById('theme-toggle');
-        const perfToggle = document.getElementById('performance-toggle');
-
-        if (themeToggle) {
-            themeToggle.addEventListener('click', () => this.toggleTheme());
-        }
-
-        if (perfToggle) {
-            perfToggle.addEventListener('click', () => this.togglePerformanceMode());
-            perfToggle.checked = this.performanceMode;
-        }
+        // Stockholm is always light mode with B&W palette
+        document.documentElement.setAttribute('data-theme', 'light');
     }
 }
 
 // ============================================
-// Chart Utilities (Chart.js)
+// Chart Configuration — Minimal B&W Styling
 // ============================================
+
+const chartColors = {
+    primary: '#0a0a0a',
+    secondary: '#737373',
+    muted: '#a3a3a3',
+    border: '#e5e5e5',
+    background: '#fafafa',
+    text: '#404040',
+    textPrimary: '#0a0a0a'
+};
 
 const chartDefaults = {
     responsive: true,
@@ -81,32 +38,50 @@ const chartDefaults = {
     plugins: {
         legend: {
             labels: {
-                color: getComputedStyle(document.documentElement)
-                    .getPropertyValue('--text-primary').trim(),
+                color: chartColors.textPrimary,
                 font: {
-                    family: 'Inter, sans-serif',
+                    family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
                     size: 12
                 }
             }
+        },
+        tooltip: {
+            backgroundColor: 'rgba(10, 10, 10, 0.95)',
+            borderColor: 'rgba(255, 255, 255, 0.1)',
+            borderWidth: 1,
+            titleColor: '#ffffff',
+            bodyColor: '#a3a3a3',
+            padding: 12,
+            cornerRadius: 4,
+            displayColors: true,
+            boxPadding: 4
         }
     },
     scales: {
         x: {
             grid: {
-                color: 'rgba(255, 255, 255, 0.05)'
+                color: chartColors.border,
+                drawBorder: false
             },
             ticks: {
-                color: getComputedStyle(document.documentElement)
-                    .getPropertyValue('--text-secondary').trim()
+                color: chartColors.text,
+                font: {
+                    family: 'SF Mono, Monaco, monospace',
+                    size: 10
+                }
             }
         },
         y: {
             grid: {
-                color: 'rgba(255, 255, 255, 0.05)'
+                color: chartColors.border,
+                drawBorder: false
             },
             ticks: {
-                color: getComputedStyle(document.documentElement)
-                    .getPropertyValue('--text-secondary').trim()
+                color: chartColors.text,
+                font: {
+                    family: 'SF Mono, Monaco, monospace',
+                    size: 10
+                }
             }
         }
     }
@@ -119,7 +94,21 @@ function createLineChart(canvasId, data, options = {}) {
     return new Chart(ctx, {
         type: 'line',
         data: data,
-        options: { ...chartDefaults, ...options }
+        options: {
+            ...chartDefaults,
+            ...options,
+            elements: {
+                line: {
+                    tension: 0.3,
+                    borderWidth: 1.5
+                },
+                point: {
+                    radius: 0,
+                    hoverRadius: 4,
+                    hoverBorderWidth: 2
+                }
+            }
+        }
     });
 }
 
@@ -130,7 +119,11 @@ function createBarChart(canvasId, data, options = {}) {
     return new Chart(ctx, {
         type: 'bar',
         data: data,
-        options: { ...chartDefaults, ...options }
+        options: {
+            ...chartDefaults,
+            ...options,
+            borderRadius: 2
+        }
     });
 }
 
@@ -144,14 +137,18 @@ function createDoughnutChart(canvasId, data, options = {}) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            cutout: '75%',
             plugins: {
                 legend: {
                     position: 'bottom',
                     labels: {
-                        color: getComputedStyle(document.documentElement)
-                            .getPropertyValue('--text-primary').trim()
+                        color: chartColors.textPrimary,
+                        padding: 16,
+                        usePointStyle: true,
+                        pointStyle: 'circle'
                     }
-                }
+                },
+                tooltip: chartDefaults.plugins.tooltip
             },
             ...options
         }
@@ -159,21 +156,22 @@ function createDoughnutChart(canvasId, data, options = {}) {
 }
 
 // ============================================
-// Toast Notifications
+// Toast Notifications — Minimal Alerts
 // ============================================
 
-function showToast(message, type = 'info', duration = 3000) {
+function showToast(message, type = 'info', duration = 4000) {
     const toast = document.createElement('div');
-    toast.className = `toast toast-${type} animate-fade-in`;
+    toast.className = `toast toast-${type}`;
     toast.textContent = message;
 
     const container = document.getElementById('toast-container') || createToastContainer();
     container.appendChild(toast);
 
-    // Auto-remove
+    // Auto-remove with fade out
     setTimeout(() => {
         toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
+        toast.style.transform = 'translateY(-8px)';
+        setTimeout(() => toast.remove(), 200);
     }, duration);
 }
 
@@ -181,14 +179,15 @@ function createToastContainer() {
     const container = document.createElement('div');
     container.id = 'toast-container';
     container.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 10000;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  `;
+        position: fixed;
+        top: 80px;
+        right: 24px;
+        z-index: 10000;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        pointer-events: none;
+    `;
     document.body.appendChild(container);
     return container;
 }
@@ -243,14 +242,13 @@ class RealtimeUpdater {
             });
         }, this.interval);
 
-        console.log(`Real-time updates started (every ${this.interval}ms)`);
+        console.log(`Stockholm: Real-time updates active (${this.interval / 1000}s interval)`);
     }
 
     stop() {
         if (this.timerId) {
             clearInterval(this.timerId);
             this.timerId = null;
-            console.log('Real-time updates stopped');
         }
     }
 
@@ -264,7 +262,7 @@ class RealtimeUpdater {
 }
 
 // ============================================
-// Dashboard-specific Functions
+// Dashboard Functions
 // ============================================
 
 function updateAPIStatus() {
@@ -278,7 +276,7 @@ function updateAPIStatus() {
             updateProgressBar('perplexity-progress', perplexityPercent);
             updateElement('perplexity-usage', `${perplexityUsed}/${perplexityLimit}`);
 
-            // Update Gemini usage
+            // Update Gemini Flash
             const flashUsed = data.gemini?.flash?.used_today || 0;
             const flashLimit = data.gemini?.flash?.daily_limit || 50;
             const flashPercent = (flashUsed / flashLimit) * 100;
@@ -286,6 +284,7 @@ function updateAPIStatus() {
             updateProgressBar('gemini-flash-progress', flashPercent);
             updateElement('gemini-flash-usage', `${flashUsed}/${flashLimit}`);
 
+            // Update Gemini Pro
             const proUsed = data.gemini?.pro?.used_today || 0;
             const proLimit = data.gemini?.pro?.daily_limit || 50;
             const proPercent = (proUsed / proLimit) * 100;
@@ -300,15 +299,6 @@ function updateProgressBar(id, percent) {
     const bar = document.getElementById(id);
     if (bar) {
         bar.style.width = `${Math.min(percent, 100)}%`;
-
-        // Change color based on usage
-        if (percent >= 90) {
-            bar.style.background = 'var(--gradient-danger)';
-        } else if (percent >= 70) {
-            bar.style.background = 'var(--gradient-warning)';
-        } else {
-            bar.style.background = 'var(--gradient-primary)';
-        }
     }
 }
 
@@ -323,46 +313,58 @@ function updateElement(id, value) {
 // Animation Utilities
 // ============================================
 
-function animateValue(element, start, end, duration = 1000) {
-    const range = end - start;
-    const increment = range / (duration / 16); // 60 FPS
-    let current = start;
+function animateValue(element, start, end, duration = 400) {
+    if (!element) return;
 
-    const timer = setInterval(() => {
-        current += increment;
+    const startTime = performance.now();
+    const diff = end - start;
 
-        if ((increment > 0 && current >= end) || (increment < 0 && current <= end)) {
-            current = end;
-            clearInterval(timer);
-        }
+    function update(currentTime) {
+        const elapsed = currentTime - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+
+        // Ease out quad
+        const easeProgress = 1 - (1 - progress) * (1 - progress);
+        const current = start + (diff * easeProgress);
 
         element.textContent = Math.round(current);
-    }, 16);
+
+        if (progress < 1) {
+            requestAnimationFrame(update);
+        }
+    }
+
+    requestAnimationFrame(update);
 }
 
+// Intersection Observer for reveal animations
 function observeAnimations() {
     const observer = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
             if (entry.isIntersecting) {
-                entry.target.classList.add('animate-fade-in');
+                entry.target.classList.add('is-visible');
+                observer.unobserve(entry.target);
             }
         });
-    }, { threshold: 0.1 });
+    }, {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
+    });
 
-    document.querySelectorAll('.card, .glass-card').forEach(card => {
-        observer.observe(card);
+    document.querySelectorAll('.animate-on-scroll').forEach(el => {
+        observer.observe(el);
     });
 }
 
 // ============================================
-// Initialize on DOM Ready
+// Initialize
 // ============================================
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize theme manager
+    // Initialize theme
     window.themeManager = new ThemeManager();
 
-    // Setup real-time updates if on dashboard
+    // Setup real-time updates for dashboard
     if (document.getElementById('dashboard-page')) {
         window.realtimeUpdater = new RealtimeUpdater(30000);
         window.realtimeUpdater.addCallback(updateAPIStatus);
@@ -372,10 +374,20 @@ document.addEventListener('DOMContentLoaded', () => {
         updateAPIStatus();
     }
 
-    // Observe animations
+    // Initialize progress bars from data attributes
+    document.querySelectorAll('[data-width]').forEach(el => {
+        const targetWidth = el.getAttribute('data-width');
+        // Animate progress bar
+        el.style.width = '0%';
+        requestAnimationFrame(() => {
+            el.style.width = targetWidth + '%';
+        });
+    });
+
+    // Observe scroll animations
     observeAnimations();
 
-    // Add smooth scroll to all anchor links
+    // Smooth scroll for anchor links
     document.querySelectorAll('a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', function (e) {
             e.preventDefault();
@@ -385,6 +397,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    console.log('%cStockholm', 'font-size: 16px; font-weight: 400; color: #0a0a0a; font-family: "EB Garamond", Georgia, serif;');
+    console.log('%cInvestment Intelligence', 'color: #737373;');
 });
 
 // Cleanup on page unload
@@ -394,12 +409,13 @@ window.addEventListener('beforeunload', () => {
     }
 });
 
-// Export for use in other scripts
+// Export utilities
 window.dashboardUtils = {
     showToast,
     fetchJSON,
     createLineChart,
     createBarChart,
     createDoughnutChart,
-    animateValue
+    animateValue,
+    chartColors
 };
