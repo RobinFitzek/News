@@ -15,6 +15,7 @@
   --bg-card: #0a0a0a;
   --bg-card-hover: #111111;
   --bg-elevated: #0d0d0d;
+  --nav-bg: rgba(0, 0, 0, 0.85);
 
   /* Surfaces */
   --surface-black: #000000;
@@ -105,6 +106,55 @@
   --radius-lg: 6px;
   --radius-xl: 8px;
   --radius-full: 9999px;
+}
+
+[data-theme="light"] {
+  /* === SVENSK DAG — Soft White & Ink Black === */
+  --bg-primary: #f8f8f7;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f2f2f1;
+  --bg-hover: #ededed;
+  --bg-inverse: #0a0a0a;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f6f6f6;
+  --bg-elevated: #ffffff;
+  --nav-bg: rgba(255, 255, 255, 0.9);
+
+  --surface-black: #ffffff;
+  --surface-soft: #f6f6f6;
+  --surface-muted: #efefef;
+  --surface-glass: rgba(0, 0, 0, 0.03);
+
+  --text-primary: #0a0a0a;
+  --text-secondary: #4a4a4a;
+  --text-muted: #7a7a7a;
+  --text-ghost: #b5b5b5;
+  --text-inverse: #ffffff;
+
+  --signal-positive: #0a0a0a;
+  --signal-negative: #0a0a0a;
+  --signal-neutral: #7a7a7a;
+  --signal-positive-bg: rgba(0, 0, 0, 0.06);
+  --signal-negative-bg: rgba(0, 0, 0, 0.04);
+  --signal-neutral-bg: rgba(0, 0, 0, 0.03);
+
+  --accent-line: rgba(0, 0, 0, 0.08);
+  --accent-bright: #0a0a0a;
+  --accent-focus: #0a0a0a;
+  --accent-glow: rgba(0, 0, 0, 0.12);
+
+  --border-hairline: rgba(0, 0, 0, 0.06);
+  --border-light: rgba(0, 0, 0, 0.1);
+  --border-default: rgba(0, 0, 0, 0.14);
+  --border-strong: rgba(0, 0, 0, 0.2);
+  --border-focus: #0a0a0a;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.16);
+  --shadow-glow: 0 0 30px rgba(0, 0, 0, 0.04);
+  --shadow-border: 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
 
 /* ===============================================
@@ -224,7 +274,7 @@ nav {
   position: sticky;
   top: 0;
   z-index: 1000;
-  background: rgba(0, 0, 0, 0.85);
+  background: var(--nav-bg);
   backdrop-filter: blur(20px) saturate(180%);
   -webkit-backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid var(--border-hairline);
