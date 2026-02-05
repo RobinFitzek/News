@@ -7,7 +7,7 @@ import json
 import time
 from datetime import datetime
 from typing import Dict, List, Optional
-from core.config import CYCLE_CONFIG
+from core.config import CYCLE_CONFIG, REQUEST_BUDGET_TIERS
 from core.database import db
 from engine.strategy_engine import strategy_manager, risk_classifier, prompt_builder
 
@@ -19,6 +19,13 @@ class CycleProcessor:
         self.cycles = CYCLE_CONFIG
         self.agents = None  # Lazy load to avoid circular imports
         self.optimizer = None  # Lazy load learning optimizer
+
+    def _get_current_budget(self) -> Dict:
+        """Get the current API budget based on user's tier selection"""
+        tier = db.get_setting("request_budget_tier") or "avg"
+        if tier not in REQUEST_BUDGET_TIERS:
+            tier = "avg"  # Fallback to balanced
+        return REQUEST_BUDGET_TIERS[tier]['budget']
     
     def _get_agents(self):
         """Lazy load agents to avoid circular imports"""
@@ -59,7 +66,7 @@ class CycleProcessor:
         
         start_time = time.time()
         strategy = strategy_manager.active_strategy
-        budget = self.cycles['daily']['api_budget']
+        budget = self._get_current_budget()  # Use selected tier budget
         optimizer = self._get_optimizer()
         
         # Get watchlist and optimize order based on learning
@@ -160,7 +167,7 @@ class CycleProcessor:
         
         start_time = time.time()
         strategy = strategy_manager.active_strategy
-        budget = self.cycles['weekly']['api_budget']
+        budget = self._get_current_budget()  # Use selected tier budget
         
         # Get watchlist
         watchlist = db.get_watchlist(active_only=True)

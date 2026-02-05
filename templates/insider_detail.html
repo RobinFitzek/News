@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block title %}{{ ticker }} Insider Activity — Stockholm{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+    <!-- Back Button -->
+    <a href="/insider-activity" class="btn btn-ghost" style="margin-bottom: var(--space-6);">
+        ← Back to Overview
+    </a>
+
+    <!-- Page Header -->
+    <header class="page-header">
+        <div>
+            <h1>
+                <span style="font-family: var(--font-mono); letter-spacing: 0.02em;">{{ ticker }}</span>
+                <span style="font-weight: 400; color: var(--text-muted);"> Insider Activity</span>
+            </h1>
+        </div>
+    </header>
+
+    {% if not analysis.has_activity %}
+    <div class="card">
+        <h3 style="margin: 0 0 var(--space-4) 0;">No Activity Found</h3>
+        <p style="color: var(--text-muted);">
+            {{ analysis.message }}
+        </p>
+        <a href="/insider-activity" class="btn btn-primary">Back to Overview</a>
+    </div>
+    {% else %}
+
+    <!-- Summary Card -->
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <h3 style="margin: 0 0 var(--space-6) 0;">Activity Summary</h3>
+        <div class="grid grid-4" style="margin-bottom: var(--space-6);">
+            <div class="metric">
+                <div class="metric-value">{{ analysis.summary.transactions_count }}</div>
+                <div class="metric-label">Total Transactions</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.summary.purchases_count }}</div>
+                <div class="metric-label">Purchases</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ analysis.summary.sales_count }}</div>
+                <div class="metric-label">Sales</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" style="font-size: 1.5rem;">
+                    {% if analysis.summary.net_signal == 'BULLISH' %}
+                    Bullish
+                    {% elif analysis.summary.net_signal == 'SLIGHTLY_BULLISH' %}
+                    Slight Buy
+                    {% elif analysis.summary.net_signal == 'BEARISH' %}
+                    Bearish
+                    {% elif analysis.summary.net_signal == 'SLIGHTLY_BEARISH' %}
+                    Slight Sell
+                    {% else %}
+                    Neutral
+                    {% endif %}
+                </div>
+                <div class="metric-label">Net Signal ({{ analysis.summary.signal_score }})</div>
+            </div>
+        </div>
+
+        <div class="grid grid-3" style="padding-top: var(--space-6); border-top: 1px solid var(--border-hairline);">
+            <div>
+                <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-2);">Total Buy Value</div>
+                <div style="font-family: var(--font-display); font-size: 1.5rem; font-weight: 400; color: var(--text-primary); letter-spacing: -0.02em;">${{ "{:,.0f}".format(analysis.summary.total_buy_value) }}</div>
+            </div>
+            <div>
+                <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-2);">Total Sell Value</div>
+                <div style="font-family: var(--font-display); font-size: 1.5rem; font-weight: 400; color: var(--text-primary); letter-spacing: -0.02em;">${{ "{:,.0f}".format(analysis.summary.total_sell_value) }}</div>
+            </div>
+            <div>
+                <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-2);">Net Value</div>
+                <div style="font-family: var(--font-display); font-size: 1.5rem; font-weight: 400; color: var(--text-primary); letter-spacing: -0.02em;">
+                    {% if analysis.summary.net_value > 0 %}+{% endif %}${{ "{:,.0f}".format(analysis.summary.net_value) }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Analysis -->
+    {% if analysis.gemini_analysis %}
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <h3 style="margin: 0 0 var(--space-4) 0;">AI Interpretation</h3>
+        <div style="background: var(--bg-secondary); padding: var(--space-5); border-left: 1px solid var(--text-primary);">
+            <pre style="white-space: pre-wrap; margin: 0; font-family: var(--font-body); line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.gemini_analysis }}</pre>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Perplexity Context -->
+    {% if analysis.ai_context %}
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <h3 style="margin: 0 0 var(--space-4) 0;">Market Context</h3>
+        <div style="background: var(--bg-secondary); padding: var(--space-5); border-left: 1px solid var(--text-muted);">
+            <pre style="white-space: pre-wrap; margin: 0; font-family: var(--font-body); line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.ai_context }}</pre>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Patterns Detected -->
+    {% if analysis.patterns %}
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <h3 style="margin: 0 0 var(--space-6) 0;">Patterns Detected</h3>
+        <div class="grid grid-2" style="gap: var(--space-5);">
+            {% if analysis.patterns.cluster_buying %}
+            <div style="border-left: 1px solid var(--text-primary); padding-left: var(--space-4);">
+                <h3 style="font-size: 0.875rem; margin: 0 0 var(--space-2) 0; font-family: var(--font-body);">Cluster Buying</h3>
+                <p style="color: var(--text-muted); font-size: 0.8125rem; margin: 0;">
+                    Multiple insiders buying within 30 days - strong bullish signal
+                </p>
+            </div>
+            {% endif %}
+
+            {% if analysis.patterns.cluster_selling %}
+            <div style="border-left: 1px solid var(--border-default); padding-left: var(--space-4);">
+                <h3 style="font-size: 0.875rem; margin: 0 0 var(--space-2) 0; font-family: var(--font-body);">Cluster Selling</h3>
+                <p style="color: var(--text-muted); font-size: 0.8125rem; margin: 0;">
+                    Multiple insiders selling within 30 days - potential bearish signal
+                </p>
+            </div>
+            {% endif %}
+
+            {% if analysis.patterns.executive_buying %}
+            <div style="border-left: 1px solid var(--text-primary); padding-left: var(--space-4);">
+                <h3 style="font-size: 0.875rem; margin: 0 0 var(--space-2) 0; font-family: var(--font-body);">Executive Buying</h3>
+                <p style="color: var(--text-muted); font-size: 0.8125rem; margin: 0;">
+                    CEO/CFO purchases detected - highest conviction signal
+                </p>
+            </div>
+            {% endif %}
+
+            {% if analysis.patterns.unusual_size %}
+            <div style="border-left: 1px solid var(--text-muted); padding-left: var(--space-4);">
+                <h3 style="font-size: 0.875rem; margin: 0 0 var(--space-2) 0; font-family: var(--font-body);">Unusual Size</h3>
+                <p style="color: var(--text-muted); font-size: 0.8125rem; margin: 0;">
+                    Transactions over $1M detected - significant capital commitment
+                </p>
+            </div>
+            {% endif %}
+
+            {% if analysis.patterns.consistent_direction %}
+            <div style="border-left: 1px solid var(--border-default); padding-left: var(--space-4);">
+                <h3 style="font-size: 0.875rem; margin: 0 0 var(--space-2) 0; font-family: var(--font-body);">Consistent Direction</h3>
+                <p style="color: var(--text-muted); font-size: 0.8125rem; margin: 0;">
+                    80%+ of transactions in same direction - clear insider consensus
+                </p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Most Significant Transaction -->
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <h3 style="margin: 0 0 var(--space-5) 0;">Most Significant Transaction</h3>
+        <div style="background: var(--bg-secondary); padding: var(--space-5);">
+            <div class="grid grid-2" style="margin-bottom: var(--space-5);">
+                <div>
+                    <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-1);">Insider</div>
+                    <div style="font-weight: 500; color: var(--text-primary); margin-bottom: var(--space-3);">{{ analysis.summary.most_significant.insider_name }}</div>
+
+                    <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-1);">Title</div>
+                    <div style="color: var(--text-secondary); margin-bottom: var(--space-3);">{{ analysis.summary.most_significant.title }}</div>
+
+                    <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-1);">Type</div>
+                    <span class="badge {% if analysis.summary.most_significant.transaction_type == 'Purchase' %}badge-success{% else %}badge-danger{% endif %}">
+                        {{ analysis.summary.most_significant.transaction_type }}
+                    </span>
+                </div>
+                <div>
+                    <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-1);">Shares</div>
+                    <div style="font-family: var(--font-mono); font-weight: 500; color: var(--text-primary); margin-bottom: var(--space-3);">{{ "{:,.0f}".format(analysis.summary.most_significant.shares) }}</div>
+
+                    <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-1);">Price</div>
+                    <div style="font-family: var(--font-mono); color: var(--text-secondary); margin-bottom: var(--space-3);">${{ "{:.2f}".format(analysis.summary.most_significant.price) }}</div>
+
+                    <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-1);">Total Value</div>
+                    <div style="font-family: var(--font-display); font-size: 1.25rem; font-weight: 400; color: var(--text-primary);">${{ "{:,.0f}".format(analysis.summary.most_significant.value) }}</div>
+                </div>
+            </div>
+            <div style="padding-top: var(--space-4); border-top: 1px solid var(--border-hairline); display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <span style="font-size: 0.8125rem; color: var(--text-muted);">Date: </span>
+                    <span style="font-family: var(--font-mono); font-size: 0.8125rem;">{{ analysis.summary.most_significant.transaction_date[:10] }}</span>
+                    <span style="margin-left: var(--space-4); font-size: 0.8125rem; color: var(--text-muted);">Significance: </span>
+                    <span style="font-family: var(--font-mono); font-size: 0.8125rem; font-weight: 500;">{{ analysis.summary.most_significant.significance_score }}/100</span>
+                </div>
+                <a href="{{ analysis.summary.most_significant.form4_url }}" target="_blank" class="btn btn-secondary" style="padding: var(--space-2) var(--space-4); font-size: 0.75rem;">View SEC Form 4</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- All Transactions -->
+    <div class="card">
+        <h3 style="margin: 0 0 var(--space-6) 0;">All Transactions <span style="color: var(--text-muted); font-weight: 400;">(Last {{ analysis.summary.days_analyzed }} Days)</span></h3>
+        <div style="overflow-x: auto; margin: 0 calc(var(--space-6) * -1); padding: 0 var(--space-6);">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Insider</th>
+                        <th>Title</th>
+                        <th>Type</th>
+                        <th>Shares</th>
+                        <th>Price</th>
+                        <th>Value</th>
+                        <th>Score</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for txn in analysis.transactions %}
+                    <tr>
+                        <td style="font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-muted);">{{ txn.transaction_date[:10] }}</td>
+                        <td style="font-weight: 500;">{{ txn.insider_name }}</td>
+                        <td style="font-size: 0.8125rem; color: var(--text-muted);">{{ txn.title }}</td>
+                        <td>
+                            <span class="badge {% if txn.transaction_type == 'Purchase' %}badge-success{% else %}badge-danger{% endif %}">
+                                {{ txn.transaction_type }}
+                            </span>
+                        </td>
+                        <td style="font-family: var(--font-mono);">{{ "{:,.0f}".format(txn.shares) }}</td>
+                        <td style="font-family: var(--font-mono);">${{ "{:.2f}".format(txn.price) }}</td>
+                        <td style="font-family: var(--font-mono); font-weight: 500;">${{ "{:,.0f}".format(txn.value) }}</td>
+                        <td>
+                            <span style="font-family: var(--font-mono); font-size: 0.75rem; font-weight: 500; padding: var(--space-1) var(--space-2); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
+                                {{ txn.significance_score }}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="{{ txn.form4_url }}" target="_blank" class="btn btn-ghost" style="padding: var(--space-2) var(--space-3); font-size: 0.6875rem;">SEC</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+{% endblock %}

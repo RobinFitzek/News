@@ -1,0 +1,7 @@
+2026-02-04 15:26:18 - __main__ - ERROR - Error message
+2026-02-04 15:26:18 - __main__ - ERROR - Exception occurred
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/logging_config.py", line 96, in <module>
+    raise Exception("Test exception")
+Exception: Test exception
+2026-02-05 19:44:43 - core.database - ERROR - Error fetching top insider signals: name 'timedelta' is not defined

@@ -1,72 +1,92 @@
 {% extends "base.html" %}
+
+{% block title %}Watchlist — Stockholm{% endblock %}
+
 {% block content %}
-<h1 style="margin-bottom: 20px;">📋 Watchlist</h1>
-
-<!-- Add Stock -->
-<div class="card">
-    <h2>Aktie hinzufügen</h2>
-    <form action="/watchlist/add" method="POST" style="display: flex; gap: 15px; align-items: flex-end;">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <div class="form-group" style="margin: 0; flex: 1;">
-            <label>Ticker Symbol</label>
-            <input type="text" name="ticker" placeholder="z.B. AAPL" required style="text-transform: uppercase;">
+<div class="animate-fade-in">
+    <!-- Page Header -->
+    <header class="page-header">
+        <div>
+            <h1>Watchlist</h1>
+            <p>Monitor and track your target securities</p>
         </div>
-        <div class="form-group" style="margin: 0; flex: 2;">
-            <label>Name (optional)</label>
-            <input type="text" name="name" placeholder="z.B. Apple Inc.">
-        </div>
-        <button type="submit" class="btn btn-success">➕ Hinzufügen</button>
-    </form>
-</div>
+    </header>
 
-<!-- Watchlist Table -->
-<div class="card">
-    <h2>Überwachte Aktien</h2>
-    {% if watchlist %}
-    <table>
-        <thead>
-            <tr>
-                <th>Ticker</th>
-                <th>Name</th>
-                <th>Hinzugefügt am</th>
-                <th>Status</th>
-                <th></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for stock in watchlist %}
-            <tr>
-                <td><strong>{{ stock.ticker }}</strong></td>
-                <td>{{ stock.name or '-' }}</td>
-                <td>{{ stock.added_at }}</td>
-                <td>
-                    {% if stock.is_active %}
-                    <span class="status running">Aktiv</span>
-                    {% else %}
-                    <span class="status stopped">Inaktiv</span>
-                    {% endif %}
-                </td>
-                <td>
-                    {% if stock.is_active %}
-                    <form action="/watchlist/remove/{{ stock.ticker }}" method="POST" style="display: inline;">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <button type="submit" class="btn btn-danger">Entfernen</button>
-                    </form>
-                    {% else %}
-                    <form action="/watchlist/add" method="POST" style="display: inline;">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <input type="hidden" name="ticker" value="{{ stock.ticker }}">
-                        <input type="hidden" name="name" value="{{ stock.name }}">
-                        <button type="submit" class="btn btn-success">Reaktivieren</button>
-                    </form>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <p style="color: var(--text-secondary);">Keine Aktien in der Watchlist.</p>
-    {% endif %}
+    <!-- Add Stock -->
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <h3 style="margin: 0 0 var(--space-5) 0;">Add Stock</h3>
+        <form action="/watchlist/add" method="POST" style="display: flex; gap: var(--space-4); align-items: flex-end; flex-wrap: wrap;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div style="flex: 1; min-width: 150px;">
+                <label>Ticker Symbol</label>
+                <input type="text" name="ticker" placeholder="AAPL" required style="text-transform: uppercase;">
+            </div>
+            <div style="flex: 2; min-width: 200px;">
+                <label>Name (Optional)</label>
+                <input type="text" name="name" placeholder="Apple Inc.">
+            </div>
+            <button type="submit" class="btn btn-primary">Add to Watchlist</button>
+        </form>
+    </div>
+
+    <!-- Watchlist Table -->
+    <div class="card">
+        <h3 style="margin: 0 0 var(--space-6) 0;">Monitored Securities</h3>
+
+        {% if watchlist %}
+        <div style="overflow-x: auto; margin: 0 calc(var(--space-6) * -1); padding: 0 var(--space-6);">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Name</th>
+                        <th>Added</th>
+                        <th>Status</th>
+                        <th style="width: 140px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stock in watchlist %}
+                    <tr>
+                        <td>
+                            <span style="font-family: var(--font-mono); font-weight: 500; font-size: 0.9375rem;">{{ stock.ticker }}</span>
+                        </td>
+                        <td style="color: var(--text-secondary);">{{ stock.name or '—' }}</td>
+                        <td style="font-size: 0.8125rem; color: var(--text-muted);">{{ stock.added_at }}</td>
+                        <td>
+                            {% if stock.is_active %}
+                            <span class="badge badge-success">Active</span>
+                            {% else %}
+                            <span class="badge" style="background: var(--bg-secondary); color: var(--text-muted); border: 1px solid var(--border-default);">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if stock.is_active %}
+                            <form action="/watchlist/remove/{{ stock.ticker }}" method="POST" style="display: inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-danger" style="padding: var(--space-2) var(--space-4); font-size: 0.75rem;">Remove</button>
+                            </form>
+                            {% else %}
+                            <form action="/watchlist/add" method="POST" style="display: inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="ticker" value="{{ stock.ticker }}">
+                                <input type="hidden" name="name" value="{{ stock.name }}">
+                                <button type="submit" class="btn btn-primary" style="padding: var(--space-2) var(--space-4); font-size: 0.75rem;">Reactivate</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">—</div>
+            <p>No stocks in watchlist</p>
+            <p style="color: var(--text-muted); font-size: 0.875rem;">Add some tickers above to start monitoring</p>
+        </div>
+        {% endif %}
+    </div>
 </div>
 {% endblock %}

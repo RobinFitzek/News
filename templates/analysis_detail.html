@@ -1,53 +1,87 @@
 {% extends "base.html" %}
+
+{% block title %}{{ analysis.ticker }} Analysis — Stockholm{% endblock %}
+
 {% block content %}
-<a href="/history" class="btn btn-secondary" style="margin-bottom: 20px;">← Zurück zur Historie</a>
+<div class="animate-fade-in">
+    <!-- Back Button -->
+    <a href="/history" class="btn btn-ghost" style="margin-bottom: var(--space-6);">
+        ← Back to History
+    </a>
 
-<h1 style="margin-bottom: 20px;">📊 Analyse: {{ analysis.ticker }}</h1>
-
-<div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <!-- Page Header -->
+    <header class="page-header">
         <div>
-            <span class="signal {{ analysis.signal }}" style="font-size: 1.2rem; padding: 8px 16px;">
-                {{ analysis.signal }}
-            </span>
-            <span style="margin-left: 15px; font-size: 1.1rem;">
-                Konfidenz: <strong>{{ analysis.confidence }}%</strong>
-            </span>
+            <h1 style="margin-bottom: var(--space-2);">
+                <span style="font-family: var(--font-mono); letter-spacing: 0.02em;">{{ analysis.ticker }}</span>
+            </h1>
+            <p style="margin: 0;">Comprehensive AI Analysis Report</p>
         </div>
-        <div style="color: var(--text-secondary);">
+        <div style="font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-muted);">
             {{ analysis.timestamp }}
         </div>
+    </header>
+
+    <!-- Signal Card -->
+    <div class="card" style="margin-bottom: var(--space-8); position: relative; overflow: visible;">
+        <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--text-primary);"></div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
+            <div style="display: flex; align-items: center; gap: var(--space-6);">
+                <span class="signal-text signal-{{ analysis.signal|lower }}" style="font-size: 1.25rem; padding: var(--space-3) var(--space-6);">
+                    {{ analysis.signal }}
+                </span>
+                <div>
+                    <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: var(--space-1);">Confidence</div>
+                    <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; color: var(--text-primary); letter-spacing: -0.02em;">{{ analysis.confidence }}%</div>
+                </div>
+            </div>
+            <div class="progress" style="width: 200px;">
+                <div class="progress-bar" style="width: {{ analysis.confidence }}%;"></div>
+            </div>
+        </div>
     </div>
-</div>
 
-<!-- Recommendation -->
-<div class="card">
-    <h2>🎯 Empfehlung</h2>
-    <div style="white-space: pre-wrap; line-height: 1.6;">{{ analysis.recommendation or 'Keine Empfehlung verfügbar' }}
+    <!-- Recommendation -->
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
+            <span class="status-dot" style="background: var(--text-muted);"></span>
+            Recommendation
+        </h3>
+        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.recommendation or 'No recommendation available' }}</div>
     </div>
-</div>
 
-<!-- News -->
-{% if analysis.news %}
-<div class="card">
-    <h2>📰 News</h2>
-    <div style="white-space: pre-wrap; line-height: 1.6;">{{ analysis.news }}</div>
-</div>
-{% endif %}
+    <!-- News -->
+    {% if analysis.news %}
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
+            <span class="status-dot" style="background: var(--text-primary);"></span>
+            News Analysis
+        </h3>
+        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.news }}</div>
+    </div>
+    {% endif %}
 
-<!-- Fundamental -->
-{% if analysis.fundamental %}
-<div class="card">
-    <h2>📊 Fundamentalanalyse</h2>
-    <div style="white-space: pre-wrap; line-height: 1.6;">{{ analysis.fundamental }}</div>
-</div>
-{% endif %}
+    <!-- Fundamental -->
+    {% if analysis.fundamental %}
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
+            <span class="status-dot" style="background: var(--text-primary);"></span>
+            Fundamental Analysis
+        </h3>
+        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.fundamental }}</div>
+    </div>
+    {% endif %}
 
-<!-- Technical -->
-{% if analysis.technical %}
-<div class="card">
-    <h2>📈 Technische Analyse</h2>
-    <div style="white-space: pre-wrap; line-height: 1.6;">{{ analysis.technical }}</div>
+    <!-- Technical -->
+    {% if analysis.technical %}
+    <div class="card">
+        <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
+            <span class="status-dot" style="background: var(--text-primary);"></span>
+            Technical Analysis
+        </h3>
+        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.technical }}</div>
+    </div>
+    {% endif %}
 </div>
-{% endif %}
 {% endblock %}

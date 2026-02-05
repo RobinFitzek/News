@@ -6,13 +6,16 @@ from clients.perplexity_client import pplx_client
 from clients.gemini_client import gemini_client
 import yfinance as yf
 from core.database import db
+import logging
+from typing import Dict, Optional
 
 class InvestmentSwarm:
     """Multi-Agent System for automated investment analysis"""
-    
+
     def __init__(self):
         self.pplx = pplx_client
         self.gemini = gemini_client
+        self.logger = logging.getLogger(__name__)
         self._reload_api_keys()
     
     def _reload_api_keys(self):
@@ -48,54 +51,94 @@ class InvestmentSwarm:
         return final_result
     
     def stage1_scan(self, tickers: list, variant: str = "balanced") -> list:
-        """Stage 1: Flash-8b Quick Scan (Filter by Variant)"""
+        """Stage 1: Flash-8b Quick Scan with robust error handling"""
+        if not tickers:
+            self.logger.warning("Empty ticker list provided to stage1_scan")
+            return []
+
         print(f"\n🚀 STAGE 1: Scanning {len(tickers)} tickers with Flash-8b (Variant: {variant})")
         candidates = []
-        
+        errors = []
+
         for ticker in tickers:
             try:
+                # Validate ticker
+                if not ticker or not isinstance(ticker, str):
+                    self.logger.warning(f"Invalid ticker: {ticker}")
+                    continue
+
+                ticker = ticker.upper().strip()
+
+                # Get stock data with error handling
                 stock_data = self._get_stock_data(ticker)
-                
+
+                # Skip if data fetch failed
+                if 'error' in stock_data:
+                    self.logger.warning(f"Skipping {ticker} due to data error: {stock_data['error']}")
+                    errors.append({'ticker': ticker, 'error': stock_data['error']})
+                    continue
+
                 # Variant-specific nuances
                 variant_prompt = ""
                 if variant == "conservative":
                     variant_prompt = "Fokus: Maximale Sicherheit, Blue-Chips, stabile Dividenden. Sei extrem kritisch."
                 elif variant == "aggressive":
                     variant_prompt = "Fokus: High-Reward, Small-Caps, Turnaround-Chancen. Akzeptiere hohes Risiko für explosives Wachstum."
-                else: # balanced
+                else:  # balanced
                     variant_prompt = "Fokus: Ausgewogenes Verhältnis. Qualität zu fairem Preis."
 
                 prompt = f"""
                 Quick Scan für {ticker}:
                 Daten: {stock_data}
                 {variant_prompt}
-                
+
                 Gib einen 'Interest Score' von 0-100 basierend auf der Strategie.
                 0 = Uninteressant / Hohes Risiko
                 100 = Top Kandidat / Passt perfekt
-                
+
                 Format genau so: "Score: [0-100] | Grund: [Kurz]"
                 """
-                
+
+                # Call Gemini API with error handling
                 response = self.gemini.generate(prompt, tier='flash-8b')
-                
+
+                # Check if response is an error message
+                if response.startswith("⚠️") or response.startswith("❌"):
+                    self.logger.warning(f"API error for {ticker}: {response}")
+                    errors.append({'ticker': ticker, 'error': response})
+                    continue
+
                 # Parse score
                 import re
                 score_match = re.search(r"Score:\s*(\d+)", response)
                 score = int(score_match.group(1)) if score_match else 0
-                
-                print(f"  👉 {ticker}: {score} - {response.split('|')[-1].strip()[:50]}...")
-                
+
+                # Validate score range
+                score = max(0, min(100, score))
+
+                print(f"  👉 {ticker}: {score} - {response.split('|')[-1].strip()[:50] if '|' in response else 'N/A'}...")
+
                 candidates.append({
                     'ticker': ticker,
                     'score': score,
                     'initial_reason': response,
                     'data': stock_data
                 })
-                
+
+            except ValueError as e:
+                self.logger.error(f"Value error scanning {ticker}: {e}")
+                errors.append({'ticker': ticker, 'error': str(e)})
+
             except Exception as e:
+                self.logger.error(f"Unexpected error scanning {ticker}: {e}", exc_info=True)
+                errors.append({'ticker': ticker, 'error': str(e)})
                 print(f"⚠️ Scan error {ticker}: {e}")
-                
+
+        # Log summary
+        self.logger.info(f"Stage 1 complete: {len(candidates)} successful, {len(errors)} errors")
+        if errors:
+            self.logger.warning(f"Errors encountered: {errors}")
+
         # Sort by score descending
         return sorted(candidates, key=lambda x: x['score'], reverse=True)
 
@@ -129,19 +172,24 @@ class InvestmentSwarm:
         tech_focus = "Trendbestätigung und gleitende Durchschnitte"
         if variant == "aggressive": tech_focus = "Volatilität, RSI-Extrema und Ausbruchsmuster"
         if variant == "conservative": tech_focus = "Langfristige Unterstützungen und Trendstabilität"
-        
+
         tech_prompt = f"""
         Analysiere {ticker} technisch. Fokus: {tech_focus}.
         Kursverlauf: {stock_data.get('price_history', 'N/A')}
-        
+
         Erkenne Trends und Support/Resistance.
         Kurz und prägnant auf Deutsch.
         """
         results['technical'] = self.gemini.generate(tech_prompt, tier='flash')
-        
-        # Check News (Perplexity) - Optional
-        results['news'] = "News check skipped in Stage 2 to save latency/cost"
-        
+
+        # Market Insights & News (Perplexity) - PRIMARY SOURCE
+        if self.pplx.is_configured():
+            print(f"  📰 Fetching real-time market insights for {ticker}...")
+            news_scan = self.pplx.quick_scan(ticker)
+            results['news'] = news_scan['raw'] if news_scan and news_scan.get('raw') else "No recent news or market insights available"
+        else:
+            results['news'] = "⚠️ Perplexity API not configured - market insights unavailable"
+
         return results
 
     def stage3_synthesize(self, analysis_result: dict, variant: str = "balanced") -> dict:
@@ -191,34 +239,92 @@ class InvestmentSwarm:
         return analysis_result
 
     def _get_stock_data(self, ticker: str) -> dict:
-        """Get stock data from yfinance"""
+        """Get stock data from yfinance with comprehensive error handling"""
+        if not ticker or not isinstance(ticker, str):
+            self.logger.error("Invalid ticker provided")
+            return {'error': 'Invalid ticker', 'ticker': ticker}
+
+        ticker = ticker.upper().strip()
+
         try:
+            # Set timeout for yfinance requests
             stock = yf.Ticker(ticker)
-            info = stock.info
-            hist = stock.history(period="1mo")
-            
-            # Format price history nicely
-            price_summary = ""
-            if not hist.empty:
-                latest = hist['Close'].iloc[-1]
-                oldest = hist['Close'].iloc[0]
-                change = ((latest - oldest) / oldest) * 100
-                price_summary = f"Aktuell: ${latest:.2f}, 30-Tage Änderung: {change:+.1f}%"
-            
-            return {
-                'name': info.get('longName', ticker),
+
+            # Get stock info with error handling
+            try:
+                info = stock.info
+                if not info or len(info) < 3:  # yfinance returns minimal dict on error
+                    self.logger.warning(f"Minimal or no data returned for {ticker}")
+                    return {
+                        'ticker': ticker,
+                        'error': 'No data available',
+                        'name': ticker
+                    }
+            except Exception as e:
+                self.logger.error(f"Failed to get info for {ticker}: {e}")
+                info = {}
+
+            # Get historical data with error handling
+            price_summary = "N/A"
+            try:
+                hist = stock.history(period="1mo", timeout=10)
+
+                if not hist.empty and len(hist) > 0:
+                    try:
+                        latest = float(hist['Close'].iloc[-1])
+                        oldest = float(hist['Close'].iloc[0])
+
+                        if oldest > 0:
+                            change = ((latest - oldest) / oldest) * 100
+                            price_summary = f"Aktuell: ${latest:.2f}, 30-Tage Änderung: {change:+.1f}%"
+                        else:
+                            price_summary = f"Aktuell: ${latest:.2f}"
+                    except (IndexError, ValueError, ZeroDivisionError) as e:
+                        self.logger.warning(f"Error calculating price change for {ticker}: {e}")
+                        price_summary = "Preisverlauf nicht verfügbar"
+            except Exception as e:
+                self.logger.warning(f"Failed to get history for {ticker}: {e}")
+
+            # Safely extract data with defaults
+            result = {
+                'ticker': ticker,
+                'name': info.get('longName', info.get('shortName', ticker)),
                 'pe_ratio': info.get('trailingPE'),
                 'market_cap': info.get('marketCap'),
                 'revenue_growth': info.get('revenueGrowth'),
-                'current_price': info.get('currentPrice'),
+                'current_price': info.get('currentPrice', info.get('regularMarketPrice')),
                 'target_price': info.get('targetMeanPrice'),
                 'price_summary': price_summary,
-                'sector': info.get('sector'),
-                'industry': info.get('industry'),
+                'sector': info.get('sector', 'Unknown'),
+                'industry': info.get('industry', 'Unknown'),
             }
+
+            self.logger.info(f"Successfully fetched data for {ticker}")
+            return result
+
+        except ValueError as e:
+            self.logger.error(f"Invalid ticker format {ticker}: {e}")
+            return {
+                'ticker': ticker,
+                'error': f'Invalid ticker format: {str(e)}',
+                'name': ticker
+            }
+
+        except ConnectionError as e:
+            self.logger.error(f"Network error fetching {ticker}: {e}")
+            return {
+                'ticker': ticker,
+                'error': 'Network error - check internet connection',
+                'name': ticker
+            }
+
         except Exception as e:
-            print(f"❌ yfinance error for {ticker}: {e}")
-            return {'error': str(e)}
+            self.logger.error(f"Unexpected error fetching data for {ticker}: {e}", exc_info=True)
+            return {
+                'ticker': ticker,
+                'error': str(e),
+                'name': ticker
+            }
 
 # Singleton
 swarm = InvestmentSwarm()

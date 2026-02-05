@@ -1,290 +1,308 @@
 {% extends "base.html" %}
+
+{% block title %}Settings — Stockholm{% endblock %}
+
 {% block content %}
-<h1 style="margin-bottom: 20px;">⚙️ Einstellungen</h1>
+<div class="animate-fade-in">
+    <!-- Page Header -->
+    <header class="page-header">
+        <div>
+            <h1>Settings</h1>
+            <p>Configure your analysis engine and notifications</p>
+        </div>
+    </header>
 
-{% if request.query_params.get('saved') %}
-<div class="alert alert-success">✅ Einstellungen gespeichert!</div>
-{% endif %}
+    {% if request.query_params.get('saved') %}
+    <div style="background: var(--signal-positive-bg); border: 1px solid var(--border-default); color: var(--text-primary); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-6); font-weight: 500; display: flex; align-items: center; gap: var(--space-3);">
+        <span>Settings saved successfully</span>
+    </div>
+    {% endif %}
 
-
-<!-- Appearance -->
-<div class="card">
-    <h2>🎨 Design & Performance</h2>
-    <div class="grid grid-2">
-        <div class="form-group">
-            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                <div style="position: relative; width: 44px; height: 24px;">
-                    <input type="checkbox" id="performance-toggle" style="opacity: 0; width: 0; height: 0;">
-                    <span
-                        style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: var(--bg-card-hover); transition: .4s; border-radius: 34px; border: 1px solid var(--glass-border);"></span>
-                    <span
-                        style="position: absolute; content: ''; height: 18px; width: 18px; left: 3px; bottom: 2px; background-color: var(--text-secondary); transition: .4s; border-radius: 50%;"
-                        id="perf-toggle-knob"></span>
+    <!-- API Keys -->
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <h3 style="margin: 0 0 var(--space-5) 0;">API Keys</h3>
+        <p style="font-size: 0.8125rem; color: var(--text-muted); margin-bottom: var(--space-5);">
+            API keys are securely stored in the local database
+        </p>
+        <form action="/settings/api-keys" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="grid grid-2" style="margin-bottom: var(--space-5);">
+                <div>
+                    <label>Perplexity API Key</label>
+                    <input type="password" name="perplexity_key" placeholder="{% if api_keys.perplexity %}••••••••••••{% else %}pplx-xxx...{% endif %}">
+                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                        {% if api_keys.perplexity %}
+                        <span style="color: var(--text-primary);">Configured</span>
+                        {% else %}
+                        <span>Not configured</span>
+                        {% endif %}
+                        · <a href="https://perplexity.ai/settings" target="_blank" style="color: var(--text-secondary);">Get API Key</a>
+                    </div>
                 </div>
-                <span>⚡ Performance Mode (Disable Glass Effects)</span>
-            </label>
-            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 5px; margin-left: 54px;">
-                Reduces GPU usage by disabling blur filters and complex shadows.
-            </p>
-        </div>
-        <div class="form-group">
-            <button type="button" class="btn btn-secondary" onclick="window.themeManager.toggleTheme()">
-                🌓 Toggle Dark/Light Theme
-            </button>
-        </div>
+                <div>
+                    <label>Gemini API Key</label>
+                    <input type="password" name="gemini_key" placeholder="{% if api_keys.gemini %}••••••••••••{% else %}AIzaSy...{% endif %}">
+                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                        {% if api_keys.gemini %}
+                        <span style="color: var(--text-primary);">Configured</span>
+                        {% else %}
+                        <span>Not configured</span>
+                        {% endif %}
+                        · <a href="https://ai.google.dev" target="_blank" style="color: var(--text-secondary);">Get Free API Key</a>
+                    </div>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Save API Keys</button>
+        </form>
     </div>
-    <script>
-        // Simple script to handle the visual toggle state matching the ThemeManager
-        document.addEventListener('DOMContentLoaded', () => {
-            const toggle = document.getElementById('performance-toggle');
-            const knob = document.getElementById('perf-toggle-knob');
 
-            function updateVisuals() {
-                if (toggle.checked) {
-                    toggle.nextElementSibling.style.backgroundColor = 'var(--accent)';
-                    knob.style.transform = 'translateX(20px)';
-                    knob.style.backgroundColor = 'white';
-                } else {
-                    toggle.nextElementSibling.style.backgroundColor = 'var(--bg-card-hover)';
-                    knob.style.transform = 'translateX(0)';
-                    knob.style.backgroundColor = 'var(--text-secondary)';
-                }
-            }
-
-            // Sync with actual state from localStorage via checking the DOM attribute later or just relying on click
-            // Since ThemeManager handles the click, we just need to init the visual state
-            if (localStorage.getItem('performanceMode') === 'true') {
-                toggle.checked = true;
-                updateVisuals();
-            }
-
-            toggle.addEventListener('change', updateVisuals);
-        });
-    </script>
-</div>
-
-<!-- API Keys -->
-<div class="card">
-    <h2>🔑 API Keys</h2>
-    <p style="color: var(--text-secondary); margin-bottom: 15px;">
-        Deine API Keys werden sicher in der lokalen Datenbank gespeichert.
-    </p>
-    <form action="/settings/api-keys" method="POST">
+    <!-- Main Settings Form -->
+    <form action="/settings/save" method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <div class="grid grid-2">
-            <div class="form-group">
-                <label>Perplexity API Key</label>
-                <input type="password" name="perplexity_key"
-                    placeholder="{% if api_keys.perplexity %}••••••••••••{% else %}pplx-xxx...{% endif %}">
-                <small style="color: var(--text-secondary);">
-                    {% if api_keys.perplexity %}✅ Konfiguriert{% else %}❌ Nicht konfiguriert{% endif %}
-                    | <a href="https://perplexity.ai/settings" target="_blank" style="color: var(--accent);">Key
-                        holen</a>
-                </small>
-            </div>
-            <div class="form-group">
-                <label>Gemini API Key</label>
-                <input type="password" name="gemini_key"
-                    placeholder="{% if api_keys.gemini %}••••••••••••{% else %}AIzaSy...{% endif %}">
-                <small style="color: var(--text-secondary);">
-                    {% if api_keys.gemini %}✅ Konfiguriert{% else %}❌ Nicht konfiguriert{% endif %}
-                    | <a href="https://ai.google.dev" target="_blank" style="color: var(--accent);">Key holen
-                        (gratis)</a>
-                </small>
+
+        <!-- Scheduler Settings -->
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <h3 style="margin: 0 0 var(--space-5) 0;">Scheduler</h3>
+            <div class="grid grid-3">
+                <div>
+                    <label>Scan Interval (Hours)</label>
+                    <input type="number" name="scan_interval_hours" value="{{ settings.scan_interval_hours }}" min="1" max="24">
+                </div>
+                <div>
+                    <label>Active Time: Start</label>
+                    <input type="time" name="active_hours_start" value="{{ settings.active_hours_start }}">
+                </div>
+                <div>
+                    <label>Active Time: End</label>
+                    <input type="time" name="active_hours_end" value="{{ settings.active_hours_end }}">
+                </div>
             </div>
         </div>
-        <button type="submit" class="btn btn-primary">🔑 API Keys speichern</button>
-    </form>
-</div>
 
-<!-- Scheduler Settings -->
-<form action="/settings/save" method="POST">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <div class="card">
-        <h2>⏰ Scheduler</h2>
-        <div class="grid grid-3">
-            <div class="form-group">
-                <label>Scan-Intervall (Stunden)</label>
-                <input type="number" name="scan_interval_hours" value="{{ settings.scan_interval_hours }}" min="1"
-                    max="24">
-            </div>
-            <div class="form-group">
-                <label>Aktive Zeit: Start</label>
-                <input type="time" name="active_hours_start" value="{{ settings.active_hours_start }}">
-            </div>
-            <div class="form-group">
-                <label>Aktive Zeit: Ende</label>
-                <input type="time" name="active_hours_end" value="{{ settings.active_hours_end }}">
-            </div>
-        </div>
-    </div>
-
-    <!-- Email Settings -->
-    <div class="card">
-        <h2>📧 Email Benachrichtigungen</h2>
-        <div class="grid grid-2">
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" name="email_enabled" {% if settings.email_enabled %}checked{% endif %}>
-                    Email Benachrichtigungen aktiviert
+        <!-- Email Settings -->
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-hairline);">
+                <h3 style="margin: 0;">Email Notifications</h3>
+                <label class="checkbox-wrapper">
+                    <input type="checkbox" id="email-toggle" name="email_enabled" {% if settings.email_enabled %}checked{% endif %} onchange="toggleEmailSettings()">
+                    <div class="checkbox-custom"></div>
+                    <span class="checkbox-label">Enable Notifications</span>
                 </label>
             </div>
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" name="notify_on_strong_signals" {% if settings.notify_on_strong_signals
-                        %}checked{% endif %}>
-                    Nur bei Strong Buy/Sell benachrichtigen
-                </label>
+
+            <div id="email-settings-container">
+                <div class="grid grid-2" style="margin-bottom: var(--space-5);">
+                    <div>
+                        <label>Recipient Email</label>
+                        <input type="email" name="email_recipient" value="{{ settings.email_recipient }}" placeholder="your@email.com">
+                    </div>
+                    <div style="display: flex; align-items: center; padding-top: var(--space-6);">
+                        <label class="checkbox-wrapper">
+                            <input type="checkbox" name="notify_on_strong_signals" {% if settings.notify_on_strong_signals %}checked{% endif %}>
+                            <div class="checkbox-custom"></div>
+                            <span class="checkbox-label">Only Strong BUY/SELL Signals</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="grid grid-2" style="margin-bottom: var(--space-5);">
+                    <div>
+                        <label>SMTP Host</label>
+                        <input type="text" name="email_smtp_host" value="{{ settings.email_smtp_host }}" placeholder="smtp.gmail.com">
+                    </div>
+                    <div>
+                        <label>SMTP Port</label>
+                        <input type="number" name="email_smtp_port" value="{{ settings.email_smtp_port }}">
+                    </div>
+                </div>
+
+                <div class="grid grid-2" style="margin-bottom: var(--space-5);">
+                    <div>
+                        <label>SMTP User</label>
+                        <input type="email" name="email_smtp_user" value="{{ settings.email_smtp_user }}">
+                    </div>
+                    <div>
+                        <label>SMTP Password</label>
+                        <input type="password" name="email_smtp_password" placeholder="{% if settings.email_smtp_password %}••••••••{% else %}App password{% endif %}">
+                    </div>
+                </div>
+
+                <div style="padding-top: var(--space-5); border-top: 1px solid var(--border-hairline);">
+                    <div class="grid grid-2">
+                        <div style="display: flex; align-items: center;">
+                            <label class="checkbox-wrapper">
+                                <input type="checkbox" name="daily_summary_enabled" {% if settings.daily_summary_enabled %}checked{% endif %}>
+                                <div class="checkbox-custom"></div>
+                                <span class="checkbox-label">Send Daily Summary</span>
+                            </label>
+                        </div>
+                        <div>
+                            <label>Summary Time</label>
+                            <input type="time" name="daily_summary_time" value="{{ settings.daily_summary_time }}">
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="grid grid-2">
-            <div class="form-group">
-                <label>Empfänger Email</label>
-                <input type="email" name="email_recipient" value="{{ settings.email_recipient }}"
-                    placeholder="deine@email.de">
-            </div>
-            <div class="form-group">
-                <label>SMTP Host</label>
-                <input type="text" name="email_smtp_host" value="{{ settings.email_smtp_host }}"
-                    placeholder="smtp.gmail.com">
-            </div>
-        </div>
+        <!-- Analysis Settings -->
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <h3 style="margin: 0 0 var(--space-6) 0;">Analysis Configuration</h3>
 
-        <div class="grid grid-3">
-            <div class="form-group">
-                <label>SMTP Port</label>
-                <input type="number" name="email_smtp_port" value="{{ settings.email_smtp_port }}">
-            </div>
-            <div class="form-group">
-                <label>SMTP User</label>
-                <input type="email" name="email_smtp_user" value="{{ settings.email_smtp_user }}">
-            </div>
-            <div class="form-group">
-                <label>SMTP Passwort</label>
-                <input type="password" name="email_smtp_password"
-                    placeholder="{% if settings.email_smtp_password %}••••••••{% else %}App-Passwort{% endif %}">
-            </div>
-        </div>
-
-        <div class="grid grid-2">
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" name="daily_summary_enabled" {% if settings.daily_summary_enabled %}checked{%
-                        endif %}>
-                    Tägliche Zusammenfassung senden
-                </label>
-            </div>
-            <div class="form-group">
-                <label>Zusammenfassung um</label>
-                <input type="time" name="daily_summary_time" value="{{ settings.daily_summary_time }}">
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <h2>📊 Analyse-Algorithmus & Varianten</h2>
-
-        <div class="grid grid-1">
-            <div class="form-group">
-                <label>Analyse-Variante</label>
-                <select name="analysis_variant"
-                    style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-primary); font-size: 1rem;">
+            <!-- Analysis Variant -->
+            <div style="margin-bottom: var(--space-6);">
+                <label style="margin-bottom: var(--space-3); display: block;">Analysis Variant</label>
+                <select name="analysis_variant">
                     <option value="conservative" {% if settings.analysis_variant=='conservative' %}selected{% endif %}>
-                        🛡️ Konservativ (Watchlist Fokus, Strenge Filter, Tiefes Risiko)
+                        Conservative — Watchlist focus, strict filters, low risk
                     </option>
-                    <option value="balanced" {% if settings.analysis_variant=='balanced' or not
-                        settings.analysis_variant %}selected{% endif %}>
-                        ⚖️ Ausgewogen (Standard Distribution, Mix aus Risiko/Chance)
+                    <option value="balanced" {% if settings.analysis_variant=='balanced' or not settings.analysis_variant %}selected{% endif %}>
+                        Balanced — Standard distribution, mixed risk/reward
                     </option>
                     <option value="aggressive" {% if settings.analysis_variant=='aggressive' %}selected{% endif %}>
-                        🚀 Aggressiv (Watchlist + Discovery, Hohes Risiko/Momentum)
+                        Aggressive — Watchlist + discovery, high risk/momentum
                     </option>
                 </select>
             </div>
-        </div>
 
-        <div style="margin-top: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
-            <div
-                style="padding: 15px; background: rgba(16, 185, 129, 0.1); border-radius: 10px; border: 1px solid rgba(16, 185, 129, 0.3);">
-                <h4 style="margin: 0 0 10px 0; color: #10b981;">🛡️ Konservativ</h4>
-                <p style="font-size: 0.85rem; margin: 0; color: var(--text-secondary);">
-                    Filtert sehr streng auf Blue-Chips und Dividenden. Nur Watchlist-Aktien werden analysiert.
-                    Risk-Level wird kritisch bewertet.
-                </p>
-            </div>
-            <div
-                style="padding: 15px; background: rgba(59, 130, 246, 0.1); border-radius: 10px; border: 1px solid rgba(59, 130, 246, 0.3);">
-                <h4 style="margin: 0 0 10px 0; color: #3b82f6;">⚖️ Ausgewogen</h4>
-                <p style="font-size: 0.85rem; margin: 0; color: var(--text-secondary);">
-                    Die Standard-Einstellung. Optimiert auf die 50-Request Verteilung. Solide Analyse aller
-                    Watchlist-Kandidaten.
-                </p>
-            </div>
-            <div
-                style="padding: 15px; background: rgba(245, 158, 11, 0.1); border-radius: 10px; border: 1px solid rgba(245, 158, 11, 0.3);">
-                <h4 style="margin: 0 0 10px 0; color: #f59e0b;">🚀 Aggressiv</h4>
-                <p style="font-size: 0.85rem; margin: 0; color: var(--text-secondary);">
-                    Bezieht "Market Discovery" ein. Sucht auch außerhalb der Watchlist nach Chancen. Akzeptiert höhere
-                    Volatilität für mehr Rendite.
-                </p>
-            </div>
-        </div>
-
-        <div
-            style="margin-top: 25px; padding: 20px; background: var(--bg-secondary); border-radius: 12px; border: 1px dashed var(--border-color);">
-            <h3 style="font-size: 1.1rem; margin-top: 0; display: flex; align-items: center; gap: 10px;">
-                📅 Tägliches Request-Budget (100% Kostenlos)
-                <span
-                    style="background: #10b981; color: white; font-size: 0.7rem; padding: 2px 8px; border-radius: 20px;">AKTIV</span>
-            </h3>
-            <div class="grid grid-3" style="margin-top: 15px;">
-                <div style="text-align: center;">
-                    <div style="font-size: 1.5rem; font-weight: bold; color: var(--text-primary);">30x</div>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Gemini Flash-8b</div>
-                    <div style="font-size: 0.7rem; color: #10b981; font-weight: bold;">Screening</div>
+            <!-- Variant Cards -->
+            <div class="grid grid-3" style="margin-bottom: var(--space-8);">
+                <div style="padding: var(--space-5); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
+                    <div style="font-weight: 500; margin-bottom: var(--space-2); color: var(--text-primary);">Conservative</div>
+                    <p style="font-size: 0.75rem; margin: 0; color: var(--text-muted); line-height: 1.5;">
+                        Very strict filtering on blue-chips and dividends. Only watchlist stocks are analyzed.
+                    </p>
                 </div>
-                <div
-                    style="text-align: center; border-left: 1px solid var(--border-color); border-right: 1px solid var(--border-color);">
-                    <div style="font-size: 1.5rem; font-weight: bold; color: var(--text-primary);">15x</div>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Gemini Flash</div>
-                    <div style="font-size: 0.7rem; color: #3b82f6; font-weight: bold;">Deep Analysis</div>
+                <div style="padding: var(--space-5); background: var(--bg-secondary); border: 1px solid var(--text-primary);">
+                    <div style="font-weight: 500; margin-bottom: var(--space-2); color: var(--text-primary);">Balanced</div>
+                    <p style="font-size: 0.75rem; margin: 0; color: var(--text-muted); line-height: 1.5;">
+                        Default setting. Optimized for balanced request distribution. Solid analysis coverage.
+                    </p>
                 </div>
-                <div style="text-align: center;">
-                    <div style="font-size: 1.5rem; font-weight: bold; color: var(--text-primary);">5x</div>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Gemini Pro</div>
-                    <div style="font-size: 0.7rem; color: #a855f7; font-weight: bold;">Final Verdict</div>
+                <div style="padding: var(--space-5); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
+                    <div style="font-weight: 500; margin-bottom: var(--space-2); color: var(--text-primary);">Aggressive</div>
+                    <p style="font-size: 0.75rem; margin: 0; color: var(--text-muted); line-height: 1.5;">
+                        Includes Market Discovery. Searches beyond watchlist for opportunities.
+                    </p>
                 </div>
             </div>
-            <p style="text-align: center; margin-top: 15px; font-size: 0.8rem; color: var(--text-secondary);">
-                Gesamt: <strong>50 Requests/Tag</strong> | Kosten: <strong>$0.00</strong>
-            </p>
-        </div>
 
-        <div class="grid grid-3" style="margin-top: 20px;">
-            <div class="form-group">
-                <label>
+            <!-- Request Budget -->
+            <div style="padding: var(--space-6); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
+                <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5);">
+                    <h3 style="margin: 0; font-size: 1rem; font-family: var(--font-body);">Daily Request Budget</h3>
+                    <span style="background: var(--bg-inverse); color: var(--text-inverse); font-size: 0.5625rem; font-weight: 500; padding: 2px 8px; text-transform: uppercase; letter-spacing: 0.06em;">Free Tier</span>
+                </div>
+
+                <!-- Tier Selection -->
+                <div class="grid grid-3" style="gap: var(--space-4); margin-bottom: var(--space-5);">
+                    <!-- MIN Tier -->
+                    <label class="tier-option {% if settings.request_budget_tier == 'min' %}active{% endif %}">
+                        <input type="radio" name="request_budget_tier" value="min" {% if settings.request_budget_tier == 'min' %}checked{% endif %}>
+                        <div class="tier-content">
+                            <div class="tier-number">30</div>
+                            <div class="tier-name">Minimal</div>
+                            <div class="tier-details">
+                                5 Perplexity<br>25 Gemini
+                            </div>
+                            <div class="tier-coverage">5-10 stocks</div>
+                        </div>
+                    </label>
+
+                    <!-- AVG Tier -->
+                    <label class="tier-option {% if settings.request_budget_tier == 'avg' or not settings.request_budget_tier %}active{% endif %}">
+                        <input type="radio" name="request_budget_tier" value="avg" {% if settings.request_budget_tier == 'avg' or not settings.request_budget_tier %}checked{% endif %}>
+                        <div class="tier-content">
+                            <div class="tier-number">60</div>
+                            <div class="tier-name">Balanced</div>
+                            <div class="tier-badge">Recommended</div>
+                            <div class="tier-details">
+                                10 Perplexity<br>50 Gemini
+                            </div>
+                            <div class="tier-coverage">10-20 stocks</div>
+                        </div>
+                    </label>
+
+                    <!-- MAX Tier -->
+                    <label class="tier-option {% if settings.request_budget_tier == 'max' %}active{% endif %}">
+                        <input type="radio" name="request_budget_tier" value="max" {% if settings.request_budget_tier == 'max' %}checked{% endif %}>
+                        <div class="tier-content">
+                            <div class="tier-number">110</div>
+                            <div class="tier-name">Maximum</div>
+                            <div class="tier-details">
+                                20 Perplexity<br>90 Gemini
+                            </div>
+                            <div class="tier-coverage">20-40 stocks</div>
+                        </div>
+                    </label>
+                </div>
+
+                <div style="text-align: center; font-size: 0.75rem; color: var(--text-muted);">
+                    All tiers: <span style="font-weight: 500;">100% Free</span> · Cost: <span style="font-weight: 500;">$0.00</span>
+                </div>
+            </div>
+
+            <!-- Analysis Toggles -->
+            <div class="grid grid-3" style="margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--border-hairline);">
+                <label class="checkbox-wrapper">
                     <input type="checkbox" name="include_news" {% if settings.include_news %}checked{% endif %}>
-                    News einbeziehen
+                    <div class="checkbox-custom"></div>
+                    <span class="checkbox-label">Include News</span>
                 </label>
-            </div>
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" name="include_fundamental" {% if settings.include_fundamental %}checked{%
-                        endif %}>
-                    Fundamentalanalyse
+                <label class="checkbox-wrapper">
+                    <input type="checkbox" name="include_fundamental" {% if settings.include_fundamental %}checked{% endif %}>
+                    <div class="checkbox-custom"></div>
+                    <span class="checkbox-label">Fundamental Analysis</span>
                 </label>
-            </div>
-            <div class="form-group">
-                <label>
-                    <input type="checkbox" name="include_technical" {% if settings.include_technical %}checked{% endif
-                        %}>
-                    Technische Analyse
+                <label class="checkbox-wrapper">
+                    <input type="checkbox" name="include_technical" {% if settings.include_technical %}checked{% endif %}>
+                    <div class="checkbox-custom"></div>
+                    <span class="checkbox-label">Technical Analysis</span>
                 </label>
             </div>
         </div>
-    </div>
 
-    <button type="submit" class="btn btn-success" style="width: 100%;">💾 Alle Einstellungen speichern</button>
-</form>
+        <!-- Spacer for sticky footer -->
+        <div class="sticky-footer-spacer"></div>
+
+        <!-- Sticky Save Bar -->
+        <div class="sticky-footer">
+            <button type="submit" class="btn btn-primary">Save All Settings</button>
+        </div>
+    </form>
+</div>
+
+<script>
+    function toggleEmailSettings() {
+        const toggle = document.getElementById('email-toggle');
+        const container = document.getElementById('email-settings-container');
+
+        if (toggle.checked) {
+            container.classList.remove('section-disabled');
+        } else {
+            container.classList.add('section-disabled');
+        }
+    }
+
+    function setupTierSelection() {
+        const tierOptions = document.querySelectorAll('.tier-option');
+
+        tierOptions.forEach(option => {
+            option.addEventListener('click', function() {
+                tierOptions.forEach(opt => opt.classList.remove('active'));
+                this.classList.add('active');
+
+                const radio = this.querySelector('input[type="radio"]');
+                if (radio) {
+                    radio.checked = true;
+                }
+            });
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        toggleEmailSettings();
+        setupTierSelection();
+    });
+</script>
 {% endblock %}
