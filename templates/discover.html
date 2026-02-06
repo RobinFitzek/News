@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{% block title %}Discover — Stockholm{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+    <!-- Page Header -->
+    <header class="page-header">
+        <div>
+            <h1>Stock Discovery</h1>
+            <p>AI-powered market scanning to find new opportunities</p>
+        </div>
+    </header>
+
+    {% if not perplexity_configured %}
+    <div class="card" style="border-left: 1px solid var(--text-primary);">
+        <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4);">
+            <h3 style="margin: 0;">Perplexity Not Configured</h3>
+        </div>
+        <p style="color: var(--text-muted); margin-bottom: var(--space-5);">
+            Please configure your Perplexity API key in Settings to use stock discovery.
+        </p>
+        <a href="/settings" class="btn btn-primary">Go to Settings</a>
+    </div>
+    {% else %}
+
+    <!-- Discovery Form -->
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+            <h3 style="margin: 0;">Discover New Stocks</h3>
+            <div style="text-align: right;">
+                <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em;">API Usage Today</div>
+                <div style="font-family: var(--font-mono); font-size: 1rem; font-weight: 500; color: var(--text-primary);">
+                    {{ api_usage.used_today }}<span style="color: var(--text-muted);">/{{ api_usage.daily_limit }}</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 400;">({{ api_usage.remaining }} remaining)</span>
+                </div>
+            </div>
+        </div>
+
+        <form id="discoveryForm">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div class="grid grid-3" style="margin-bottom: var(--space-5);">
+                <div>
+                    <label>Sector (Optional)</label>
+                    <select name="sector">
+                        <option value="">All Sectors</option>
+                        <option value="Technology">Technology</option>
+                        <option value="Healthcare">Healthcare</option>
+                        <option value="Finance">Finance</option>
+                        <option value="Energy">Energy</option>
+                        <option value="Consumer">Consumer</option>
+                        <option value="Industrial">Industrial</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Investment Focus</label>
+                    <select name="focus">
+                        <option value="balanced">Balanced</option>
+                        <option value="growth">Growth</option>
+                        <option value="value">Value</option>
+                        <option value="dividend">Dividend</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Number of Stocks</label>
+                    <input type="number" name="limit" value="5" min="1" max="10">
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="discoverBtn" {% if api_usage.remaining <= 0 %}disabled{% endif %}>
+                Discover Stocks
+            </button>
+
+            {% if api_usage.remaining <= 0 %}
+            <p style="color: var(--text-primary); margin-top: var(--space-4); font-size: 0.8125rem;">
+                Daily API limit reached. Discovery will be available tomorrow.
+            </p>
+            {% else %}
+            <p style="color: var(--text-muted); margin-top: var(--space-4); font-size: 0.8125rem;">
+                Uses 1 API call. Discovery takes 20-30 seconds.
+            </p>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loadingState" class="card" style="display: none;">
+        <div style="text-align: center; padding: var(--space-12);">
+            <div class="spinner" style="margin: 0 auto var(--space-5) auto;"></div>
+            <h3 style="margin: 0 0 var(--space-2) 0;">Analyzing Market Trends</h3>
+            <p style="color: var(--text-muted); margin: 0; font-size: 0.875rem;">
+                Scanning real-time market data, news, and momentum...
+            </p>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div id="resultsContainer" style="display: none;"></div>
+
+    <!-- How It Works -->
+    <div class="card">
+        <h3 style="margin: 0 0 var(--space-6) 0;">How It Works</h3>
+        <div class="grid grid-2" style="gap: var(--space-5);">
+            <div style="padding-left: var(--space-4); border-left: 1px solid var(--text-primary);">
+                <h3 style="margin: 0 0 var(--space-2) 0; font-size: 0.875rem; font-family: var(--font-body);">Real-Time Analysis</h3>
+                <p style="margin: 0; font-size: 0.8125rem; color: var(--text-muted); line-height: 1.6;">
+                    Perplexity AI scans current market trends, breaking news, analyst upgrades, and momentum
+                </p>
+            </div>
+            <div style="padding-left: var(--space-4); border-left: 1px solid var(--text-muted);">
+                <h3 style="margin: 0 0 var(--space-2) 0; font-size: 0.875rem; font-family: var(--font-body);">Smart Scoring</h3>
+                <p style="margin: 0; font-size: 0.8125rem; color: var(--text-muted); line-height: 1.6;">
+                    Each stock gets a 0-100 score based on catalyst potential, sentiment, and opportunity
+                </p>
+            </div>
+            <div style="padding-left: var(--space-4); border-left: 1px solid var(--border-default);">
+                <h3 style="margin: 0 0 var(--space-2) 0; font-size: 0.875rem; font-family: var(--font-body);">Catalyst Tracking</h3>
+                <p style="margin: 0; font-size: 0.8125rem; color: var(--text-muted); line-height: 1.6;">
+                    Identifies upcoming events (earnings, FDA decisions, product launches) that could move prices
+                </p>
+            </div>
+            <div style="padding-left: var(--space-4); border-left: 1px solid var(--border-default);">
+                <h3 style="margin: 0 0 var(--space-2) 0; font-size: 0.875rem; font-family: var(--font-body);">Auto-Filtering</h3>
+                <p style="margin: 0; font-size: 0.8125rem; color: var(--text-muted); line-height: 1.6;">
+                    Automatically filters out stocks already in your watchlist to find NEW opportunities
+                </p>
+            </div>
+        </div>
+    </div>
+
+    {% endif %}
+</div>
+
+<style>
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--border-default);
+    border-top-color: var(--text-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.stock-card {
+    padding: var(--space-5);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-hairline);
+    margin-bottom: var(--space-4);
+    transition: all 0.15s ease;
+}
+
+.stock-card:hover {
+    border-color: var(--border-default);
+}
+
+.score-badge {
+    padding: var(--space-2) var(--space-4);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid var(--border-default);
+    background: var(--bg-primary);
+}
+
+.score-high {
+    border-color: var(--text-primary);
+}
+
+.score-medium {
+    border-color: var(--border-default);
+}
+
+.score-low {
+    border-color: var(--border-hairline);
+    color: var(--text-muted);
+}
+</style>
+
+<script>
+document.getElementById('discoveryForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    document.getElementById('loadingState').style.display = 'block';
+    document.getElementById('resultsContainer').style.display = 'none';
+    document.getElementById('discoverBtn').disabled = true;
+
+    const formData = new FormData(e.target);
+
+    try {
+        const response = await fetch('/discover', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+        document.getElementById('loadingState').style.display = 'none';
+
+        if (result.success) {
+            displayResults(result);
+        } else {
+            displayError(result.error || 'Discovery failed');
+        }
+    } catch (error) {
+        document.getElementById('loadingState').style.display = 'none';
+        displayError('Network error: ' + error.message);
+    } finally {
+        document.getElementById('discoverBtn').disabled = false;
+    }
+});
+
+function displayResults(result) {
+    const container = document.getElementById('resultsContainer');
+
+    if (!result.stocks || result.stocks.length === 0) {
+        container.innerHTML = `
+            <div class="card empty-state">
+                <div class="empty-state-icon">—</div>
+                <h3 style="margin: 0 0 var(--space-2) 0; color: var(--text-secondary);">No New Stocks Found</h3>
+                <p style="color: var(--text-muted); margin: 0;">
+                    All discovered stocks are already in your watchlist, or no stocks matched the criteria.
+                </p>
+            </div>
+        `;
+        container.style.display = 'block';
+        return;
+    }
+
+    let html = `
+        <div class="card" style="margin-bottom: var(--space-6);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5);">
+                <h3 style="margin: 0;">Discovered Stocks (${result.stocks.length})</h3>
+            </div>
+            <p style="color: var(--text-muted); margin: 0 0 var(--space-5) 0; font-size: 0.8125rem;">
+                Based on current market trends and real-time intelligence
+            </p>
+    `;
+
+    result.stocks.forEach(stock => {
+        const scoreClass = stock.score >= 70 ? 'score-high' : stock.score >= 50 ? 'score-medium' : 'score-low';
+        const scoreLabel = stock.score >= 70 ? 'High' : stock.score >= 50 ? 'Medium' : 'Low';
+
+        html += `
+            <div class="stock-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+                    <span style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 500;">${stock.ticker}</span>
+                    <span class="score-badge ${scoreClass}">${stock.score}/100 (${scoreLabel})</span>
+                </div>
+                <div style="margin-bottom: var(--space-3);">
+                    <span style="font-weight: 500; color: var(--text-secondary);">Reason:</span>
+                    <span style="color: var(--text-primary);">${stock.reason}</span>
+                </div>
+                <div style="margin-bottom: var(--space-4); color: var(--text-muted);">
+                    <span style="font-weight: 500; color: var(--text-secondary);">Catalyst:</span> ${stock.catalyst}
+                </div>
+                <div style="display: flex; gap: var(--space-3);">
+                    <button onclick="addToWatchlist('${stock.ticker}')" class="btn btn-primary">Add to Watchlist</button>
+                    <a href="/analyze?ticker=${stock.ticker}" class="btn btn-secondary">Analyze Now</a>
+                </div>
+            </div>
+        `;
+    });
+
+    html += '</div>';
+
+    if (result.raw_analysis) {
+        html += `
+            <div class="card">
+                <h3 style="margin: 0 0 var(--space-4) 0;">Full Analysis</h3>
+                <pre style="white-space: pre-wrap; color: var(--text-secondary); line-height: 1.6; font-size: 0.8125rem; font-family: var(--font-body);">${result.raw_analysis}</pre>
+            </div>
+        `;
+    }
+
+    container.innerHTML = html;
+    container.style.display = 'block';
+}
+
+function displayError(message) {
+    const container = document.getElementById('resultsContainer');
+    container.innerHTML = `
+        <div class="card" style="border-left: 1px solid var(--text-primary);">
+            <h3 style="margin: 0 0 var(--space-2) 0;">Error</h3>
+            <p style="color: var(--text-muted); margin: 0;">${message}</p>
+        </div>
+    `;
+    container.style.display = 'block';
+}
+
+async function addToWatchlist(ticker) {
+    const csrfToken = document.querySelector('[name="csrf_token"]').value;
+
+    try {
+        const formData = new FormData();
+        formData.append('ticker', ticker);
+        formData.append('csrf_token', csrfToken);
+
+        const response = await fetch('/watchlist/add', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (response.ok) {
+            window.dashboardUtils?.showToast(`${ticker} added to watchlist`, 'success');
+        } else {
+            window.dashboardUtils?.showToast(`Failed to add ${ticker}`, 'danger');
+        }
+    } catch (error) {
+        window.dashboardUtils?.showToast(`Error: ${error.message}`, 'danger');
+    }
+}
+</script>
+
+{% endblock %}

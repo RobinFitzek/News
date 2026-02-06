@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Insider Activity — Stockholm{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+    <!-- Page Header -->
+    <header class="page-header">
+        <div>
+            <h1>Insider Trading</h1>
+            <p>Track SEC Form 4 filings and executive transactions</p>
+        </div>
+        <button onclick="scanWatchlist()" class="btn btn-primary" id="scanBtn">
+            Scan Watchlist
+        </button>
+    </header>
+
+    <!-- Signal Types -->
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <div class="grid grid-3">
+            <div style="padding-left: var(--space-4); border-left: 1px solid var(--text-primary);">
+                <h3 style="margin: 0 0 var(--space-2) 0; font-size: 0.875rem;">Insider Buying</h3>
+                <p style="margin: 0; font-size: 0.8125rem; color: var(--text-muted); line-height: 1.6;">
+                    Strong bullish signal — insiders know their company best
+                </p>
+            </div>
+            <div style="padding-left: var(--space-4); border-left: 1px solid var(--text-muted);">
+                <h3 style="margin: 0 0 var(--space-2) 0; font-size: 0.875rem;">High Significance</h3>
+                <p style="margin: 0; font-size: 0.8125rem; color: var(--text-muted); line-height: 1.6;">
+                    CEO/CFO transactions carry more weight than regular insiders
+                </p>
+            </div>
+            <div style="padding-left: var(--space-4); border-left: 1px solid var(--border-default);">
+                <h3 style="margin: 0 0 var(--space-2) 0; font-size: 0.875rem;">Insider Selling</h3>
+                <p style="margin: 0; font-size: 0.8125rem; color: var(--text-muted); line-height: 1.6;">
+                    Often neutral (compensation), but clusters can be bearish
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading State -->
+    <div id="loadingState" class="card" style="display: none;">
+        <div style="text-align: center; padding: var(--space-12);">
+            <div class="spinner" style="margin: 0 auto var(--space-5) auto;"></div>
+            <h3 style="margin: 0 0 var(--space-2) 0;">Scanning SEC Filings</h3>
+            <p style="color: var(--text-muted); margin: 0; font-size: 0.875rem;">
+                Fetching Form 4 filings from SEC Edgar database...
+            </p>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div id="resultsContainer">
+        {% if top_signals %}
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <h3 style="margin: 0 0 var(--space-2) 0;">Top Insider Signals</h3>
+            <p style="color: var(--text-muted); margin: 0 0 var(--space-6) 0; font-size: 0.8125rem;">
+                High-significance transactions from the past 30 days
+            </p>
+
+            <div style="overflow-x: auto; margin: 0 calc(var(--space-6) * -1); padding: 0 var(--space-6);">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Ticker</th>
+                            <th>Signal</th>
+                            <th>Txns</th>
+                            <th>Buy Value</th>
+                            <th>Sell Value</th>
+                            <th>Net</th>
+                            <th>Significance</th>
+                            <th>Latest</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for signal in top_signals %}
+                        <tr>
+                            <td>
+                                <span style="font-family: var(--font-mono); font-weight: 500;">{{ signal.ticker }}</span>
+                            </td>
+                            <td>
+                                {% if signal.signal == 'BULLISH' %}
+                                <span class="badge badge-success">Bullish</span>
+                                {% elif signal.signal == 'BEARISH' %}
+                                <span class="badge badge-danger">Bearish</span>
+                                {% else %}
+                                <span class="badge" style="background: var(--bg-secondary); color: var(--text-muted); border: 1px solid var(--border-hairline);">Neutral</span>
+                                {% endif %}
+                            </td>
+                            <td style="font-family: var(--font-mono);">{{ signal.transaction_count }}</td>
+                            <td style="font-family: var(--font-mono);">${{ "{:,.0f}".format(signal.buy_value) }}</td>
+                            <td style="font-family: var(--font-mono);">${{ "{:,.0f}".format(signal.sell_value) }}</td>
+                            <td style="font-family: var(--font-mono); font-weight: 500;">
+                                {% if signal.net_value > 0 %}+{% endif %}${{ "{:,.0f}".format(signal.net_value) }}
+                            </td>
+                            <td>
+                                <span style="font-family: var(--font-mono); padding: var(--space-1) var(--space-2); font-size: 0.75rem; font-weight: 500; background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
+                                    {{ signal.max_significance }}
+                                </span>
+                            </td>
+                            <td style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">{{ signal.latest_date[:10] }}</td>
+                            <td>
+                                <a href="/insider-activity/{{ signal.ticker }}" class="btn btn-ghost" style="padding: var(--space-2) var(--space-3); font-size: 0.75rem;">Details</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="card empty-state" style="margin-bottom: var(--space-8);">
+            <div class="empty-state-icon">—</div>
+            <h3 style="margin: 0 0 var(--space-2) 0; color: var(--text-secondary);">No Insider Activity</h3>
+            <p style="color: var(--text-muted); margin: 0;">
+                No recent high-significance insider transactions found. Click "Scan Watchlist" to fetch latest data from SEC.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- How to Interpret -->
+    <div class="card">
+        <h3 style="margin: 0 0 var(--space-6) 0;">How to Interpret Insider Trading</h3>
+        <div class="grid grid-2" style="gap: var(--space-6);">
+            <div style="padding-left: var(--space-4); border-left: 1px solid var(--text-primary);">
+                <h3 style="margin: 0 0 var(--space-3) 0; font-size: 0.875rem; font-family: var(--font-body);">Bullish Signals</h3>
+                <ul style="color: var(--text-muted); font-size: 0.8125rem; line-height: 1.8; padding-left: var(--space-5); margin: 0;">
+                    <li>CEO/CFO making large purchases</li>
+                    <li>Multiple insiders buying simultaneously (cluster)</li>
+                    <li>Purchases after stock decline</li>
+                    <li>Net buying exceeds net selling</li>
+                </ul>
+            </div>
+            <div style="padding-left: var(--space-4); border-left: 1px solid var(--border-default);">
+                <h3 style="margin: 0 0 var(--space-3) 0; font-size: 0.875rem; font-family: var(--font-body);">Bearish Signals</h3>
+                <ul style="color: var(--text-muted); font-size: 0.8125rem; line-height: 1.8; padding-left: var(--space-5); margin: 0;">
+                    <li>Multiple executives selling simultaneously</li>
+                    <li>CEO selling large percentage of holdings</li>
+                    <li>Sales at 52-week highs</li>
+                    <li>Heavy net selling over 90 days</li>
+                </ul>
+            </div>
+            <div style="padding-left: var(--space-4); border-left: 1px solid var(--text-muted);">
+                <h3 style="margin: 0 0 var(--space-3) 0; font-size: 0.875rem; font-family: var(--font-body);">Significance Score</h3>
+                <ul style="color: var(--text-muted); font-size: 0.8125rem; line-height: 1.8; padding-left: var(--space-5); margin: 0;">
+                    <li><span style="color: var(--text-primary); font-weight: 500;">90-100:</span> Exceptional signal strength</li>
+                    <li><span style="color: var(--text-primary); font-weight: 500;">70-89:</span> High significance</li>
+                    <li><span style="color: var(--text-primary); font-weight: 500;">50-69:</span> Moderate signal</li>
+                    <li><span style="color: var(--text-primary); font-weight: 500;">&lt;50:</span> Low significance</li>
+                </ul>
+            </div>
+            <div style="padding-left: var(--space-4); border-left: 1px solid var(--border-default);">
+                <h3 style="margin: 0 0 var(--space-3) 0; font-size: 0.875rem; font-family: var(--font-body);">Data Source</h3>
+                <ul style="color: var(--text-muted); font-size: 0.8125rem; line-height: 1.8; padding-left: var(--space-5); margin: 0;">
+                    <li>SEC Form 4 filings (official source)</li>
+                    <li>Updated when insiders file (1-2 days delay)</li>
+                    <li>Free public data from SEC Edgar</li>
+                    <li>Scans last 90 days of activity</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--border-default);
+    border-top-color: var(--text-primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+</style>
+
+<script>
+async function scanWatchlist() {
+    const btn = document.getElementById('scanBtn');
+    const loadingState = document.getElementById('loadingState');
+    const resultsContainer = document.getElementById('resultsContainer');
+
+    btn.disabled = true;
+    btn.textContent = 'Scanning...';
+    loadingState.style.display = 'block';
+    resultsContainer.style.display = 'none';
+
+    const csrfToken = document.querySelector('[name="csrf_token"]')?.value || '';
+
+    try {
+        const formData = new FormData();
+        formData.append('csrf_token', csrfToken);
+
+        const response = await fetch('/insider-activity/scan', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            location.reload();
+        } else {
+            window.dashboardUtils?.showToast('Scan failed: ' + (result.error || 'Unknown error'), 'danger');
+            loadingState.style.display = 'none';
+            resultsContainer.style.display = 'block';
+        }
+    } catch (error) {
+        window.dashboardUtils?.showToast('Error: ' + error.message, 'danger');
+        loadingState.style.display = 'none';
+        resultsContainer.style.display = 'block';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Scan Watchlist';
+    }
+}
+</script>
+
+{% endblock %}

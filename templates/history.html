@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}History — Stockholm{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+    <!-- Page Header -->
+    <header class="page-header">
+        <div>
+            <h1>Analysis History</h1>
+            <p>Browse all past analyses and predictions</p>
+        </div>
+    </header>
+
+    <!-- Filter -->
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <form action="/history" method="GET" style="display: flex; gap: var(--space-4); align-items: flex-end; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 200px;">
+                <label>Filter by Ticker</label>
+                <input type="text" name="ticker" value="{{ filter_ticker or '' }}" placeholder="AAPL" style="text-transform: uppercase; font-family: var(--font-mono);">
+            </div>
+            <button type="submit" class="btn btn-primary">Filter</button>
+            {% if filter_ticker %}
+            <a href="/history" class="btn btn-secondary">Show All</a>
+            {% endif %}
+        </form>
+    </div>
+
+    <!-- History Table -->
+    <div class="card">
+        <h3 style="margin: 0 0 var(--space-6) 0;">
+            {% if filter_ticker %}
+            Analyses for <span style="font-family: var(--font-mono); color: var(--text-primary);">{{ filter_ticker }}</span>
+            {% else %}
+            All Analyses
+            {% endif %}
+        </h3>
+
+        {% if analyses %}
+        <div style="overflow-x: auto; margin: 0 calc(var(--space-6) * -1); padding: 0 var(--space-6);">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Signal</th>
+                        <th>Confidence</th>
+                        <th>Timestamp</th>
+                        <th style="width: 100px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in analyses %}
+                    <tr>
+                        <td>
+                            <span style="font-family: var(--font-mono); font-weight: 500; font-size: 0.9375rem;">{{ a.ticker }}</span>
+                        </td>
+                        <td>
+                            <span class="signal-text signal-{{ a.signal|lower }}">{{ a.signal }}</span>
+                        </td>
+                        <td>
+                            <span style="font-family: var(--font-mono); font-weight: 500;">{{ a.confidence }}%</span>
+                        </td>
+                        <td style="font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-muted);">{{ a.timestamp }}</td>
+                        <td>
+                            <a href="/analysis/{{ a.id }}" class="btn btn-ghost" style="padding: var(--space-2) var(--space-4); font-size: 0.75rem;">Details</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">—</div>
+            <p>
+                {% if filter_ticker %}
+                No analyses found for {{ filter_ticker }}
+                {% else %}
+                No analyses found
+                {% endif %}
+            </p>
+            <a href="/analyze" class="btn btn-primary">Run Analysis</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

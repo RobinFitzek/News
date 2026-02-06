@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="AI-powered investment monitoring and analysis system">
+    <meta name="theme-color" content="#000000">
+    <title>{% block title %}Stockholm{% endblock %}</title>
+
+    <!-- Preconnect for Performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <!-- Google Fonts — Swedish Editorial Typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300;1,9..40,400&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+
+    <!-- CSS Framework -->
+    <link rel="stylesheet" href="/static/css/modern.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    {% block extra_head %}{% endblock %}
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav>
+        <div class="nav-container">
+            <div class="nav-logo">
+                Stockholm
+            </div>
+
+            <button class="nav-toggle" onclick="document.querySelector('.nav-menu').classList.toggle('open')" aria-label="Menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+
+            <div class="nav-menu">
+                <a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">Dashboard</a>
+                <a href="/portfolio" class="nav-link {% if request.url.path == '/portfolio' %}active{% endif %}">Portfolio</a>
+                <a href="/watchlist" class="nav-link {% if request.url.path == '/watchlist' %}active{% endif %}">Watchlist</a>
+                <a href="/analyze" class="nav-link {% if request.url.path == '/analyze' %}active{% endif %}">Analyze</a>
+                <a href="/discover" class="nav-link {% if request.url.path == '/discover' %}active{% endif %}">Discover</a>
+                <a href="/insider-activity" class="nav-link {% if request.url.path.startswith('/insider-activity') %}active{% endif %}">Insiders</a>
+                <a href="/top-picks" class="nav-link {% if request.url.path == '/top-picks' %}active{% endif %}">Top Picks</a>
+                <a href="/history" class="nav-link {% if request.url.path == '/history' %}active{% endif %}">History</a>
+                <a href="/learning" class="nav-link {% if request.url.path == '/learning' %}active{% endif %}">Learning</a>
+                <a href="/logs" class="nav-link {% if request.url.path == '/logs' %}active{% endif %}">Logs</a>
+                <a href="/settings" class="nav-link {% if request.url.path == '/settings' %}active{% endif %}">Settings</a>
+            </div>
+
+            <a href="/logout" class="btn btn-ghost">Logout</a>
+        </div>
+    </nav>
+
+    <!-- Security Warning Banner -->
+    <div class="security-banner">
+        Development Mode — No Authentication Active
+    </div>
+
+    <div class="main-container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- JavaScript -->
+    <script src="/static/js/dashboard.js"></script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+
+</html>

@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block title %}Learning — Stockholm{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+    <!-- Page Header -->
+    <header class="page-header">
+        <div>
+            <h1>System Learning</h1>
+            <p>AI prediction accuracy and performance metrics</p>
+        </div>
+    </header>
+
+    <!-- Overall Stats -->
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <h3 style="margin: 0 0 var(--space-6) 0;">Accuracy Overview</h3>
+
+        {% if learning_stats.total_verified > 0 %}
+        <div class="grid grid-4" style="margin-bottom: var(--space-6);">
+            <div class="metric">
+                <div class="metric-value">{{ learning_stats.hit_rate }}%</div>
+                <div class="metric-label">Hit Rate</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ learning_stats.total_verified }}</div>
+                <div class="metric-label">Verified Predictions</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ learning_stats.correct_predictions }}</div>
+                <div class="metric-label">Correct</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ learning_stats.wrong_predictions }}</div>
+                <div class="metric-label">Wrong</div>
+            </div>
+        </div>
+
+        <!-- Progress Bar -->
+        <div style="margin-bottom: var(--space-5);">
+            <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2); font-size: 0.8125rem;">
+                <span style="color: var(--text-muted);">Accuracy</span>
+                <span style="color: var(--text-primary); font-weight: 500;">{{ (learning_stats.avg_accuracy * 100)|round(1) }}%</span>
+            </div>
+            <div class="progress" style="height: 4px;">
+                <div class="progress-bar" style="width: {{ (learning_stats.avg_accuracy * 100)|round(0) }}%;"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-ghost);">
+                <span>0%</span>
+                <span>50% (Random)</span>
+                <span>100%</span>
+            </div>
+        </div>
+
+        <!-- Performance Rating -->
+        <div style="padding: var(--space-4); background: var(--bg-secondary); border-left: 1px solid var(--text-primary);">
+            <p style="margin: 0; font-size: 0.875rem; color: var(--text-secondary);">
+                {% if learning_stats.avg_accuracy >= 0.7 %}
+                <span style="font-weight: 500;">Excellent.</span> System is learning effectively.
+                {% elif learning_stats.avg_accuracy >= 0.6 %}
+                <span style="font-weight: 500;">Good.</span> Positive learning curve.
+                {% elif learning_stats.avg_accuracy >= 0.5 %}
+                <span style="font-weight: 500;">Average.</span> Slightly above random.
+                {% else %}
+                <span style="font-weight: 500;">Needs Improvement.</span> Predictions need optimization.
+                {% endif %}
+                <span style="color: var(--text-muted); margin-left: var(--space-4);">
+                    Average Confidence: <span style="font-weight: 500; color: var(--text-primary);">{{ learning_stats.avg_confidence|round(1) }}%</span>
+                </span>
+            </p>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">—</div>
+            <p>No verified predictions yet</p>
+            <p style="color: var(--text-ghost); margin: 0; font-size: 0.8125rem;">
+                System verifies predictions after 7 days
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Recent Predictions -->
+    {% if recent_predictions %}
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <h3 style="margin: 0 0 var(--space-6) 0;">Recent Verifications</h3>
+        <div style="overflow-x: auto; margin: 0 calc(var(--space-6) * -1); padding: 0 var(--space-6);">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Predicted</th>
+                        <th>Actual</th>
+                        <th>Result</th>
+                        <th>Change</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pred in recent_predictions %}
+                    <tr>
+                        <td>
+                            <span style="font-family: var(--font-mono); font-weight: 500;">{{ pred.ticker }}</span>
+                        </td>
+                        <td>
+                            <span style="font-family: var(--font-mono); font-weight: 500; text-transform: uppercase;">
+                                {{ pred.predicted_direction | upper }}
+                            </span>
+                        </td>
+                        <td>
+                            <span style="font-family: var(--font-mono); font-weight: 500; text-transform: uppercase;">
+                                {{ pred.actual_direction | upper }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if pred.accuracy_score == 1.0 %}
+                            <span class="badge badge-success">Pass</span>
+                            {% elif pred.accuracy_score == 0.5 %}
+                            <span class="badge badge-warning">Near</span>
+                            {% else %}
+                            <span class="badge badge-danger">Fail</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span style="font-family: var(--font-mono); font-weight: 500;">
+                                {% if (pred.actual_price_after - pred.actual_price_at_prediction) > 0 %}+{% endif %}{{ ((pred.actual_price_after - pred.actual_price_at_prediction) / pred.actual_price_at_prediction * 100)|round(2) }}%
+                            </span>
+                        </td>
+                        <td style="font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-muted);">
+                            {{ pred.prediction_date[:10] }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Ticker Performance -->
+    {% if ticker_stats and ticker_stats|length > 0 %}
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <h3 style="margin: 0 0 var(--space-6) 0;">Performance by Ticker</h3>
+        <div style="overflow-x: auto; margin: 0 calc(var(--space-6) * -1); padding: 0 var(--space-6);">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Predictions</th>
+                        <th>Accuracy</th>
+                        <th>Avg Confidence</th>
+                        <th>Rating</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stat in ticker_stats %}
+                    <tr>
+                        <td>
+                            <span style="font-family: var(--font-mono); font-weight: 500;">{{ stat.ticker }}</span>
+                        </td>
+                        <td style="font-family: var(--font-mono);">{{ stat.total_predictions }}</td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: var(--space-3);">
+                                <span style="font-family: var(--font-mono); font-weight: 500; min-width: 40px;">
+                                    {{ (stat.accuracy * 100)|round(0) }}%
+                                </span>
+                                <div class="progress" style="width: 80px;">
+                                    <div class="progress-bar" style="width: {{ (stat.accuracy * 100)|round(0) }}%;"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td style="font-family: var(--font-mono);">{{ stat.avg_confidence|round(0) }}%</td>
+                        <td>
+                            {% if stat.accuracy >= 0.7 %}
+                            <span class="badge badge-success">Reliable</span>
+                            {% elif stat.accuracy >= 0.5 %}
+                            <span class="badge badge-warning">Average</span>
+                            {% else %}
+                            <span class="badge badge-danger">Unreliable</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- System Info -->
+    <div class="grid grid-3">
+        <div class="card" style="margin-bottom: 0;">
+            <h3 style="margin: 0 0 var(--space-4) 0; font-size: 0.875rem;">Cache Status</h3>
+            <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; color: var(--text-primary); margin-bottom: var(--space-2); letter-spacing: -0.02em;">{{ learning_stats.cache_size }}</div>
+            <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-3);">Cached Entries</div>
+            <p style="margin: 0; font-size: 0.75rem; color: var(--text-muted); line-height: 1.6;">
+                Reducing API calls via intelligent caching (30 Min TTL)
+            </p>
+        </div>
+
+        <div class="card" style="margin-bottom: 0;">
+            <h3 style="margin: 0 0 var(--space-4) 0; font-size: 0.875rem;">Verification</h3>
+            <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; color: var(--text-primary); margin-bottom: var(--space-2); letter-spacing: -0.02em;">7</div>
+            <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-3);">Days to Verify</div>
+            <p style="margin: 0; font-size: 0.75rem; color: var(--text-muted); line-height: 1.6;">
+                Continuous learning from historical data
+            </p>
+        </div>
+
+        <div class="card" style="margin-bottom: 0;">
+            <h3 style="margin: 0 0 var(--space-4) 0; font-size: 0.875rem;">Optimization</h3>
+            <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; color: var(--text-primary); margin-bottom: var(--space-2); letter-spacing: -0.02em;">AI</div>
+            <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-3);">Adaptive Priority</div>
+            <p style="margin: 0; font-size: 0.75rem; color: var(--text-muted); line-height: 1.6;">
+                High-accuracy tickers are prioritized
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

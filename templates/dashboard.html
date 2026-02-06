@@ -1,0 +1,441 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard — Stockholm{% endblock %}
+
+{% block content %}
+<div id="dashboard-page" class="animate-fade-in">
+    <!-- Page Header -->
+    <header class="page-header">
+        <div>
+            <h1>Dashboard</h1>
+            <p>Market intelligence and portfolio insights</p>
+        </div>
+        <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); letter-spacing: 0.04em;">
+            <span id="current-time"></span>
+        </div>
+    </header>
+
+    <!-- Scheduler Status Card -->
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
+            <div style="display: flex; align-items: center; gap: var(--space-4);">
+                <div>
+                    <h3 style="margin: 0 0 var(--space-2) 0;">Scheduler Engine</h3>
+                    {% if scheduler_status.is_running %}
+                    <span class="badge badge-success">
+                        <span style="width: 5px; height: 5px; background: currentColor; border-radius: 50%; box-shadow: 0 0 6px currentColor;"></span>
+                        Running
+                    </span>
+                    {% else %}
+                    <span class="badge badge-danger">
+                        <span style="width: 5px; height: 5px; background: currentColor; border-radius: 50%;"></span>
+                        Stopped
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            <div style="display: flex; gap: var(--space-3);">
+                {% if scheduler_status.is_running %}
+                <form action="/scheduler/stop" method="POST" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-danger">Stop</button>
+                </form>
+                {% else %}
+                <form action="/scheduler/start" method="POST" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-success">Start</button>
+                </form>
+                {% endif %}
+                <form action="/scheduler/run-now" method="POST" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-primary">Scan Now</button>
+                </form>
+            </div>
+        </div>
+
+        {% if scheduler_status.jobs %}
+        <div style="margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--border-hairline);">
+            <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">
+                Scheduled Jobs
+            </div>
+            <div class="grid grid-3">
+                {% for job in scheduler_status.jobs %}
+                <div style="padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline); border-radius: var(--radius-md);">
+                    <div style="font-weight: 500; margin-bottom: var(--space-1); color: var(--text-primary); font-size: 0.875rem;">{{ job.name }}</div>
+                    <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">{{ job.next_run }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Learning Performance Summary -->
+    {% if learning_stats.total_verified > 0 %}
+    <div class="card" style="margin-bottom: var(--space-8); position: relative; overflow: visible;">
+        <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, var(--text-primary), transparent);"></div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Learning Performance</h3>
+                <p style="margin: 0; font-size: var(--text-sm);">
+                    <span style="color: var(--text-primary); font-weight: 500;">{{ learning_stats.total_verified }}</span> predictions verified
+                </p>
+            </div>
+            <a href="/learning" class="btn btn-secondary">View Details</a>
+        </div>
+
+        <div class="grid grid-4" style="margin-bottom: var(--space-6);">
+            <div class="metric">
+                <div class="metric-value">{{ learning_stats.hit_rate }}%</div>
+                <div class="metric-label">Hit Rate</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ learning_stats.correct_predictions }}</div>
+                <div class="metric-label">Correct</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ learning_stats.wrong_predictions }}</div>
+                <div class="metric-label">Wrong</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ learning_stats.avg_confidence|round(0) }}%</div>
+                <div class="metric-label">Avg Confidence</div>
+            </div>
+        </div>
+
+        <div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2); font-size: 0.75rem;">
+                <span style="color: var(--text-muted);">Overall Accuracy</span>
+                <span style="color: var(--text-primary); font-weight: 500;">{{ (learning_stats.avg_accuracy * 100)|round(1) }}%</span>
+            </div>
+            <div class="progress">
+                <div class="progress-bar" data-width="{{ (learning_stats.avg_accuracy * 100)|round(0) }}"></div>
+            </div>
+        </div>
+
+        {% if learning_stats.health_warning %}
+        <div style="margin-top: var(--space-5); padding: var(--space-4); background: var(--signal-negative-bg, rgba(239,68,68,0.1)); border: 1px solid var(--signal-negative, #ef4444); font-size: 0.8125rem; color: var(--text-secondary);">
+            {{ learning_stats.health_warning }}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Top Picks Preview -->
+    {% if top_picks_preview and top_picks_preview|length > 0 %}
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Top Picks</h3>
+                <p style="margin: 0; font-size: var(--text-sm);">Stocks with proven prediction accuracy</p>
+            </div>
+            <a href="/top-picks" class="btn btn-primary">View All</a>
+        </div>
+
+        <div class="grid grid-3">
+            {% for pick in top_picks_preview %}
+            <div style="position: relative; padding: var(--space-8); background: var(--bg-secondary); border: 1px solid var(--border-hairline); border-radius: var(--radius-lg); text-align: center; transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);" onmouseover="this.style.borderColor='rgba(255,255,255,0.15)'; this.style.boxShadow='0 0 20px rgba(255,255,255,0.03)';" onmouseout="this.style.borderColor=''; this.style.boxShadow='';">
+                <div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 500; color: var(--text-primary); margin-bottom: var(--space-4); letter-spacing: 0.04em;">{{ pick.ticker }}</div>
+
+                <div style="margin-bottom: var(--space-4);">
+                    <div style="font-family: var(--font-display); font-size: 3.5rem; font-weight: 300; color: var(--text-primary); line-height: 1; letter-spacing: -0.03em;">
+                        {{ pick.pick_score }}
+                    </div>
+                    <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-top: var(--space-2);">Pick Score</div>
+                </div>
+
+                <div style="display: flex; justify-content: center; gap: var(--space-8); padding-top: var(--space-4); border-top: 1px solid var(--border-hairline);">
+                    <div>
+                        <div style="font-weight: 500; color: var(--text-primary);">{{ pick.accuracy }}%</div>
+                        <div style="font-size: 0.625rem; color: var(--text-muted); letter-spacing: 0.06em;">Accuracy</div>
+                    </div>
+                    <div>
+                        <div style="font-weight: 500; color: var(--text-primary);">{{ pick.total_predictions }}</div>
+                        <div style="font-size: 0.625rem; color: var(--text-muted); letter-spacing: 0.06em;">Predictions</div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Portfolio Alerts -->
+    <div id="portfolio-alerts-container" class="card" style="margin-bottom: var(--space-8); display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Portfolio Alerts</h3>
+                <p style="margin: 0; font-size: var(--text-sm);" id="portfolio-alerts-subtitle"></p>
+            </div>
+            <a href="/portfolio" class="btn btn-secondary">View Portfolio</a>
+        </div>
+
+        <!-- Benchmark -->
+        <div id="portfolio-benchmark" style="display: none; padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline); margin-bottom: var(--space-5);">
+        </div>
+
+        <!-- Alerts List -->
+        <div id="portfolio-alerts-list"></div>
+
+        <!-- Rebalancing -->
+        <div id="portfolio-rebalancing" style="display: none; margin-top: var(--space-5); padding-top: var(--space-5); border-top: 1px solid var(--border-hairline);"></div>
+    </div>
+
+    <!-- API Status -->
+    <div class="grid grid-3" style="margin-bottom: var(--space-8);">
+        <!-- Perplexity API -->
+        <div class="card" style="margin-bottom: 0;">
+            <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5);">
+                <div class="status-dot active"></div>
+                <h3 style="margin: 0; font-size: 0.875rem;">Perplexity API</h3>
+            </div>
+            {% if api_status.perplexity.is_configured %}
+            <div style="text-align: center; margin-bottom: var(--space-4);">
+                <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em;" id="perplexity-usage">
+                    {{ api_status.perplexity.used_today }}<span style="color: var(--text-muted); font-weight: 300;">/{{ api_status.perplexity.daily_limit }}</span>
+                </div>
+                <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">Requests Today</div>
+            </div>
+            <div class="progress">
+                <div class="progress-bar" id="perplexity-progress" data-width="{{ (api_status.perplexity.used_today / api_status.perplexity.daily_limit * 100)|int }}"></div>
+            </div>
+            {% else %}
+            <p style="color: var(--text-muted); margin-bottom: var(--space-4); font-size: 0.875rem;">Not configured</p>
+            <a href="/settings" class="btn btn-secondary" style="width: 100%;">Configure</a>
+            {% endif %}
+        </div>
+
+        <!-- Gemini Flash -->
+        <div class="card" style="margin-bottom: 0;">
+            <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5);">
+                <div class="status-dot active"></div>
+                <h3 style="margin: 0; font-size: 0.875rem;">Gemini Flash</h3>
+            </div>
+            {% if api_status.gemini.is_configured %}
+            <div style="text-align: center; margin-bottom: var(--space-4);">
+                <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em;" id="gemini-flash-usage">
+                    {{ api_status.gemini.flash.used_today }}<span style="color: var(--text-muted); font-weight: 300;">/{{ api_status.gemini.flash.daily_limit }}</span>
+                </div>
+                <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">Requests Today</div>
+            </div>
+            <div class="progress">
+                <div class="progress-bar" id="gemini-flash-progress" data-width="{{ (api_status.gemini.flash.used_today / api_status.gemini.flash.daily_limit * 100)|int }}"></div>
+            </div>
+            {% else %}
+            <p style="color: var(--text-muted); font-size: 0.875rem;">Not configured</p>
+            {% endif %}
+        </div>
+
+        <!-- Gemini Pro -->
+        <div class="card" style="margin-bottom: 0;">
+            <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5);">
+                <div class="status-dot active"></div>
+                <h3 style="margin: 0; font-size: 0.875rem;">Gemini Pro</h3>
+            </div>
+            {% if api_status.gemini.is_configured %}
+            <div style="text-align: center; margin-bottom: var(--space-4);">
+                <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em;" id="gemini-pro-usage">
+                    {{ api_status.gemini.pro.used_today }}<span style="color: var(--text-muted); font-weight: 300;">/{{ api_status.gemini.pro.daily_limit }}</span>
+                </div>
+                <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">Requests Today</div>
+            </div>
+            <div class="progress">
+                <div class="progress-bar" id="gemini-pro-progress" data-width="{{ (api_status.gemini.pro.used_today / api_status.gemini.pro.daily_limit * 100)|int }}"></div>
+            </div>
+            {% else %}
+            <p style="color: var(--text-muted); font-size: 0.875rem;">Not configured</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Recent Analyses -->
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); flex-wrap: wrap; gap: var(--space-4);">
+            <h3 style="margin: 0;">Recent Analyses</h3>
+            <a href="/history" class="btn btn-secondary">View All</a>
+        </div>
+
+        {% if recent_analyses %}
+        <div style="overflow-x: auto; margin: 0 calc(var(--space-8) * -1); padding: 0 var(--space-8);">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Signal</th>
+                        <th>Confidence</th>
+                        <th>Time</th>
+                        <th style="width: 100px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in recent_analyses %}
+                    <tr>
+                        <td>
+                            <span style="font-family: var(--font-mono); font-weight: 500; font-size: var(--text-base);">{{ a.ticker }}</span>
+                            {% if a.ticker in trusted_tickers %}
+                            <span style="display: inline-flex; align-items: center; margin-left: var(--space-2); padding: 2px 8px; background: rgba(255,255,255,0.06); color: var(--text-muted); font-size: 0.5625rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid var(--border-hairline); border-radius: var(--radius-sm);">Trusted</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="signal-text signal-{{ a.signal|lower }}">{{ a.signal }}</span>
+                        </td>
+                        <td>
+                            <span style="font-family: var(--font-mono); font-weight: 500;">{{ a.confidence }}%</span>
+                        </td>
+                        <td style="color: var(--text-muted); font-size: var(--text-sm);">{{ a.timestamp }}</td>
+                        <td>
+                            <a href="/analysis/{{ a.id }}" class="btn btn-ghost" style="padding: var(--space-2) var(--space-3); font-size: 0.6875rem;">Details</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">—</div>
+            <p>No analyses yet</p>
+            <a href="/analyze" class="btn btn-primary">Run First Analysis</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Watchlist Overview -->
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); flex-wrap: wrap; gap: var(--space-4);">
+            <h3 style="margin: 0;">Watchlist <span style="color: var(--text-muted); font-weight: 400;">({{ watchlist|length }})</span></h3>
+            <a href="/watchlist" class="btn btn-secondary">Manage</a>
+        </div>
+
+        {% if watchlist %}
+        <div style="display: flex; flex-wrap: wrap; gap: var(--space-3);">
+            {% for stock in watchlist %}
+            <div class="ticker-tag">
+                <span style="font-weight: 500;">{{ stock.ticker }}</span>
+                {% if stock.name %}
+                <span style="color: var(--text-muted); margin-left: var(--space-2); font-weight: 400;">{{ stock.name }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="text-align: center; padding: var(--space-10) var(--space-6);">
+            <p style="color: var(--text-muted); margin-bottom: var(--space-4);">No stocks in watchlist</p>
+            <a href="/watchlist" class="btn btn-secondary">Add Stocks</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Update current time
+    function updateTime() {
+        const now = new Date();
+        const timeStr = now.toLocaleString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        });
+        const timeEl = document.getElementById('current-time');
+        if (timeEl) timeEl.textContent = timeStr;
+    }
+    updateTime();
+    setInterval(updateTime, 60000);
+
+    // Initialize progress bars from data attributes
+    document.querySelectorAll('[data-width]').forEach(el => {
+        el.style.width = el.getAttribute('data-width') + '%';
+    });
+
+    // Portfolio alerts
+    fetch('/api/portfolio/alerts')
+        .then(r => r.json())
+        .then(data => {
+            const container = document.getElementById('portfolio-alerts-container');
+            if (!data || data.message === 'No active holdings') return;
+
+            const hasAlerts = (data.alerts && data.alerts.length > 0);
+            const hasBenchmark = !!data.benchmark;
+            const hasRebalancing = (data.rebalancing && data.rebalancing.length > 0);
+
+            if (!hasAlerts && !hasBenchmark && !hasRebalancing) return;
+
+            container.style.display = '';
+
+            // Subtitle
+            const subtitle = document.getElementById('portfolio-alerts-subtitle');
+            const val = data.portfolio_value || 0;
+            subtitle.textContent = val > 0 ? 'Portfolio: $' + val.toLocaleString() : '';
+
+            // Benchmark
+            if (hasBenchmark) {
+                const bm = data.benchmark;
+                const bmEl = document.getElementById('portfolio-benchmark');
+                bmEl.style.display = '';
+                const alphaColor = bm.alpha >= 0 ? 'var(--signal-positive)' : 'var(--signal-negative)';
+                bmEl.innerHTML = '<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-3);">' +
+                    '<div style="font-size: 0.8125rem;">' +
+                    '<span style="color: var(--text-muted);">Portfolio:</span> <span style="font-weight: 500; color: var(--text-primary);">' + bm.portfolio_return.toFixed(1) + '%</span>' +
+                    ' <span style="color: var(--text-muted); margin: 0 var(--space-2);">vs</span> ' +
+                    '<span style="color: var(--text-muted);">SPY:</span> <span style="font-weight: 500; color: var(--text-primary);">' + bm.spy_return.toFixed(1) + '%</span>' +
+                    '</div>' +
+                    '<div style="font-size: 0.875rem; font-weight: 500; color: ' + alphaColor + ';">Alpha: ' + (bm.alpha >= 0 ? '+' : '') + bm.alpha.toFixed(1) + '% (' + bm.period_days + 'd)</div>' +
+                    '</div>';
+            }
+
+            // Alerts
+            if (hasAlerts) {
+                const listEl = document.getElementById('portfolio-alerts-list');
+                listEl.innerHTML = data.alerts.map(a => {
+                    const sevColor = a.severity === 'CRITICAL' ? 'var(--signal-negative)' : 'var(--signal-warning, #f59e0b)';
+                    return '<div style="padding: var(--space-3) var(--space-4); margin-bottom: var(--space-2); border-left: 2px solid ' + sevColor + '; background: var(--bg-secondary); font-size: 0.8125rem;">' +
+                        '<span style="color: ' + sevColor + '; font-weight: 500; margin-right: var(--space-2);">' + a.severity + '</span>' +
+                        '<span style="color: var(--text-secondary);">' + a.message + '</span></div>';
+                }).join('');
+            }
+
+            // Rebalancing
+            if (hasRebalancing) {
+                const rebEl = document.getElementById('portfolio-rebalancing');
+                rebEl.style.display = '';
+                rebEl.innerHTML = '<div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-3);">Rebalancing Suggestions</div>' +
+                    data.rebalancing.map(r =>
+                        '<div style="font-size: 0.8125rem; color: var(--text-secondary); margin-bottom: var(--space-2);">' +
+                        (r.action === 'reduce' ? '&#x25BC;' : '&#x25B2;') + ' ' + r.message + '</div>'
+                    ).join('');
+            }
+        })
+        .catch(() => {});
+
+    // Toast notifications from query parameters
+    document.addEventListener('DOMContentLoaded', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const messageType = urlParams.get('message');
+        const messageDetail = urlParams.get('detail');
+
+        if (messageType && messageDetail) {
+            const decodedDetail = decodeURIComponent(messageDetail.replace(/\+/g, ' '));
+            const toastTypeMap = {
+                'success': 'success',
+                'error': 'danger',
+                'warning': 'warning',
+                'info': 'info'
+            };
+            const toastType = toastTypeMap[messageType] || 'info';
+
+            if (window.dashboardUtils && window.dashboardUtils.showToast) {
+                window.dashboardUtils.showToast(decodedDetail, toastType, 5000);
+            }
+
+            const cleanUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,54 @@
+/* ===============================================
+   Performance & Notifications
+   German/Swedish Minimalism - No Effects
+   =============================================== */
+
+/* All effects disabled by default */
+* {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+.card:hover,
+.glass-card:hover,
+.btn:hover {
+    transform: none !important;
+}
+
+.btn::before,
+.btn::after,
+.progress-bar::before,
+.progress-bar::after {
+    display: none !important;
+}
+
+/* Toast Notifications - Black & White with Dark Red for errors */
+.toast {
+    padding: 16px 24px;
+    border-radius: 0;
+    border: 2px solid var(--border-strong);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    box-shadow: none;
+    min-width: 280px;
+    transition: none;
+    font-family: var(--font-mono);
+}
+
+.toast-info,
+.toast-success {
+    background: var(--text-primary);
+    color: var(--bg-primary);
+    border: 2px solid var(--text-primary);
+}
+
+.toast-danger,
+.toast-warning {
+    background: var(--bg-primary);
+    color: var(--signal-critical);
+    border: 2px solid var(--signal-critical);
+}

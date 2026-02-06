@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Top Picks — Stockholm{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+    <!-- Page Header -->
+    <header class="page-header">
+        <div>
+            <h1>Top Picks</h1>
+            <p>Stocks with proven prediction accuracy from our AI learning system</p>
+        </div>
+        {% if total_trusted > 0 %}
+        <div style="padding: var(--space-5) var(--space-8); background: var(--bg-secondary); border: 1px solid var(--border-hairline); text-align: center;">
+            <div style="font-family: var(--font-display); font-size: 2.5rem; font-weight: 400; color: var(--text-primary); line-height: 1; letter-spacing: -0.02em;">{{ total_trusted }}</div>
+            <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: var(--space-1);">Trusted Tickers</div>
+        </div>
+        {% endif %}
+    </header>
+
+    <!-- Top Performers Table -->
+    {% if top_picks %}
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <h3 style="margin: 0 0 var(--space-6) 0;">Top Performers</h3>
+        <div style="overflow-x: auto; margin: 0 calc(var(--space-6) * -1); padding: 0 var(--space-6);">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Ticker</th>
+                        <th>Trust Tier</th>
+                        <th>Pick Score</th>
+                        <th>Accuracy</th>
+                        <th>Avg Confidence</th>
+                        <th>Predictions</th>
+                        <th>Last Verified</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for pick in top_picks %}
+                    <tr>
+                        <td>
+                            <span style="font-family: var(--font-mono); font-weight: 500; color: var(--text-muted);">#{{ loop.index }}</span>
+                        </td>
+                        <td>
+                            <span style="font-family: var(--font-mono); font-weight: 500; font-size: 0.9375rem;">{{ pick.ticker }}</span>
+                        </td>
+                        <td>
+                            {% if pick.trust_tier == 'gold' %}
+                            <span class="badge badge-success">Gold</span>
+                            {% elif pick.trust_tier == 'silver' %}
+                            <span class="badge" style="background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border-default);">Silver</span>
+                            {% elif pick.trust_tier == 'bronze' %}
+                            <span class="badge badge-warning">Bronze</span>
+                            {% else %}
+                            <span class="badge" style="background: var(--bg-secondary); color: var(--text-muted); border: 1px solid var(--border-hairline);">Emerging</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: var(--space-3);">
+                                <span style="font-family: var(--font-mono); font-weight: 500; font-size: 1rem;">{{ pick.pick_score }}</span>
+                                <div class="progress" style="width: 60px;">
+                                    <div class="progress-bar" style="width: {{ pick.pick_score }}%;"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span style="font-family: var(--font-mono); font-weight: 500;">{{ pick.accuracy }}%</span>
+                        </td>
+                        <td style="font-family: var(--font-mono); font-weight: 500;">{{ pick.avg_confidence|round(0) }}%</td>
+                        <td>
+                            <div style="font-family: var(--font-mono); font-size: 0.875rem;">
+                                <span style="font-weight: 500;">{{ pick.correct_count }}</span>
+                                <span style="color: var(--text-ghost);">/</span>
+                                <span style="font-weight: 500;">{{ pick.wrong_count }}</span>
+                                <div style="font-size: 0.6875rem; color: var(--text-muted);">of {{ pick.total_predictions }}</div>
+                            </div>
+                        </td>
+                        <td style="font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-muted);">
+                            {{ pick.last_verified[:10] if pick.last_verified else '—' }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="card" style="text-align: center; padding: var(--space-16) var(--space-6); margin-bottom: var(--space-8);">
+        <div style="width: 40px; height: 1px; background: var(--text-primary); margin: 0 auto var(--space-6) auto;"></div>
+        <h2 style="color: var(--text-secondary); font-weight: 400; margin-bottom: var(--space-3);">No Top Picks Yet</h2>
+        <p style="color: var(--text-muted); font-size: 0.875rem; max-width: 400px; margin: 0 auto var(--space-6) auto;">
+            Start analyzing stocks and wait for predictions to be verified (after 7 days).
+            Stocks with at least 5 verified predictions and 60%+ accuracy will appear here.
+        </p>
+        <a href="/" class="btn btn-primary">Go to Dashboard</a>
+    </div>
+    {% endif %}
+
+    <!-- Recent High-Confidence Signals -->
+    {% if recent_signals %}
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <h3 style="margin: 0 0 var(--space-2) 0;">Recent High-Confidence Signals</h3>
+        <p style="color: var(--text-muted); margin: 0 0 var(--space-6) 0; font-size: 0.8125rem;">
+            Latest predictions with 70%+ confidence from the past 7 days
+        </p>
+        <div style="overflow-x: auto; margin: 0 calc(var(--space-6) * -1); padding: 0 var(--space-6);">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Signal</th>
+                        <th>Confidence</th>
+                        <th>Time</th>
+                        <th>Recommendation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for signal in recent_signals[:10] %}
+                    <tr>
+                        <td>
+                            <span style="font-family: var(--font-mono); font-weight: 500;">{{ signal.ticker }}</span>
+                        </td>
+                        <td>
+                            <span class="signal-text signal-{{ signal.signal|lower }}">{{ signal.signal }}</span>
+                        </td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: var(--space-2);">
+                                <span style="font-family: var(--font-mono); font-weight: 500;">{{ signal.confidence }}%</span>
+                                <div class="progress" style="width: 50px;">
+                                    <div class="progress-bar" style="width: {{ signal.confidence }}%;"></div>
+                                </div>
+                            </div>
+                        </td>
+                        <td style="font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-muted);">
+                            {{ signal.timestamp[:16] }}
+                        </td>
+                        <td style="max-width: 300px; font-size: 0.8125rem; color: var(--text-secondary);">
+                            {{ signal.recommendation[:100] }}{% if signal.recommendation|length > 100 %}...{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Trust Tier Explanation -->
+    <div class="grid grid-3" style="margin-bottom: var(--space-8);">
+        <div class="card" style="margin-bottom: 0; position: relative; overflow: visible;">
+            <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--text-primary);"></div>
+            <h3 style="margin: 0 0 var(--space-4) 0; font-size: 0.875rem;">Gold Tier</h3>
+            <div style="font-family: var(--font-display); font-size: 2.5rem; font-weight: 400; color: var(--text-primary); margin-bottom: var(--space-2); letter-spacing: -0.02em;">80%+</div>
+            <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-4);">Accuracy</div>
+            <p style="margin: 0; font-size: 0.8125rem; color: var(--text-muted); line-height: 1.6;">
+                Exceptional performance with consistently accurate predictions and high confidence.
+            </p>
+        </div>
+
+        <div class="card" style="margin-bottom: 0; position: relative; overflow: visible;">
+            <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--text-muted);"></div>
+            <h3 style="margin: 0 0 var(--space-4) 0; font-size: 0.875rem;">Silver Tier</h3>
+            <div style="font-family: var(--font-display); font-size: 2.5rem; font-weight: 400; color: var(--text-primary); margin-bottom: var(--space-2); letter-spacing: -0.02em;">70%+</div>
+            <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-4);">Accuracy</div>
+            <p style="margin: 0; font-size: 0.8125rem; color: var(--text-muted); line-height: 1.6;">
+                Strong reliable predictions significantly better than random chance.
+            </p>
+        </div>
+
+        <div class="card" style="margin-bottom: 0; position: relative; overflow: visible;">
+            <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--border-default);"></div>
+            <h3 style="margin: 0 0 var(--space-4) 0; font-size: 0.875rem;">Bronze Tier</h3>
+            <div style="font-family: var(--font-display); font-size: 2.5rem; font-weight: 400; color: var(--text-primary); margin-bottom: var(--space-2); letter-spacing: -0.02em;">60%+</div>
+            <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-4);">Accuracy</div>
+            <p style="margin: 0; font-size: 0.8125rem; color: var(--text-muted); line-height: 1.6;">
+                Good performance with room for improvement. Worth monitoring.
+            </p>
+        </div>
+    </div>
+
+    <!-- Algorithm Explanation -->
+    <div class="card" style="background: var(--bg-secondary);">
+        <h3 style="margin: 0 0 var(--space-5) 0;">Pick Score Algorithm</h3>
+        <p style="color: var(--text-muted); margin: 0 0 var(--space-6) 0; font-size: 0.8125rem;">
+            The Pick Score is a composite metric that evaluates overall prediction quality
+        </p>
+
+        <div class="grid grid-3" style="margin-bottom: var(--space-6);">
+            <div style="padding-left: var(--space-4); border-left: 1px solid var(--text-primary);">
+                <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; color: var(--text-primary); letter-spacing: -0.02em;">50%</div>
+                <div style="font-weight: 500; color: var(--text-secondary); margin-top: var(--space-1); font-size: 0.875rem;">Accuracy</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-1);">Percentage of correct predictions</div>
+            </div>
+            <div style="padding-left: var(--space-4); border-left: 1px solid var(--text-muted);">
+                <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; color: var(--text-primary); letter-spacing: -0.02em;">30%</div>
+                <div style="font-weight: 500; color: var(--text-secondary); margin-top: var(--space-1); font-size: 0.875rem;">Confidence</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-1);">Average confidence level</div>
+            </div>
+            <div style="padding-left: var(--space-4); border-left: 1px solid var(--border-default);">
+                <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; color: var(--text-primary); letter-spacing: -0.02em;">20%</div>
+                <div style="font-weight: 500; color: var(--text-secondary); margin-top: var(--space-1); font-size: 0.875rem;">Consistency</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-1);">Stability of performance</div>
+            </div>
+        </div>
+
+        <div style="padding: var(--space-4); background: var(--bg-primary); border: 1px solid var(--border-hairline); border-left: 1px solid var(--text-primary);">
+            <span style="font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary);">Minimum Requirements:</span>
+            <span style="color: var(--text-muted); font-size: 0.8125rem;"> At least 5 verified predictions and 60% accuracy to qualify.</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
