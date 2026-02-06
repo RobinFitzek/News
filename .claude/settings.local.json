@@ -14,7 +14,8 @@
       "Bash(journalctl:*)",
       "Bash(python3 -m py_compile:*)",
       "WebSearch",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(sqlite3:*)"
     ]
   }
 }
