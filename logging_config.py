@@ -1,23 +1,47 @@
 """
 Logging Configuration for Investment Monitor
 Provides structured logging across the application
+
+Development Mode: Set DEV_MODE=True or DEVELOPMENT_MODE setting to enable verbose debug logging
 """
 import logging
 import logging.handlers
 from pathlib import Path
 import sys
+import os
 
 # Create logs directory
 LOGS_DIR = Path(__file__).parent / "logs"
 LOGS_DIR.mkdir(exist_ok=True)
 
-def setup_logging(level=logging.INFO):
+# Development mode flag (can be set via environment variable)
+DEV_MODE = os.getenv('DEV_MODE', 'false').lower() in ('true', '1', 'yes')
+
+def setup_logging(level=logging.INFO, dev_mode=None):
     """
     Configure logging for the application
 
     Args:
         level: Logging level (default: INFO)
+        dev_mode: Enable development mode with verbose DEBUG logging (default: from DEV_MODE env var)
     """
+    # Check development mode
+    if dev_mode is None:
+        dev_mode = DEV_MODE
+        # Also check database setting if available
+        try:
+            from core.database import db
+            db_dev_mode = db.get_setting('development_mode')
+            if db_dev_mode is not None:
+                dev_mode = bool(db_dev_mode)
+        except Exception:
+            pass  # Database might not be initialized yet
+    
+    # Set level based on dev mode
+    if dev_mode:
+        level = logging.DEBUG
+        print("🔧 DEVELOPMENT MODE ENABLED - Verbose debug logging active")
+    
     # Root logger configuration
     root_logger = logging.getLogger()
     root_logger.setLevel(level)
@@ -31,10 +55,20 @@ def setup_logging(level=logging.INFO):
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
-    # Console Handler (INFO and above)
+    # Console Handler (DEBUG in dev mode, INFO otherwise)
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(formatter)
+    console_handler.setLevel(logging.DEBUG if dev_mode else logging.INFO)
+    
+    # Enhanced formatter for dev mode
+    if dev_mode:
+        dev_formatter = logging.Formatter(
+            '%(asctime)s - [%(levelname)s] %(name)s:%(lineno)d - %(funcName)s() - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        console_handler.setFormatter(dev_formatter)
+    else:
+        console_handler.setFormatter(formatter)
+    
     root_logger.addHandler(console_handler)
 
     # File Handler - General Application Logs
@@ -45,7 +79,11 @@ def setup_logging(level=logging.INFO):
         backupCount=5
     )
     app_handler.setLevel(logging.DEBUG)
-    app_handler.setFormatter(formatter)
+    # Use dev formatter in dev mode for better debugging in web UI
+    if dev_mode:
+        app_handler.setFormatter(dev_formatter)
+    else:
+        app_handler.setFormatter(formatter)
     root_logger.addHandler(app_handler)
 
     # File Handler - Error Logs Only
@@ -59,13 +97,22 @@ def setup_logging(level=logging.INFO):
     error_handler.setFormatter(formatter)
     root_logger.addHandler(error_handler)
 
-    # Suppress noisy third-party loggers
-    logging.getLogger('urllib3').setLevel(logging.WARNING)
-    logging.getLogger('requests').setLevel(logging.WARNING)
-    logging.getLogger('google').setLevel(logging.WARNING)
-    logging.getLogger('httpx').setLevel(logging.WARNING)
+    # Suppress noisy third-party loggers (unless in dev mode)
+    third_party_level = logging.DEBUG if dev_mode else logging.WARNING
+    logging.getLogger('urllib3').setLevel(third_party_level)
+    logging.getLogger('requests').setLevel(third_party_level)
+    logging.getLogger('google').setLevel(third_party_level)
+    logging.getLogger('httpx').setLevel(third_party_level)
+    logging.getLogger('yfinance').setLevel(third_party_level)
+    logging.getLogger('asyncio').setLevel(third_party_level)
+    logging.getLogger('python_multipart').setLevel(third_party_level)
+    logging.getLogger('uvicorn').setLevel(third_party_level)
+    logging.getLogger('fastapi').setLevel(third_party_level)
 
-    logging.info("Logging initialized")
+    if dev_mode:
+        logging.info("🔧 Logging initialized in DEVELOPMENT MODE with DEBUG level")
+    else:
+        logging.info("Logging initialized")
 
 
 def get_logger(name: str) -> logging.Logger:

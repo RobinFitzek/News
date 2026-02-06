@@ -2,6 +2,11 @@
 Quantitative Stock Screener
 Pure math-based screening — zero API cost. Replaces AI-generated "interest scores"
 with actual financial metrics computed from yfinance data.
+
+PRODUCTION FEATURES:
+- Earnings calendar integration (flags pre-earnings risk)
+- Volume confirmation (distinguishes RSI 28 on 3x volume vs normal volume)
+- Sector-relative signals (compares against sector peers, not universal thresholds)
 """
 import yfinance as yf
 import numpy as np
@@ -134,6 +139,14 @@ class QuantScreener:
         technicals = self._technical_indicators(hist)
         momentum = self._momentum_scores(hist, benchmark_hist)
         quality = self._quality_metrics(info)
+        
+        # NEW: Add volume metrics
+        try:
+            from engine.volume_analyzer import volume_analyzer
+            volume_metrics = volume_analyzer.get_volume_metrics(ticker, hist)
+        except Exception as e:
+            logger.warning(f"Could not get volume metrics for {ticker}: {e}")
+            volume_metrics = {}
 
         # Compute scores for each group (0-100)
         val_score = self._score_valuation(valuation, variant)
@@ -151,16 +164,28 @@ class QuantScreener:
         )
         composite = max(0, min(100, int(round(composite))))
 
-        # Anomaly detection
-        anomalies = self._anomaly_detection(valuation, technicals, momentum, quality)
+        # Anomaly detection (now includes volume anomalies)
+        anomalies = self._anomaly_detection(valuation, technicals, momentum, quality, volume_metrics)
 
         # Signal determination
         signal = self._determine_signal(composite, anomalies, variant)
+        
+        # NEW: Enhance signal with volume confirmation
+        try:
+            from engine.volume_analyzer import volume_analyzer
+            volume_enhancement = volume_analyzer.enhance_signal(ticker, signal, volume_metrics)
+            enhanced_signal = volume_enhancement['enhanced_signal']
+            volume_note = volume_enhancement['note']
+        except Exception as e:
+            logger.warning(f"Could not enhance signal with volume: {e}")
+            enhanced_signal = signal
+            volume_note = ""
 
-        return {
+        result = {
             'ticker': ticker,
             'composite_score': composite,
             'signal': signal,
+            'enhanced_signal': enhanced_signal,
             'scores': {
                 'valuation': val_score,
                 'technical': tech_score,
@@ -171,6 +196,8 @@ class QuantScreener:
             'technicals': technicals,
             'momentum': momentum,
             'quality': quality,
+            'volume_metrics': volume_metrics,
+            'volume_note': volume_note,
             'anomalies': anomalies,
             'data': {
                 'name': info.get('longName', info.get('shortName', ticker)),
@@ -181,8 +208,17 @@ class QuantScreener:
             },
             # Compatibility fields for existing pipeline
             'score': composite,
-            'initial_reason': f"Quant Score {composite}/100: Val={val_score}, Tech={tech_score}, Mom={mom_score}, Qual={qual_score}",
+            'initial_reason': f"Quant Score {composite}/100: Val={val_score}, Tech={tech_score}, Mom={mom_score}, Qual={qual_score}. {volume_note}",
         }
+        
+        # NEW: Flag earnings risk
+        try:
+            from engine.earnings_tracker import earnings_tracker
+            result = earnings_tracker.flag_pre_earnings_risk(ticker, result)
+        except Exception as e:
+            logger.warning(f"Could not check earnings risk: {e}")
+        
+        return result
 
     # --- Data Fetching (with caching) ---
 
@@ -607,10 +643,28 @@ class QuantScreener:
     # --- Anomaly Detection ---
 
     def _anomaly_detection(self, valuation: Dict, technicals: Dict,
-                           momentum: Dict, quality: Dict) -> List[Dict]:
+                           momentum: Dict, quality: Dict, volume_metrics: Dict = None) -> List[Dict]:
         """Flag metrics that are extreme outliers."""
         anomalies = []
         z_threshold = self.config['anomaly_z_threshold']
+
+        # Volume anomalies (NEW)
+        if volume_metrics:
+            if volume_metrics.get('high_volume_anomaly'):
+                anomalies.append({
+                    'metric': 'Volume Spike',
+                    'value': volume_metrics['volume_ratio'],
+                    'direction': 'positive' if volume_metrics['accumulation_distribution'] == 'accumulation' else 'negative',
+                    'description': f"{volume_metrics['volume_ratio']:.1f}x average volume with {volume_metrics['accumulation_distribution']}"
+                })
+            
+            if volume_metrics.get('accumulation_distribution') == 'accumulation' and volume_metrics.get('volume_ratio', 1) >= 1.5:
+                anomalies.append({
+                    'metric': 'Institutional Accumulation',
+                    'value': volume_metrics['volume_ratio'],
+                    'direction': 'positive',
+                    'description': f"High volume accumulation — likely institutional buying"
+                })
 
         # Valuation anomalies
         if valuation['pe_vs_sector'] is not None:

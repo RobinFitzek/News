@@ -10,6 +10,17 @@
             <h1>System Logs</h1>
             <p>Scheduler activity and alert history</p>
         </div>
+        
+        <!-- Dev Mode Toggle -->
+        <div class="dev-switch-row">
+            <span class="dev-switch-label">DEV</span>
+            <label class="dev-switch">
+                <input type="checkbox" id="devModeToggle" {% if dev_mode %}checked{% endif %}>
+                <span class="dev-track">
+                    <span class="dev-thumb"></span>
+                </span>
+            </label>
+        </div>
     </header>
 
     <!-- Scheduler Runs -->
@@ -101,5 +112,136 @@
         </div>
         {% endif %}
     </div>
+
+    <!-- System Logs (Dev Mode Only) -->
+    {% if dev_mode %}
+    <div class="card" style="margin-top: var(--space-8);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6);">
+            <h3 style="margin: 0;">🔧 Full System Logs (DEBUG)</h3>
+            <button onclick="refreshDevLogs()" class="btn-text" style="font-size: 0.875rem;">
+                🔄 Refresh
+            </button>
+        </div>
+        
+        <div id="devLogsContainer" style="background: #000; color: #0f0; padding: var(--space-4); border-radius: 4px; font-family: var(--font-mono); font-size: 0.75rem; max-height: 600px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">
+            {% if system_logs %}{{ system_logs }}{% else %}Loading logs...{% endif %}
+        </div>
+    </div>
+    {% endif %}
 </div>
+
+<style>
+.dev-switch-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.dev-switch-label {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    user-select: none;
+}
+
+.dev-switch {
+    position: relative;
+    display: inline-block;
+    width: 52px;
+    height: 28px;
+    cursor: pointer;
+    margin: 0;
+}
+
+.dev-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+}
+
+.dev-track {
+    position: absolute;
+    inset: 0;
+    background: #000;
+    border: 2px solid #000;
+    transition: background 0.2s;
+}
+
+.dev-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    background: #fff;
+    transition: transform 0.2s;
+}
+
+.dev-switch input:checked + .dev-track {
+    background: #e5e5e5;
+}
+
+.dev-switch input:checked + .dev-track .dev-thumb {
+    background: #000;
+    transform: translateX(24px);
+}
+
+.dev-switch:hover .dev-track {
+    border-color: #444;
+}
+</style>
+
+<script>
+const devModeToggle = document.getElementById('devModeToggle');
+
+devModeToggle.addEventListener('change', async function() {
+    const isEnabled = this.checked;
+    
+    try {
+        const response = await fetch('/toggle-dev-mode', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ enabled: isEnabled })
+        });
+        
+        if (response.ok) {
+            // Reload page to show/hide dev logs section
+            window.location.reload();
+        } else {
+            alert('Failed to toggle dev mode');
+            this.checked = !isEnabled;
+        }
+    } catch (error) {
+        console.error('Error toggling dev mode:', error);
+        alert('Error toggling dev mode');
+        this.checked = !isEnabled;
+    }
+});
+
+async function refreshDevLogs() {
+    const container = document.getElementById('devLogsContainer');
+    container.textContent = 'Loading logs...';
+    
+    try {
+        const response = await fetch('/dev-logs');
+        const data = await response.json();
+        container.textContent = data.logs || 'No logs available';
+        container.scrollTop = container.scrollHeight; // Scroll to bottom
+    } catch (error) {
+        container.textContent = 'Error loading logs: ' + error.message;
+    }
+}
+
+// Auto-refresh dev logs every 5 seconds if in dev mode
+{% if dev_mode %}
+setInterval(refreshDevLogs, 5000);
+{% endif %}
+</script>
+
 {% endblock %}

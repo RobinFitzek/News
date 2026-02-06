@@ -404,7 +404,7 @@ async def run_scan_now(
 
     try:
         # Log the scan attempt
-        audit_log.log_event("manual_scan_triggered", username, {"source": "web_dashboard"})
+        audit_log.log("manual_scan_triggered", username=username, ip=request.client.host, details={"source": "web_dashboard"})
 
         # Check if APIs are configured
         pplx_key = db.get_api_key("perplexity")
@@ -426,7 +426,7 @@ async def run_scan_now(
 
     except Exception as e:
         # Log the error
-        audit_log.log_event("manual_scan_failed", username, {"error": str(e)})
+        audit_log.log("manual_scan_failed", username=username, ip=request.client.host, details={"error": str(e)})
         print(f"❌ Manual scan error: {e}")
 
         # Return with error message
@@ -584,12 +584,86 @@ async def insider_detail_page(
 @app.get("/logs", response_class=HTMLResponse)
 async def logs_page(request: Request, username: str = Depends(require_auth)):
     """System logs"""
+    dev_mode = db.get_setting('development_mode') or False
+    
+    # Load system logs if in dev mode
+    system_logs = ""
+    if dev_mode:
+        try:
+            from pathlib import Path
+            log_file = Path(__file__).parent / "logs" / "application.log"
+            if log_file.exists():
+                # Read last 500 lines
+                with open(log_file, 'r') as f:
+                    lines = f.readlines()
+                    system_logs = ''.join(lines[-500:])
+        except Exception as e:
+            system_logs = f"Error loading logs: {e}"
+    
     return templates.TemplateResponse("logs.html", {
         "request": request,
         "csrf_token": request.state.csrf_token,
         "scheduler_logs": db.get_scheduler_logs(limit=50),
-        "alerts": db.get_alerts(limit=50)
+        "alerts": db.get_alerts(limit=50),
+        "dev_mode": dev_mode,
+        "system_logs": system_logs
     })
+
+@app.post("/toggle-dev-mode")
+@limiter.limit("10/minute")
+async def toggle_dev_mode(request: Request, username: str = Depends(require_auth)):
+    """Toggle development mode"""
+    try:
+        data = await request.json()
+        
+        # Validate CSRF token from header
+        token = request.headers.get('X-CSRF-Token', '')
+        if not csrf.validate_token(token):
+            raise HTTPException(status_code=403, detail="Invalid CSRF token")
+        
+        enabled = data.get('enabled', False)
+        
+        # Update setting
+        db.set_setting('development_mode', enabled)
+        
+        # Log the action
+        audit_log.log(
+            event_type="toggle_dev_mode",
+            username=username,
+            ip=request.client.host,
+            details={"enabled": enabled}
+        )
+        
+        return {"success": True, "dev_mode": enabled}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/dev-logs")
+@limiter.limit("30/minute")
+async def get_dev_logs(request: Request, username: str = Depends(require_auth)):
+    """Get fresh system logs (dev mode only)"""
+    dev_mode = db.get_setting('development_mode') or False
+    
+    if not dev_mode:
+        raise HTTPException(status_code=403, detail="Dev mode not enabled")
+    
+    try:
+        from pathlib import Path
+        log_file = Path(__file__).parent / "logs" / "application.log"
+        
+        if log_file.exists():
+            with open(log_file, 'r') as f:
+                lines = f.readlines()
+                # Return last 500 lines
+                logs = ''.join(lines[-500:])
+        else:
+            logs = "No log file found"
+        
+        return {"logs": logs}
+    except Exception as e:
+        return {"logs": f"Error loading logs: {e}"}
 
 # ==================== LEARNING PERFORMANCE ====================
 
