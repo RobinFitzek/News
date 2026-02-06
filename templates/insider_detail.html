@@ -81,22 +81,27 @@
         </div>
     </div>
 
-    <!-- AI Analysis -->
-    {% if analysis.gemini_analysis %}
+    <!-- Fact Summary -->
+    {% if analysis.fact_summary %}
     <div class="card" style="margin-bottom: var(--space-6);">
-        <h3 style="margin: 0 0 var(--space-4) 0;">AI Interpretation</h3>
+        <h3 style="margin: 0 0 var(--space-4) 0;">Insider Activity Summary</h3>
         <div style="background: var(--bg-secondary); padding: var(--space-5); border-left: 1px solid var(--text-primary);">
-            <pre style="white-space: pre-wrap; margin: 0; font-family: var(--font-body); line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.gemini_analysis }}</pre>
+            <pre style="white-space: pre-wrap; margin: 0; font-family: var(--font-body); line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.fact_summary }}</pre>
         </div>
+        {% if analysis.voluntary_purchases %}
+        <div style="margin-top: var(--space-4); font-size: 0.8125rem; color: var(--text-muted);">
+            {{ analysis.voluntary_purchases|length }} voluntary open-market purchase(s) detected | {{ analysis.noise_transactions }} noise transactions filtered out
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 
-    <!-- Perplexity Context -->
-    {% if analysis.ai_context %}
+    <!-- News Context -->
+    {% if analysis.news_context %}
     <div class="card" style="margin-bottom: var(--space-6);">
-        <h3 style="margin: 0 0 var(--space-4) 0;">Market Context</h3>
+        <h3 style="margin: 0 0 var(--space-4) 0;">News Context</h3>
         <div style="background: var(--bg-secondary); padding: var(--space-5); border-left: 1px solid var(--text-muted);">
-            <pre style="white-space: pre-wrap; margin: 0; font-family: var(--font-body); line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.ai_context }}</pre>
+            <pre style="white-space: pre-wrap; margin: 0; font-family: var(--font-body); line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.news_context }}</pre>
         </div>
     </div>
     {% endif %}
@@ -110,7 +115,7 @@
             <div style="border-left: 1px solid var(--text-primary); padding-left: var(--space-4);">
                 <h3 style="font-size: 0.875rem; margin: 0 0 var(--space-2) 0; font-family: var(--font-body);">Cluster Buying</h3>
                 <p style="color: var(--text-muted); font-size: 0.8125rem; margin: 0;">
-                    Multiple insiders buying within 30 days - strong bullish signal
+                    {{ analysis.patterns.cluster_buy_count|default(3) }}+ unique insiders bought within 14 days — historically predictive
                 </p>
             </div>
             {% endif %}

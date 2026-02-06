@@ -48,3 +48,17 @@ Exception: Test exception
 2026-02-05 19:44:10 - clients.gemini_client - INFO - Gemini client initialized successfully
 2026-02-05 19:44:10 - clients.gemini_client - INFO - Gemini client initialized successfully
 2026-02-05 19:44:43 - core.database - ERROR - Error fetching top insider signals: name 'timedelta' is not defined
+2026-02-05 19:57:32 - root - INFO - Logging initialized
+2026-02-05 19:57:33 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 19:57:33 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-05 19:59:38 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-02-05 19:59:41 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:59:41 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:59:41 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:59:41 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-05 19:59:41 - apscheduler.scheduler - INFO - Added job "Daily Investment Scan" to job store "default"
+2026-02-05 19:59:41 - apscheduler.scheduler - INFO - Added job "Weekly Deep Analysis" to job store "default"
+2026-02-05 19:59:41 - apscheduler.scheduler - INFO - Added job "Monthly Portfolio Review" to job store "default"
+2026-02-05 19:59:41 - apscheduler.scheduler - INFO - Added job "Daily Summary Email" to job store "default"
+2026-02-05 19:59:41 - apscheduler.scheduler - INFO - Scheduler started
+2026-02-05 19:59:42 - apscheduler.scheduler - INFO - Scheduler has been shut down

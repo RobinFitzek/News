@@ -12,7 +12,9 @@
       "Bash(ss:*)",
       "Bash(curl:*)",
       "Bash(journalctl:*)",
-      "Bash(python3 -m py_compile:*)"
+      "Bash(python3 -m py_compile:*)",
+      "WebSearch",
+      "Bash(python3:*)"
     ]
   }
 }

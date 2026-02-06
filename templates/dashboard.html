@@ -113,6 +113,12 @@
                 <div class="progress-bar" data-width="{{ (learning_stats.avg_accuracy * 100)|round(0) }}"></div>
             </div>
         </div>
+
+        {% if learning_stats.health_warning %}
+        <div style="margin-top: var(--space-5); padding: var(--space-4); background: var(--signal-negative-bg, rgba(239,68,68,0.1)); border: 1px solid var(--signal-negative, #ef4444); font-size: 0.8125rem; color: var(--text-secondary);">
+            {{ learning_stats.health_warning }}
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 
@@ -154,6 +160,27 @@
         </div>
     </div>
     {% endif %}
+
+    <!-- Portfolio Alerts -->
+    <div id="portfolio-alerts-container" class="card" style="margin-bottom: var(--space-8); display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Portfolio Alerts</h3>
+                <p style="margin: 0; font-size: var(--text-sm);" id="portfolio-alerts-subtitle"></p>
+            </div>
+            <a href="/portfolio" class="btn btn-secondary">View Portfolio</a>
+        </div>
+
+        <!-- Benchmark -->
+        <div id="portfolio-benchmark" style="display: none; padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline); margin-bottom: var(--space-5);">
+        </div>
+
+        <!-- Alerts List -->
+        <div id="portfolio-alerts-list"></div>
+
+        <!-- Rebalancing -->
+        <div id="portfolio-rebalancing" style="display: none; margin-top: var(--space-5); padding-top: var(--space-5); border-top: 1px solid var(--border-hairline);"></div>
+    </div>
 
     <!-- API Status -->
     <div class="grid grid-3" style="margin-bottom: var(--space-8);">
@@ -325,6 +352,66 @@
     document.querySelectorAll('[data-width]').forEach(el => {
         el.style.width = el.getAttribute('data-width') + '%';
     });
+
+    // Portfolio alerts
+    fetch('/api/portfolio/alerts')
+        .then(r => r.json())
+        .then(data => {
+            const container = document.getElementById('portfolio-alerts-container');
+            if (!data || data.message === 'No active holdings') return;
+
+            const hasAlerts = (data.alerts && data.alerts.length > 0);
+            const hasBenchmark = !!data.benchmark;
+            const hasRebalancing = (data.rebalancing && data.rebalancing.length > 0);
+
+            if (!hasAlerts && !hasBenchmark && !hasRebalancing) return;
+
+            container.style.display = '';
+
+            // Subtitle
+            const subtitle = document.getElementById('portfolio-alerts-subtitle');
+            const val = data.portfolio_value || 0;
+            subtitle.textContent = val > 0 ? 'Portfolio: $' + val.toLocaleString() : '';
+
+            // Benchmark
+            if (hasBenchmark) {
+                const bm = data.benchmark;
+                const bmEl = document.getElementById('portfolio-benchmark');
+                bmEl.style.display = '';
+                const alphaColor = bm.alpha >= 0 ? 'var(--signal-positive)' : 'var(--signal-negative)';
+                bmEl.innerHTML = '<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-3);">' +
+                    '<div style="font-size: 0.8125rem;">' +
+                    '<span style="color: var(--text-muted);">Portfolio:</span> <span style="font-weight: 500; color: var(--text-primary);">' + bm.portfolio_return.toFixed(1) + '%</span>' +
+                    ' <span style="color: var(--text-muted); margin: 0 var(--space-2);">vs</span> ' +
+                    '<span style="color: var(--text-muted);">SPY:</span> <span style="font-weight: 500; color: var(--text-primary);">' + bm.spy_return.toFixed(1) + '%</span>' +
+                    '</div>' +
+                    '<div style="font-size: 0.875rem; font-weight: 500; color: ' + alphaColor + ';">Alpha: ' + (bm.alpha >= 0 ? '+' : '') + bm.alpha.toFixed(1) + '% (' + bm.period_days + 'd)</div>' +
+                    '</div>';
+            }
+
+            // Alerts
+            if (hasAlerts) {
+                const listEl = document.getElementById('portfolio-alerts-list');
+                listEl.innerHTML = data.alerts.map(a => {
+                    const sevColor = a.severity === 'CRITICAL' ? 'var(--signal-negative)' : 'var(--signal-warning, #f59e0b)';
+                    return '<div style="padding: var(--space-3) var(--space-4); margin-bottom: var(--space-2); border-left: 2px solid ' + sevColor + '; background: var(--bg-secondary); font-size: 0.8125rem;">' +
+                        '<span style="color: ' + sevColor + '; font-weight: 500; margin-right: var(--space-2);">' + a.severity + '</span>' +
+                        '<span style="color: var(--text-secondary);">' + a.message + '</span></div>';
+                }).join('');
+            }
+
+            // Rebalancing
+            if (hasRebalancing) {
+                const rebEl = document.getElementById('portfolio-rebalancing');
+                rebEl.style.display = '';
+                rebEl.innerHTML = '<div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-3);">Rebalancing Suggestions</div>' +
+                    data.rebalancing.map(r =>
+                        '<div style="font-size: 0.8125rem; color: var(--text-secondary); margin-bottom: var(--space-2);">' +
+                        (r.action === 'reduce' ? '&#x25BC;' : '&#x25B2;') + ' ' + r.message + '</div>'
+                    ).join('');
+            }
+        })
+        .catch(() => {});
 
     // Toast notifications from query parameters
     document.addEventListener('DOMContentLoaded', () => {

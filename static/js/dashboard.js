@@ -9,12 +9,68 @@
 
 class ThemeManager {
     constructor() {
+        this.storageKey = 'stockholm-theme';
         this.init();
     }
 
     init() {
-        // Stockholm is always light mode with B&W palette
-        document.documentElement.setAttribute('data-theme', 'light');
+        const savedTheme = localStorage.getItem(this.storageKey);
+        const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+        const initialTheme = savedTheme || (prefersLight ? 'light' : 'dark');
+
+        this.applyTheme(initialTheme, false);
+        this.bindToggle();
+        this.watchSystemPreference();
+    }
+
+    applyTheme(theme, persist = true) {
+        const normalized = theme === 'light' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', normalized);
+        this.syncToggle(normalized);
+        this.updateMetaThemeColor(normalized);
+
+        if (persist) {
+            localStorage.setItem(this.storageKey, normalized);
+        }
+    }
+
+    bindToggle() {
+        const toggle = document.getElementById('theme-toggle');
+        if (!toggle) return;
+
+        toggle.addEventListener('change', (event) => {
+            const nextTheme = event.target.checked ? 'light' : 'dark';
+            this.applyTheme(nextTheme);
+        });
+    }
+
+    syncToggle(theme) {
+        const toggle = document.getElementById('theme-toggle');
+        if (toggle) {
+            toggle.checked = theme === 'light';
+        }
+    }
+
+    watchSystemPreference() {
+        if (!window.matchMedia) return;
+
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
+        const handleChange = (event) => {
+            if (localStorage.getItem(this.storageKey)) return;
+            this.applyTheme(event.matches ? 'light' : 'dark', false);
+        };
+
+        if (mediaQuery.addEventListener) {
+            mediaQuery.addEventListener('change', handleChange);
+        } else if (mediaQuery.addListener) {
+            mediaQuery.addListener(handleChange);
+        }
+    }
+
+    updateMetaThemeColor(theme) {
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (!meta) return;
+        meta.setAttribute('content', theme === 'light' ? '#f8f8f7' : '#000000');
     }
 }
 
@@ -22,74 +78,89 @@ class ThemeManager {
 // Chart Configuration — Minimal B&W Styling
 // ============================================
 
-const chartColors = {
-    primary: '#0a0a0a',
-    secondary: '#737373',
-    muted: '#a3a3a3',
-    border: '#e5e5e5',
-    background: '#fafafa',
-    text: '#404040',
-    textPrimary: '#0a0a0a'
-};
+function getThemeColor(variableName, fallback) {
+    const value = getComputedStyle(document.documentElement)
+        .getPropertyValue(variableName)
+        .trim();
+    return value || fallback;
+}
 
-const chartDefaults = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-        legend: {
-            labels: {
-                color: chartColors.textPrimary,
-                font: {
-                    family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
-                    size: 12
+function getThemeChartColors() {
+    return {
+        primary: getThemeColor('--text-primary', '#ffffff'),
+        secondary: getThemeColor('--text-secondary', '#a0a0a0'),
+        muted: getThemeColor('--text-muted', '#666666'),
+        border: getThemeColor('--border-light', 'rgba(255, 255, 255, 0.08)'),
+        background: getThemeColor('--bg-card', '#0a0a0a'),
+        text: getThemeColor('--text-secondary', '#a0a0a0'),
+        textPrimary: getThemeColor('--text-primary', '#ffffff')
+    };
+}
+
+function buildChartDefaults() {
+    const chartColors = getThemeChartColors();
+
+    return {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                labels: {
+                    color: chartColors.textPrimary,
+                    font: {
+                        family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif',
+                        size: 12
+                    }
                 }
+            },
+            tooltip: {
+                backgroundColor: 'rgba(10, 10, 10, 0.95)',
+                borderColor: chartColors.border,
+                borderWidth: 1,
+                titleColor: '#ffffff',
+                bodyColor: chartColors.muted,
+                padding: 12,
+                cornerRadius: 4,
+                displayColors: true,
+                boxPadding: 4
             }
         },
-        tooltip: {
-            backgroundColor: 'rgba(10, 10, 10, 0.95)',
-            borderColor: 'rgba(255, 255, 255, 0.1)',
-            borderWidth: 1,
-            titleColor: '#ffffff',
-            bodyColor: '#a3a3a3',
-            padding: 12,
-            cornerRadius: 4,
-            displayColors: true,
-            boxPadding: 4
-        }
-    },
-    scales: {
-        x: {
-            grid: {
-                color: chartColors.border,
-                drawBorder: false
-            },
-            ticks: {
-                color: chartColors.text,
-                font: {
-                    family: 'SF Mono, Monaco, monospace',
-                    size: 10
+        scales: {
+            x: {
+                grid: {
+                    color: chartColors.border,
+                    drawBorder: false
+                },
+                ticks: {
+                    color: chartColors.text,
+                    font: {
+                        family: 'SF Mono, Monaco, monospace',
+                        size: 10
+                    }
                 }
-            }
-        },
-        y: {
-            grid: {
-                color: chartColors.border,
-                drawBorder: false
             },
-            ticks: {
-                color: chartColors.text,
-                font: {
-                    family: 'SF Mono, Monaco, monospace',
-                    size: 10
+            y: {
+                grid: {
+                    color: chartColors.border,
+                    drawBorder: false
+                },
+                ticks: {
+                    color: chartColors.text,
+                    font: {
+                        family: 'SF Mono, Monaco, monospace',
+                        size: 10
+                    }
                 }
             }
         }
-    }
-};
+    };
+}
 
 function createLineChart(canvasId, data, options = {}) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return null;
+
+    const chartDefaults = buildChartDefaults();
 
     return new Chart(ctx, {
         type: 'line',
@@ -116,6 +187,8 @@ function createBarChart(canvasId, data, options = {}) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return null;
 
+    const chartDefaults = buildChartDefaults();
+
     return new Chart(ctx, {
         type: 'bar',
         data: data,
@@ -130,6 +203,9 @@ function createBarChart(canvasId, data, options = {}) {
 function createDoughnutChart(canvasId, data, options = {}) {
     const ctx = document.getElementById(canvasId);
     if (!ctx) return null;
+
+    const chartDefaults = buildChartDefaults();
+    const chartColors = getThemeChartColors();
 
     return new Chart(ctx, {
         type: 'doughnut',
@@ -417,5 +493,7 @@ window.dashboardUtils = {
     createBarChart,
     createDoughnutChart,
     animateValue,
-    chartColors
+    chartColors: getThemeChartColors(),
+    getThemeChartColors,
+    buildChartDefaults
 };

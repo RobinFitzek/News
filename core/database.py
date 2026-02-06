@@ -4,7 +4,7 @@ Handles settings, watchlist, analysis history, and API keys securely.
 """
 import sqlite3
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from core.config import DB_PATH, DEFAULT_SETTINGS
@@ -344,12 +344,29 @@ class Database:
             )
         """)
 
+        # API Cost Logging (for adaptive budget tracking)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS api_cost_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
+                date TEXT NOT NULL,
+                api TEXT NOT NULL,
+                model TEXT NOT NULL,
+                input_tokens INTEGER DEFAULT 0,
+                output_tokens INTEGER DEFAULT 0,
+                estimated_cost REAL DEFAULT 0,
+                month TEXT NOT NULL
+            )
+        """)
+
         # Indexes for better performance
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_ticker ON portfolio_trades(ticker)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_date ON portfolio_trades(date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_perf_date ON performance_snapshots(date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_insider_ticker ON insider_transactions(ticker)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_insider_date ON insider_transactions(transaction_date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cost_api_month ON api_cost_log(api, month)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_cost_api_date ON api_cost_log(api, date)")
         
         conn.commit()
         conn.close()
@@ -504,13 +521,28 @@ class Database:
 
         ticker = ticker.upper().strip()
 
-        # Extract signal from recommendation with error handling
-        signal = "HOLD"
+        # Extract signal — use quant screener signal if available, fallback to old parsing
+        signal = results.get('signal', 'NEUTRAL')
         confidence = 50
-        rec = results.get('recommendation', '')
 
-        try:
-            if rec:
+        # Map new signal types to DB values
+        signal_map = {
+            'Opportunity': 'OPPORTUNITY',
+            'Caution': 'CAUTION',
+            'Neutral': 'NEUTRAL',
+        }
+        signal = signal_map.get(signal, signal)
+
+        # Set confidence based on signal type
+        if signal == 'OPPORTUNITY':
+            confidence = 75
+        elif signal == 'CAUTION':
+            confidence = 75
+
+        # Legacy fallback: parse old-style Buy/Sell from recommendation text
+        rec = results.get('recommendation', '')
+        if signal in ('NEUTRAL', 'HOLD') and rec:
+            try:
                 if 'Strong Buy' in rec:
                     signal = "STRONG_BUY"
                     confidence = 90
@@ -523,8 +555,8 @@ class Database:
                 elif 'Sell' in rec:
                     signal = "SELL"
                     confidence = 70
-        except Exception as e:
-            self.logger.warning(f"Error parsing recommendation: {e}")
+            except Exception as e:
+                self.logger.warning(f"Error parsing recommendation: {e}")
 
         # Use transaction context manager
         try:
@@ -1183,6 +1215,93 @@ class Database:
         except Exception as e:
             self.logger.error(f"Error fetching top insider signals: {e}")
             return []
+
+    # === API Cost Tracking ===
+    def log_api_cost(self, api: str, model: str, input_tokens: int,
+                     output_tokens: int, estimated_cost: float, month: str, date: str):
+        """Log an API request with estimated cost."""
+        try:
+            conn = self._get_conn()
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO api_cost_log (api, model, input_tokens, output_tokens,
+                                          estimated_cost, month, date)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (api, model, input_tokens, output_tokens, estimated_cost, month, date))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            self.logger.error(f"Error logging API cost: {e}")
+
+    def get_api_spending(self, api: str, month: str) -> float:
+        """Get total USD spending for an API in a given month."""
+        try:
+            conn = self._get_conn()
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT COALESCE(SUM(estimated_cost), 0) as total
+                FROM api_cost_log WHERE api = ? AND month = ?
+            """, (api, month))
+            row = cursor.fetchone()
+            conn.close()
+            return float(row['total']) if row else 0.0
+        except Exception as e:
+            self.logger.error(f"Error getting API spending: {e}")
+            return 0.0
+
+    def get_api_spending_day(self, api: str, date: str) -> float:
+        """Get total USD spending for an API on a given date."""
+        try:
+            conn = self._get_conn()
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT COALESCE(SUM(estimated_cost), 0) as total
+                FROM api_cost_log WHERE api = ? AND date = ?
+            """, (api, date))
+            row = cursor.fetchone()
+            conn.close()
+            return float(row['total']) if row else 0.0
+        except Exception as e:
+            self.logger.error(f"Error getting API daily spending: {e}")
+            return 0.0
+
+    def get_api_request_count(self, api: str, date: str) -> int:
+        """Get number of API requests on a given date."""
+        try:
+            conn = self._get_conn()
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT COUNT(*) as cnt FROM api_cost_log
+                WHERE api = ? AND date = ?
+            """, (api, date))
+            row = cursor.fetchone()
+            conn.close()
+            return int(row['cnt']) if row else 0
+        except Exception as e:
+            self.logger.error(f"Error getting API request count: {e}")
+            return 0
+
+    def get_api_spending_breakdown(self, api: str, month: str) -> list:
+        """Get spending breakdown by model for an API in a month."""
+        try:
+            conn = self._get_conn()
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT model, COUNT(*) as requests,
+                       SUM(input_tokens) as total_input,
+                       SUM(output_tokens) as total_output,
+                       SUM(estimated_cost) as total_cost
+                FROM api_cost_log
+                WHERE api = ? AND month = ?
+                GROUP BY model ORDER BY total_cost DESC
+            """, (api, month))
+            rows = cursor.fetchall()
+            conn.close()
+            return [dict(row) for row in rows]
+        except Exception as e:
+            self.logger.error(f"Error getting API spending breakdown: {e}")
+            return []
+
 
 # Singleton
 db = Database()

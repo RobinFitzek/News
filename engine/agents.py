@@ -1,12 +1,15 @@
 """
 Investment Analysis Agents
-Multi-agent system for stock analysis using Perplexity and Gemini APIs.
+Multi-agent system: Quant screening (math) + Perplexity (news) + Gemini (research notes).
+No buy/sell signals — facts and context only.
 """
 from clients.perplexity_client import pplx_client
 from clients.gemini_client import gemini_client
+from engine.quant_screener import quant_screener
 import yfinance as yf
 from core.database import db
 import logging
+import re
 from typing import Dict, Optional
 
 class InvestmentSwarm:
@@ -15,227 +18,169 @@ class InvestmentSwarm:
     def __init__(self):
         self.pplx = pplx_client
         self.gemini = gemini_client
+        self.screener = quant_screener
         self.logger = logging.getLogger(__name__)
         self._reload_api_keys()
-    
+
     def _reload_api_keys(self):
         """Reload API keys from database"""
         pplx_key = db.get_api_key("perplexity")
         gemini_key = db.get_api_key("gemini")
-        
+
         if pplx_key:
             self.pplx.api_key = pplx_key
         if gemini_key:
             self.gemini.reload_api_key(gemini_key)
 
     def analyze_single_stock(self, ticker: str, strategy: str = "balanced") -> dict:
-        """Manual full analysis for a single stock (Stage 2 + Stage 3)"""
-        print(f"🔧 Manual Analysis for {ticker}...")
-        stock_data = self._get_stock_data(ticker)
-        
-        # Fake Stage 1 result to pass to Stage 2
-        candidate = {
-            'ticker': ticker,
-            'score': 100, # Manual override
-            'initial_reason': "Manually requested",
-            'data': stock_data
-        }
-        
-        # Run Stage 2
+        """Manual full analysis for a single stock"""
+        print(f"Manual Analysis for {ticker}...")
+
+        # Stage 1: Quant screen (free)
+        quant_result = self.screener.screen_ticker(ticker, variant=strategy)
+        if not quant_result or 'error' in quant_result:
+            stock_data = self._get_stock_data(ticker)
+            quant_result = {
+                'ticker': ticker,
+                'score': 50,
+                'composite_score': 50,
+                'signal': 'Neutral',
+                'initial_reason': 'Quant data unavailable, manual override',
+                'data': stock_data,
+                'valuation': {}, 'technicals': {}, 'momentum': {}, 'quality': {},
+                'anomalies': [],
+            }
+
+        candidate = quant_result
+        candidate['data'] = candidate.get('data', self._get_stock_data(ticker))
+
+        # Stage 2: News only (Perplexity)
         stage2_results = self.stage2_analyze(candidate, strategy)
         candidate.update(stage2_results)
-        
-        # Run Stage 3
+
+        # Stage 3: Research note (Gemini)
         final_result = self.stage3_synthesize(candidate, strategy)
-        
+
         return final_result
-    
+
     def stage1_scan(self, tickers: list, variant: str = "balanced") -> list:
-        """Stage 1: Flash-8b Quick Scan with robust error handling"""
+        """Stage 1: Quantitative screening (zero API cost, pure math)"""
         if not tickers:
             self.logger.warning("Empty ticker list provided to stage1_scan")
             return []
 
-        print(f"\n🚀 STAGE 1: Scanning {len(tickers)} tickers with Flash-8b (Variant: {variant})")
-        candidates = []
-        errors = []
+        # Use quant screener instead of Gemini
+        results = self.screener.screen_batch(tickers, variant)
 
-        for ticker in tickers:
-            try:
-                # Validate ticker
-                if not ticker or not isinstance(ticker, str):
-                    self.logger.warning(f"Invalid ticker: {ticker}")
-                    continue
-
-                ticker = ticker.upper().strip()
-
-                # Get stock data with error handling
-                stock_data = self._get_stock_data(ticker)
-
-                # Skip if data fetch failed
-                if 'error' in stock_data:
-                    self.logger.warning(f"Skipping {ticker} due to data error: {stock_data['error']}")
-                    errors.append({'ticker': ticker, 'error': stock_data['error']})
-                    continue
-
-                # Variant-specific nuances
-                variant_prompt = ""
-                if variant == "conservative":
-                    variant_prompt = "Fokus: Maximale Sicherheit, Blue-Chips, stabile Dividenden. Sei extrem kritisch."
-                elif variant == "aggressive":
-                    variant_prompt = "Fokus: High-Reward, Small-Caps, Turnaround-Chancen. Akzeptiere hohes Risiko für explosives Wachstum."
-                else:  # balanced
-                    variant_prompt = "Fokus: Ausgewogenes Verhältnis. Qualität zu fairem Preis."
-
-                prompt = f"""
-                Quick Scan für {ticker}:
-                Daten: {stock_data}
-                {variant_prompt}
-
-                Gib einen 'Interest Score' von 0-100 basierend auf der Strategie.
-                0 = Uninteressant / Hohes Risiko
-                100 = Top Kandidat / Passt perfekt
-
-                Format genau so: "Score: [0-100] | Grund: [Kurz]"
-                """
-
-                # Call Gemini API with error handling
-                response = self.gemini.generate(prompt, tier='flash-8b')
-
-                # Check if response is an error message
-                if response.startswith("⚠️") or response.startswith("❌"):
-                    self.logger.warning(f"API error for {ticker}: {response}")
-                    errors.append({'ticker': ticker, 'error': response})
-                    continue
-
-                # Parse score
-                import re
-                score_match = re.search(r"Score:\s*(\d+)", response)
-                score = int(score_match.group(1)) if score_match else 0
-
-                # Validate score range
-                score = max(0, min(100, score))
-
-                print(f"  👉 {ticker}: {score} - {response.split('|')[-1].strip()[:50] if '|' in response else 'N/A'}...")
-
-                candidates.append({
-                    'ticker': ticker,
-                    'score': score,
-                    'initial_reason': response,
-                    'data': stock_data
-                })
-
-            except ValueError as e:
-                self.logger.error(f"Value error scanning {ticker}: {e}")
-                errors.append({'ticker': ticker, 'error': str(e)})
-
-            except Exception as e:
-                self.logger.error(f"Unexpected error scanning {ticker}: {e}", exc_info=True)
-                errors.append({'ticker': ticker, 'error': str(e)})
-                print(f"⚠️ Scan error {ticker}: {e}")
-
-        # Log summary
-        self.logger.info(f"Stage 1 complete: {len(candidates)} successful, {len(errors)} errors")
-        if errors:
-            self.logger.warning(f"Errors encountered: {errors}")
-
-        # Sort by score descending
-        return sorted(candidates, key=lambda x: x['score'], reverse=True)
+        self.logger.info(f"Stage 1 (quant screen) complete: {len(results)} candidates")
+        return results
 
     def stage2_analyze(self, candidate: dict, variant: str = "balanced") -> dict:
-        """Stage 2: Flash Deep Dive (Fundamental + Technical)"""
+        """Stage 2: News summarization only (Perplexity). No AI fundamental/technical analysis."""
         ticker = candidate['ticker']
-        print(f"\n🔬 STAGE 2: Deep Dive Analysis for {ticker} (Flash)")
-        
+        print(f"\n  STAGE 2: News & Market Intelligence for {ticker}")
+
         results = {
-            'ticker': ticker, 
-            'stage1_score': candidate['score'],
-            'stage1_reason': candidate['initial_reason']
+            'ticker': ticker,
+            'stage1_score': candidate.get('score', candidate.get('composite_score', 0)),
+            'stage1_reason': candidate.get('initial_reason', ''),
         }
-        stock_data = candidate['data']
-        
-        # Fundamental Analysis
-        fund_focus = "finanzielle Stabilität und faire Bewertung"
-        if variant == "aggressive": fund_focus = "Umsatzwachstum, Cash-Burn und Marktpotential"
-        if variant == "conservative": fund_focus = "Schuldendeckung, Free Cashflow und Dividendenkontinuität"
-        
-        fund_prompt = f"""
-        Analysiere {ticker} fundamental. Fokus: {fund_focus}.
-        Daten: {stock_data}
-        
-        Bewerte: KGV/KBV, Wachstum, Schulden.
-        Kurz und prägnant auf Deutsch.
-        """
-        results['fundamental'] = self.gemini.generate(fund_prompt, tier='flash')
-        
-        # Technical Analysis
-        tech_focus = "Trendbestätigung und gleitende Durchschnitte"
-        if variant == "aggressive": tech_focus = "Volatilität, RSI-Extrema und Ausbruchsmuster"
-        if variant == "conservative": tech_focus = "Langfristige Unterstützungen und Trendstabilität"
 
-        tech_prompt = f"""
-        Analysiere {ticker} technisch. Fokus: {tech_focus}.
-        Kursverlauf: {stock_data.get('price_history', 'N/A')}
+        # Quant data already computed in Stage 1 — pass it through
+        results['quant_metrics'] = {
+            'valuation': candidate.get('valuation', {}),
+            'technicals': candidate.get('technicals', {}),
+            'momentum': candidate.get('momentum', {}),
+            'quality': candidate.get('quality', {}),
+            'anomalies': candidate.get('anomalies', []),
+            'composite_score': candidate.get('composite_score', candidate.get('score', 0)),
+            'signal': candidate.get('signal', 'Neutral'),
+        }
 
-        Erkenne Trends und Support/Resistance.
-        Kurz und prägnant auf Deutsch.
-        """
-        results['technical'] = self.gemini.generate(tech_prompt, tier='flash')
+        # Fundamental + Technical analysis is now computed by quant screener (math)
+        # Generate text summaries from quant data for DB compatibility
+        qm = results['quant_metrics']
+        val = qm.get('valuation', {})
+        tech = qm.get('technicals', {})
+        mom = qm.get('momentum', {})
+        qual = qm.get('quality', {})
 
-        # Market Insights & News (Perplexity) - PRIMARY SOURCE
+        results['fundamental'] = (
+            f"P/E: {val.get('pe_ratio', 'N/A')} (vs Sektor: {val.get('pe_vs_sector', 'N/A')}x) | "
+            f"PEG: {val.get('peg_ratio', 'N/A')} | P/B vs Sektor: {val.get('pb_vs_sector', 'N/A')}x | "
+            f"D/E: {qual.get('debt_to_equity', 'N/A')} | ROE: {qual.get('roe', 'N/A')}% | "
+            f"FCF Yield: {qual.get('fcf_yield', 'N/A')}% | Current Ratio: {qual.get('current_ratio', 'N/A')}"
+        )
+        results['technical'] = (
+            f"RSI(14): {tech.get('rsi_14', 'N/A')} | SMA Signal: {tech.get('sma_cross_signal', 'N/A')} | "
+            f"52W Position: {tech.get('price_vs_52w_range', 'N/A')} | Bollinger: {tech.get('bollinger_position', 'N/A')} | "
+            f"1M Return: {mom.get('return_1m', 'N/A')}% | 3M Return: {mom.get('return_3m', 'N/A')}% | "
+            f"6M Return: {mom.get('return_6m', 'N/A')}% | "
+            f"vs SPY 1M: {mom.get('excess_1m', 'N/A')}% | 3M: {mom.get('excess_3m', 'N/A')}% | 6M: {mom.get('excess_6m', 'N/A')}%"
+        )
+
+        # Market Insights & News (Perplexity) — the only API call in Stage 2
         if self.pplx.is_configured():
-            print(f"  📰 Fetching real-time market insights for {ticker}...")
+            print(f"    Fetching real-time news for {ticker}...")
             news_scan = self.pplx.quick_scan(ticker)
-            results['news'] = news_scan['raw'] if news_scan and news_scan.get('raw') else "No recent news or market insights available"
+            results['news'] = news_scan['raw'] if news_scan and news_scan.get('raw') else "No recent news available"
         else:
-            results['news'] = "⚠️ Perplexity API not configured - market insights unavailable"
+            results['news'] = "Perplexity API not configured - news unavailable"
 
         return results
 
     def stage3_synthesize(self, analysis_result: dict, variant: str = "balanced") -> dict:
-        """Stage 3: Pro Final Verdict (Detailed Risk Assessment)"""
+        """Stage 3: Research note with risks and catalysts. NO buy/sell recommendations."""
         ticker = analysis_result['ticker']
-        print(f"\n⚖️ STAGE 3: Final Recommendation for {ticker} (Pro)")
-        
-        # Variant Context
-        var_desc = "Ausgewogen"
-        if variant == "conservative": var_desc = "Konservativ (Sicherheit & Werterhalt)"
-        if variant == "aggressive": var_desc = "Aggressiv (Wachstum & Spekulation)"
-        
-        prompt = f"""
-        Handle als Senior-Portfoliomanager. Analysevariante: {var_desc}.
-        Synthetisiere die Analysen für {ticker}:
-        
-        Fundamental: {analysis_result['fundamental']}
-        Technisch: {analysis_result['technical']}
-        Quick Scan: {analysis_result['stage1_reason']}
-        
-        Aufgabe:
-        1. Gib eine glasklare Handels-Empfehlung (Strong Buy, Buy, Hold, Sell, Strong Sell).
-        2. Führe eine detaillierte Risiko-Bewertung durch.
-        3. Bestimme den Risk Score (1-10), wobei 1 = Sicher, 10 = Totalverlustrisiko.
-        4. Nenne Kursziele (Base/Bull/Bear Case) falls möglich.
-        
-        Format ZWINGEND:
-        Signal: [SIGNAL]
-        Risk Score: [1-10]
-        Risk Level: [Low/Medium/High/Extreme]
-        Confidence: [0-100]%
-        Kursziel (12m): [Preis oder N/A]
-        Begründung: [Detaillierte Analyse auf Deutsch]
-        Risiko-Faktoren: [Konkrete Gefahren auf Deutsch]
-        """
-        
-        response = self.gemini.generate(prompt, tier='pro')
+        print(f"\n  STAGE 3: Research Note for {ticker}")
+
+        qm = analysis_result.get('quant_metrics', {})
+        anomaly_text = ""
+        for a in qm.get('anomalies', []):
+            anomaly_text += f"  - {a['description']}\n"
+        if not anomaly_text:
+            anomaly_text = "  Keine Anomalien erkannt."
+
+        prompt = f"""Du bist ein Research-Analyst. Schreibe eine kurze Research-Notiz fuer {ticker}.
+
+Quantitative Daten:
+- Bewertung: P/E vs Sektor: {qm.get('valuation', {}).get('pe_vs_sector', 'N/A')}x, PEG: {qm.get('valuation', {}).get('peg_ratio', 'N/A')}, P/B vs Sektor: {qm.get('valuation', {}).get('pb_vs_sector', 'N/A')}x
+- Technisch: RSI(14): {qm.get('technicals', {}).get('rsi_14', 'N/A')}, SMA-Signal: {qm.get('technicals', {}).get('sma_cross_signal', 'N/A')}, 52W-Position: {qm.get('technicals', {}).get('price_vs_52w_range', 'N/A')}
+- Momentum: 1M: {qm.get('momentum', {}).get('return_1m', 'N/A')}%, 3M: {qm.get('momentum', {}).get('return_3m', 'N/A')}%, 6M: {qm.get('momentum', {}).get('return_6m', 'N/A')}% (vs SPY: {qm.get('momentum', {}).get('excess_1m', 'N/A')}%, {qm.get('momentum', {}).get('excess_3m', 'N/A')}%, {qm.get('momentum', {}).get('excess_6m', 'N/A')}%)
+- Qualitaet: D/E: {qm.get('quality', {}).get('debt_to_equity', 'N/A')}, ROE: {qm.get('quality', {}).get('roe', 'N/A')}%, FCF Yield: {qm.get('quality', {}).get('fcf_yield', 'N/A')}%
+- Anomalien:
+{anomaly_text}
+- Quant Signal: {qm.get('signal', 'Neutral')} (Score: {qm.get('composite_score', 'N/A')}/100)
+
+Aktuelle Nachrichten:
+{analysis_result.get('news', 'Keine Nachrichten verfuegbar')}
+
+Aufgabe:
+1. Fasse die wichtigsten Risiken zusammen (2-3 Saetze)
+2. Nenne potenzielle Katalysatoren (2-3 Saetze)
+3. Was sollte ein Investor beobachten? (1-2 Saetze)
+
+KEINE Kauf/Verkauf-Empfehlung. Nur Fakten und Kontext.
+
+Format:
+Risk Score: [1-10]
+Risiken: [Text]
+Katalysatoren: [Text]
+Beobachten: [Text]
+"""
+
+        response = self.gemini.generate(prompt, tier='flash')
         analysis_result['recommendation'] = response
-        
-        # Parse Risk Score & Signal for DB
-        import re
+
+        # Parse Risk Score for DB
         risk_match = re.search(r"Risk Score:\s*(\d+)", response)
         analysis_result['risk_score'] = int(risk_match.group(1)) if risk_match else 5
-        
-        print(f"  🏁 {ticker}: {response.split(chr(10))[0]} (Risk: {analysis_result['risk_score']})")
-        
+
+        # Signal comes from quant screener, not AI
+        analysis_result['signal'] = qm.get('signal', 'Neutral')
+
+        print(f"    {ticker}: {analysis_result['signal']} | Risk: {analysis_result['risk_score']}/10 | Score: {qm.get('composite_score', 'N/A')}/100")
+
         return analysis_result
 
     def _get_stock_data(self, ticker: str) -> dict:
@@ -247,13 +192,11 @@ class InvestmentSwarm:
         ticker = ticker.upper().strip()
 
         try:
-            # Set timeout for yfinance requests
             stock = yf.Ticker(ticker)
 
-            # Get stock info with error handling
             try:
                 info = stock.info
-                if not info or len(info) < 3:  # yfinance returns minimal dict on error
+                if not info or len(info) < 3:
                     self.logger.warning(f"Minimal or no data returned for {ticker}")
                     return {
                         'ticker': ticker,
@@ -264,7 +207,6 @@ class InvestmentSwarm:
                 self.logger.error(f"Failed to get info for {ticker}: {e}")
                 info = {}
 
-            # Get historical data with error handling
             price_summary = "N/A"
             try:
                 hist = stock.history(period="1mo", timeout=10)
@@ -276,16 +218,15 @@ class InvestmentSwarm:
 
                         if oldest > 0:
                             change = ((latest - oldest) / oldest) * 100
-                            price_summary = f"Aktuell: ${latest:.2f}, 30-Tage Änderung: {change:+.1f}%"
+                            price_summary = f"Aktuell: ${latest:.2f}, 30-Tage Aenderung: {change:+.1f}%"
                         else:
                             price_summary = f"Aktuell: ${latest:.2f}"
                     except (IndexError, ValueError, ZeroDivisionError) as e:
                         self.logger.warning(f"Error calculating price change for {ticker}: {e}")
-                        price_summary = "Preisverlauf nicht verfügbar"
+                        price_summary = "Preisverlauf nicht verfuegbar"
             except Exception as e:
                 self.logger.warning(f"Failed to get history for {ticker}: {e}")
 
-            # Safely extract data with defaults
             result = {
                 'ticker': ticker,
                 'name': info.get('longName', info.get('shortName', ticker)),

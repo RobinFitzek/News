@@ -27,6 +27,7 @@ from slowapi.errors import RateLimitExceeded
 from engine.agents import swarm
 from clients.perplexity_client import pplx_client
 from clients.gemini_client import gemini_client
+from core.budget_tracker import budget_tracker
 from engine.learning_optimizer import learning_optimizer
 
 app = FastAPI(title="AI Investment Monitor", version="1.0.0")
@@ -230,11 +231,17 @@ async def remove_from_watchlist(
 
 @app.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, username: str = Depends(require_auth)):
-    """Settings page"""
+    """Settings page with budget status"""
+    try:
+        budget_status = budget_tracker.get_budget_status()
+    except Exception:
+        budget_status = None
+
     return templates.TemplateResponse("settings.html", {
         "request": request,
         "csrf_token": request.state.csrf_token,
         "settings": db.get_all_settings(),
+        "budget_status": budget_status,
         "api_keys": {
             "perplexity": bool(db.get_api_key("perplexity")),
             "gemini": bool(db.get_api_key("gemini"))
@@ -271,8 +278,42 @@ async def save_settings(request: Request, username: str = Depends(require_auth))
     db.set_setting("include_technical", form.get("include_technical") == "on")
     db.set_setting("analysis_variant", form.get("analysis_variant", "balanced"))
 
-    # Request budget tier
-    db.set_setting("request_budget_tier", form.get("request_budget_tier", "avg"))
+    # Portfolio rule thresholds
+    try:
+        db.set_setting("portfolio_max_position_pct", float(form.get("portfolio_max_position_pct", 10.0)))
+    except (ValueError, TypeError):
+        pass
+    try:
+        db.set_setting("portfolio_stop_loss_pct", float(form.get("portfolio_stop_loss_pct", 15.0)))
+    except (ValueError, TypeError):
+        pass
+    try:
+        db.set_setting("portfolio_max_sector_pct", float(form.get("portfolio_max_sector_pct", 30.0)))
+    except (ValueError, TypeError):
+        pass
+    try:
+        db.set_setting("portfolio_rebalance_drift_pct", float(form.get("portfolio_rebalance_drift_pct", 5.0)))
+    except (ValueError, TypeError):
+        pass
+
+    # Learning system settings
+    try:
+        db.set_setting("learning_verification_days", int(form.get("learning_verification_days", 90)))
+    except (ValueError, TypeError):
+        pass
+
+    # Monthly API budgets (EUR)
+    try:
+        pplx_budget = float(form.get("perplexity_monthly_budget", 5.0))
+        db.set_setting("perplexity_monthly_budget", max(0, min(100, pplx_budget)))
+    except (ValueError, TypeError):
+        db.set_setting("perplexity_monthly_budget", 5.0)
+
+    try:
+        gemini_budget = float(form.get("gemini_monthly_budget", 5.0))
+        db.set_setting("gemini_monthly_budget", max(0, min(100, gemini_budget)))
+    except (ValueError, TypeError):
+        db.set_setting("gemini_monthly_budget", 5.0)
     
     # Reload settings in services
     scheduler.reload_settings()
@@ -701,6 +742,28 @@ async def api_status(request: Request, username: str = Depends(require_auth)):
         },
         "watchlist_count": len(db.get_watchlist())
     }
+
+@app.get("/api/budget")
+async def api_budget_status(request: Request, username: str = Depends(require_auth)):
+    """API endpoint for budget status (used by dashboard AJAX)"""
+    return budget_tracker.get_budget_status()
+
+@app.get("/api/portfolio/alerts")
+async def api_portfolio_alerts(request: Request, username: str = Depends(require_auth)):
+    """Portfolio rule checks: position sizing, stop-loss, sector concentration, benchmark."""
+    from engine.portfolio_manager import portfolio_manager
+    return portfolio_manager.check_all_rules()
+
+@app.get("/api/quant-screen")
+async def api_quant_screen(request: Request, username: str = Depends(require_auth)):
+    """Run quant screener on watchlist — zero API cost."""
+    from engine.quant_screener import quant_screener
+    watchlist = db.get_watchlist(active_only=True)
+    tickers = [item['ticker'] for item in watchlist]
+    if not tickers:
+        return {'results': [], 'message': 'Watchlist empty'}
+    results = quant_screener.screen_batch(tickers)
+    return {'results': results, 'count': len(results)}
 
 @app.get("/health")
 async def health_check():
