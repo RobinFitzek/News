@@ -102,25 +102,63 @@ class RiskClassifier:
             }
     
     def _determine_category(self, info: Dict) -> str:
-        """Determine asset category from stock info"""
+        """Determine asset category using market cap, volatility, financials, and sector risk.
+        Market cap alone is misleading — a $2T company with negative margins and beta 2.0
+        is riskier than a $50B industrial with stable cash flows."""
         quote_type = info.get('quoteType', '').upper()
         market_cap = info.get('marketCap', 0) or 0
-        
+
         # ETF Detection
         if quote_type == 'ETF' or 'ETF' in info.get('longName', '').upper():
             return 'etf'
-        
-        # Market cap based classification
-        if market_cap > 200_000_000_000:  # >200B = Mega Cap
-            return 'blue_chip'
-        elif market_cap > 10_000_000_000:  # >10B = Large Cap
-            return 'blue_chip'
-        elif market_cap > 2_000_000_000:   # >2B = Mid Cap
-            return 'growth'
-        elif market_cap > 300_000_000:     # >300M = Small Cap
-            return 'startup'
-        else:                               # <300M = Micro Cap
-            return 'speculative'
+
+        # Start with market-cap base category
+        if market_cap > 200_000_000_000:
+            base = 'blue_chip'
+        elif market_cap > 10_000_000_000:
+            base = 'blue_chip'
+        elif market_cap > 2_000_000_000:
+            base = 'growth'
+        elif market_cap > 300_000_000:
+            base = 'startup'
+        else:
+            base = 'speculative'
+
+        # Risk escalation based on fundamentals (can promote to riskier category)
+        escalations = 0
+
+        # High beta = volatile, regardless of size
+        beta = info.get('beta', 1.0) or 1.0
+        if beta > 2.0:
+            escalations += 2
+        elif beta > 1.5:
+            escalations += 1
+
+        # Negative or very low profit margins = unprofitable
+        margins = info.get('profitMargins')
+        if margins is not None and margins < 0:
+            escalations += 1
+        elif margins is not None and margins < 0.02:
+            escalations += 1
+
+        # Extreme debt
+        de = info.get('debtToEquity', 0) or 0
+        if de > 300:
+            escalations += 1
+
+        # No revenue or tiny revenue relative to market cap (speculative premium)
+        revenue = info.get('totalRevenue', 0) or 0
+        if market_cap > 0 and revenue > 0:
+            price_to_sales = market_cap / revenue
+            if price_to_sales > 30:
+                escalations += 1
+
+        # Apply escalations: each escalation moves one category riskier
+        category_ladder = ['etf', 'blue_chip', 'growth', 'startup', 'speculative']
+        base_idx = category_ladder.index(base) if base in category_ladder else 2
+        escalated_idx = min(base_idx + escalations, len(category_ladder) - 1)
+
+        return category_ladder[escalated_idx]
     
     def _calculate_risk_level(self, info: Dict, category: str) -> int:
         """Calculate risk level 1-10"""
@@ -216,29 +254,27 @@ Antworte auf Deutsch, kurz und prägnant.
         risk_focus = self._get_risk_focus(category)
         
         return f"""
-Handle als Senior-Portfoliomanager.
+Du bist ein Research-Analyst. Schreibe eine kurze Research-Notiz fuer {ticker}.
 Analysevariante: {strategy_desc}
 Risikoprofil: {risk_focus}
 
-Synthetisiere die Analysen für {ticker}:
+Daten:
 Fundamental: {analysis_results.get('fundamental', 'N/A')}
 Technisch: {analysis_results.get('technical', 'N/A')}
-Quick Scan: {analysis_results.get('stage1_reason', 'N/A')}
+Quant Screen: {analysis_results.get('stage1_reason', 'N/A')}
 
 Aufgabe:
-1. Glasklare Handels-Empfehlung (Strong Buy, Buy, Hold, Sell, Strong Sell)
-2. Detaillierte Risiko-Bewertung
-3. Risk Score (1-10), 1=Sicher, 10=Totalverlustrisiko
-4. Kursziele (Base/Bull/Bear) falls möglich
+1. Fasse die wichtigsten Risiken zusammen (2-3 Saetze)
+2. Nenne potenzielle Katalysatoren (2-3 Saetze)
+3. Was sollte ein Investor beobachten? (1-2 Saetze)
 
-Format ZWINGEND:
-Signal: [SIGNAL]
+KEINE Kauf/Verkauf-Empfehlung. Nur Fakten und Kontext.
+
+Format:
 Risk Score: [1-10]
-Risk Level: [Low/Medium/High/Extreme]
-Confidence: [0-100]%
-Kursziel (12m): [Preis oder N/A]
-Begründung: [Detaillierte Analyse auf Deutsch]
-Risiko-Faktoren: [Konkrete Gefahren]
+Risiken: [Text]
+Katalysatoren: [Text]
+Beobachten: [Text]
 """
     
     def _get_strategy_focus(self, strategy: str) -> str:

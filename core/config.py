@@ -24,66 +24,86 @@ PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 # Gemini Model Configuration (Adaptive Selection)
-# Priority: Higher = prefer when available
-# Updated to use Gemini 2.5 and 3.0 models (Feb 2026)
+# Priority: Higher = prefer when available, cost_per_1m = USD per 1M tokens
+# Updated for Paid Tier 1 (Feb 2026)
 GEMINI_MODELS = {
-    # Lightweight screening model (2.5 Flash Lite)
     'flash-8b': {
-        'model': 'gemini-2.5-flash-lite',  # Lightweight model for bulk screening
-        'rpm': 10,
-        'rpd': 250_000,  # Very high daily limit
+        'model': 'gemini-2.5-flash-lite',
+        'rpm': 300,
+        'rpd': 1_500,
         'tpm': 1_000_000,
         'priority': 1,
         'use_for': ['scan', 'quick_check'],
-        'description': 'Lightweight & fast, perfect for bulk screening'
+        'cost_per_1m_input': 0.10,
+        'cost_per_1m_output': 0.40,
+        'description': 'Cheapest - bulk screening'
     },
-    # Standard analysis model (2.5 Flash)
     'flash-1.5': {
         'model': 'gemini-2.5-flash',
-        'rpm': 5,
-        'rpd': 250_000,  # High daily limit
+        'rpm': 300,
+        'rpd': 1_500,
         'tpm': 1_000_000,
         'priority': 2,
         'use_for': ['analyze', 'scan'],
-        'description': 'Balanced speed/quality, high limits'
+        'cost_per_1m_input': 0.15,
+        'cost_per_1m_output': 0.60,
+        'description': 'Balanced speed/quality'
     },
-    # Premium Flash (3.0 Flash - latest generation)
     'flash-2.5': {
-        'model': 'gemini-3-flash',  # Latest generation
-        'rpm': 5,
-        'rpd': 250_000,
-        'tpm': 1_000_000,
-        'priority': 4,  # High priority when available
-        'use_for': ['analyze', 'synthesize'],
-        'description': 'Latest Gemini 3 Flash quality'
-    },
-    # Pro model for final synthesis (use 2.5 Flash for now)
-    'pro': {
-        'model': 'gemini-2.5-flash',  # Using Flash as Pro substitute
-        'rpm': 5,
-        'rpd': 250_000,
-        'tpm': 1_000_000,
-        'priority': 5,
-        'use_for': ['synthesize', 'final_verdict'],
-        'description': 'High quality analysis'
-    },
-    # Legacy alias for backward compatibility
-    'flash': {
-        'model': 'gemini-2.5-flash',
-        'rpm': 5,
-        'rpd': 250_000,
+        'model': 'gemini-3-flash',
+        'rpm': 300,
+        'rpd': 1_500,
         'tpm': 1_000_000,
         'priority': 4,
+        'use_for': ['analyze', 'synthesize'],
+        'cost_per_1m_input': 0.50,
+        'cost_per_1m_output': 3.00,
+        'description': 'Highest quality, most expensive'
+    },
+    'flash': {
+        'model': 'gemini-2.5-flash',
+        'rpm': 300,
+        'rpd': 1_500,
+        'tpm': 1_000_000,
+        'priority': 2,
         'use_for': ['analyze'],
+        'cost_per_1m_input': 0.15,
+        'cost_per_1m_output': 0.60,
         'description': 'Alias for 2.5 Flash'
+    },
+    'pro': {
+        'model': 'gemini-3-flash',
+        'rpm': 300,
+        'rpd': 1_500,
+        'tpm': 1_000_000,
+        'priority': 4,
+        'use_for': ['synthesize', 'final_verdict'],
+        'cost_per_1m_input': 0.50,
+        'cost_per_1m_output': 3.00,
+        'description': 'Alias for Gemini 3 Flash (synthesis)'
     }
 }
 
 # Backward compatibility
 GEMINI_LIMITS = GEMINI_MODELS
 
-# Perplexity Limits
-PERPLEXITY_DAILY_LIMIT = 33  # ~$5/month budget
+# Perplexity Pricing (USD per 1M tokens + per 1000 searches)
+PERPLEXITY_PRICING = {
+    'sonar': {
+        'cost_per_1m_input': 1.0,
+        'cost_per_1m_output': 1.0,
+        'cost_per_1000_searches': 5.0,
+    }
+}
+
+# Default monthly budgets (EUR)
+DEFAULT_MONTHLY_BUDGET = {
+    'perplexity': 5.0,
+    'gemini': 5.0,
+}
+
+# EUR to USD conversion estimate (used for budget calculations)
+EUR_TO_USD = 1.08
 
 # Default Settings (can be overridden in DB)
 DEFAULT_SETTINGS = {
@@ -111,8 +131,18 @@ DEFAULT_SETTINGS = {
     "include_technical": True,
     "analysis_variant": "balanced",  # defensive, balanced, high_growth
 
-    # Request Budget Tier
-    "request_budget_tier": "avg",  # min, avg, max
+    # Monthly API Budgets (EUR)
+    "perplexity_monthly_budget": 5.0,
+    "gemini_monthly_budget": 5.0,
+
+    # Portfolio Management Rules
+    "portfolio_max_position_pct": 10.0,
+    "portfolio_stop_loss_pct": 15.0,
+    "portfolio_max_sector_pct": 30.0,
+    "portfolio_rebalance_drift_pct": 5.0,
+
+    # Learning System
+    "learning_verification_days": 90,
 }
 
 # Web Server
@@ -182,96 +212,22 @@ TIME_HORIZONS = {
     }
 }
 
-# Cycle Configuration with Adaptive API Budgets
-# Budget is variable and can be overridden in DB settings
-# Models are auto-selected based on task type when budget allows
-CYCLE_CONFIG = {
-    'daily': {
-        # Conservative daily budget - prioritize high-limit models
-        'api_budget': {
-            'flash-8b': 30,    # Bulk screening
-            'flash-1.5': 15,   # Standard analysis (high limits)
-            'flash-2.5': 5,    # Premium only when needed
-            'pro': 3           # Final synthesis only
-        },
-        'focus': 'quick_screening',
-        'model_preference': ['flash-8b', 'flash-1.5'],  # Prefer high-limit models
-        'description': 'Täglicher Quick-Scan - nutzt hauptsächlich Flash-8b und Flash-1.5'
-    },
-    'weekly': {
-        # More premium budget for weekly deep dive
-        'api_budget': {
-            'flash-8b': 30,
-            'flash-1.5': 20,
-            'flash-2.5': 15,   # More premium for quality
-            'pro': 8
-        },
-        'focus': 'deep_analysis',
-        'model_preference': ['flash-1.5', 'flash-2.5'],  # Balance quality/volume
-        'description': 'Wöchentliche Tiefenanalyse - mehr Premium-Modelle für Qualität'
-    },
-    'monthly': {
-        # Full premium budget for portfolio review
-        'api_budget': {
-            'flash-8b': 40,
-            'flash-1.5': 30,
-            'flash-2.5': 25,   # Heavy premium usage
-            'pro': 15          # Multiple pro syntheses
-        },
-        'focus': 'portfolio_review',
-        'model_preference': ['flash-2.5', 'pro'],  # Prioritize quality
-        'description': 'Monatliche Portfolio-Review - maximale Qualität'
-    }
+# Quantitative Screener Configuration (replaces AI Stage 1)
+QUANT_SCREENER_CONFIG = {
+    'composite_weights': {'valuation': 0.30, 'technical': 0.25, 'momentum': 0.25, 'quality': 0.20},
+    'anomaly_z_threshold': 2.0,
+    'opportunity_threshold': 70,
+    'caution_threshold': 30,
+    'benchmark_ticker': 'SPY',
 }
 
-# Request Budget Tiers - 3 levels of API usage
-REQUEST_BUDGET_TIERS = {
-    'min': {
-        'name': 'MINIMAL',
-        'description': 'Conservative API usage - Focus on quality over quantity',
-        'total_requests': 30,
-        'budget': {
-            'perplexity': 5,    # Market insights & news (PRIMARY SOURCE)
-            'flash-8b': 12,     # Basic screening
-            'flash-1.5': 8,     # Core analysis
-            'flash-2.5': 3,     # Quality checks
-            'pro': 2            # Final synthesis
-        },
-        'strategy': 'Quality-first: Analyze fewer stocks but with higher accuracy',
-        'ideal_for': 'Small watchlists (5-10 stocks), deep analysis'
-    },
-    'avg': {
-        'name': 'BALANCED',
-        'description': 'Optimal balance between coverage and API limits',
-        'total_requests': 60,
-        'budget': {
-            'perplexity': 10,   # Market insights & news (PRIMARY SOURCE)
-            'flash-8b': 25,     # Screening
-            'flash-1.5': 15,    # Analysis
-            'flash-2.5': 7,     # Quality
-            'pro': 3            # Synthesis
-        },
-        'strategy': 'Balanced: Good coverage with solid analysis depth',
-        'ideal_for': 'Medium watchlists (10-20 stocks), recommended default'
-    },
-    'max': {
-        'name': 'MAXIMUM',
-        'description': 'Maximum free tier usage - Maximize coverage',
-        'total_requests': 110,
-        'budget': {
-            'perplexity': 20,   # Market insights & news (PRIMARY SOURCE)
-            'flash-8b': 50,     # Heavy screening
-            'flash-1.5': 25,    # Extended analysis
-            'flash-2.5': 10,    # Quality layer
-            'pro': 5            # Multiple syntheses
-        },
-        'strategy': 'Coverage-first: Analyze more stocks, broader market scan',
-        'ideal_for': 'Large watchlists (20-40 stocks), market discovery'
-    }
+# Pipeline stage split ratios (how to distribute daily Gemini budget across stages)
+# Stage 1 is now free (quant screener), so budget goes to Stage 2 + 3
+PIPELINE_STAGE_SPLIT = {
+    'stage1': 0.0,   # Free - quant screener, no API cost
+    'stage2': 0.60,  # 60% for news summarization (Perplexity)
+    'stage3': 0.40,  # 40% for research notes (Gemini flash)
 }
-
-# Default Daily Budget Allocation (can be overridden in DB)
-DEFAULT_DAILY_BUDGET = REQUEST_BUDGET_TIERS['avg']['budget']  # Use AVG tier as default
 
 # Strategy Presets
 STRATEGY_PRESETS = {

@@ -18,6 +18,21 @@
     </div>
     {% endif %}
 
+    <!-- Appearance -->
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <h3 style="margin: 0 0 var(--space-4) 0;">Appearance</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-6);">
+            <div style="font-size: 0.8125rem; color: var(--text-muted);">
+                Toggle between Stockholm Dark and Light modes
+            </div>
+            <label class="checkbox-wrapper">
+                <input type="checkbox" id="theme-toggle" aria-label="Toggle light mode">
+                <div class="checkbox-custom"></div>
+                <span class="checkbox-label">Light mode</span>
+            </label>
+        </div>
+    </div>
+
     <!-- API Keys -->
     <div class="card" style="margin-bottom: var(--space-8);">
         <h3 style="margin: 0 0 var(--space-5) 0;">API Keys</h3>
@@ -187,59 +202,82 @@
                 </div>
             </div>
 
-            <!-- Request Budget -->
+            <!-- Monthly API Budget -->
             <div style="padding: var(--space-6); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
                 <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5);">
-                    <h3 style="margin: 0; font-size: 1rem; font-family: var(--font-body);">Daily Request Budget</h3>
-                    <span style="background: var(--bg-inverse); color: var(--text-inverse); font-size: 0.5625rem; font-weight: 500; padding: 2px 8px; text-transform: uppercase; letter-spacing: 0.06em;">Free Tier</span>
+                    <h3 style="margin: 0; font-size: 1rem; font-family: var(--font-body);">Monthly API Budget</h3>
+                    <span style="background: var(--bg-inverse); color: var(--text-inverse); font-size: 0.5625rem; font-weight: 500; padding: 2px 8px; text-transform: uppercase; letter-spacing: 0.06em;">Adaptive</span>
                 </div>
 
-                <!-- Tier Selection -->
-                <div class="grid grid-3" style="gap: var(--space-4); margin-bottom: var(--space-5);">
-                    <!-- MIN Tier -->
-                    <label class="tier-option {% if settings.request_budget_tier == 'min' %}active{% endif %}">
-                        <input type="radio" name="request_budget_tier" value="min" {% if settings.request_budget_tier == 'min' %}checked{% endif %}>
-                        <div class="tier-content">
-                            <div class="tier-number">30</div>
-                            <div class="tier-name">Minimal</div>
-                            <div class="tier-details">
-                                5 Perplexity<br>25 Gemini
-                            </div>
-                            <div class="tier-coverage">5-10 stocks</div>
-                        </div>
-                    </label>
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0 0 var(--space-5) 0; line-height: 1.5;">
+                    Set your monthly spending limit per API. Daily request limits are calculated automatically
+                    based on remaining budget and days left in the month.
+                </p>
 
-                    <!-- AVG Tier -->
-                    <label class="tier-option {% if settings.request_budget_tier == 'avg' or not settings.request_budget_tier %}active{% endif %}">
-                        <input type="radio" name="request_budget_tier" value="avg" {% if settings.request_budget_tier == 'avg' or not settings.request_budget_tier %}checked{% endif %}>
-                        <div class="tier-content">
-                            <div class="tier-number">60</div>
-                            <div class="tier-name">Balanced</div>
-                            <div class="tier-badge">Recommended</div>
-                            <div class="tier-details">
-                                10 Perplexity<br>50 Gemini
-                            </div>
-                            <div class="tier-coverage">10-20 stocks</div>
+                <!-- Budget Inputs -->
+                <div class="grid grid-2" style="gap: var(--space-5); margin-bottom: var(--space-6);">
+                    <div>
+                        <label>Perplexity Monthly Budget</label>
+                        <div style="display: flex; align-items: center; gap: var(--space-2);">
+                            <input type="number" name="perplexity_monthly_budget"
+                                   value="{{ settings.perplexity_monthly_budget|default(5.0) }}"
+                                   min="0" max="100" step="0.50"
+                                   style="flex: 1;">
+                            <span style="font-size: 0.8125rem; color: var(--text-secondary); font-weight: 500;">EUR</span>
                         </div>
-                    </label>
-
-                    <!-- MAX Tier -->
-                    <label class="tier-option {% if settings.request_budget_tier == 'max' %}active{% endif %}">
-                        <input type="radio" name="request_budget_tier" value="max" {% if settings.request_budget_tier == 'max' %}checked{% endif %}>
-                        <div class="tier-content">
-                            <div class="tier-number">110</div>
-                            <div class="tier-name">Maximum</div>
-                            <div class="tier-details">
-                                20 Perplexity<br>90 Gemini
-                            </div>
-                            <div class="tier-coverage">20-40 stocks</div>
+                        <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                            Sonar model: ~0.006 EUR/request
                         </div>
-                    </label>
+                    </div>
+                    <div>
+                        <label>Gemini Monthly Budget</label>
+                        <div style="display: flex; align-items: center; gap: var(--space-2);">
+                            <input type="number" name="gemini_monthly_budget"
+                                   value="{{ settings.gemini_monthly_budget|default(5.0) }}"
+                                   min="0" max="100" step="0.50"
+                                   style="flex: 1;">
+                            <span style="font-size: 0.8125rem; color: var(--text-secondary); font-weight: 500;">EUR</span>
+                        </div>
+                        <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                            Flash-Lite: ~0.0003 | Flash: ~0.0005 | 3-Flash: ~0.002 EUR/req
+                        </div>
+                    </div>
                 </div>
 
-                <div style="text-align: center; font-size: 0.75rem; color: var(--text-muted);">
-                    All tiers: <span style="font-weight: 500;">100% Free</span> · Cost: <span style="font-weight: 500;">$0.00</span>
+                <!-- Budget Status (live data from server) -->
+                {% if budget_status %}
+                <div class="grid grid-2" style="gap: var(--space-4); margin-bottom: var(--space-4);">
+                    {% for api_name, label in [('perplexity', 'Perplexity'), ('gemini', 'Gemini')] %}
+                    {% set bs = budget_status.get(api_name, {}) %}
+                    <div style="padding: var(--space-4); background: var(--bg-card); border: 1px solid var(--border-hairline);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
+                            <span style="font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary);">{{ label }}</span>
+                            <span style="font-size: 0.6875rem; color: var(--text-muted);">{{ bs.get('days_left', 0) }} days left</span>
+                        </div>
+                        <!-- Progress bar -->
+                        <div style="height: 4px; background: var(--border-hairline); margin-bottom: var(--space-3);">
+                            <div style="height: 100%; width: {{ bs.get('percent_used', 0) }}%; background: {% if bs.get('percent_used', 0) > 80 %}var(--signal-negative){% elif bs.get('percent_used', 0) > 50 %}var(--signal-warning, #f59e0b){% else %}var(--signal-positive){% endif %}; transition: width 0.3s;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.75rem;">
+                            <span style="color: var(--text-muted);">Spent: <span style="color: var(--text-primary);">{{ "%.2f"|format(bs.get('spent_eur', 0)) }} EUR</span></span>
+                            <span style="color: var(--text-muted);">Left: <span style="color: var(--text-primary);">{{ "%.2f"|format(bs.get('remaining_eur', 0)) }} EUR</span></span>
+                        </div>
+                        <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-ghost);">
+                            Today: {{ bs.get('today_requests', 0) }} requests · Limit: ~{{ bs.get('daily_request_limit', 0) }}/day
+                        </div>
+                    </div>
+                    {% endfor %}
                 </div>
+
+                {% if budget_status.pipeline %}
+                <div style="text-align: center; font-size: 0.75rem; color: var(--text-muted); padding-top: var(--space-3); border-top: 1px solid var(--border-hairline);">
+                    Pipeline capacity today:
+                    <span style="font-weight: 500;">{{ budget_status.pipeline.stage1_max }}</span> scan &rarr;
+                    <span style="font-weight: 500;">{{ budget_status.pipeline.stage2_max }}</span> analyze &rarr;
+                    <span style="font-weight: 500;">{{ budget_status.pipeline.stage3_max }}</span> synthesize
+                </div>
+                {% endif %}
+                {% endif %}
             </div>
 
             <!-- Analysis Toggles -->
@@ -259,6 +297,78 @@
                     <div class="checkbox-custom"></div>
                     <span class="checkbox-label">Technical Analysis</span>
                 </label>
+            </div>
+        </div>
+
+        <!-- Portfolio Rules -->
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <h3 style="margin: 0 0 var(--space-5) 0;">Portfolio Rules</h3>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
+                Rule-based alerts for position sizing, stop-losses, and concentration risk. No AI opinions.
+            </p>
+
+            <div class="grid grid-2" style="gap: var(--space-5); margin-bottom: var(--space-5);">
+                <div>
+                    <label>Max Position Size (%)</label>
+                    <input type="number" name="portfolio_max_position_pct"
+                           value="{{ settings.portfolio_max_position_pct|default(10.0) }}"
+                           min="1" max="100" step="1">
+                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                        Alert when any single position exceeds this % of portfolio
+                    </div>
+                </div>
+                <div>
+                    <label>Stop-Loss Threshold (%)</label>
+                    <input type="number" name="portfolio_stop_loss_pct"
+                           value="{{ settings.portfolio_stop_loss_pct|default(15.0) }}"
+                           min="1" max="50" step="1">
+                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                        Alert when a position drops this % from entry price
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-2" style="gap: var(--space-5);">
+                <div>
+                    <label>Max Sector Concentration (%)</label>
+                    <input type="number" name="portfolio_max_sector_pct"
+                           value="{{ settings.portfolio_max_sector_pct|default(30.0) }}"
+                           min="5" max="100" step="5">
+                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                        Alert when any sector exceeds this % of portfolio
+                    </div>
+                </div>
+                <div>
+                    <label>Rebalance Drift Threshold (%)</label>
+                    <input type="number" name="portfolio_rebalance_drift_pct"
+                           value="{{ settings.portfolio_rebalance_drift_pct|default(5.0) }}"
+                           min="1" max="25" step="1">
+                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                        Suggest rebalancing when allocation drifts beyond this %
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Learning System -->
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <h3 style="margin: 0 0 var(--space-5) 0;">Learning System</h3>
+            <div class="grid grid-2" style="gap: var(--space-5);">
+                <div>
+                    <label>Verification Window (Days)</label>
+                    <input type="number" name="learning_verification_days"
+                           value="{{ settings.learning_verification_days|default(90) }}"
+                           min="30" max="365" step="30">
+                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                        How many days to wait before verifying a prediction (30-365). Longer = more meaningful but slower feedback.
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; padding-top: var(--space-6);">
+                    <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.6;">
+                        Predictions are compared against actual price movement and SPY benchmark after this window.
+                        System warns if accuracy drops below 55% over 20+ predictions.
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -284,25 +394,8 @@
         }
     }
 
-    function setupTierSelection() {
-        const tierOptions = document.querySelectorAll('.tier-option');
-
-        tierOptions.forEach(option => {
-            option.addEventListener('click', function() {
-                tierOptions.forEach(opt => opt.classList.remove('active'));
-                this.classList.add('active');
-
-                const radio = this.querySelector('input[type="radio"]');
-                if (radio) {
-                    radio.checked = true;
-                }
-            });
-        });
-    }
-
     document.addEventListener('DOMContentLoaded', function() {
         toggleEmailSettings();
-        setupTierSelection();
     });
 </script>
 {% endblock %}

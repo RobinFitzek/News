@@ -1,172 +1,135 @@
 """
 Discovery Engine for Investment Algorithm
-Finds new investment opportunities based on existing portfolio and market trends.
-Now with Perplexity-powered real-time discovery!
+Finds new investment opportunities using Perplexity AI and dynamic yfinance screening.
+No hardcoded stock lists — all discovery is data-driven.
 """
 import yfinance as yf
 from typing import List, Dict, Optional
 from core.database import db
 from clients.perplexity_client import pplx_client
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Broad sector ETFs used for sector-relative screening (not stock picks)
+SECTOR_ETFS = {
+    'technology': ['QQQ', 'VGT', 'XLK'],
+    'healthcare': ['XLV', 'VHT', 'IBB'],
+    'finance': ['XLF', 'VFH', 'KBE'],
+    'consumer': ['XLY', 'VCR', 'XLP'],
+    'energy': ['XLE', 'VDE', 'OIH'],
+    'industrial': ['XLI', 'VIS', 'IYJ'],
+}
 
 
 class DiscoveryEngine:
-    """Discovers new investment opportunities efficiently"""
-    
+    """Discovers new investment opportunities using Perplexity + dynamic screening."""
+
     def __init__(self):
-        # Predefined sector ETFs for discovery
-        self.sector_etfs = {
-            'technology': ['QQQ', 'VGT', 'XLK'],
-            'healthcare': ['XLV', 'VHT', 'IBB'],
-            'finance': ['XLF', 'VFH', 'KBE'],
-            'consumer': ['XLY', 'VCR', 'XLP'],
-            'energy': ['XLE', 'VDE', 'OIH'],
-            'industrial': ['XLI', 'VIS', 'IYJ'],
-        }
-        
-        # Popular growth stocks for discovery
-        self.growth_universe = [
-            'NVDA', 'AMD', 'AVGO', 'PLTR', 'SNOW', 'CRM', 'NOW', 'DDOG',
-            'NET', 'CRWD', 'ZS', 'MDB', 'U', 'SHOP', 'SQ', 'COIN'
-        ]
-        
-        # Dividend stocks for conservative discovery
-        self.dividend_universe = [
-            'JNJ', 'PG', 'KO', 'PEP', 'VZ', 'T', 'XOM', 'CVX',
-            'ABBV', 'MRK', 'BMY', 'CSCO', 'INTC', 'IBM'
-        ]
-    
+        self.sector_etfs = SECTOR_ETFS
+
     def discover_similar(self, ticker: str, limit: int = 5) -> List[str]:
-        """Find similar stocks based on sector and industry"""
+        """Find similar stocks by querying yfinance for sector peers."""
         try:
             stock = yf.Ticker(ticker)
             info = stock.info
-            
             sector = info.get('sector', '')
             industry = info.get('industry', '')
-            
+
             if not sector:
                 return []
-            
-            # Get peer companies
-            similar = []
-            
-            # Check growth universe for tech
-            if sector.lower() in ['technology', 'communication services']:
-                candidates = [t for t in self.growth_universe if t != ticker.upper()]
-                similar.extend(candidates[:limit])
-            
-            # Check dividend universe for defensive sectors
-            elif sector.lower() in ['healthcare', 'consumer defensive', 'utilities']:
-                candidates = [t for t in self.dividend_universe if t != ticker.upper()]
-                similar.extend(candidates[:limit])
-            
-            # Filter out tickers already in watchlist
-            watchlist = {item['ticker'] for item in db.get_watchlist()}
-            return [t for t in similar if t not in watchlist][:limit]
-            
-        except Exception as e:
-            print(f"⚠️ Discovery error for {ticker}: {e}")
-            return []
-    
-    def discover_trending(self, limit: int = 5) -> List[str]:
-        """Discover trending stocks not in watchlist
 
-        Now with dual-mode:
-        1. If Perplexity is available, use AI-powered discovery
-        2. Fallback to momentum-based discovery from predefined universe
-        """
+            # Use the quant screener's sector peers for discovery
+            from engine.quant_screener import quant_screener
+            peers = quant_screener.sector_cache.SECTOR_PEERS.get(sector, [])
+
+            watchlist = {item['ticker'] for item in db.get_watchlist()}
+            similar = [t for t in peers if t != ticker.upper() and t not in watchlist]
+            return similar[:limit]
+
+        except Exception as e:
+            logger.warning(f"Discovery error for {ticker}: {e}")
+            return []
+
+    def discover_trending(self, limit: int = 5) -> List[str]:
+        """Discover trending stocks using Perplexity (primary) or S&P 500 momentum (fallback).
+        No hardcoded stock lists."""
         watchlist = {item['ticker'] for item in db.get_watchlist()}
 
-        # 🌐 TRY PERPLEXITY FIRST (if configured and has budget)
+        # Primary: Perplexity AI discovery
         if pplx_client.is_configured():
             usage = pplx_client.get_usage()
             if usage['remaining'] > 0:
                 try:
-                    print(f"🌐 Using Perplexity for stock discovery ({usage['remaining']} calls remaining)...")
                     discovery_result = pplx_client.discover_trending_stocks(
-                        sector=None,
-                        focus="balanced",
-                        limit=limit
+                        sector=None, focus="balanced", limit=limit
                     )
-
                     if discovery_result['success'] and discovery_result['stocks']:
-                        # Extract tickers and filter out watchlist items
                         discovered = [
                             stock['ticker']
                             for stock in discovery_result['stocks']
                             if stock['ticker'] not in watchlist
                         ]
-
                         if discovered:
-                            print(f"  ✅ Perplexity discovered {len(discovered)} new stocks: {', '.join(discovered[:5])}")
                             return discovered[:limit]
-                        else:
-                            print("  ⚠️ All discovered stocks already in watchlist")
-
                 except Exception as e:
-                    print(f"  ⚠️ Perplexity discovery failed: {e}, falling back to momentum scan")
-            else:
-                print(f"  ⚠️ Perplexity daily limit reached, using fallback discovery")
+                    logger.warning(f"Perplexity discovery failed: {e}")
 
-        # 📊 FALLBACK: Momentum-based discovery from predefined universe
-        print("📊 Using momentum-based discovery from predefined universe...")
+        # Fallback: Scan sector ETF top holdings for momentum
+        return self._momentum_discovery(watchlist, limit)
 
-        # Combine universes
-        candidates = list(set(self.growth_universe + self.dividend_universe))
+    def _momentum_discovery(self, watchlist: set, limit: int) -> List[str]:
+        """Dynamic momentum discovery using major index component screening."""
+        # Use S&P 500 proxy tickers from sector ETFs and quant screener peers
+        from engine.quant_screener import quant_screener
+        all_peers = set()
+        for peers in quant_screener.sector_cache.SECTOR_PEERS.values():
+            all_peers.update(peers)
 
-        # Filter out existing watchlist items
-        new_candidates = [t for t in candidates if t not in watchlist]
+        candidates = [t for t in all_peers if t not in watchlist]
 
-        # Simple momentum check - get top movers
         trending = []
-        for ticker in new_candidates[:limit * 2]:  # Check more than needed
+        for ticker in candidates:
             try:
-                stock = yf.Ticker(ticker)
-                hist = stock.history(period='5d')
-                if not hist.empty:
+                hist = yf.Ticker(ticker).history(period='5d')
+                if not hist.empty and len(hist) >= 2:
                     change = ((hist['Close'].iloc[-1] - hist['Close'].iloc[0]) / hist['Close'].iloc[0]) * 100
                     trending.append((ticker, change))
-            except:
+            except Exception:
                 continue
 
-        # Sort by performance and return top
         trending.sort(key=lambda x: x[1], reverse=True)
         return [t[0] for t in trending[:limit]]
-    
-    def discover_by_criteria(self, 
+
+    def discover_by_criteria(self,
                               min_market_cap: int = None,
                               max_pe_ratio: float = None,
                               min_dividend_yield: float = None,
                               sector: str = None,
                               limit: int = 10) -> List[Dict]:
-        """
-        Discover stocks by specific criteria
-        Note: Lightweight implementation - uses predefined universes
-        """
-        results = []
-        universe = self.growth_universe + self.dividend_universe
-        
+        """Discover stocks by criteria using sector peers from quant screener."""
+        from engine.quant_screener import quant_screener
+        all_peers = set()
+        for peers in quant_screener.sector_cache.SECTOR_PEERS.values():
+            all_peers.update(peers)
+
         watchlist = {item['ticker'] for item in db.get_watchlist()}
-        candidates = [t for t in universe if t not in watchlist]
-        
+        candidates = [t for t in all_peers if t not in watchlist]
+
+        results = []
         for ticker in candidates:
             try:
-                stock = yf.Ticker(ticker)
-                info = stock.info
-                
-                # Apply filters
-                if min_market_cap and info.get('marketCap', 0) < min_market_cap:
+                info = yf.Ticker(ticker).info
+
+                if min_market_cap and (info.get('marketCap', 0) or 0) < min_market_cap:
                     continue
-                
-                if max_pe_ratio and info.get('trailingPE', 999) > max_pe_ratio:
+                if max_pe_ratio and (info.get('trailingPE') or 999) > max_pe_ratio:
                     continue
-                
-                if min_dividend_yield and info.get('dividendYield', 0) < min_dividend_yield:
+                if min_dividend_yield and (info.get('dividendYield') or 0) < min_dividend_yield:
                     continue
-                
                 if sector and info.get('sector', '').lower() != sector.lower():
                     continue
-                
+
                 results.append({
                     'ticker': ticker,
                     'name': info.get('longName', ticker),
@@ -175,105 +138,55 @@ class DiscoveryEngine:
                     'pe_ratio': info.get('trailingPE'),
                     'dividend_yield': info.get('dividendYield')
                 })
-                
+
                 if len(results) >= limit:
                     break
-                    
-            except Exception as e:
+            except Exception:
                 continue
-        
+
         return results
-    
+
     def discover_sector_leaders(self, sector: str, limit: int = 3) -> List[str]:
-        """Get top ETFs for a specific sector"""
+        """Get top ETFs for a specific sector."""
         sector_key = sector.lower()
-        
         if sector_key in self.sector_etfs:
             return self.sector_etfs[sector_key][:limit]
-        
-        # Default to broad market
         return ['SPY', 'QQQ', 'DIA'][:limit]
-    
+
     def discover_with_perplexity(self, sector: str = None, focus: str = "balanced", limit: int = 5) -> Dict:
-        """
-        Advanced discovery using Perplexity AI with full details
-
-        Args:
-            sector: Optional sector filter ("Technology", "Healthcare", etc.)
-            focus: Investment focus ("growth", "value", "dividend", "balanced")
-            limit: Number of stocks to discover
-
-        Returns:
-            Dict with detailed stock recommendations including scores, catalysts, and analysis
-        """
+        """Advanced discovery using Perplexity AI with full details."""
         if not pplx_client.is_configured():
-            return {
-                'success': False,
-                'error': 'Perplexity API not configured',
-                'stocks': []
-            }
+            return {'success': False, 'error': 'Perplexity API not configured', 'stocks': []}
 
         usage = pplx_client.get_usage()
         if usage['remaining'] <= 0:
-            return {
-                'success': False,
-                'error': f"Daily limit reached ({usage['daily_limit']} calls)",
-                'stocks': []
-            }
-
-        print(f"🌐 Perplexity Discovery: {focus} focus, {sector or 'all sectors'}")
-        print(f"   Budget: {usage['remaining']}/{usage['daily_limit']} calls remaining")
+            return {'success': False, 'error': f"Daily limit reached ({usage['daily_limit']} calls)", 'stocks': []}
 
         try:
-            # Call Perplexity discovery
             result = pplx_client.discover_trending_stocks(
-                sector=sector,
-                focus=focus,
-                limit=limit
+                sector=sector, focus=focus, limit=limit
             )
 
             if result['success']:
-                # Filter out stocks already in watchlist
                 watchlist = {item['ticker'] for item in db.get_watchlist()}
-                filtered_stocks = [
-                    stock for stock in result['stocks']
-                    if stock['ticker'] not in watchlist
-                ]
-
+                filtered_stocks = [s for s in result['stocks'] if s['ticker'] not in watchlist]
                 result['stocks'] = filtered_stocks
-                result['filtered_count'] = len(result['stocks'])
-                result['watchlist_duplicates'] = len([s for s in result['stocks'] if s['ticker'] in watchlist])
-
-                print(f"   ✅ Found {len(filtered_stocks)} new stocks (filtered {result['watchlist_duplicates']} watchlist duplicates)")
-
+                result['filtered_count'] = len(filtered_stocks)
                 return result
-            else:
-                return result
+
+            return result
 
         except Exception as e:
-            print(f"   ❌ Discovery failed: {e}")
-            return {
-                'success': False,
-                'error': str(e),
-                'stocks': []
-            }
+            logger.error(f"Perplexity discovery failed: {e}")
+            return {'success': False, 'error': str(e), 'stocks': []}
 
     def get_discovery_suggestions(self) -> Dict:
-        """Get a summary of discovery suggestions for the dashboard"""
+        """Get discovery suggestions for the dashboard."""
         suggestions = {
             'trending': self.discover_trending(limit=3),
-            'sectors': {
-                'tech': self.sector_etfs.get('technology', [])[:2],
-                'health': self.sector_etfs.get('healthcare', [])[:2],
-                'energy': self.sector_etfs.get('energy', [])[:2]
-            },
-            'categories': {
-                'growth': self.growth_universe[:5],
-                'dividend': self.dividend_universe[:5]
-            }
+            'sectors': {k: v[:2] for k, v in self.sector_etfs.items()},
         }
 
-        # Add Perplexity discoveries if available
         if pplx_client.is_configured():
             usage = pplx_client.get_usage()
             if usage['remaining'] > 0:
@@ -289,7 +202,7 @@ class DiscoveryEngine:
                             for s in pplx_discovery['stocks'][:3]
                         ]
                 except Exception as e:
-                    print(f"⚠️ Could not get Perplexity suggestions: {e}")
+                    logger.warning(f"Could not get Perplexity suggestions: {e}")
 
         return suggestions
 

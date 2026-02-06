@@ -1,6 +1,6 @@
 """
 Gemini API Client with Adaptive Model Selection
-Intelligently chooses models based on available quota and task requirements.
+Cost-aware: tracks spending and adapts model choice to stay within monthly EUR budget.
 """
 from google import genai
 from google.genai import types
@@ -15,8 +15,8 @@ import logging
 
 
 class AdaptiveGeminiClient:
-    """Gemini client with intelligent model selection based on quota and task"""
-    
+    """Gemini client with cost-aware model selection based on monthly budget"""
+
     def __init__(self):
         self.api_key = GEMINI_API_KEY
         self.client = None
@@ -24,19 +24,23 @@ class AdaptiveGeminiClient:
         self.last_reset_date = datetime.now().date()
         self.models = GEMINI_MODELS
         self.logger = logging.getLogger(__name__)
-
-        # Budget tracking from DB
-        self._load_budget_settings()
+        self._budget_tracker = None
 
         if self.api_key:
             self._init_client()
-    
+
+    @property
+    def budget_tracker(self):
+        if self._budget_tracker is None:
+            from core.budget_tracker import budget_tracker
+            self._budget_tracker = budget_tracker
+        return self._budget_tracker
+
     def _init_client(self):
-        """Initialize Gemini client with new SDK and error handling"""
+        """Initialize Gemini client with new SDK"""
         try:
             if not self.api_key or len(self.api_key) < 10:
                 self.logger.warning("Invalid or missing Gemini API key")
-                print("⚠️ Gemini API key missing or invalid")
                 return
 
             self.client = genai.Client(api_key=self.api_key)
@@ -44,96 +48,69 @@ class AdaptiveGeminiClient:
 
         except ValueError as e:
             self.logger.error(f"Invalid API key format: {e}")
-            print(f"⚠️ Gemini init error: Invalid API key format")
             self.client = None
 
         except Exception as e:
             self.logger.error(f"Failed to initialize Gemini client: {e}", exc_info=True)
-            print(f"⚠️ Gemini init error: {e}")
             self.client = None
-    
-    def _load_budget_settings(self):
-        """Load variable budget settings from DB"""
-        try:
-            # Try to load custom budget from settings
-            daily_budget = db.get_setting('gemini_daily_budget')
-            if daily_budget:
-                self.daily_budget = daily_budget
-            else:
-                # Default budget allocation
-                self.daily_budget = {
-                    'flash-8b': 50,   # High volume screening
-                    'flash-1.5': 30,  # Standard analysis
-                    'flash-2.5': 15,  # Premium when needed
-                    'flash': 15,      # Alias
-                    'pro': 5          # Rare, final synthesis only
-                }
-        except:
-            self.daily_budget = {'flash-8b': 50, 'flash-1.5': 30, 'flash-2.5': 15, 'flash': 15, 'pro': 5}
-    
-    def set_daily_budget(self, budget: dict):
-        """Set custom daily budget allocation"""
-        self.daily_budget = budget
-        db.set_setting('gemini_daily_budget', budget)
-        print(f"📊 Budget updated: {budget}")
-    
+
     def reload_api_key(self, new_key: str):
         """Reload with new API key"""
         self.api_key = new_key
         if new_key:
             self._init_client()
-    
+
     def is_configured(self) -> bool:
         """Check if API is configured"""
         return bool(self.api_key and len(self.api_key) > 10 and self.client)
-    
+
     def get_usage(self) -> dict:
-        """Get usage stats for all model tiers with backward-compatible structure"""
+        """Get usage stats from budget tracker (backward-compatible with dashboard template)"""
         self._check_daily_reset()
+        status = self.budget_tracker.get_budget_status().get('gemini', {})
+        daily_limit = status.get('daily_request_limit', 100)
+
         usage = {}
-        
-        # Backward compatibility - combine all flash models
-        flash_total_used = 0
-        flash_total_budget = 0
-        pro_total_used = 0
-        pro_total_budget = 0
-        
+        flash_used = 0
+        pro_used = 0
+
         for tier, config in self.models.items():
+            if tier == 'flash':
+                continue
             day_count = len(self.requests[tier]['day'])
-            budget = self.daily_budget.get(tier, config.get('rpd', 100))
-            
             usage[tier] = {
                 "model": config['model'],
                 "used_today": day_count,
-                "budget": budget,
-                "api_limit": config['rpd'],
-                "remaining": min(budget, config['rpd']) - day_count,
-                "priority": config.get('priority', 1)
+                "cost_per_1m_input": config.get('cost_per_1m_input', 0),
+                "cost_per_1m_output": config.get('cost_per_1m_output', 0),
             }
-            
-            # Aggregate for backward compatibility
-            if 'flash' in tier:
-                flash_total_used += day_count
-                flash_total_budget += budget
-            elif 'pro' in tier or tier == 'flash-2.5':  # 2.5 was previously "pro"
-                pro_total_used += day_count
-                pro_total_budget += budget
-        
-        # Add backward-compatible keys
+            if tier in ('flash-8b', 'flash-1.5'):
+                flash_used += day_count
+            elif tier in ('flash-2.5', 'pro'):
+                pro_used += day_count
+
+        # Backward-compatible keys for dashboard template
+        flash_limit = max(1, int(daily_limit * 0.7))
+        pro_limit = max(1, int(daily_limit * 0.3))
         usage['flash'] = {
-            "used_today": flash_total_used,
-            "daily_limit": flash_total_budget if flash_total_budget > 0 else 1500,
-            "remaining": flash_total_budget - flash_total_used
+            "used_today": flash_used,
+            "daily_limit": flash_limit,
+            "remaining": max(0, flash_limit - flash_used)
         }
         usage['pro'] = {
-            "used_today": pro_total_used,
-            "daily_limit": pro_total_budget if pro_total_budget > 0 else 50,
-            "remaining": pro_total_budget - pro_total_used
+            "used_today": pro_used,
+            "daily_limit": pro_limit,
+            "remaining": max(0, pro_limit - pro_used)
         }
-        
+
         usage['is_configured'] = self.is_configured()
+        usage['monthly_budget_eur'] = status.get('monthly_budget_eur', 5.0)
+        usage['spent_eur'] = status.get('spent_eur', 0)
+        usage['remaining_eur'] = status.get('remaining_eur', 5.0)
+        usage['daily_request_limit'] = daily_limit
+        usage['today_requests'] = status.get('today_requests', 0)
         return usage
-    
+
     def _check_daily_reset(self):
         """Reset daily counters if new day"""
         today = datetime.now().date()
@@ -141,137 +118,129 @@ class AdaptiveGeminiClient:
             for tier in self.requests:
                 self.requests[tier]['day'] = []
             self.last_reset_date = today
-            self._load_budget_settings()  # Reload budget on new day
-    
-    def _get_remaining(self, tier: str) -> int:
-        """Get remaining quota for a tier"""
-        self._check_daily_reset()
-        config = self.models.get(tier, {})
-        day_count = len(self.requests[tier]['day'])
-        budget = self.daily_budget.get(tier, config.get('rpd', 100))
-        api_limit = config.get('rpd', 100)
-        return min(budget, api_limit) - day_count
-    
+
     def _check_rate_limit(self, tier: str) -> bool:
-        """Check if request is within rate limits"""
+        """Check if request is within RPM rate limits"""
         self._check_daily_reset()
         now = datetime.now()
         config = self.models.get(tier, {})
-        
+
         # Cleanup old minute timestamps
         self.requests[tier]['minute'] = [
             t for t in self.requests[tier]['minute']
             if now - t < timedelta(minutes=1)
         ]
-        
-        rpm = config.get('rpm', 10)
-        rpm_ok = len(self.requests[tier]['minute']) < rpm
-        rpd_ok = self._get_remaining(tier) > 0
-        
-        return rpm_ok and rpd_ok
-    
+
+        rpm = config.get('rpm', 300)
+        return len(self.requests[tier]['minute']) < rpm
+
     def _wait_if_needed(self, tier: str) -> bool:
-        """Wait if rate limit reached, return False if budget exhausted"""
+        """Wait if RPM limit reached, return False if budget exhausted"""
         wait_count = 0
         while not self._check_rate_limit(tier) and wait_count < 3:
-            remaining = self._get_remaining(tier)
-            if remaining <= 0:
-                print(f"⚠️ Gemini {tier} budget exhausted")
+            if not self.budget_tracker.can_afford_request('gemini', tier):
+                print(f"  Gemini {tier} budget exhausted")
                 return False
-            print(f"⏳ Gemini {tier} rate limit, waiting 30s...")
-            time.sleep(30)
+            print(f"  Gemini {tier} rate limit, waiting 15s...")
+            time.sleep(15)
             wait_count += 1
         return True
-    
+
     def select_best_model(self, task_type: str = 'analyze') -> str:
         """
-        Adaptively select the best available model for a task.
-        
-        Task types: 'scan', 'quick_check', 'analyze', 'synthesize', 'final_verdict'
-        
-        Selection logic:
-        1. Find models suitable for the task
-        2. Filter by available quota
-        3. Choose highest priority model with quota
-        4. Fall back to lower priority if premium exhausted
+        Cost-aware model selection.
+        Prefers cheaper models (flash-8b > flash-1.5) when budget is tight.
+        Uses flash-2.5 (gemini-3-flash) only when budget allows.
         """
         self._check_daily_reset()
-        
+
+        if not self.budget_tracker.can_afford_request('gemini'):
+            self.logger.warning("Gemini daily budget exhausted")
+            return None
+
+        # Get remaining daily budget to decide model tier
+        daily_budget_usd = self.budget_tracker.get_daily_budget_usd('gemini')
+        today_spent = self.budget_tracker.get_today_spending('gemini')
+        remaining_today = max(0, daily_budget_usd - today_spent)
+
         # Find suitable models for this task
         suitable = []
         for tier, config in self.models.items():
-            if tier == 'flash':  # Skip alias
+            if tier == 'flash':
                 continue
             use_for = config.get('use_for', [])
             if task_type in use_for or 'analyze' in use_for:
-                remaining = self._get_remaining(tier)
-                if remaining > 0:
+                est_cost = self.budget_tracker.estimate_request_cost('gemini', tier)
+                if est_cost <= remaining_today:
                     suitable.append({
                         'tier': tier,
                         'priority': config.get('priority', 1),
-                        'remaining': remaining,
+                        'cost': est_cost,
                         'model': config['model']
                     })
-        
-        if not suitable:
-            # All models exhausted, try flash-8b as last resort
-            if self._get_remaining('flash-8b') > 0:
-                return 'flash-8b'
-            print("⚠️ All Gemini models exhausted for today!")
-            return None
-        
-        # Sort by priority (higher = better), then by remaining quota
-        suitable.sort(key=lambda x: (x['priority'], x['remaining']), reverse=True)
-        
-        selected = suitable[0]
-        print(f"🎯 Selected {selected['tier']} for '{task_type}' (remaining: {selected['remaining']})")
-        return selected['tier']
-    
-    def generate(self, prompt: str, tier: str = None, task_type: str = 'analyze') -> str:
-        """
-        Generate text with specified or auto-selected model tier with comprehensive error handling.
 
-        Args:
-            prompt: The prompt to send
-            tier: Specific tier to use (optional, will auto-select if None)
-            task_type: Type of task for adaptive selection
-        """
-        # Input validation
+        if not suitable:
+            # Try flash-8b as last resort (cheapest)
+            cheapest_cost = self.budget_tracker.estimate_request_cost('gemini', 'flash-8b')
+            if cheapest_cost <= remaining_today:
+                return 'flash-8b'
+            print("  All Gemini models exhausted for today!")
+            return None
+
+        # When budget is tight (< 20% of daily remaining), prefer cheapest
+        budget_ratio = remaining_today / daily_budget_usd if daily_budget_usd > 0 else 0
+
+        if budget_ratio < 0.2:
+            # Budget-saving mode: pick cheapest
+            suitable.sort(key=lambda x: x['cost'])
+        else:
+            # Normal mode: pick by priority (quality), then cost
+            suitable.sort(key=lambda x: (-x['priority'], x['cost']))
+
+        selected = suitable[0]
+        self.logger.info(f"Selected {selected['tier']} for '{task_type}' (est. ${selected['cost']:.5f})")
+        return selected['tier']
+
+    def generate(self, prompt: str, tier: str = None, task_type: str = 'analyze') -> str:
+        """Generate text with cost tracking and adaptive model selection."""
         if not prompt or not isinstance(prompt, str):
             self.logger.error("Invalid prompt provided")
-            return "⚠️ Ungültiger Prompt"
+            return "  Ungültiger Prompt"
 
-        if len(prompt) > 100000:  # Reasonable limit
+        if len(prompt) > 100000:
             self.logger.warning("Prompt exceeds length limit")
             prompt = prompt[:100000]
 
         if not self.is_configured():
             self.logger.warning("Gemini API not configured")
-            return "⚠️ Gemini API nicht konfiguriert. Bitte API Key in den Einstellungen hinterlegen."
+            return "  Gemini API nicht konfiguriert. Bitte API Key in den Einstellungen hinterlegen."
 
         # Auto-select model if not specified
         if tier is None:
             tier = self.select_best_model(task_type)
             if tier is None:
-                self.logger.warning("All models exhausted")
-                return "⚠️ Alle Gemini-Modelle für heute erschöpft."
+                return "  Gemini Budget für heute erschöpft."
 
-        # Validate tier
         if tier not in self.models:
             self.logger.error(f"Invalid tier: {tier}")
-            return f"⚠️ Ungültiges Modell: {tier}"
+            return f"  Ungültiges Modell: {tier}"
 
-        # Check if we can use this tier
+        # Check RPM rate limit
         if not self._wait_if_needed(tier):
-            # Try to fall back to a cheaper model
             fallback = self._get_fallback_tier(tier)
             if fallback:
                 self.logger.info(f"Falling back from {tier} to {fallback}")
-                print(f"🔄 Falling back from {tier} to {fallback}")
                 tier = fallback
             else:
-                self.logger.warning(f"No fallback available for {tier}")
-                return f"⚠️ Gemini {tier} Budget erschöpft, keine Fallback-Option verfügbar."
+                return f"  Gemini {tier} Budget erschöpft, keine Fallback-Option."
+
+        # Check cost budget
+        if not self.budget_tracker.can_afford_request('gemini', tier):
+            fallback = self._get_fallback_tier(tier)
+            if fallback and self.budget_tracker.can_afford_request('gemini', fallback):
+                tier = fallback
+            else:
+                return "  Gemini Budget für heute erschöpft."
 
         config = self.models.get(tier, self.models.get('flash-1.5'))
         model_name = config['model']
@@ -286,13 +255,12 @@ class AdaptiveGeminiClient:
                     contents=prompt
                 )
 
-                # Validate response
                 if not response or not hasattr(response, 'text'):
                     self.logger.error("Invalid response structure")
                     if attempt < max_retries - 1:
                         time.sleep(retry_delay * (attempt + 1))
                         continue
-                    return "⚠️ Ungültige Antwort von Gemini API"
+                    return "  Ungültige Antwort von Gemini API"
 
                 response_text = response.text
 
@@ -301,86 +269,91 @@ class AdaptiveGeminiClient:
                     if attempt < max_retries - 1:
                         time.sleep(retry_delay * (attempt + 1))
                         continue
-                    return "⚠️ Leere Antwort von Gemini API"
+                    return "  Leere Antwort von Gemini API"
 
-                # Success - log request
+                # Track RPM
                 now = datetime.now()
                 self.requests[tier]['minute'].append(now)
                 self.requests[tier]['day'].append(now)
 
-                remaining = self._get_remaining(tier)
-                budget = self.daily_budget.get(tier, config['rpd'])
-                self.logger.info(f"API call successful. Tier: {tier}, Usage: {budget - remaining}/{budget}")
-                print(f"✅ Gemini {tier}: {budget - remaining}/{budget} today ({model_name})")
+                # Extract token counts and log cost
+                input_tokens = 0
+                output_tokens = 0
+                if hasattr(response, 'usage_metadata'):
+                    um = response.usage_metadata
+                    input_tokens = getattr(um, 'prompt_token_count', 0) or 0
+                    output_tokens = getattr(um, 'candidates_token_count', 0) or 0
+
+                # Fallback: estimate tokens if metadata not available
+                if input_tokens == 0:
+                    input_tokens = len(prompt) // 4
+                if output_tokens == 0:
+                    output_tokens = len(response_text) // 4
+
+                cost = self.budget_tracker.log_cost(
+                    'gemini', tier, input_tokens, output_tokens
+                )
+
+                today_count = self.budget_tracker.get_today_request_count('gemini')
+                self.logger.info(f"Gemini {tier} OK: ${cost:.5f} ({input_tokens}in/{output_tokens}out)")
+                print(f"  Gemini {tier}: req #{today_count} (${cost:.5f}, {model_name})")
 
                 return response_text
 
-            except google_exceptions.ResourceExhausted as e:
-                self.logger.error(f"Quota exhausted for {tier}: {e}")
-                print(f"⚠️ Gemini {tier} Quota exhausted")
-                # Try fallback immediately
+            except google_exceptions.ResourceExhausted:
+                self.logger.error(f"Quota exhausted for {tier}")
                 fallback = self._get_fallback_tier(tier)
                 if fallback:
-                    self.logger.info(f"Quota exhausted, falling back to {fallback}")
                     tier = fallback
                     config = self.models.get(tier)
                     model_name = config['model']
                     continue
-                return f"⚠️ Gemini Quota erschöpft"
+                return "  Gemini Quota erschöpft"
 
             except google_exceptions.InvalidArgument as e:
                 self.logger.error(f"Invalid argument: {e}")
-                print(f"❌ Gemini: Ungültige Anfrage")
-                return f"⚠️ Ungültige Anfrage: {str(e)}"
+                return f"  Ungültige Anfrage"
 
-            except google_exceptions.PermissionDenied as e:
-                self.logger.error(f"Permission denied: {e}")
-                print(f"❌ Gemini: Zugriff verweigert (API Key prüfen)")
-                return "⚠️ Zugriff verweigert. Bitte API Key prüfen."
+            except google_exceptions.PermissionDenied:
+                self.logger.error("Permission denied")
+                return "  Zugriff verweigert. Bitte API Key prüfen."
 
-            except google_exceptions.DeadlineExceeded as e:
-                self.logger.warning(f"Request timeout (attempt {attempt + 1}/{max_retries}): {e}")
+            except google_exceptions.DeadlineExceeded:
+                self.logger.warning(f"Timeout (attempt {attempt + 1}/{max_retries})")
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay * (attempt + 1))
                     continue
-                print(f"❌ Gemini timeout")
-                return "⚠️ Anfrage timeout"
+                return "  Anfrage timeout"
 
-            except google_exceptions.ServiceUnavailable as e:
-                self.logger.warning(f"Service unavailable (attempt {attempt + 1}/{max_retries}): {e}")
+            except google_exceptions.ServiceUnavailable:
+                self.logger.warning(f"Service unavailable (attempt {attempt + 1}/{max_retries})")
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay * (attempt + 1))
                     continue
-                print(f"❌ Gemini service unavailable")
-                return "⚠️ Gemini Service vorübergehend nicht verfügbar"
+                return "  Gemini Service vorübergehend nicht verfügbar"
 
             except google_exceptions.GoogleAPIError as e:
-                self.logger.error(f"Google API error (attempt {attempt + 1}/{max_retries}): {e}")
+                self.logger.error(f"Google API error: {e}")
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay * (attempt + 1))
                     continue
-                print(f"❌ Gemini API error: {e}")
-                return f"⚠️ Gemini API Fehler: {str(e)}"
+                return f"  Gemini API Fehler"
 
-            except AttributeError as e:
-                self.logger.error(f"Client not initialized: {e}")
-                print("❌ Gemini client not initialized")
-                return "⚠️ Gemini Client nicht initialisiert"
+            except AttributeError:
+                self.logger.error("Client not initialized")
+                return "  Gemini Client nicht initialisiert"
 
             except Exception as e:
-                self.logger.error(f"Unexpected error (attempt {attempt + 1}/{max_retries}): {e}", exc_info=True)
+                self.logger.error(f"Unexpected error: {e}", exc_info=True)
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay * (attempt + 1))
                     continue
-                print(f"❌ Gemini {tier} Error: {e}")
                 return f"Fehler bei Gemini API: {str(e)}"
 
-        # All retries exhausted
-        self.logger.error(f"All {max_retries} attempts failed for tier {tier}")
-        return f"⚠️ Gemini Anfrage fehlgeschlagen nach {max_retries} Versuchen"
-    
+        return f"  Gemini Anfrage fehlgeschlagen nach {max_retries} Versuchen"
+
     def _get_fallback_tier(self, current_tier: str) -> str:
-        """Get a fallback tier when current is exhausted"""
+        """Get a cheaper fallback tier when current is exhausted"""
         fallback_chain = {
             'pro': 'flash-2.5',
             'flash-2.5': 'flash-1.5',
@@ -388,16 +361,15 @@ class AdaptiveGeminiClient:
             'flash-1.5': 'flash-8b',
             'flash-8b': None
         }
-        
+
         fallback = fallback_chain.get(current_tier)
-        if fallback and self._get_remaining(fallback) > 0:
+        if fallback and self.budget_tracker.can_afford_request('gemini', fallback):
             return fallback
-        
-        # Try next in chain
+
         if fallback:
             return self._get_fallback_tier(fallback)
         return None
-    
+
     def generate_with_auto_select(self, prompt: str, task_type: str = 'analyze') -> str:
         """Convenience method that always auto-selects the best model"""
         return self.generate(prompt, tier=None, task_type=task_type)

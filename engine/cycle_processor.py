@@ -7,25 +7,37 @@ import json
 import time
 from datetime import datetime
 from typing import Dict, List, Optional
-from core.config import CYCLE_CONFIG, REQUEST_BUDGET_TIERS
+from core.config import PIPELINE_STAGE_SPLIT
 from core.database import db
 from engine.strategy_engine import strategy_manager, risk_classifier, prompt_builder
+from engine.quant_screener import quant_screener
 
 
 class CycleProcessor:
     """Processes investment analysis cycles with self-learning optimization"""
-    
+
     def __init__(self):
-        self.cycles = CYCLE_CONFIG
         self.agents = None  # Lazy load to avoid circular imports
         self.optimizer = None  # Lazy load learning optimizer
+        self._budget_tracker = None
+
+    @property
+    def budget_tracker(self):
+        if self._budget_tracker is None:
+            from core.budget_tracker import budget_tracker
+            self._budget_tracker = budget_tracker
+        return self._budget_tracker
 
     def _get_current_budget(self) -> Dict:
-        """Get the current API budget based on user's tier selection"""
-        tier = db.get_setting("request_budget_tier") or "avg"
-        if tier not in REQUEST_BUDGET_TIERS:
-            tier = "avg"  # Fallback to balanced
-        return REQUEST_BUDGET_TIERS[tier]['budget']
+        """Get the current API budget from adaptive budget tracker"""
+        limits = self.budget_tracker.get_pipeline_limits()
+        return {
+            'flash-8b': limits['stage1_max'],
+            'flash': limits['stage2_max'],
+            'flash-1.5': limits['stage2_max'],
+            'pro': limits['stage3_max'],
+            'perplexity': limits['perplexity_max'],
+        }
     
     def _get_agents(self):
         """Lazy load agents to avoid circular imports"""
@@ -82,8 +94,8 @@ class CycleProcessor:
         print(f"📋 Strategie: {strategy['name']} | Watchlist: {len(tickers)} Ticker (optimiert)")
         print(f"💰 Budget: Flash-8b:{budget.get('flash-8b',30)}, Flash-1.5:{budget.get('flash-1.5',15)}, Pro:{budget.get('pro',5)}")
         
-        # 🧠 LEARNING: Verify old predictions first (runs weekly check)
-        optimizer.feedback.verify_predictions(days_back=7)
+        # LEARNING: Verify old predictions (uses configurable window, default 90 days)
+        optimizer.feedback.verify_predictions()
         
         # Classify all tickers (with caching)
         classified = self._classify_tickers_cached(optimized_tickers)
@@ -289,82 +301,100 @@ class CycleProcessor:
             print(f"⚠️ Could not record prediction: {e}")
     
     def _quick_scan(self, ticker: str, prompt: str, category_info: Dict) -> Dict:
-        """Quick scan using Flash-8b"""
-        agents = self._get_agents()
-        response = agents.gemini.generate(prompt, tier='flash-8b')
-        
-        # Parse score
-        import re
-        score_match = re.search(r"Score:\s*(\d+)", response)
-        score = int(score_match.group(1)) if score_match else 0
-        
+        """Quick scan using quantitative screener (zero API cost)"""
+        result = quant_screener.screen_ticker(ticker)
+
+        score = result.get('composite_score', result.get('score', 0)) if result and 'error' not in result else 0
+        scan_result = result.get('initial_reason', '') if result else ''
+
         return {
             'ticker': ticker,
             'score': score,
+            'composite_score': score,
+            'signal': result.get('signal', 'Neutral') if result else 'Neutral',
             'category': category_info['category'],
             'risk_level': category_info['risk_level'],
-            'scan_result': response
+            'scan_result': scan_result,
+            'quant_data': result,
         }
     
     def _analyze_candidate(self, candidate: Dict, strategy: str) -> Dict:
-        """Deep analysis using Flash + Perplexity Intelligence"""
-        agents = self._get_agents()
+        """Deep analysis: Perplexity news only (quant data already computed in Stage 1)"""
         ticker = candidate['ticker']
-        
-        # Fetch stock data
-        stock_data = agents._get_stock_data(ticker)
-        
-        # 🌐 PERPLEXITY: Get real-time intelligence (if budget allows)
-        intel = None
+
+        # Perplexity: Get real-time news (if budget allows)
         try:
             from clients.perplexity_client import pplx_client
-            if pplx_client.get_usage()['remaining'] > 0:
+            if pplx_client.is_configured() and pplx_client.get_usage()['remaining'] > 0:
                 intel = pplx_client.quick_scan(ticker)
-                candidate['perplexity_intel'] = intel.get('raw', '')
-                print(f"  🌐 {ticker}: Perplexity Intelligence added")
+                candidate['perplexity_intel'] = intel.get('raw', '') if intel else ''
+                candidate['news'] = candidate['perplexity_intel'] or 'No recent news'
+                print(f"    {ticker}: News added")
+            else:
+                candidate['news'] = 'Perplexity not available'
         except Exception as e:
-            print(f"  ⚠️ Perplexity skipped for {ticker}: {e}")
-        
-        # Build prompt with Perplexity context if available
-        intel_context = candidate.get('perplexity_intel', '')
-        prompt = prompt_builder.build_analysis_prompt(
-            ticker, strategy, candidate['category'], stock_data
-        )
-        
-        # Append Perplexity intel to prompt if available
-        if intel_context:
-            prompt += f"\n\nAKTUELLE MARKT-INTELLIGENCE (live):\n{intel_context}"
-        
-        response = agents.gemini.generate(prompt, tier='flash')
-        candidate['analysis'] = response
-        candidate['stock_data'] = stock_data
+            print(f"    Perplexity skipped for {ticker}: {e}")
+            candidate['news'] = 'News unavailable'
+
+        # Quant data from Stage 1 serves as the analysis
+        qd = candidate.get('quant_data', {})
+        candidate['analysis'] = candidate.get('scan_result', '')
+        candidate['quant_metrics'] = {
+            'valuation': qd.get('valuation', {}),
+            'technicals': qd.get('technicals', {}),
+            'momentum': qd.get('momentum', {}),
+            'quality': qd.get('quality', {}),
+            'anomalies': qd.get('anomalies', []),
+            'composite_score': qd.get('composite_score', 0),
+            'signal': qd.get('signal', 'Neutral'),
+        }
         return candidate
     
     def _synthesize_tip(self, candidate: Dict, strategy: str) -> Dict:
-        """Final synthesis using Pro"""
+        """Final synthesis: research note with risks and catalysts (no buy/sell)"""
         agents = self._get_agents()
         ticker = candidate['ticker']
-        
-        prompt = prompt_builder.build_synthesis_prompt(
-            ticker, strategy, candidate['category'],
-            {'fundamental': candidate.get('analysis', ''), 
-             'technical': '', 
-             'stage1_reason': candidate.get('scan_result', '')}
-        )
-        
-        response = agents.gemini.generate(prompt, tier='pro')
-        
-        # Parse response
+
+        qm = candidate.get('quant_metrics', {})
+        anomaly_text = ""
+        for a in qm.get('anomalies', []):
+            anomaly_text += f"  - {a.get('description', '')}\n"
+        if not anomaly_text:
+            anomaly_text = "  Keine Anomalien."
+
+        prompt = f"""Du bist ein Research-Analyst. Schreibe eine kurze Research-Notiz fuer {ticker}.
+
+Quant Signal: {qm.get('signal', 'Neutral')} (Score: {qm.get('composite_score', 'N/A')}/100)
+Anomalien:
+{anomaly_text}
+News: {candidate.get('news', 'Keine Nachrichten')}
+
+Aufgabe:
+1. Fasse die wichtigsten Risiken zusammen (2-3 Saetze)
+2. Nenne potenzielle Katalysatoren (2-3 Saetze)
+3. Was sollte ein Investor beobachten? (1-2 Saetze)
+
+KEINE Kauf/Verkauf-Empfehlung. Nur Fakten und Kontext.
+
+Format:
+Risk Score: [1-10]
+Risiken: [Text]
+Katalysatoren: [Text]
+Beobachten: [Text]
+"""
+
+        response = agents.gemini.generate(prompt, tier='flash')
+
         import re
         risk_match = re.search(r"Risk Score:\s*(\d+)", response)
-        signal_match = re.search(r"Signal:\s*(\w+\s*\w*)", response)
-        
+
         return {
             'ticker': ticker,
-            'category': candidate['category'],
+            'category': candidate.get('category', 'growth'),
             'recommendation': response,
             'risk_score': int(risk_match.group(1)) if risk_match else 5,
-            'signal': signal_match.group(1).strip() if signal_match else 'Hold',
+            'signal': qm.get('signal', 'Neutral'),
+            'composite_score': qm.get('composite_score', 0),
             'timestamp': datetime.now().isoformat()
         }
     
@@ -447,19 +477,20 @@ class CycleProcessor:
             return "📊 Keine relevanten Tipps in diesem Zyklus."
         
         if cycle == 'daily':
-            lines = [f"📈 **Daily Broker Update** - {datetime.now().strftime('%d.%m.%Y')}"]
+            lines = [f"**Daily Research Update** - {datetime.now().strftime('%d.%m.%Y')}"]
             for tip in tips[:5]:
-                signal = tip.get('signal', 'Hold')
+                signal = tip.get('signal', 'Neutral')
                 ticker = tip.get('ticker', 'N/A')
                 risk = tip.get('risk_score', 5)
-                emoji = '🟢' if 'Buy' in signal else '🔴' if 'Sell' in signal else '🟡'
-                lines.append(f"{emoji} **{ticker}**: {signal} (Risiko: {risk}/10)")
+                score = tip.get('composite_score', tip.get('score', 0))
+                icon = '+' if signal == 'Opportunity' else '!' if signal == 'Caution' else '~'
+                lines.append(f"[{icon}] **{ticker}**: {signal} (Score: {score}/100, Risiko: {risk}/10)")
             return '\n'.join(lines)
         
         elif cycle == 'weekly':
-            lines = [f"📊 **Weekly Analysis** - KW {datetime.now().isocalendar()[1]}"]
+            lines = [f"**Weekly Research Summary** - KW {datetime.now().isocalendar()[1]}"]
             for tip in tips[:10]:
-                lines.append(f"• {tip.get('ticker')}: {tip.get('signal', 'Hold')}")
+                lines.append(f"  {tip.get('ticker')}: {tip.get('signal', 'Neutral')} (Score: {tip.get('composite_score', 'N/A')})")
             return '\n'.join(lines)
         
         elif cycle == 'monthly':

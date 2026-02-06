@@ -235,7 +235,8 @@ class SECEdgarClient:
             significance = self._calculate_significance(
                 txn_type=txn_type,
                 value=value,
-                title=insider_title
+                title=insider_title,
+                txn_code=txn_code,
             )
 
             return {
@@ -296,33 +297,34 @@ class SECEdgarClient:
         }
         return codes.get(code, f'Other ({code})')
 
-    def _calculate_significance(self, txn_type: str, value: float, title: str) -> int:
+    def _calculate_significance(self, txn_type: str, value: float, title: str,
+                                txn_code: str = None) -> int:
         """
-        Calculate significance score (0-100) for an insider transaction
-
-        Higher score = more significant signal
+        Calculate significance score (0-100) for an insider transaction.
+        Voluntary open-market purchases (code 'P') are the strongest signal.
+        Awards, exercises, and gifts are noise — scored low.
         """
-        score = 50  # Base score
+        score = 30  # Base score
 
-        # Transaction type weight
+        # Transaction type weight — voluntary purchases are the real signal
         if txn_type == 'Purchase':
-            score += 30  # Purchases are bullish
+            score += 40  # Open market purchase = strongest bullish signal
         elif txn_type == 'Sale':
-            score -= 20  # Sales are bearish (but common for compensation)
-        elif txn_type == 'Award':
-            score += 0   # Awards are neutral (compensation)
+            score += 10  # Sales are common for compensation, weaker signal
+        elif txn_type in ('Award', 'Gift'):
+            score -= 15  # Compensation/gifts = noise, not conviction
         elif txn_type == 'Exercise':
-            score -= 5   # Exercise often followed by sale
+            score -= 10  # Option exercises = noise, often automatic
 
         # Transaction value weight
         if value > 5_000_000:
-            score += 20  # Very large transaction
+            score += 20
         elif value > 1_000_000:
-            score += 15  # Large transaction
+            score += 15
         elif value > 500_000:
-            score += 10  # Significant transaction
+            score += 10
         elif value > 100_000:
-            score += 5   # Notable transaction
+            score += 5
 
         # Title weight (CEO/CFO more significant than regular insiders)
         title_lower = title.lower()
@@ -330,12 +332,15 @@ class SECEdgarClient:
             score += 15
         elif any(x in title_lower for x in ['cfo', 'chief financial']):
             score += 12
-        elif any(x in title_lower for x in ['coo', 'chief operating']):
+        elif any(x in title_lower for x in ['coo', 'chief operating', 'cto', 'chief technology']):
             score += 10
         elif 'director' in title_lower:
             score += 8
-        elif any(x in title_lower for x in ['vp', 'vice president']):
+        elif any(x in title_lower for x in ['vp', 'vice president', 'svp', 'evp']):
             score += 5
+        # 10% owners get lower weight — they may have different motivations
+        elif '10%' in title_lower or 'owner' in title_lower:
+            score += 2
 
         # Clamp to 0-100
         return max(0, min(100, score))

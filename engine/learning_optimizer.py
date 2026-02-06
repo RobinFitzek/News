@@ -76,7 +76,13 @@ class FeedbackTracker:
         cursor = conn.cursor()
         
         # Determine predicted direction from signal
-        direction = 'up' if 'Buy' in signal else 'down' if 'Sell' in signal else 'neutral'
+        # Support both old (Buy/Sell) and new (Opportunity/Caution) signal types
+        if signal in ('Opportunity',) or 'Buy' in signal:
+            direction = 'up'
+        elif signal in ('Caution',) or 'Sell' in signal:
+            direction = 'down'
+        else:
+            direction = 'neutral'
         
         cursor.execute("""
             INSERT INTO prediction_outcomes 
@@ -91,8 +97,14 @@ class FeedbackTracker:
         
         return prediction_id
     
-    def verify_predictions(self, days_back: int = 7) -> List[Dict]:
-        """Verify predictions from N days ago against actual results"""
+    def verify_predictions(self, days_back: int = None) -> List[Dict]:
+        """Verify predictions from N days ago against actual results.
+        Default window is configurable via learning_verification_days setting (default 90)."""
+        if days_back is None:
+            try:
+                days_back = int(db.get_setting('learning_verification_days') or 90)
+            except (ValueError, TypeError):
+                days_back = 90
         conn = db._get_conn()
         cursor = conn.cursor()
         
@@ -116,32 +128,33 @@ class FeedbackTracker:
         return verified
     
     def _verify_single_prediction(self, prediction: Dict, days: int) -> Optional[Dict]:
-        """Verify a single prediction against actual price movement"""
+        """Verify a single prediction against actual price movement + SPY benchmark."""
         try:
             ticker = prediction['ticker']
+            period = f'{min(days + 10, 400)}d'
+
             stock = yf.Ticker(ticker)
-            hist = stock.history(period=f'{days + 5}d')
-            
+            hist = stock.history(period=period)
+
             if hist.empty:
                 return None
-            
-            # Get current price
-            current_price = hist['Close'].iloc[-1]
+
+            current_price = float(hist['Close'].iloc[-1])
             original_price = prediction['actual_price_at_prediction']
-            
+
             if not original_price or original_price == 0:
                 return None
-            
+
             # Calculate actual direction
             price_change = ((current_price - original_price) / original_price) * 100
-            
+
             if price_change > 2:
                 actual_direction = 'up'
             elif price_change < -2:
                 actual_direction = 'down'
             else:
                 actual_direction = 'neutral'
-            
+
             # Calculate accuracy score
             predicted = prediction['predicted_direction']
             if predicted == actual_direction:
@@ -150,7 +163,21 @@ class FeedbackTracker:
                 accuracy_score = 0.5
             else:
                 accuracy_score = 0.0
-            
+
+            # SPY benchmark comparison
+            benchmark_return = None
+            beat_benchmark = None
+            try:
+                spy_hist = yf.Ticker('SPY').history(period=period)
+                if not spy_hist.empty and len(spy_hist) >= 2:
+                    spy_start = float(spy_hist['Close'].iloc[0])
+                    spy_end = float(spy_hist['Close'].iloc[-1])
+                    if spy_start > 0:
+                        benchmark_return = round(((spy_end - spy_start) / spy_start) * 100, 2)
+                        beat_benchmark = price_change > benchmark_return
+            except Exception:
+                pass
+
             # Update database
             conn = db._get_conn()
             cursor = conn.cursor()
@@ -166,17 +193,19 @@ class FeedbackTracker:
                   datetime.now(), prediction['id']))
             conn.commit()
             conn.close()
-            
+
             return {
                 'ticker': ticker,
                 'predicted': predicted,
                 'actual': actual_direction,
                 'accuracy': accuracy_score,
-                'price_change': price_change
+                'price_change': round(price_change, 2),
+                'benchmark_return': benchmark_return,
+                'beat_benchmark': beat_benchmark,
             }
-            
+
         except Exception as e:
-            print(f"⚠️ Verification error for {prediction['ticker']}: {e}")
+            print(f"Verification error for {prediction['ticker']}: {e}")
             return None
     
     def get_accuracy_stats(self) -> Dict:
@@ -209,7 +238,7 @@ class FeedbackTracker:
                 'message': 'Keine verifizierten Vorhersagen'
             }
         
-        return {
+        stats = {
             'total_verified': row['total'],
             'avg_accuracy': round(row['avg_accuracy'] or 0.5, 3),
             'avg_confidence': round(row['avg_confidence'] or 50, 1),
@@ -217,6 +246,15 @@ class FeedbackTracker:
             'wrong_predictions': row['wrong'] or 0,
             'hit_rate': round((row['correct'] or 0) / row['total'] * 100, 1)
         }
+
+        # Health warning: if accuracy is below random chance over meaningful sample
+        if stats['total_verified'] >= 20 and stats['avg_accuracy'] < 0.55:
+            stats['health_warning'] = (
+                f"System accuracy ({stats['avg_accuracy']:.0%}) is near or below random chance "
+                f"over {stats['total_verified']} predictions. Consider buying index ETFs instead."
+            )
+
+        return stats
     
     def get_ticker_accuracy(self, ticker: str) -> Dict:
         """Get accuracy stats for a specific ticker"""
@@ -406,17 +444,21 @@ class LearningOptimizer:
         # Get current price for later verification
         stock_data = self.cache.get_stock_data(ticker)
         current_price = stock_data.get('current_price', 0) if stock_data else 0
-        
+
         # Record the prediction
         self.feedback.record_prediction(ticker, signal, confidence, current_price)
-        
-        # Periodically verify old predictions
-        verified = self.feedback.verify_predictions(days_back=7)
+
+        # Periodically verify old predictions (uses configurable window)
+        verified = self.feedback.verify_predictions()
         if verified:
-            print(f"📊 Verified {len(verified)} predictions")
+            print(f"  Verified {len(verified)} predictions")
             for v in verified[:3]:
-                emoji = '✅' if v['accuracy'] == 1.0 else '❌' if v['accuracy'] == 0.0 else '➖'
-                print(f"  {emoji} {v['ticker']}: predicted {v['predicted']}, was {v['actual']} ({v['price_change']:+.1f}%)")
+                bench_text = ""
+                if v.get('benchmark_return') is not None:
+                    bench_text = f", SPY: {v['benchmark_return']:+.1f}%"
+                    bench_text += " (beat)" if v.get('beat_benchmark') else " (missed)"
+                status = 'OK' if v['accuracy'] == 1.0 else 'WRONG' if v['accuracy'] == 0.0 else 'NEUTRAL'
+                print(f"    [{status}] {v['ticker']}: predicted {v['predicted']}, was {v['actual']} ({v['price_change']:+.1f}%{bench_text})")
     
     def get_learning_stats(self) -> Dict:
         """Get comprehensive learning statistics"""
