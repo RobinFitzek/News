@@ -372,6 +372,51 @@ class Database:
         conn.close()
     
     # === Settings ===
+    # === Helper Methods for New Modules ===
+    
+    def query(self, sql: str, params: tuple = ()) -> List[Dict]:
+        """Execute SELECT query and return list of dicts"""
+        try:
+            conn = self._get_conn()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(sql, params)
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+            finally:
+                conn.close()
+        except Exception as e:
+            self.logger.error(f"Query error: {e}", exc_info=True)
+            return []
+    
+    def query_one(self, sql: str, params: tuple = ()) -> Optional[Dict]:
+        """Execute SELECT query and return single dict or None"""
+        try:
+            conn = self._get_conn()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(sql, params)
+                row = cursor.fetchone()
+                return dict(row) if row else None
+            finally:
+                conn.close()
+        except Exception as e:
+            self.logger.error(f"Query one error: {e}", exc_info=True)
+            return None
+    
+    def execute(self, sql: str, params: tuple = ()):
+        """Execute INSERT/UPDATE/DELETE query"""
+        try:
+            with self._get_transaction() as conn:
+                cursor = conn.cursor()
+                cursor.execute(sql, params)
+                return cursor
+        except Exception as e:
+            self.logger.error(f"Execute error: {e}", exc_info=True)
+            raise
+    
+    # === Settings ===
+    
     def get_setting(self, key: str) -> Any:
         """Get setting with error handling and default fallback"""
         if not key or not isinstance(key, str):

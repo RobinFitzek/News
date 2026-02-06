@@ -17,3 +17,11 @@
 {"timestamp": "2026-02-05T18:49:00.980744", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
 {"timestamp": "2026-02-05T19:44:23.422831", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
 {"timestamp": "2026-02-05T19:57:43.646450", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-06T13:44:38.032455", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-06T15:22:07.486833", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-06T15:26:35.284964", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-06T15:26:38.428029", "event": "toggle_dev_mode", "username": "admin", "ip": "127.0.0.1", "details": {"enabled": false}}
+{"timestamp": "2026-02-06T15:26:41.340101", "event": "toggle_dev_mode", "username": "admin", "ip": "127.0.0.1", "details": {"enabled": true}}
+{"timestamp": "2026-02-06T15:26:44.213756", "event": "toggle_dev_mode", "username": "admin", "ip": "127.0.0.1", "details": {"enabled": false}}
+{"timestamp": "2026-02-06T15:26:45.776645", "event": "toggle_dev_mode", "username": "admin", "ip": "127.0.0.1", "details": {"enabled": true}}
+{"timestamp": "2026-02-06T15:26:55.008890", "event": "manual_scan_triggered", "username": "admin", "ip": "127.0.0.1", "details": {"source": "web_dashboard"}}

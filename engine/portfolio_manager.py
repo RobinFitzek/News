@@ -36,7 +36,13 @@ class PortfolioManager:
 
         # Enrich with current prices
         enriched = self._enrich_with_prices(active_holdings)
-        total_value = sum(h.get('current_value', 0) for h in enriched)
+        
+        # NEW: Add cash position to total value
+        cash_positions = db.query("SELECT SUM(amount) as total FROM cash_positions WHERE amount > 0")
+        cash_total = cash_positions[0]['total'] if cash_positions and cash_positions[0]['total'] else 0
+        
+        stock_value = sum(h.get('current_value', 0) for h in enriched)
+        total_value = stock_value + cash_total
 
         if total_value == 0:
             return {
@@ -57,6 +63,16 @@ class PortfolioManager:
         alerts.extend(self._check_position_size(enriched, total_value, max_position_pct))
         alerts.extend(self._check_stop_loss(enriched, stop_loss_pct))
         alerts.extend(self._check_sector_concentration(enriched, total_value, max_sector_pct))
+        
+        # NEW: Check correlation risk
+        try:
+            from engine.correlation_analyzer import correlation_analyzer
+            correlation_alerts = correlation_analyzer.generate_correlation_alerts(enriched, threshold=0.75, combined_limit=15.0)
+            alerts.extend(correlation_alerts)
+            diversification_score = correlation_analyzer.get_diversification_score(enriched)
+        except Exception as e:
+            logger.warning(f"Could not check correlations: {e}")
+            diversification_score = None
 
         benchmark = self._track_benchmark(enriched)
         rebalancing = self._suggest_rebalancing(enriched, total_value)
@@ -66,6 +82,9 @@ class PortfolioManager:
             'benchmark': benchmark,
             'rebalancing': rebalancing,
             'portfolio_value': round(total_value, 2),
+            'stock_value': round(stock_value, 2),
+            'cash_value': round(cash_total, 2),
+            'diversification_score': diversification_score,
             'holdings': enriched,
         }
 
@@ -117,18 +136,38 @@ class PortfolioManager:
     def _check_stop_loss(self, holdings: List[Dict], threshold: float) -> List[Dict]:
         """Alert if any position is down more than threshold % from entry."""
         alerts = []
+        
+        # NEW: Import dividend tracker for ex-date awareness
+        try:
+            from engine.dividend_tracker import dividend_tracker
+        except Exception:
+            dividend_tracker = None
+        
         for h in holdings:
             pnl = h.get('pnl_pct', 0)
-            if pnl < -threshold:
+            ticker = h['ticker']
+            
+            # NEW: Adjust threshold for upcoming dividends
+            adjusted_threshold = threshold
+            if dividend_tracker:
+                adjusted_threshold = dividend_tracker.adjust_stop_loss_for_dividend(ticker, threshold)
+                
+                # Check if this is a false alarm due to ex-dividend
+                if pnl < -threshold and dividend_tracker.check_stop_loss_false_alarm(ticker, pnl):
+                    # Skip alert - it's just ex-dividend drop
+                    logger.info(f"Skipping stop-loss alert for {ticker} — likely ex-dividend adjustment")
+                    continue
+            
+            if pnl < -adjusted_threshold:
                 alerts.append({
                     'type': 'STOP_LOSS',
-                    'ticker': h['ticker'],
+                    'ticker': ticker,
                     'entry_price': h.get('avg_price', 0),
                     'current_price': h.get('current_price', 0),
                     'loss_pct': pnl,
-                    'threshold': threshold,
-                    'severity': 'CRITICAL' if pnl < -threshold * 1.5 else 'WARNING',
-                    'message': f"{h['ticker']} is down {pnl:.1f}% from entry (stop-loss: -{threshold}%)"
+                    'threshold': adjusted_threshold,
+                    'severity': 'CRITICAL' if pnl < -adjusted_threshold * 1.5 else 'WARNING',
+                    'message': f"{ticker} is down {pnl:.1f}% from entry (stop-loss: -{adjusted_threshold:.1f}%)"
                 })
         return alerts
 

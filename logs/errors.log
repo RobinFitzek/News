@@ -5,3 +5,78 @@ Traceback (most recent call last):
     raise Exception("Test exception")
 Exception: Test exception
 2026-02-05 19:44:43 - core.database - ERROR - Error fetching top insider signals: name 'timedelta' is not defined
+2026-02-06 15:26:59 - core.database - ERROR - Transaction rolled back due to error: table volume_metrics has no column named current_volume
+2026-02-06 15:26:59 - core.database - ERROR - Execute error: table volume_metrics has no column named current_volume
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 412, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table volume_metrics has no column named current_volume
+2026-02-06 15:26:59 - core.database - ERROR - Transaction rolled back due to error: table earnings_calendar has no column named days_until
+2026-02-06 15:26:59 - core.database - ERROR - Execute error: table earnings_calendar has no column named days_until
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 412, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table earnings_calendar has no column named days_until
+2026-02-06 15:27:03 - core.database - ERROR - Transaction rolled back due to error: table volume_metrics has no column named current_volume
+2026-02-06 15:27:03 - core.database - ERROR - Execute error: table volume_metrics has no column named current_volume
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 412, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table volume_metrics has no column named current_volume
+2026-02-06 15:27:03 - core.database - ERROR - Transaction rolled back due to error: table earnings_calendar has no column named days_until
+2026-02-06 15:27:03 - core.database - ERROR - Execute error: table earnings_calendar has no column named days_until
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 412, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table earnings_calendar has no column named days_until
+2026-02-06 15:27:03 - core.database - ERROR - Transaction rolled back due to error: table volume_metrics has no column named current_volume
+2026-02-06 15:27:03 - core.database - ERROR - Execute error: table volume_metrics has no column named current_volume
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 412, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table volume_metrics has no column named current_volume
+2026-02-06 15:27:04 - core.database - ERROR - Transaction rolled back due to error: table earnings_calendar has no column named days_until
+2026-02-06 15:27:04 - core.database - ERROR - Execute error: table earnings_calendar has no column named days_until
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 412, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table earnings_calendar has no column named days_until
+2026-02-06 15:27:04 - core.database - ERROR - Transaction rolled back due to error: table volume_metrics has no column named current_volume
+2026-02-06 15:27:04 - core.database - ERROR - Execute error: table volume_metrics has no column named current_volume
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 412, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table volume_metrics has no column named current_volume
+2026-02-06 15:27:05 - core.database - ERROR - Transaction rolled back due to error: table earnings_calendar has no column named days_until
+2026-02-06 15:27:05 - core.database - ERROR - Execute error: table earnings_calendar has no column named days_until
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 412, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table earnings_calendar has no column named days_until
+2026-02-06 15:27:08 - core.database - ERROR - Transaction rolled back due to error: table volume_metrics has no column named current_volume
+2026-02-06 15:27:08 - core.database - ERROR - Execute error: table volume_metrics has no column named current_volume
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 412, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table volume_metrics has no column named current_volume
+2026-02-06 15:27:08 - core.database - ERROR - Transaction rolled back due to error: table earnings_calendar has no column named days_until
+2026-02-06 15:27:08 - core.database - ERROR - Execute error: table earnings_calendar has no column named days_until
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 412, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table earnings_calendar has no column named days_until
+2026-02-06 15:27:09 - clients.perplexity_client - ERROR - HTTP error None: 401 Client Error: Unauthorized for url: https://api.perplexity.ai/chat/completions
+2026-02-06 15:27:10 - clients.perplexity_client - ERROR - HTTP error None: 401 Client Error: Unauthorized for url: https://api.perplexity.ai/chat/completions
+2026-02-06 15:27:10 - clients.perplexity_client - ERROR - HTTP error None: 401 Client Error: Unauthorized for url: https://api.perplexity.ai/chat/completions
+2026-02-06 15:27:10 - clients.perplexity_client - ERROR - HTTP error None: 401 Client Error: Unauthorized for url: https://api.perplexity.ai/chat/completions
+2026-02-06 15:27:11 - clients.perplexity_client - ERROR - HTTP error None: 401 Client Error: Unauthorized for url: https://api.perplexity.ai/chat/completions
