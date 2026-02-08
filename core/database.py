@@ -359,7 +359,72 @@ class Database:
             )
         """)
 
+        # Handle legacy backtest_results schema (old version had different columns)
+        cursor.execute("PRAGMA table_info(backtest_results)")
+        _bt_cols = [row['name'] for row in cursor.fetchall()]
+        if _bt_cols and 'run_id' not in _bt_cols:
+            cursor.execute("ALTER TABLE backtest_results RENAME TO backtest_results_legacy")
+
+        # Backtest Results (per-ticker per-date)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS backtest_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id INTEGER NOT NULL,
+                ticker TEXT NOT NULL,
+                test_date TEXT NOT NULL,
+                signal TEXT NOT NULL,
+                tech_score REAL,
+                momentum_score REAL,
+                composite_score REAL,
+                forward_5d_return REAL,
+                forward_20d_return REAL,
+                hit INTEGER DEFAULT 0,
+                benchmark_ticker TEXT,
+                benchmark_return REAL,
+                alpha REAL,
+                forward_10d_return REAL,
+                forward_40d_return REAL,
+                forward_60d_return REAL,
+                regime TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (run_id) REFERENCES backtest_runs(id)
+            )
+        """)
+
+        # Backtest Runs (summary per run)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS backtest_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                tickers_tested INTEGER DEFAULT 0,
+                months_tested INTEGER DEFAULT 0,
+                overall_accuracy REAL,
+                avg_return_buy REAL,
+                avg_return_sell REAL,
+                best_weights TEXT,
+                status TEXT DEFAULT 'running',
+                progress_pct REAL DEFAULT 0,
+                progress_msg TEXT DEFAULT '',
+                error TEXT,
+                sharpe_ratio REAL,
+                max_drawdown REAL,
+                profit_factor REAL,
+                volatility REAL,
+                win_loss_ratio REAL,
+                risk_metrics TEXT,
+                survivorship_warning TEXT,
+                coverage_warning TEXT,
+                model_alignment_pct REAL,
+                expected_value_per_trade REAL,
+                out_of_sample_accuracy REAL,
+                portfolio_total_return REAL,
+                portfolio_sharpe REAL
+            )
+        """)
+
         # Indexes for better performance
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_backtest_results_run ON backtest_results(run_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_backtest_results_ticker ON backtest_results(ticker)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_ticker ON portfolio_trades(ticker)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_date ON portfolio_trades(date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_perf_date ON performance_snapshots(date)")
@@ -367,7 +432,41 @@ class Database:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_insider_date ON insider_transactions(transaction_date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cost_api_month ON api_cost_log(api, month)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cost_api_date ON api_cost_log(api, date)")
-        
+
+        # AI Cross-Check Log
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ai_crosscheck_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                analysis_id INTEGER,
+                claims_found INTEGER DEFAULT 0,
+                claims_verified INTEGER DEFAULT 0,
+                accuracy REAL,
+                trust_score REAL,
+                details TEXT,
+                warning TEXT,
+                checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (analysis_id) REFERENCES analysis_history(id)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_crosscheck_ticker ON ai_crosscheck_log(ticker)")
+
+        # Portfolio Benchmarks (daily snapshots for portfolio vs SPY comparison)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS portfolio_benchmarks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                snapshot_date TEXT UNIQUE NOT NULL,
+                portfolio_value REAL,
+                portfolio_return_pct REAL,
+                spy_equivalent_value REAL,
+                spy_return_pct REAL,
+                alpha REAL,
+                cash_invested REAL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_benchmarks_date ON portfolio_benchmarks(snapshot_date)")
+
         conn.commit()
         conn.close()
     
@@ -568,7 +667,6 @@ class Database:
 
         # Extract signal — use quant screener signal if available, fallback to old parsing
         signal = results.get('signal', 'NEUTRAL')
-        confidence = 50
 
         # Map new signal types to DB values
         signal_map = {
@@ -578,11 +676,8 @@ class Database:
         }
         signal = signal_map.get(signal, signal)
 
-        # Set confidence based on signal type
-        if signal == 'OPPORTUNITY':
-            confidence = 75
-        elif signal == 'CAUTION':
-            confidence = 75
+        # Use composite score as strength (honest metric), fallback to score, then 50
+        confidence = results.get('composite_score', results.get('score', 50))
 
         # Legacy fallback: parse old-style Buy/Sell from recommendation text
         rec = results.get('recommendation', '')
@@ -1076,6 +1171,59 @@ class Database:
         picks = self.get_top_picks(min_predictions=3, min_accuracy=min_accuracy, limit=100)
         return [pick['ticker'] for pick in picks]
 
+    # === Signal P&L Summary ===
+    def get_signal_pnl_summary(self) -> Dict:
+        """Aggregate P&L stats from prediction_outcomes table."""
+        try:
+            conn = self._get_conn()
+            cursor = conn.cursor()
+
+            # Per-signal breakdown
+            cursor.execute("""
+                SELECT
+                    signal,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN accuracy_score >= 0.5 THEN 1 ELSE 0 END) as correct,
+                    AVG((actual_price_after - actual_price_at_prediction)
+                        / actual_price_at_prediction * 100) as avg_return_pct
+                FROM prediction_outcomes
+                WHERE verified_at IS NOT NULL AND actual_price_at_prediction > 0
+                GROUP BY signal
+            """)
+            by_signal = [dict(row) for row in cursor.fetchall()]
+
+            # Overall stats
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total_verified,
+                    SUM(CASE WHEN accuracy_score >= 0.5 THEN 1 ELSE 0 END) as total_correct,
+                    AVG(CASE WHEN signal IN ('OPPORTUNITY', 'BUY', 'STRONG_BUY')
+                        THEN (actual_price_after - actual_price_at_prediction)
+                             / actual_price_at_prediction * 100 END) as avg_buy_return,
+                    AVG(CASE WHEN signal IN ('CAUTION', 'SELL', 'STRONG_SELL')
+                        THEN (actual_price_after - actual_price_at_prediction)
+                             / actual_price_at_prediction * 100 END) as avg_sell_return
+                FROM prediction_outcomes
+                WHERE verified_at IS NOT NULL AND actual_price_at_prediction > 0
+            """)
+            overall = dict(cursor.fetchone())
+            conn.close()
+
+            total = overall['total_verified'] or 0
+            correct = overall['total_correct'] or 0
+            hit_rate = round(correct / total * 100, 1) if total > 0 else 0
+
+            return {
+                'total_verified': total,
+                'hit_rate': hit_rate,
+                'avg_buy_return': round(overall['avg_buy_return'], 2) if overall['avg_buy_return'] else 0,
+                'avg_sell_return': round(overall['avg_sell_return'], 2) if overall['avg_sell_return'] else 0,
+                'by_signal': by_signal,
+            }
+        except Exception as e:
+            self.logger.error(f"Error getting signal P&L summary: {e}")
+            return {'total_verified': 0, 'hit_rate': 0, 'avg_buy_return': 0, 'avg_sell_return': 0, 'by_signal': []}
+
     # === User Management (Authentication) ===
     def get_user(self, username: str) -> Optional[Dict]:
         """Get user by username"""
@@ -1325,6 +1473,126 @@ class Database:
         except Exception as e:
             self.logger.error(f"Error getting API request count: {e}")
             return 0
+
+    # === Backtest ===
+    def create_backtest_run(self, tickers_tested: int, months_tested: int) -> int:
+        """Create a new backtest run and return its ID."""
+        try:
+            with self._get_transaction() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO backtest_runs (tickers_tested, months_tested, status)
+                    VALUES (?, ?, 'running')
+                """, (tickers_tested, months_tested))
+                return cursor.lastrowid
+        except Exception as e:
+            self.logger.error(f"Error creating backtest run: {e}")
+            raise
+
+    def update_backtest_run(self, run_id: int, **kwargs):
+        """Update backtest run fields (progress_pct, progress_msg, status, etc.)."""
+        allowed = {'overall_accuracy', 'avg_return_buy', 'avg_return_sell',
+                    'best_weights', 'status', 'progress_pct', 'progress_msg', 'error',
+                    'sharpe_ratio', 'max_drawdown', 'profit_factor', 'volatility',
+                    'win_loss_ratio', 'risk_metrics', 'survivorship_warning',
+                    'coverage_warning', 'model_alignment_pct',
+                    'expected_value_per_trade', 'out_of_sample_accuracy',
+                    'portfolio_total_return', 'portfolio_sharpe'}
+        fields = {k: v for k, v in kwargs.items() if k in allowed}
+        if not fields:
+            return
+        set_clause = ", ".join(f"{k} = ?" for k in fields)
+        values = list(fields.values()) + [run_id]
+        try:
+            with self._get_transaction() as conn:
+                conn.execute(f"UPDATE backtest_runs SET {set_clause} WHERE id = ?", tuple(values))
+        except Exception as e:
+            self.logger.error(f"Error updating backtest run {run_id}: {e}")
+
+    def save_backtest_result(self, run_id: int, result: Dict):
+        """Save a single backtest result row."""
+        try:
+            with self._get_transaction() as conn:
+                conn.execute("""
+                    INSERT INTO backtest_results
+                    (run_id, ticker, test_date, signal, tech_score, momentum_score,
+                     composite_score, forward_5d_return, forward_20d_return, hit,
+                     benchmark_ticker, benchmark_return, alpha,
+                     forward_10d_return, forward_40d_return, forward_60d_return, regime)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    run_id,
+                    result['ticker'],
+                    result['test_date'],
+                    result['signal'],
+                    result.get('tech_score'),
+                    result.get('momentum_score'),
+                    result.get('composite_score'),
+                    result.get('forward_5d_return'),
+                    result.get('forward_20d_return'),
+                    result.get('hit', 0),
+                    result.get('benchmark_ticker'),
+                    result.get('benchmark_return'),
+                    result.get('alpha'),
+                    result.get('forward_10d_return'),
+                    result.get('forward_40d_return'),
+                    result.get('forward_60d_return'),
+                    result.get('regime'),
+                ))
+        except Exception as e:
+            self.logger.error(f"Error saving backtest result: {e}")
+
+    def get_backtest_runs(self, limit: int = 20) -> List[Dict]:
+        """Get recent backtest runs."""
+        return self.query(
+            "SELECT * FROM backtest_runs ORDER BY run_date DESC LIMIT ?", (limit,)
+        )
+
+    def get_backtest_run(self, run_id: int) -> Optional[Dict]:
+        """Get a single backtest run."""
+        return self.query_one("SELECT * FROM backtest_runs WHERE id = ?", (run_id,))
+
+    def get_backtest_results(self, run_id: int) -> List[Dict]:
+        """Get all results for a backtest run."""
+        return self.query(
+            "SELECT * FROM backtest_results WHERE run_id = ? ORDER BY ticker, test_date",
+            (run_id,)
+        )
+
+    # === AI Cross-Check ===
+    def save_crosscheck(self, ticker: str, analysis_id: int, result: Dict):
+        """Save AI cross-check result."""
+        try:
+            with self._get_transaction() as conn:
+                conn.execute("""
+                    INSERT INTO ai_crosscheck_log
+                    (ticker, analysis_id, claims_found, claims_verified,
+                     accuracy, trust_score, details, warning)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    ticker.upper(),
+                    analysis_id,
+                    result.get('claims_found', 0),
+                    result.get('claims_verified', 0),
+                    result.get('accuracy'),
+                    result.get('trust_score'),
+                    json.dumps(result.get('details')) if result.get('details') else None,
+                    result.get('warning'),
+                ))
+        except Exception as e:
+            self.logger.error(f"Error saving crosscheck for {ticker}: {e}")
+
+    def get_crosscheck_history(self, ticker: str = None, limit: int = 20) -> List[Dict]:
+        """Get cross-check history, optionally filtered by ticker."""
+        if ticker:
+            return self.query(
+                "SELECT * FROM ai_crosscheck_log WHERE ticker = ? ORDER BY checked_at DESC LIMIT ?",
+                (ticker.upper(), limit)
+            )
+        return self.query(
+            "SELECT * FROM ai_crosscheck_log ORDER BY checked_at DESC LIMIT ?",
+            (limit,)
+        )
 
     def get_api_spending_breakdown(self, api: str, month: str) -> list:
         """Get spending breakdown by model for an API in a month."""

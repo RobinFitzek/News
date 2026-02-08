@@ -40,7 +40,7 @@ def setup_logging(level=logging.INFO, dev_mode=None):
     # Set level based on dev mode
     if dev_mode:
         level = logging.DEBUG
-        print("🔧 DEVELOPMENT MODE ENABLED - Verbose debug logging active")
+        print("DEVELOPMENT MODE ENABLED - Verbose debug logging active")
     
     # Root logger configuration
     root_logger = logging.getLogger()
@@ -62,7 +62,7 @@ def setup_logging(level=logging.INFO, dev_mode=None):
     # Enhanced formatter for dev mode
     if dev_mode:
         dev_formatter = logging.Formatter(
-            '%(asctime)s - [%(levelname)s] %(name)s:%(lineno)d - %(funcName)s() - %(message)s',
+            '%(asctime)s %(levelname)s %(name)s:%(lineno)d - %(message)s',
             datefmt='%Y-%m-%d %H:%M:%S'
         )
         console_handler.setFormatter(dev_formatter)
@@ -110,7 +110,7 @@ def setup_logging(level=logging.INFO, dev_mode=None):
     logging.getLogger('fastapi').setLevel(third_party_level)
 
     if dev_mode:
-        logging.info("🔧 Logging initialized in DEVELOPMENT MODE with DEBUG level")
+        logging.info("Logging initialized in DEVELOPMENT MODE with DEBUG level")
     else:
         logging.info("Logging initialized")
 

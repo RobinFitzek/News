@@ -15,13 +15,75 @@
         </div>
     </header>
 
+    <!-- Market Regime Card (loaded via AJAX) -->
+    <div id="regime-card" class="card" style="margin-bottom: var(--space-8); display: none; position: relative; overflow: visible;">
+        <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, var(--text-primary), transparent);"></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
+            <div style="display: flex; align-items: center; gap: var(--space-4);">
+                <h3 style="margin: 0;">Market Regime</h3>
+                <span id="regime-badge" class="badge" style="font-size: 0.75rem; padding: var(--space-2) var(--space-4);"></span>
+            </div>
+            <div id="regime-updated" style="font-size: 0.6875rem; color: var(--text-muted);"></div>
+        </div>
+        <div class="grid grid-4" style="margin-top: var(--space-5);">
+            <div class="metric">
+                <div class="metric-value" id="regime-spy">—</div>
+                <div class="metric-label">SPY Price</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="regime-vix">—</div>
+                <div class="metric-label">VIX</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="regime-yield">—</div>
+                <div class="metric-label">10Y Yield</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="regime-sma" style="font-size: 0.875rem;">—</div>
+                <div class="metric-label">SMA50 / SMA200</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Portfolio vs SPY Benchmark (loaded via AJAX) -->
+    <div id="benchmark-card" class="card" style="margin-bottom: var(--space-8); display: none; position: relative; overflow: visible;">
+        <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, var(--text-primary), transparent);"></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Portfolio vs SPY</h3>
+                <p style="margin: 0; font-size: var(--text-sm);" id="benchmark-subtitle">Are you beating the market?</p>
+            </div>
+            <a href="/portfolio" class="btn btn-secondary">View Portfolio</a>
+        </div>
+        <div class="grid grid-3" style="margin-bottom: var(--space-5);">
+            <div class="metric">
+                <div class="metric-value" id="bm-portfolio-return">—</div>
+                <div class="metric-label">Portfolio Return</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="bm-spy-return">—</div>
+                <div class="metric-label">SPY Return</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="bm-alpha">—</div>
+                <div class="metric-label">Alpha</div>
+            </div>
+        </div>
+        <canvas id="benchmark-chart" height="120" style="display: none;"></canvas>
+    </div>
+
     <!-- Scheduler Status Card -->
     <div class="card" style="margin-bottom: var(--space-8);">
         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
             <div style="display: flex; align-items: center; gap: var(--space-4);">
                 <div>
                     <h3 style="margin: 0 0 var(--space-2) 0;">Scheduler Engine</h3>
-                    {% if scheduler_status.is_running %}
+                    {% if scheduler_status.is_scanning %}
+                    <span class="badge" style="background: rgba(255, 152, 0, 0.2); color: #ff9800; border: 1px solid rgba(255, 152, 0, 0.3);">
+                        <span style="display: inline-block; width: 5px; height: 5px; background: currentColor; border-radius: 50%; box-shadow: 0 0 6px currentColor; animation: pulse 1.5s infinite;"></span>
+                        Scanning...
+                    </span>
+                    {% elif scheduler_status.is_running %}
                     <span class="badge badge-success">
                         <span style="width: 5px; height: 5px; background: currentColor; border-radius: 50%; box-shadow: 0 0 6px currentColor;"></span>
                         Running
@@ -48,7 +110,11 @@
                 {% endif %}
                 <form action="/scheduler/run-now" method="POST" style="display: inline;">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    {% if scheduler_status.is_scanning %}
+                    <button type="button" class="btn btn-secondary" disabled style="opacity: 0.7; cursor: not-allowed;">Scanning...</button>
+                    {% else %}
                     <button type="submit" class="btn btn-primary">Scan Now</button>
+                    {% endif %}
                 </form>
             </div>
         </div>
@@ -121,6 +187,18 @@
         {% endif %}
     </div>
     {% endif %}
+
+    <!-- Signal P&L Scorecard (loaded via AJAX) -->
+    <div id="signal-pnl-card" class="card" style="margin-bottom: var(--space-8); display: none; position: relative; overflow: visible;">
+        <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, var(--text-primary), transparent);"></div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Signal P&L Scorecard</h3>
+                <p style="margin: 0; font-size: var(--text-sm);">How well do our signals predict price movement?</p>
+            </div>
+        </div>
+        <div class="grid grid-4" id="signal-pnl-metrics"></div>
+    </div>
 
     <!-- Top Picks Preview -->
     {% if top_picks_preview and top_picks_preview|length > 0 %}
@@ -263,7 +341,8 @@
                     <tr>
                         <th>Ticker</th>
                         <th>Signal</th>
-                        <th>Confidence</th>
+                        <th>Strength</th>
+                        <th>Freshness</th>
                         <th>Time</th>
                         <th style="width: 100px;"></th>
                     </tr>
@@ -281,7 +360,21 @@
                             <span class="signal-text signal-{{ a.signal|lower }}">{{ a.signal }}</span>
                         </td>
                         <td>
-                            <span style="font-family: var(--font-mono); font-weight: 500;">{{ a.confidence }}%</span>
+                            <span style="font-family: var(--font-mono); font-weight: 500;">{{ a.confidence }}/100</span>
+                        </td>
+                        <td>
+                            {% set level = a.staleness_level|default('fresh') %}
+                            {% if level == 'fresh' %}
+                            <span class="badge badge-success" style="font-size: 0.5625rem;">Fresh</span>
+                            {% elif level == 'recent' %}
+                            <span class="badge" style="background: rgba(74,222,128,0.1); color: #4ade80; border: 1px solid rgba(74,222,128,0.25); font-size: 0.5625rem;">Recent</span>
+                            {% elif level == 'aging' %}
+                            <span class="badge" style="background: rgba(250,204,21,0.1); color: #facc15; border: 1px solid rgba(250,204,21,0.25); font-size: 0.5625rem;">{{ a.age_days|default(0) }}d</span>
+                            {% elif level == 'stale' %}
+                            <span class="badge badge-danger" style="font-size: 0.5625rem;">Stale ({{ a.age_days|default(0) }}d)</span>
+                            {% else %}
+                            <span class="badge badge-danger" style="font-size: 0.5625rem;">Outdated ({{ a.age_days|default(0) }}d)</span>
+                            {% endif %}
                         </td>
                         <td style="color: var(--text-muted); font-size: var(--text-sm);">{{ a.timestamp }}</td>
                         <td>
@@ -412,6 +505,110 @@
             }
         })
         .catch(() => {});
+
+    // Signal P&L scorecard
+    fetch('/api/signal-pnl')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || data.total_verified === 0) return;
+            const card = document.getElementById('signal-pnl-card');
+            card.style.display = '';
+            const m = document.getElementById('signal-pnl-metrics');
+            const buyColor = data.avg_buy_return >= 0 ? 'color: #4ade80;' : 'color: #f87171;';
+            const sellColor = data.avg_sell_return <= 0 ? 'color: #4ade80;' : 'color: #f87171;';
+            m.innerHTML =
+                '<div class="metric"><div class="metric-value">' + data.hit_rate + '%</div><div class="metric-label">Hit Rate</div></div>' +
+                '<div class="metric"><div class="metric-value" style="' + buyColor + '">' + (data.avg_buy_return >= 0 ? '+' : '') + data.avg_buy_return + '%</div><div class="metric-label">Avg Buy Return</div></div>' +
+                '<div class="metric"><div class="metric-value" style="' + sellColor + '">' + (data.avg_sell_return >= 0 ? '+' : '') + data.avg_sell_return + '%</div><div class="metric-label">Avg Sell Return</div></div>' +
+                '<div class="metric"><div class="metric-value">' + data.total_verified + '</div><div class="metric-label">Verified Signals</div></div>';
+        })
+        .catch(() => {});
+
+    // Market Regime
+    fetch('/api/market-regime')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.regime) return;
+            const card = document.getElementById('regime-card');
+            card.style.display = '';
+
+            const badge = document.getElementById('regime-badge');
+            const regimeColors = {
+                'bull': { bg: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'rgba(74,222,128,0.3)' },
+                'bear': { bg: 'rgba(248,113,113,0.15)', color: '#f87171', border: 'rgba(248,113,113,0.3)' },
+                'choppy': { bg: 'rgba(250,204,21,0.15)', color: '#facc15', border: 'rgba(250,204,21,0.3)' },
+            };
+            const rc = regimeColors[data.regime] || regimeColors['choppy'];
+            badge.textContent = data.regime.toUpperCase();
+            badge.style.background = rc.bg;
+            badge.style.color = rc.color;
+            badge.style.border = '1px solid ' + rc.border;
+
+            document.getElementById('regime-spy').textContent = data.spy_price ? '$' + data.spy_price.toLocaleString() : '—';
+            document.getElementById('regime-vix').textContent = data.vix != null ? data.vix.toFixed(1) : '—';
+            document.getElementById('regime-yield').textContent = data.ten_year_yield != null ? data.ten_year_yield.toFixed(2) + '%' : '—';
+            document.getElementById('regime-sma').textContent = (data.sma50 || '—') + ' / ' + (data.sma200 || '—');
+        })
+        .catch(() => {});
+
+    // Portfolio vs SPY Benchmark
+    fetch('/api/portfolio/benchmark')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || data.message || !data.portfolio_value) return;
+            const card = document.getElementById('benchmark-card');
+            card.style.display = '';
+
+            const pColor = data.portfolio_return_pct >= 0 ? '#4ade80' : '#f87171';
+            const sColor = data.spy_return_pct >= 0 ? '#4ade80' : '#f87171';
+            const aColor = data.alpha >= 0 ? '#4ade80' : '#f87171';
+
+            document.getElementById('bm-portfolio-return').innerHTML = '<span style="color:' + pColor + ';">' + (data.portfolio_return_pct >= 0 ? '+' : '') + data.portfolio_return_pct.toFixed(1) + '%</span>';
+            document.getElementById('bm-spy-return').innerHTML = '<span style="color:' + sColor + ';">' + (data.spy_return_pct >= 0 ? '+' : '') + data.spy_return_pct.toFixed(1) + '%</span>';
+            document.getElementById('bm-alpha').innerHTML = '<span style="color:' + aColor + ';">' + (data.alpha >= 0 ? '+' : '') + data.alpha.toFixed(1) + '%</span>';
+
+            document.getElementById('benchmark-subtitle').textContent = 'Portfolio: $' + data.portfolio_value.toLocaleString() + ' invested: $' + data.total_invested.toLocaleString();
+        })
+        .catch(() => {});
+
+    // Auto-refresh API usage counters every 30s
+    function refreshApiStatus() {
+        fetch('/api/status')
+            .then(r => r.json())
+            .then(data => {
+                const usage = data.api_usage || {};
+
+                // Perplexity
+                const pplx = usage.perplexity || {};
+                const pplxEl = document.getElementById('perplexity-usage');
+                if (pplxEl && pplx.used_today !== undefined) {
+                    pplxEl.innerHTML = pplx.used_today + '<span style="color: var(--text-muted); font-weight: 300;">/' + pplx.daily_limit + '</span>';
+                    const pplxBar = document.getElementById('perplexity-progress');
+                    if (pplxBar) pplxBar.style.width = Math.min(100, (pplx.used_today / pplx.daily_limit * 100)) + '%';
+                }
+
+                // Gemini Flash
+                const gFlash = (usage.gemini || {}).flash || {};
+                const flashEl = document.getElementById('gemini-flash-usage');
+                if (flashEl && gFlash.used_today !== undefined) {
+                    flashEl.innerHTML = gFlash.used_today + '<span style="color: var(--text-muted); font-weight: 300;">/' + gFlash.daily_limit + '</span>';
+                    const flashBar = document.getElementById('gemini-flash-progress');
+                    if (flashBar) flashBar.style.width = Math.min(100, (gFlash.used_today / gFlash.daily_limit * 100)) + '%';
+                }
+
+                // Gemini Pro
+                const gPro = (usage.gemini || {}).pro || {};
+                const proEl = document.getElementById('gemini-pro-usage');
+                if (proEl && gPro.used_today !== undefined) {
+                    proEl.innerHTML = gPro.used_today + '<span style="color: var(--text-muted); font-weight: 300;">/' + gPro.daily_limit + '</span>';
+                    const proBar = document.getElementById('gemini-pro-progress');
+                    if (proBar) proBar.style.width = Math.min(100, (gPro.used_today / gPro.daily_limit * 100)) + '%';
+                }
+            })
+            .catch(() => {});
+    }
+    // Poll every 60 seconds (limits are cached server-side for 2 min)
+    setInterval(refreshApiStatus, 60000);
 
     // Toast notifications from query parameters
     document.addEventListener('DOMContentLoaded', () => {

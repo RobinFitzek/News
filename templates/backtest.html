@@ -1,0 +1,589 @@
+{% extends "base.html" %}
+
+{% block title %}Backtest — Stockholm{% endblock %}
+
+{% block content %}
+<div id="backtest-page" class="animate-fade-in">
+    <!-- Page Header -->
+    <header class="page-header">
+        <div>
+            <h1>Backtest Engine</h1>
+            <p>Validate scoring logic against historical data (technicals + momentum only)</p>
+        </div>
+    </header>
+
+    <!-- Run Backtest Card -->
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <h3 style="margin: 0 0 var(--space-2) 0;">Run New Backtest</h3>
+        <p style="margin: 0 0 var(--space-6) 0; font-size: var(--text-sm); color: var(--text-muted);">
+            Replays monthly signals across ~88 sector-peer tickers using a 50/50 technical + momentum blend.
+            Fundamentals are excluded (yfinance only provides current-day P/E, P/B, etc.)
+        </p>
+
+        <div id="backtest-form" style="display: flex; align-items: flex-end; gap: var(--space-4); flex-wrap: wrap;">
+            <div>
+                <label style="display: block; font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-2);">Months to Test</label>
+                <select id="bt-months" style="background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-default); padding: var(--space-2) var(--space-4); font-family: var(--font-mono); font-size: var(--text-sm); border-radius: var(--radius-md);">
+                    <option value="12">12 months</option>
+                    <option value="24" selected>24 months</option>
+                    <option value="36">36 months</option>
+                </select>
+            </div>
+            <button id="btn-run-backtest" class="btn btn-primary" onclick="startBacktest()">Run Backtest</button>
+        </div>
+
+        <!-- Progress Section (hidden by default) -->
+        <div id="bt-progress-section" style="display: none; margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--border-hairline);">
+            <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2); font-size: 0.75rem;">
+                <span id="bt-progress-msg" style="color: var(--text-secondary);">Starting...</span>
+                <span id="bt-progress-pct" style="color: var(--text-primary); font-family: var(--font-mono); font-weight: 500;">0%</span>
+            </div>
+            <div class="progress">
+                <div id="bt-progress-bar" class="progress-bar" style="width: 0%; transition: width 0.4s ease;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Results (shown after backtest completes) -->
+    <div id="bt-results-section" style="display: none;">
+
+        <!-- Look-Ahead Bias Warning Banner -->
+        <div id="bt-coverage-warning" class="card" style="margin-bottom: var(--space-8); background: rgba(255, 152, 0, 0.08); border: 1px solid rgba(255, 152, 0, 0.3); display: none;">
+            <div style="display: flex; align-items: flex-start; gap: var(--space-4);">
+                <span style="font-size: 1.25rem; line-height: 1;">!</span>
+                <div>
+                    <h4 style="margin: 0 0 var(--space-2) 0; color: #ff9800;">Model Alignment Warning</h4>
+                    <p id="bt-coverage-text" style="margin: 0 0 var(--space-4) 0; font-size: var(--text-sm); color: var(--text-secondary);"></p>
+                    <div style="display: flex; align-items: center; gap: var(--space-4);">
+                        <div style="flex: 1; background: var(--bg-secondary); border-radius: var(--radius-md); height: 8px; overflow: hidden;">
+                            <div id="bt-alignment-bar" style="height: 100%; background: #ff9800; transition: width 0.4s;"></div>
+                        </div>
+                        <span id="bt-alignment-pct" style="font-family: var(--font-mono); font-size: var(--text-sm); color: #ff9800; font-weight: 500;"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Survivorship Bias Warning -->
+        <div id="bt-survivorship-warning" class="card" style="margin-bottom: var(--space-8); display: none;">
+            <div style="display: flex; align-items: flex-start; gap: var(--space-4);">
+                <span style="font-size: 1.25rem; line-height: 1;">!</span>
+                <div>
+                    <h4 id="bt-survivorship-title" style="margin: 0 0 var(--space-2) 0;"></h4>
+                    <p id="bt-survivorship-text" style="margin: 0; font-size: var(--text-sm); color: var(--text-secondary);"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Accuracy Summary -->
+        <div class="card" style="margin-bottom: var(--space-8); position: relative; overflow: visible;">
+            <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, var(--text-primary), transparent);"></div>
+            <h3 style="margin: 0 0 var(--space-6) 0;">Results</h3>
+            <div class="grid grid-4" id="bt-summary-metrics">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Risk Metrics -->
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <h3 style="margin: 0 0 var(--space-6) 0;">Risk-Adjusted Metrics</h3>
+            <div class="grid grid-4" id="bt-risk-metrics" style="gap: var(--space-6);">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Regime Performance -->
+        <div id="bt-regime-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+            <h3 style="margin: 0 0 var(--space-6) 0;">Performance by Market Regime</h3>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Regime</th>
+                            <th>Signals</th>
+                            <th>Accuracy</th>
+                            <th>Avg Return</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bt-regime-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Signal Independence -->
+        <div id="bt-independence-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+            <h3 style="margin: 0 0 var(--space-6) 0;">Signal Independence</h3>
+            <div id="bt-independence-content"></div>
+        </div>
+
+        <!-- Simulated Portfolio -->
+        <div id="bt-portfolio-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+            <h3 style="margin: 0 0 var(--space-6) 0;">Simulated Portfolio</h3>
+            <div class="grid grid-4" id="bt-portfolio-metrics" style="gap: var(--space-6);">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Best Weights -->
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4); flex-wrap: wrap; gap: var(--space-4);">
+                <h3 style="margin: 0;">Optimal Weight Split</h3>
+                <button id="btn-apply-weights" class="btn btn-primary" style="display: none;" onclick="applyWeights()">Apply to Live Screener</button>
+            </div>
+            <div id="bt-weights" style="font-size: var(--text-sm); color: var(--text-secondary);"></div>
+            <div id="bt-apply-status" style="display: none; margin-top: var(--space-4); padding: var(--space-3) var(--space-4); font-size: 0.8125rem;"></div>
+        </div>
+
+        <!-- Current Active Weights -->
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <h3 style="margin: 0 0 var(--space-4) 0;">Current Live Screener Weights</h3>
+            <div style="display: flex; gap: var(--space-8); flex-wrap: wrap;">
+                <div class="metric"><div class="metric-value">{{ (active_weights.valuation * 100)|round(0) }}%</div><div class="metric-label">Valuation</div></div>
+                <div class="metric"><div class="metric-value">{{ (active_weights.technical * 100)|round(0) }}%</div><div class="metric-label">Technical</div></div>
+                <div class="metric"><div class="metric-value">{{ (active_weights.momentum * 100)|round(0) }}%</div><div class="metric-label">Momentum</div></div>
+                <div class="metric"><div class="metric-value">{{ (active_weights.quality * 100)|round(0) }}%</div><div class="metric-label">Quality</div></div>
+            </div>
+        </div>
+
+        <!-- Per-Ticker Detail -->
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <h3 style="margin: 0 0 var(--space-6) 0;">Per-Ticker Accuracy</h3>
+            <div style="overflow-x: auto; margin: 0 calc(var(--space-8) * -1); padding: 0 var(--space-8);">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Ticker</th>
+                            <th>Signals</th>
+                            <th>Hits</th>
+                            <th>Accuracy</th>
+                            <th>Avg 20d Return</th>
+                            <th>Benchmark</th>
+                            <th>Alpha</th>
+                            <th>Regime</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bt-ticker-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Past Runs -->
+    <div class="card">
+        <h3 style="margin: 0 0 var(--space-6) 0;">Historical Runs</h3>
+        {% if past_runs %}
+        <div style="overflow-x: auto; margin: 0 calc(var(--space-8) * -1); padding: 0 var(--space-8);">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Run</th>
+                        <th>Date</th>
+                        <th>Tickers</th>
+                        <th>Months</th>
+                        <th>Accuracy</th>
+                        <th>Avg Buy Ret</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for run in past_runs %}
+                    <tr>
+                        <td style="font-family: var(--font-mono); font-weight: 500;">#{{ run.id }}</td>
+                        <td style="color: var(--text-muted); font-size: var(--text-sm);">{{ run.run_date[:16] if run.run_date else '—' }}</td>
+                        <td>{{ run.tickers_tested or '—' }}</td>
+                        <td>{{ run.months_tested or '—' }}</td>
+                        <td>
+                            {% if run.overall_accuracy is not none %}
+                            <span style="font-family: var(--font-mono); font-weight: 500;">{{ run.overall_accuracy }}%</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>
+                            {% if run.avg_return_buy is not none %}
+                            <span style="font-family: var(--font-mono);">{{ run.avg_return_buy }}%</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>
+                            {% if run.status == 'completed' %}
+                            <span class="badge badge-success">Completed</span>
+                            {% elif run.status == 'running' %}
+                            <span class="badge" style="background: rgba(255, 152, 0, 0.2); color: #ff9800; border: 1px solid rgba(255, 152, 0, 0.3);">Running</span>
+                            {% elif run.status == 'failed' %}
+                            <span class="badge badge-danger">Failed</span>
+                            {% else %}
+                            <span class="badge">{{ run.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if run.status == 'completed' %}
+                            <button class="btn btn-ghost" style="padding: var(--space-2) var(--space-3); font-size: 0.6875rem;" onclick="loadRunResults({{ run.id }})">View</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">—</div>
+            <p>No backtest runs yet</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    const csrfToken = '{{ csrf_token }}';
+    let pollInterval = null;
+
+    function startBacktest() {
+        const months = document.getElementById('bt-months').value;
+        const btn = document.getElementById('btn-run-backtest');
+        btn.disabled = true;
+        btn.textContent = 'Starting...';
+
+        const formData = new FormData();
+        formData.append('csrf_token', csrfToken);
+        formData.append('months', months);
+
+        fetch('/backtest/run', { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('bt-progress-section').style.display = '';
+                    document.getElementById('bt-results-section').style.display = 'none';
+                    btn.textContent = 'Running...';
+                    pollProgress();
+                    pollInterval = setInterval(pollProgress, 2000);
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = 'Run Backtest';
+                    alert(data.error || 'Failed to start');
+                }
+            })
+            .catch(() => {
+                btn.disabled = false;
+                btn.textContent = 'Run Backtest';
+            });
+    }
+
+    function pollProgress() {
+        fetch('/api/backtest/progress')
+            .then(r => r.json())
+            .then(p => {
+                document.getElementById('bt-progress-msg').textContent = p.msg || '';
+                document.getElementById('bt-progress-pct').textContent = Math.round(p.pct) + '%';
+                document.getElementById('bt-progress-bar').style.width = p.pct + '%';
+
+                if (!p.running && p.pct >= 100) {
+                    clearInterval(pollInterval);
+                    const btn = document.getElementById('btn-run-backtest');
+                    btn.disabled = false;
+                    btn.textContent = 'Run Backtest';
+                    if (p.run_id) loadRunResults(p.run_id);
+                }
+            });
+    }
+
+    let currentRunId = null;
+
+    function applyWeights() {
+        if (!currentRunId) return;
+        const btn = document.getElementById('btn-apply-weights');
+        btn.disabled = true;
+        btn.textContent = 'Applying...';
+
+        fetch('/api/backtest/apply-weights/' + currentRunId, { method: 'POST' })
+            .then(r => r.json())
+            .then(data => {
+                const statusEl = document.getElementById('bt-apply-status');
+                statusEl.style.display = '';
+                if (data.success) {
+                    const w = data.active;
+                    statusEl.style.background = 'rgba(74,222,128,0.1)';
+                    statusEl.style.border = '1px solid rgba(74,222,128,0.3)';
+                    statusEl.style.color = '#4ade80';
+                    statusEl.textContent = 'Weights applied! Live: Val=' + (w.valuation*100).toFixed(0) + '% Tech=' + (w.technical*100).toFixed(0) + '% Mom=' + (w.momentum*100).toFixed(0) + '% Qual=' + (w.quality*100).toFixed(0) + '%';
+                    btn.textContent = 'Applied';
+                } else {
+                    statusEl.style.background = 'rgba(239,68,68,0.1)';
+                    statusEl.style.border = '1px solid rgba(239,68,68,0.3)';
+                    statusEl.style.color = '#f87171';
+                    statusEl.textContent = data.detail || 'Failed to apply weights';
+                    btn.disabled = false;
+                    btn.textContent = 'Apply to Live Screener';
+                }
+            })
+            .catch(() => {
+                btn.disabled = false;
+                btn.textContent = 'Apply to Live Screener';
+            });
+    }
+
+    function loadRunResults(runId) {
+        currentRunId = runId;
+        fetch('/api/backtest/results/' + runId)
+            .then(r => r.json())
+            .then(data => {
+                const run = data.run;
+                const section = document.getElementById('bt-results-section');
+                section.style.display = '';
+
+                // Coverage / look-ahead bias warning
+                const coverageEl = document.getElementById('bt-coverage-warning');
+                if (run.coverage_warning) {
+                    coverageEl.style.display = '';
+                    document.getElementById('bt-coverage-text').textContent = run.coverage_warning;
+                    const pct = run.model_alignment_pct || 50;
+                    document.getElementById('bt-alignment-bar').style.width = pct + '%';
+                    document.getElementById('bt-alignment-pct').textContent = pct + '% model coverage';
+                } else {
+                    coverageEl.style.display = 'none';
+                }
+
+                // Survivorship bias warning
+                const survEl = document.getElementById('bt-survivorship-warning');
+                if (run.survivorship_warning) {
+                    try {
+                        const sw = typeof run.survivorship_warning === 'string' ? JSON.parse(run.survivorship_warning) : run.survivorship_warning;
+                        survEl.style.display = '';
+                        const levelColors = { 'High': '#f87171', 'Medium': '#ff9800', 'Low': '#4ade80' };
+                        const c = levelColors[sw.risk_level] || '#ff9800';
+                        survEl.style.borderColor = c + '4d';
+                        survEl.style.background = c + '14';
+                        document.getElementById('bt-survivorship-title').textContent = sw.risk_level + ' Survivorship Bias Risk';
+                        document.getElementById('bt-survivorship-title').style.color = c;
+                        document.getElementById('bt-survivorship-text').textContent = sw.message;
+                    } catch (e) {
+                        survEl.style.display = 'none';
+                    }
+                } else {
+                    survEl.style.display = 'none';
+                }
+
+                // Parse risk_metrics JSON
+                let riskData = null;
+                if (run.risk_metrics) {
+                    try {
+                        riskData = typeof run.risk_metrics === 'string' ? JSON.parse(run.risk_metrics) : run.risk_metrics;
+                    } catch (e) {
+                        riskData = null;
+                    }
+                }
+
+                // Summary metrics — EV first, then accuracy, OOS accuracy, portfolio return
+                const metrics = document.getElementById('bt-summary-metrics');
+                const evPerTrade = riskData && riskData.expected_value_per_trade !== null && riskData.expected_value_per_trade !== undefined
+                    ? riskData.expected_value_per_trade : null;
+                const evDisplay = evPerTrade !== null ? (evPerTrade > 0 ? '+' : '') + Number(evPerTrade).toFixed(2) + '%' : '—';
+                const evColor = evPerTrade !== null ? (evPerTrade > 0 ? 'color: #4ade80;' : 'color: #f87171;') : '';
+                const accuracy = run.overall_accuracy !== null ? run.overall_accuracy + '%' : '—';
+                const oosAccuracy = run.out_of_sample_accuracy !== null && run.out_of_sample_accuracy !== undefined
+                    ? run.out_of_sample_accuracy + '%' : '—';
+                const portfolioReturn = run.portfolio_total_return !== null && run.portfolio_total_return !== undefined
+                    ? (run.portfolio_total_return > 0 ? '+' : '') + run.portfolio_total_return + '%' : '—';
+
+                metrics.innerHTML =
+                    riskMetricCard('Expected Value/Trade', evDisplay, evColor) +
+                    metricCard('Accuracy', accuracy) +
+                    metricCard('Out-of-Sample Accuracy', oosAccuracy) +
+                    metricCard('Portfolio Return', portfolioReturn);
+
+                // Risk metrics
+                const riskEl = document.getElementById('bt-risk-metrics');
+                const sharpe = run.sharpe_ratio;
+                const maxDD = run.max_drawdown;
+                const pf = run.profit_factor;
+                const wlr = run.win_loss_ratio;
+                const vol = run.volatility;
+
+                function riskColor(val, thresholds) {
+                    if (val === null || val === undefined) return '';
+                    if (val >= thresholds[1]) return 'color: #4ade80;';
+                    if (val >= thresholds[0]) return 'color: #ff9800;';
+                    return 'color: #f87171;';
+                }
+
+                const optHold = riskData && riskData.optimal_holding_days !== null && riskData.optimal_holding_days !== undefined
+                    ? riskData.optimal_holding_days + ' days' : '—';
+
+                riskEl.innerHTML =
+                    riskMetricCard('Sharpe Ratio', sharpe, riskColor(sharpe, [0.5, 1.0])) +
+                    riskMetricCard('Max Drawdown', maxDD !== null ? maxDD + '%' : '—', riskColor(maxDD !== null ? -maxDD : null, [-10, -5])) +
+                    riskMetricCard('Profit Factor', pf, riskColor(pf, [1.0, 1.5])) +
+                    riskMetricCard('Win/Loss Ratio', wlr, riskColor(wlr, [0.8, 1.2])) +
+                    riskMetricCard('Volatility', vol !== null ? vol + '%' : '—', '') +
+                    riskMetricCard('Optimal Hold', optHold, '');
+
+                // Weights
+                const wEl = document.getElementById('bt-weights');
+                const applyBtn = document.getElementById('btn-apply-weights');
+                const statusEl = document.getElementById('bt-apply-status');
+                statusEl.style.display = 'none';
+
+                if (run.best_weights) {
+                    try {
+                        const w = JSON.parse(run.best_weights);
+                        wEl.innerHTML =
+                            '<div style="display: flex; gap: var(--space-8); flex-wrap: wrap;">' +
+                            '<div class="metric"><div class="metric-value">' + (w.tech_weight * 100).toFixed(0) + '%</div><div class="metric-label">Technical Weight</div></div>' +
+                            '<div class="metric"><div class="metric-value">' + (w.momentum_weight * 100).toFixed(0) + '%</div><div class="metric-label">Momentum Weight</div></div>' +
+                            '<div class="metric"><div class="metric-value">' + w.accuracy + '%</div><div class="metric-label">Optimised Accuracy</div></div>' +
+                            '</div>';
+                        applyBtn.style.display = '';
+                        applyBtn.disabled = false;
+                        applyBtn.textContent = 'Apply to Live Screener';
+                    } catch (e) {
+                        wEl.textContent = run.best_weights;
+                        applyBtn.style.display = 'none';
+                    }
+                } else {
+                    wEl.textContent = 'No weight data';
+                    applyBtn.style.display = 'none';
+                }
+
+                // Regime Performance
+                const regimeCard = document.getElementById('bt-regime-card');
+                const regimeTbody = document.getElementById('bt-regime-tbody');
+                if (riskData && riskData.accuracy_by_regime) {
+                    const regimeColors = { bull: '#4ade80', bear: '#f87171', choppy: '#facc15' };
+                    regimeTbody.innerHTML = '';
+                    const regimes = riskData.accuracy_by_regime;
+                    Object.keys(regimes).forEach(regime => {
+                        const r = regimes[regime];
+                        const rc = regimeColors[regime] || 'var(--text-primary)';
+                        const avgRet = r.avg_return !== null && r.avg_return !== undefined ? r.avg_return + '%' : '—';
+                        const acc = r.accuracy !== null && r.accuracy !== undefined ? r.accuracy + '%' : '—';
+                        const cnt = r.count !== null && r.count !== undefined ? r.count : '—';
+                        regimeTbody.innerHTML +=
+                            '<tr>' +
+                            '<td style="font-weight: 600; color: ' + rc + '; text-transform: capitalize;">' + regime + '</td>' +
+                            '<td>' + cnt + '</td>' +
+                            '<td style="font-family: var(--font-mono);">' + acc + '</td>' +
+                            '<td style="font-family: var(--font-mono);">' + avgRet + '</td>' +
+                            '</tr>';
+                    });
+                    regimeCard.style.display = '';
+                } else {
+                    regimeCard.style.display = 'none';
+                }
+
+                // Signal Independence
+                const indepCard = document.getElementById('bt-independence-card');
+                const indepContent = document.getElementById('bt-independence-content');
+                if (riskData && riskData.signal_independence) {
+                    const si = riskData.signal_independence;
+                    const diversity = si.signal_diversity !== null && si.signal_diversity !== undefined
+                        ? (si.signal_diversity * 100).toFixed(1) : null;
+                    const effectiveN = si.effective_n !== null && si.effective_n !== undefined ? si.effective_n : '—';
+                    const totalSignals = data.results ? data.results.length : '—';
+                    const avgSectors = si.avg_sectors_per_date !== null && si.avg_sectors_per_date !== undefined
+                        ? Number(si.avg_sectors_per_date).toFixed(1) : '—';
+                    const corrWarning = si.correlation_warning || null;
+
+                    let html = '<div style="display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start;">';
+
+                    // Diversity with progress bar
+                    html += '<div style="flex: 1; min-width: 200px;">' +
+                        '<div style="font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-2);">Signal Diversity</div>' +
+                        '<div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; margin-bottom: var(--space-2);">' + (diversity !== null ? diversity + '%' : '—') + '</div>' +
+                        '<div style="background: var(--bg-secondary); border-radius: var(--radius-md); height: 6px; overflow: hidden; max-width: 200px;">' +
+                        '<div style="height: 100%; background: #4ade80; width: ' + (diversity !== null ? diversity : 0) + '%; transition: width 0.4s;"></div>' +
+                        '</div></div>';
+
+                    // Effective N
+                    html += '<div style="flex: 0 0 auto;">' +
+                        '<div style="font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-2);">Effective N vs Actual</div>' +
+                        '<div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600;">' + effectiveN + ' / ' + totalSignals + '</div>' +
+                        '</div>';
+
+                    // Avg sectors per date
+                    html += '<div style="flex: 0 0 auto;">' +
+                        '<div style="font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-2);">Avg Sectors/Date</div>' +
+                        '<div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600;">' + avgSectors + '</div>' +
+                        '</div>';
+
+                    html += '</div>';
+
+                    // Correlation warning
+                    if (corrWarning) {
+                        html += '<div style="margin-top: var(--space-4); padding: var(--space-3) var(--space-4); background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); border-radius: var(--radius-md); font-size: var(--text-sm); color: #f87171;">' +
+                            corrWarning + '</div>';
+                    }
+
+                    indepContent.innerHTML = html;
+                    indepCard.style.display = '';
+                } else {
+                    indepCard.style.display = 'none';
+                }
+
+                // Simulated Portfolio
+                const portCard = document.getElementById('bt-portfolio-card');
+                const portMetrics = document.getElementById('bt-portfolio-metrics');
+                if (riskData && riskData.portfolio_simulation) {
+                    const ps = riskData.portfolio_simulation;
+                    const pSharpe = ps.sharpe !== null && ps.sharpe !== undefined ? Number(ps.sharpe).toFixed(2) : '—';
+                    const pTotal = ps.total_return !== null && ps.total_return !== undefined ? ps.total_return + '%' : '—';
+                    const pMaxDD = ps.max_drawdown !== null && ps.max_drawdown !== undefined ? ps.max_drawdown + '%' : '—';
+                    const pGross = ps.gross_return !== null && ps.gross_return !== undefined ? ps.gross_return + '%' : '—';
+                    const pNet = ps.net_return !== null && ps.net_return !== undefined ? ps.net_return + '%' : '—';
+                    const pTurnover = ps.avg_monthly_turnover !== null && ps.avg_monthly_turnover !== undefined ? ps.avg_monthly_turnover + '%' : '—';
+
+                    portMetrics.innerHTML =
+                        riskMetricCard('Sharpe', pSharpe, riskColor(ps.sharpe, [0.5, 1.0])) +
+                        riskMetricCard('Total Return', pTotal, '') +
+                        riskMetricCard('Max Drawdown', pMaxDD, '') +
+                        riskMetricCard('Gross Return', pGross, '') +
+                        riskMetricCard('Net Return', pNet, '') +
+                        riskMetricCard('Avg Monthly Turnover', pTurnover, '');
+                    portCard.style.display = '';
+                } else {
+                    portCard.style.display = 'none';
+                }
+
+                // Ticker table
+                const tbody = document.getElementById('bt-ticker-tbody');
+                tbody.innerHTML = '';
+                const regimeColorMap = { bull: '#4ade80', bear: '#f87171', choppy: '#facc15' };
+                (data.ticker_summary || []).forEach(ts => {
+                    const retColor = ts.avg_return > 0 ? 'color: #4ade80;' : ts.avg_return < 0 ? 'color: #f87171;' : '';
+                    const alphaColor = ts.avg_alpha > 0 ? 'color: #4ade80;' : ts.avg_alpha < 0 ? 'color: #f87171;' : '';
+                    const alphaVal = ts.avg_alpha !== null && ts.avg_alpha !== undefined ? ts.avg_alpha + '%' : '—';
+                    const benchVal = ts.benchmark || '—';
+                    const regime = ts.primary_regime || '—';
+                    const regimeCol = regimeColorMap[regime] || 'var(--text-muted)';
+                    tbody.innerHTML +=
+                        '<tr>' +
+                        '<td style="font-family: var(--font-mono); font-weight: 500;">' + ts.ticker + '</td>' +
+                        '<td>' + ts.signals + '</td>' +
+                        '<td>' + ts.hits + '</td>' +
+                        '<td><span style="font-family: var(--font-mono); font-weight: 500;">' + ts.accuracy + '%</span></td>' +
+                        '<td style="font-family: var(--font-mono); ' + retColor + '">' + ts.avg_return + '%</td>' +
+                        '<td style="font-size: var(--text-sm); color: var(--text-muted);">' + benchVal + '</td>' +
+                        '<td style="font-family: var(--font-mono); ' + alphaColor + '">' + alphaVal + '</td>' +
+                        '<td style="font-weight: 500; color: ' + regimeCol + '; text-transform: capitalize;">' + regime + '</td>' +
+                        '</tr>';
+                });
+
+                // Scroll to results
+                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            });
+    }
+
+    function metricCard(label, value) {
+        return '<div class="metric">' +
+            '<div class="metric-value">' + value + '</div>' +
+            '<div class="metric-label">' + label + '</div></div>';
+    }
+
+    function riskMetricCard(label, value, colorStyle) {
+        const display = (value !== null && value !== undefined) ? value : '—';
+        return '<div class="metric">' +
+            '<div class="metric-value" style="' + (colorStyle || '') + '">' + display + '</div>' +
+            '<div class="metric-label">' + label + '</div></div>';
+    }
+</script>
+{% endblock %}

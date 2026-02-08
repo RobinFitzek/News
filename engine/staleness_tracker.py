@@ -63,13 +63,13 @@ class StalenessTracker:
     def get_staleness_icon(self, level: str) -> str:
         """Get icon for staleness level."""
         icons = {
-            'fresh': '🟢',
-            'recent': '🟡',
-            'aging': '🟠',
-            'stale': '🔴',
-            'very_stale': '⚫',
+            'fresh': '[Fresh]',
+            'recent': '[Recent]',
+            'aging': '[Aging]',
+            'stale': '[Stale]',
+            'very_stale': '[Outdated]',
         }
-        return icons.get(level, '⚪')
+        return icons.get(level, '[•]')
 
     def should_refresh(self, age_days: int) -> bool:
         """Determine if analysis should be refreshed."""
@@ -97,11 +97,11 @@ class StalenessTracker:
             if 'warnings' not in analysis:
                 analysis['warnings'] = []
             analysis['warnings'].append(
-                f"⏰ Analysis is {age_days} days old — confidence decayed from "
+                f"(Stale) Analysis is {age_days} days old — confidence decayed from "
                 f"{original_confidence}% to {decayed_confidence:.1f}%"
             )
             if self.should_refresh(age_days):
-                analysis['warnings'].append("🔄 NEEDS REFRESH — Data may be outdated")
+                analysis['warnings'].append("(Refresh) NEEDS REFRESH — Data may be outdated")
 
         return analysis
 

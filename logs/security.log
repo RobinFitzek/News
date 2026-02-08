@@ -25,3 +25,8 @@
 {"timestamp": "2026-02-06T15:26:44.213756", "event": "toggle_dev_mode", "username": "admin", "ip": "127.0.0.1", "details": {"enabled": false}}
 {"timestamp": "2026-02-06T15:26:45.776645", "event": "toggle_dev_mode", "username": "admin", "ip": "127.0.0.1", "details": {"enabled": true}}
 {"timestamp": "2026-02-06T15:26:55.008890", "event": "manual_scan_triggered", "username": "admin", "ip": "127.0.0.1", "details": {"source": "web_dashboard"}}
+{"timestamp": "2026-02-06T15:47:15.374161", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-06T17:21:51.760492", "event": "manual_scan_triggered", "username": "admin", "ip": "127.0.0.1", "details": {"source": "web_dashboard"}}
+{"timestamp": "2026-02-06T17:31:42.120624", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-06T17:31:56.027142", "event": "manual_scan_triggered", "username": "admin", "ip": "127.0.0.1", "details": {"source": "web_dashboard"}}
+{"timestamp": "2026-02-06T17:47:54.531755", "event": "toggle_dev_mode", "username": "admin", "ip": "127.0.0.1", "details": {"enabled": false}}

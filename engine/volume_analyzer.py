@@ -182,10 +182,10 @@ class VolumeAnalyzer:
         if signal in ['BUY', 'STRONG_BUY']:
             if volume_conf == 'strong_bullish':
                 enhancement['enhanced_signal'] = 'STRONG_BUY'
-                enhancement['note'] = f"📈 High volume ({volume_ratio:.1f}x) + accumulation confirms bullish signal"
+                enhancement['note'] = f"[High Vol] High volume ({volume_ratio:.1f}x) + accumulation confirms bullish signal"
             elif volume_conf == 'weak':
                 enhancement['enhanced_signal'] = 'BUY'
-                enhancement['note'] = f"⚠️ Low volume ({volume_ratio:.1f}x) weakens signal — wait for confirmation"
+                enhancement['note'] = f"[Low Vol] Low volume ({volume_ratio:.1f}x) weakens signal — wait for confirmation"
             else:
                 enhancement['enhanced_signal'] = signal
                 enhancement['note'] = f"Volume: {volume_ratio:.1f}x average"
@@ -193,10 +193,10 @@ class VolumeAnalyzer:
         elif signal in ['SELL', 'STRONG_SELL']:
             if volume_conf == 'strong_bearish':
                 enhancement['enhanced_signal'] = 'STRONG_SELL'
-                enhancement['note'] = f"📉 High volume ({volume_ratio:.1f}x) + distribution confirms bearish signal"
+                enhancement['note'] = f"[High Vol] High volume ({volume_ratio:.1f}x) + distribution confirms bearish signal"
             elif volume_conf == 'weak':
                 enhancement['enhanced_signal'] = 'SELL'
-                enhancement['note'] = f"⚠️ Low volume ({volume_ratio:.1f}x) weakens signal"
+                enhancement['note'] = f"[Low Vol] Low volume ({volume_ratio:.1f}x) weakens signal"
             else:
                 enhancement['enhanced_signal'] = signal
                 enhancement['note'] = f"Volume: {volume_ratio:.1f}x average"

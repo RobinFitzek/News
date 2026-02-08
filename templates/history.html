@@ -43,7 +43,7 @@
                     <tr>
                         <th>Ticker</th>
                         <th>Signal</th>
-                        <th>Confidence</th>
+                        <th>Strength</th>
                         <th>Timestamp</th>
                         <th style="width: 100px;"></th>
                     </tr>
@@ -58,7 +58,7 @@
                             <span class="signal-text signal-{{ a.signal|lower }}">{{ a.signal }}</span>
                         </td>
                         <td>
-                            <span style="font-family: var(--font-mono); font-weight: 500;">{{ a.confidence }}%</span>
+                            <span style="font-family: var(--font-mono); font-weight: 500;">{{ a.confidence }}/100</span>
                         </td>
                         <td style="font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-muted);">{{ a.timestamp }}</td>
                         <td>

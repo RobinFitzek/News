@@ -11,6 +11,7 @@ from core.database import db
 from core.budget_tracker import budget_tracker
 from engine.agents import swarm
 from engine.learning_optimizer import learning_optimizer
+from engine.ai_crosscheck import ai_crosscheck
 import time
 import logging
 from typing import Dict, List
@@ -112,10 +113,25 @@ class DailyPipeline:
                     final_reports.append(final)
 
                     try:
-                        db.save_analysis(final['ticker'], final)
+                        analysis_id, _, _ = db.save_analysis(final['ticker'], final)
                     except Exception as e:
+                        analysis_id = None
                         self.logger.error(f"Failed to save analysis for {final['ticker']}: {e}")
                         errors.append(f"DB save error for {final['ticker']}: {str(e)}")
+
+                    # Cross-check AI claims against yfinance ground truth
+                    if analysis_id:
+                        try:
+                            text = ' '.join(filter(None, [
+                                final.get('fundamental', ''),
+                                final.get('recommendation', ''),
+                                final.get('technical', ''),
+                            ]))
+                            if text.strip():
+                                cc = ai_crosscheck.check_analysis(final['ticker'], text)
+                                db.save_crosscheck(final['ticker'], analysis_id, cc)
+                        except Exception as e:
+                            self.logger.warning(f"Cross-check failed for {final['ticker']}: {e}")
 
                     # Record prediction for learning system verification
                     try:
@@ -130,6 +146,18 @@ class DailyPipeline:
                     ticker = candidate.get('ticker', 'Unknown')
                     self.logger.error(f"Stage 3 failed for {ticker}: {e}")
                     errors.append(f"Stage 3 error for {ticker}: {str(e)}")
+
+            # === POST-STAGE: Concentration Check ===
+            try:
+                from engine.concentration_checker import concentration_checker
+                conc = concentration_checker.check_concentration(final_reports)
+                if conc.get('warnings'):
+                    for report in final_reports:
+                        report['concentration_warnings'] = conc['warnings']
+                        report['diversification_score'] = conc['diversification_score']
+                    print(f"  Concentration check: score={conc['diversification_score']}, {len(conc['warnings'])} warnings")
+            except Exception as e:
+                self.logger.warning(f"Concentration check failed: {e}")
 
             duration = time.time() - start_time
             print(f"\n  Daily Cycle Complete in {duration:.1f}s")

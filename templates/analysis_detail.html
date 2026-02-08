@@ -32,14 +32,29 @@
                     {{ analysis.signal }}
                 </span>
                 <div>
-                    <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: var(--space-1);">Confidence</div>
-                    <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; color: var(--text-primary); letter-spacing: -0.02em;">{{ analysis.confidence }}%</div>
+                    <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: var(--space-1);">Signal Strength</div>
+                    <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; color: var(--text-primary); letter-spacing: -0.02em;">{{ analysis.confidence }}/100</div>
                 </div>
             </div>
-            <div class="progress" style="width: 200px;">
-                <div class="progress-bar" style="width: {{ analysis.confidence }}%;"></div>
+            <div style="display: flex; align-items: center; gap: var(--space-4);">
+                <span id="regime-label" class="badge" style="display: none; font-size: 0.6875rem; padding: var(--space-2) var(--space-3);"></span>
+                <div class="progress" style="width: 200px;">
+                    <div class="progress-bar" style="width: {{ analysis.confidence }}%;"></div>
+                </div>
             </div>
         </div>
+    </div>
+
+    <!-- Price Chart -->
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
+            <span class="status-dot" style="background: var(--text-primary);"></span>
+            6-Month Price Chart
+        </h3>
+        <div style="position: relative; height: 300px;">
+            <canvas id="price-chart"></canvas>
+        </div>
+        <div id="chart-loading" style="text-align: center; padding: var(--space-6); color: var(--text-muted); font-size: 0.875rem;">Loading chart data...</div>
     </div>
 
     <!-- Recommendation -->
@@ -75,7 +90,7 @@
 
     <!-- Technical -->
     {% if analysis.technical %}
-    <div class="card">
+    <div class="card" style="margin-bottom: var(--space-6);">
         <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
             <span class="status-dot" style="background: var(--text-primary);"></span>
             Technical Analysis
@@ -83,5 +98,263 @@
         <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.technical }}</div>
     </div>
     {% endif %}
+
+    <!-- AI Cross-Check -->
+    {% if crosscheck %}
+    <div class="card" style="margin-bottom: var(--space-6); border-left: 3px solid
+        {% if crosscheck.trust_score and crosscheck.trust_score >= 0.8 %}#4ade80
+        {% elif crosscheck.trust_score and crosscheck.trust_score >= 0.5 %}#facc15
+        {% else %}#f87171{% endif %};">
+
+        <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
+            <span class="status-dot" style="background:
+                {% if crosscheck.trust_score and crosscheck.trust_score >= 0.8 %}#4ade80
+                {% elif crosscheck.trust_score and crosscheck.trust_score >= 0.5 %}#facc15
+                {% else %}#f87171{% endif %};"></span>
+            AI Fact-Check
+        </h3>
+
+        <!-- Summary metrics -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-4);">
+            <div>
+                <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em;">Trust Score</div>
+                <div style="font-family: var(--font-display); font-size: 1.5rem; color:
+                    {% if crosscheck.trust_score and crosscheck.trust_score >= 0.8 %}#4ade80
+                    {% elif crosscheck.trust_score and crosscheck.trust_score >= 0.5 %}#facc15
+                    {% else %}#f87171{% endif %};">
+                    {{ "%.0f"|format((crosscheck.trust_score or 0) * 100) }}%
+                </div>
+            </div>
+            <div>
+                <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em;">Accuracy</div>
+                <div style="font-family: var(--font-display); font-size: 1.5rem;">
+                    {{ "%.0f"|format((crosscheck.accuracy or 0) * 100) }}%
+                </div>
+            </div>
+            <div>
+                <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em;">Claims Verified</div>
+                <div style="font-family: var(--font-display); font-size: 1.5rem;">
+                    {{ crosscheck.claims_verified or 0 }} / {{ crosscheck.claims_found or 0 }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Warning -->
+        {% if crosscheck.warning %}
+        <div style="background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); border-radius: 6px; padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); font-size: 0.875rem; color: #f87171;">
+            {{ crosscheck.warning }}
+        </div>
+        {% endif %}
+
+        <!-- Detail table -->
+        {% if crosscheck.details %}
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.8125rem;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <th style="text-align: left; padding: var(--space-2); color: var(--text-muted); font-weight: 500;">Metric</th>
+                    <th style="text-align: right; padding: var(--space-2); color: var(--text-muted); font-weight: 500;">AI Value</th>
+                    <th style="text-align: right; padding: var(--space-2); color: var(--text-muted); font-weight: 500;">Actual</th>
+                    <th style="text-align: center; padding: var(--space-2); color: var(--text-muted); font-weight: 500;">Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in crosscheck.details %}
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: var(--space-2);">{{ d.metric }}</td>
+                    <td style="padding: var(--space-2); text-align: right; font-family: var(--font-mono);">
+                        {% if d.ai_value >= 1000000000 %}${{ "%.1f"|format(d.ai_value / 1000000000) }}B
+                        {% elif d.ai_value >= 1000000 %}${{ "%.1f"|format(d.ai_value / 1000000) }}M
+                        {% else %}{{ "%.2f"|format(d.ai_value) }}{% endif %}
+                    </td>
+                    <td style="padding: var(--space-2); text-align: right; font-family: var(--font-mono);">
+                        {% if d.actual_value >= 1000000000 %}${{ "%.1f"|format(d.actual_value / 1000000000) }}B
+                        {% elif d.actual_value >= 1000000 %}${{ "%.1f"|format(d.actual_value / 1000000) }}M
+                        {% else %}{{ "%.2f"|format(d.actual_value) }}{% endif %}
+                    </td>
+                    <td style="padding: var(--space-2); text-align: center;">
+                        {% if d.status == 'accurate' %}
+                        <span style="color: #4ade80; font-size: 0.75rem; font-weight: 600;">ACCURATE</span>
+                        {% elif d.status == 'approximate' %}
+                        <span style="color: #facc15; font-size: 0.75rem; font-weight: 600;">APPROX</span>
+                        {% else %}
+                        <span style="color: #f87171; font-size: 0.75rem; font-weight: 600;">INACCURATE</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        <div style="margin-top: var(--space-3); font-size: 0.75rem; color: var(--text-muted);">
+            Checked at {{ crosscheck.checked_at }} — compared against live yfinance data
+        </div>
+    </div>
+    {% else %}
+    <!-- Re-check button when no cross-check exists -->
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">AI Fact-Check</h3>
+                <p style="margin: 0; font-size: 0.8125rem; color: var(--text-muted);">Verify AI claims against live market data</p>
+            </div>
+            <button onclick="runCrosscheck({{ analysis.id }})" class="btn btn-ghost" id="cc-btn">
+                Run Cross-Check
+            </button>
+        </div>
+        <div id="cc-result" style="display: none; margin-top: var(--space-4);"></div>
+    </div>
+    <script>
+    async function runCrosscheck(analysisId) {
+        const btn = document.getElementById('cc-btn');
+        btn.disabled = true;
+        btn.textContent = 'Checking...';
+        try {
+            const resp = await fetch('/api/crosscheck/' + analysisId, {method: 'POST'});
+            const data = await resp.json();
+            if (data.success) {
+                location.reload();
+            } else {
+                btn.textContent = data.error || 'Failed';
+            }
+        } catch(e) {
+            btn.textContent = 'Error';
+        }
+    }
+    </script>
+    {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Market Regime Label
+    fetch('/api/market-regime')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.regime) return;
+            const label = document.getElementById('regime-label');
+            label.style.display = '';
+            const colors = {
+                'bull': { bg: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'rgba(74,222,128,0.3)' },
+                'bear': { bg: 'rgba(248,113,113,0.15)', color: '#f87171', border: 'rgba(248,113,113,0.3)' },
+                'choppy': { bg: 'rgba(250,204,21,0.15)', color: '#facc15', border: 'rgba(250,204,21,0.3)' },
+            };
+            const c = colors[data.regime] || colors['choppy'];
+            label.textContent = 'Generated during ' + data.regime.toUpperCase() + ' market';
+            label.style.background = c.bg;
+            label.style.color = c.color;
+            label.style.border = '1px solid ' + c.border;
+        })
+        .catch(() => {});
+
+    // Price Chart
+    fetch('/api/chart-data/{{ analysis.ticker }}')
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('chart-loading').style.display = 'none';
+            if (data.error) return;
+
+            const ctx = document.getElementById('price-chart').getContext('2d');
+            const datasets = [
+                {
+                    label: '{{ analysis.ticker }}',
+                    data: data.prices,
+                    borderColor: 'rgba(255, 255, 255, 0.9)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    borderWidth: 1.5,
+                    fill: true,
+                    tension: 0.1,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                },
+                {
+                    label: 'SMA 20',
+                    data: data.sma20,
+                    borderColor: '#4ade80',
+                    borderWidth: 1,
+                    borderDash: [4, 2],
+                    pointRadius: 0,
+                    fill: false,
+                },
+                {
+                    label: 'SMA 50',
+                    data: data.sma50,
+                    borderColor: '#facc15',
+                    borderWidth: 1,
+                    borderDash: [4, 2],
+                    pointRadius: 0,
+                    fill: false,
+                },
+                {
+                    label: 'SMA 200',
+                    data: data.sma200,
+                    borderColor: '#f87171',
+                    borderWidth: 1,
+                    borderDash: [6, 3],
+                    pointRadius: 0,
+                    fill: false,
+                },
+            ];
+
+            // Signal markers
+            if (data.signals && data.signals.length > 0) {
+                const markerData = new Array(data.dates.length).fill(null);
+                const markerColors = [];
+                data.signals.forEach(s => {
+                    const idx = data.dates.indexOf(s.date);
+                    if (idx >= 0) {
+                        markerData[idx] = s.price;
+                        const isPositive = ['OPPORTUNITY', 'BUY', 'STRONG_BUY'].includes(s.signal);
+                        markerColors.push(isPositive ? '#4ade80' : '#f87171');
+                    }
+                });
+                datasets.push({
+                    label: 'Signals',
+                    data: markerData,
+                    borderColor: markerColors,
+                    backgroundColor: markerColors,
+                    pointRadius: 6,
+                    pointStyle: 'star',
+                    showLine: false,
+                    pointHoverRadius: 8,
+                });
+            }
+
+            new Chart(ctx, {
+                type: 'line',
+                data: { labels: data.dates, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            labels: { color: 'rgba(255,255,255,0.6)', font: { size: 11 }, boxWidth: 12, padding: 15 }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.9)',
+                            titleColor: '#fff',
+                            bodyColor: 'rgba(255,255,255,0.8)',
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderWidth: 1,
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: 'rgba(255,255,255,0.4)', maxTicksLimit: 12, font: { size: 10 } },
+                            grid: { color: 'rgba(255,255,255,0.04)' }
+                        },
+                        y: {
+                            ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 10 } },
+                            grid: { color: 'rgba(255,255,255,0.04)' }
+                        }
+                    }
+                }
+            });
+        })
+        .catch(() => {
+            document.getElementById('chart-loading').textContent = 'Failed to load chart';
+        });
+</script>
 {% endblock %}

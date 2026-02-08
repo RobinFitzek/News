@@ -20,6 +20,9 @@ class BudgetTracker:
 
     def __init__(self):
         self._db = None
+        self._status_cache = None
+        self._status_cache_time = None
+        self._CACHE_TTL_SECONDS = 120  # Recalculate limits at most every 2 minutes
 
     @property
     def db(self):
@@ -176,14 +179,33 @@ class BudgetTracker:
             'gemini_total': gemini_daily,
         }
 
+    def invalidate_cache(self):
+        """Force recalculation on next status request (call after settings change)."""
+        self._status_cache = None
+        self._status_cache_time = None
+
     # --- Budget status for UI ---
 
     def get_budget_status(self) -> dict:
-        """Full budget status for dashboard/settings display."""
-        month = datetime.now().strftime('%Y-%m')
-        today = date.today()
-        days_in_month = calendar.monthrange(today.year, today.month)[1]
-        days_left = max(1, days_in_month - today.day + 1)
+        """Full budget status for dashboard/settings display.
+        Cached for 2 minutes to prevent fluctuating limits on dashboard polls."""
+        now = datetime.now()
+
+        # Return cached if fresh enough — limits only update request counts live
+        if (self._status_cache is not None and self._status_cache_time is not None
+                and (now - self._status_cache_time).total_seconds() < self._CACHE_TTL_SECONDS):
+            # Update only the volatile fields (request counts) from DB
+            cached = self._status_cache.copy()
+            for api in ['perplexity', 'gemini']:
+                if api in cached:
+                    cached[api] = cached[api].copy()
+                    cached[api]['today_requests'] = self.get_today_request_count(api)
+            return cached
+
+        month = now.strftime('%Y-%m')
+        today_date = date.today()
+        days_in_month = calendar.monthrange(today_date.year, today_date.month)[1]
+        days_left = max(1, days_in_month - today_date.day + 1)
 
         status = {}
         for api in ['perplexity', 'gemini']:
@@ -212,6 +234,10 @@ class BudgetTracker:
 
         # Pipeline capacity
         status['pipeline'] = self.get_pipeline_limits()
+
+        # Cache the result
+        self._status_cache = status
+        self._status_cache_time = now
         return status
 
 
