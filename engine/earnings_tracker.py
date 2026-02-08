@@ -123,17 +123,17 @@ class EarningsTracker:
         if earnings['is_within_week']:
             analysis_data['earnings_risk'] = 'high'
             analysis_data['warnings'] = analysis_data.get('warnings', []) + [
-                f"⚠️ EARNINGS IN {earnings['days_until']} DAYS — High uncertainty, expect 5-15% volatility"
+                f"(Earnings) EARNINGS IN {earnings['days_until']} DAYS — High uncertainty, expect 5-15% volatility"
             ]
             # Reduce confidence for signals during earnings week
             if 'confidence' in analysis_data:
                 analysis_data['confidence'] = int(analysis_data['confidence'] * 0.6)
-                analysis_data['warnings'].append("📉 Signal confidence reduced by 40% due to earnings proximity")
+                analysis_data['warnings'].append("(Notice) Signal confidence reduced by 40% due to earnings proximity")
         
         elif earnings['is_imminent']:
             analysis_data['earnings_risk'] = 'moderate'
             analysis_data['warnings'] = analysis_data.get('warnings', []) + [
-                f"⚠️ Earnings in {earnings['days_until']} days — Increased volatility expected"
+                f"(Earnings) Earnings in {earnings['days_until']} days — Increased volatility expected"
             ]
             if 'confidence' in analysis_data:
                 analysis_data['confidence'] = int(analysis_data['confidence'] * 0.85)

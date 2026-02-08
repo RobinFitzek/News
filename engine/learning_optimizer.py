@@ -9,9 +9,27 @@ from core.database import db
 import yfinance as yf
 
 
+VERIFICATION_WINDOWS = {
+    'momentum': {'days': 20, 'label': '20 days (momentum signals decay fast)'},
+    'value': {'days': 180, 'label': '6 months (value takes time to materialize)'},
+    'default': {'days': 60, 'label': '60 days (balanced default)'},
+}
+
+
+def classify_signal_type(confidence: int = 50, signal: str = '',
+                         momentum_score: float = None,
+                         valuation_score: float = None) -> str:
+    """Determine signal type from prediction context for verification window selection."""
+    if momentum_score is not None and momentum_score > 70:
+        return 'momentum'
+    if valuation_score is not None and valuation_score > 70:
+        return 'value'
+    return 'default'
+
+
 class FeedbackTracker:
     """Tracks prediction accuracy and provides learning feedback"""
-    
+
     def __init__(self):
         self._ensure_tables()
     
@@ -34,7 +52,9 @@ class FeedbackTracker:
                 actual_direction TEXT,
                 accuracy_score REAL,
                 days_elapsed INTEGER,
-                verified_at TIMESTAMP
+                verified_at TIMESTAMP,
+                signal_type TEXT,
+                verification_window_days INTEGER
             )
         """)
         
@@ -70,11 +90,13 @@ class FeedbackTracker:
         conn.close()
     
     def record_prediction(self, ticker: str, signal: str, confidence: int,
-                          current_price: float) -> int:
+                          current_price: float,
+                          momentum_score: float = None,
+                          valuation_score: float = None) -> int:
         """Record a new prediction for later verification"""
         conn = db._get_conn()
         cursor = conn.cursor()
-        
+
         # Determine predicted direction from signal
         # Support both old (Buy/Sell) and new (Opportunity/Caution) signal types
         if signal in ('Opportunity',) or 'Buy' in signal:
@@ -83,23 +105,32 @@ class FeedbackTracker:
             direction = 'down'
         else:
             direction = 'neutral'
-        
+
+        # Classify signal type for adaptive verification window
+        sig_type = classify_signal_type(
+            confidence=confidence, signal=signal,
+            momentum_score=momentum_score, valuation_score=valuation_score
+        )
+        window_days = VERIFICATION_WINDOWS[sig_type]['days']
+
         cursor.execute("""
-            INSERT INTO prediction_outcomes 
-            (ticker, prediction_date, signal, predicted_direction, confidence, 
-             actual_price_at_prediction)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (ticker, datetime.now(), signal, direction, confidence, current_price))
-        
+            INSERT INTO prediction_outcomes
+            (ticker, prediction_date, signal, predicted_direction, confidence,
+             actual_price_at_prediction, signal_type, verification_window_days)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (ticker, datetime.now(), signal, direction, confidence, current_price,
+              sig_type, window_days))
+
         conn.commit()
         prediction_id = cursor.lastrowid
         conn.close()
-        
+
         return prediction_id
     
     def verify_predictions(self, days_back: int = None) -> List[Dict]:
-        """Verify predictions from N days ago against actual results.
-        Default window is configurable via learning_verification_days setting (default 90)."""
+        """Verify predictions using per-row adaptive windows.
+        Each prediction has its own verification_window_days based on signal type.
+        Falls back to global setting if no per-row window is stored."""
         if days_back is None:
             try:
                 days_back = int(db.get_setting('learning_verification_days') or 90)
@@ -107,24 +138,28 @@ class FeedbackTracker:
                 days_back = 90
         conn = db._get_conn()
         cursor = conn.cursor()
-        
-        # Get unverified predictions older than specified days
-        cutoff_date = datetime.now() - timedelta(days=days_back)
+
+        # Get unverified predictions that have passed their verification window
+        # Use per-row window if available, otherwise fall back to days_back
         cursor.execute("""
-            SELECT * FROM prediction_outcomes 
-            WHERE verified_at IS NULL 
-            AND prediction_date < ?
-        """, (cutoff_date,))
-        
+            SELECT * FROM prediction_outcomes
+            WHERE verified_at IS NULL
+            AND prediction_date < datetime('now', '-' ||
+                COALESCE(verification_window_days, ?) || ' days')
+        """, (days_back,))
+
         predictions = [dict(row) for row in cursor.fetchall()]
         conn.close()
-        
+
         verified = []
         for pred in predictions:
-            result = self._verify_single_prediction(pred, days_back)
+            window = pred.get('verification_window_days') or days_back
+            result = self._verify_single_prediction(pred, window)
             if result:
+                result['signal_type'] = pred.get('signal_type', 'default')
+                result['verification_window_days'] = window
                 verified.append(result)
-        
+
         return verified
     
     def _verify_single_prediction(self, prediction: Dict, days: int) -> Optional[Dict]:
@@ -466,6 +501,134 @@ class LearningOptimizer:
         stats['cache_size'] = len(self.cache.cache)
         return stats
     
+    def calculate_optimal_weights(self) -> Dict:
+        """Analyse last 100 verified predictions and suggest weight adjustments.
+
+        Groups by signal_type (momentum vs value), calculates per-factor accuracy,
+        and suggests weight changes. Requires 20+ verified predictions minimum.
+        """
+        conn = db._get_conn()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT * FROM prediction_outcomes
+            WHERE verified_at IS NOT NULL
+            ORDER BY verified_at DESC LIMIT 100
+        """)
+        predictions = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+
+        if len(predictions) < 20:
+            return {
+                'sufficient_data': False,
+                'prediction_count': len(predictions),
+                'message': f'Need 20+ verified predictions, have {len(predictions)}',
+            }
+
+        # Group by signal_type
+        type_stats = {}
+        for pred in predictions:
+            sig_type = pred.get('signal_type', 'default')
+            if sig_type not in type_stats:
+                type_stats[sig_type] = {'total': 0, 'correct': 0}
+            type_stats[sig_type]['total'] += 1
+            if pred.get('accuracy_score', 0) >= 0.5:
+                type_stats[sig_type]['correct'] += 1
+
+        for st in type_stats.values():
+            st['accuracy'] = round(st['correct'] / st['total'], 3) if st['total'] > 0 else 0.5
+
+        # Current weights
+        from engine.quant_screener import quant_screener
+        current_weights = dict(quant_screener.config['composite_weights'])
+
+        # Calculate suggested weights based on factor performance
+        momentum_acc = type_stats.get('momentum', {}).get('accuracy', 0.5)
+        value_acc = type_stats.get('value', {}).get('accuracy', 0.5)
+        default_acc = type_stats.get('default', {}).get('accuracy', 0.5)
+
+        # Regime context
+        regime = None
+        try:
+            from engine.market_regime import market_regime
+            regime = market_regime.get_current_regime().get('regime')
+        except Exception:
+            pass
+
+        # Adjust: if momentum predictions are more accurate, boost technical + momentum weights
+        suggested = dict(current_weights)
+
+        if momentum_acc > default_acc + 0.1:
+            suggested['momentum'] = min(0.45, current_weights['momentum'] + 0.05)
+            suggested['technical'] = min(0.45, current_weights['technical'] + 0.05)
+            # Reduce valuation/quality proportionally
+            excess = (suggested['momentum'] - current_weights['momentum']) + \
+                     (suggested['technical'] - current_weights['technical'])
+            suggested['valuation'] = max(0.10, current_weights['valuation'] - excess / 2)
+            suggested['quality'] = max(0.10, current_weights['quality'] - excess / 2)
+
+        if value_acc > default_acc + 0.1:
+            suggested['valuation'] = min(0.45, current_weights['valuation'] + 0.05)
+            suggested['quality'] = min(0.45, current_weights['quality'] + 0.03)
+            excess = (suggested['valuation'] - current_weights['valuation']) + \
+                     (suggested['quality'] - current_weights['quality'])
+            suggested['momentum'] = max(0.10, current_weights['momentum'] - excess / 2)
+            suggested['technical'] = max(0.10, current_weights['technical'] - excess / 2)
+
+        # Bear market: boost quality + valuation
+        if regime == 'bear':
+            suggested['quality'] = min(0.40, suggested['quality'] + 0.05)
+            suggested['valuation'] = min(0.40, suggested['valuation'] + 0.05)
+            suggested['momentum'] = max(0.10, suggested['momentum'] - 0.05)
+            suggested['technical'] = max(0.10, suggested['technical'] - 0.05)
+
+        # Normalize to sum = 1.0
+        total = sum(suggested.values())
+        if total > 0:
+            suggested = {k: round(v / total, 4) for k, v in suggested.items()}
+
+        return {
+            'sufficient_data': True,
+            'prediction_count': len(predictions),
+            'current_weights': current_weights,
+            'suggested_weights': suggested,
+            'factor_accuracy': type_stats,
+            'regime': regime,
+            'changes': {k: round(suggested[k] - current_weights.get(k, 0), 4) for k in suggested},
+        }
+
+    def auto_adjust_weights(self, dry_run: bool = True) -> Dict:
+        """Apply suggested weight adjustments.
+
+        Args:
+            dry_run: if True, only returns what would change without applying
+        """
+        suggestion = self.calculate_optimal_weights()
+        if not suggestion.get('sufficient_data'):
+            return suggestion
+
+        result = {
+            'current': suggestion['current_weights'],
+            'suggested': suggestion['suggested_weights'],
+            'applied': not dry_run,
+        }
+
+        if not dry_run:
+            # Convert 4-factor weights to 2-factor format for the override system
+            tech_w = suggestion['suggested_weights']['technical'] + suggestion['suggested_weights']['momentum']
+            mom_w = suggestion['suggested_weights']['momentum']
+
+            db.set_setting('quant_weights_override', {
+                'tech_weight': round(tech_w, 4),
+                'momentum_weight': round(mom_w, 4),
+            })
+
+            from engine.quant_screener import quant_screener
+            quant_screener.reload_weights()
+            result['active_weights'] = dict(quant_screener.config['composite_weights'])
+
+        return result
+
     def should_trust_prediction(self, ticker: str, confidence: int) -> Tuple[bool, str]:
         """
         Determine if a prediction should be trusted based on historical accuracy.

@@ -29,6 +29,8 @@ from clients.perplexity_client import pplx_client
 from clients.gemini_client import gemini_client
 from core.budget_tracker import budget_tracker
 from engine.learning_optimizer import learning_optimizer
+from engine.staleness_tracker import staleness_tracker
+from engine.ai_crosscheck import ai_crosscheck
 
 app = FastAPI(title="AI Investment Monitor", version="1.0.0")
 
@@ -83,10 +85,11 @@ async def add_security_headers(request: Request, call_next):
     # Content Security Policy
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline'; "
-        "style-src 'self' 'unsafe-inline'; "
+        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data:; "
-        "font-src 'self';"
+        "connect-src 'self';"
     )
 
     return response
@@ -170,13 +173,18 @@ async def dashboard(request: Request, username: str = Depends(require_auth)):
         
         # Get trusted tickers for badge display
         trusted_tickers = set(db.get_trusted_tickers(min_accuracy=0.7))
-        
+
+        # Enrich recent analyses with staleness metadata
+        recent_analyses = db.get_analysis_history(limit=10)
+        for a in recent_analyses:
+            staleness_tracker.enrich_analysis(a)
+
         return templates.TemplateResponse("dashboard.html", {
             "request": request,
             "csrf_token": request.state.csrf_token,
             "scheduler_status": scheduler.get_status(),
             "watchlist": db.get_watchlist(),
-            "recent_analyses": db.get_analysis_history(limit=10),
+            "recent_analyses": recent_analyses,
             "api_status": {
                 "perplexity": pplx_client.get_usage(),
                 "gemini": gemini_client.get_usage()
@@ -318,6 +326,7 @@ async def save_settings(request: Request, username: str = Depends(require_auth))
     # Reload settings in services
     scheduler.reload_settings()
     notifications.reload_settings()
+    budget_tracker.invalidate_cache()
     
     return RedirectResponse(url="/settings?saved=1", status_code=303)
 
@@ -361,11 +370,36 @@ async def analysis_detail(request: Request, analysis_id: int, username: str = De
     
     if not row:
         raise HTTPException(status_code=404, detail="Analysis not found")
-    
+
+    analysis = dict(row)
+
+    # Fetch cross-check result for this analysis
+    crosscheck = None
+    try:
+        conn2 = db._get_conn()
+        cur2 = conn2.cursor()
+        cur2.execute(
+            "SELECT * FROM ai_crosscheck_log WHERE analysis_id = ? ORDER BY checked_at DESC LIMIT 1",
+            (analysis_id,)
+        )
+        cc_row = cur2.fetchone()
+        conn2.close()
+        if cc_row:
+            import json as _json
+            crosscheck = dict(cc_row)
+            if crosscheck.get('details'):
+                try:
+                    crosscheck['details'] = _json.loads(crosscheck['details'])
+                except (ValueError, TypeError):
+                    crosscheck['details'] = []
+    except Exception:
+        pass
+
     return templates.TemplateResponse("analysis_detail.html", {
         "request": request,
         "csrf_token": request.state.csrf_token,
-        "analysis": dict(row)
+        "analysis": analysis,
+        "crosscheck": crosscheck
     })
 
 # ==================== SCHEDULER CONTROL ====================
@@ -419,10 +453,11 @@ async def run_scan_now(
             return RedirectResponse(url="/?message=error&detail=Watchlist+is+empty", status_code=303)
 
         # Run the scan
-        scheduler.trigger_manual_scan()
-
-        # Success message
-        return RedirectResponse(url="/?message=success&detail=Scan+started+successfully", status_code=303)
+        if scheduler.trigger_manual_scan():
+            # Success message
+            return RedirectResponse(url="/?message=success&detail=Scan+started+in+background.+Check+dashboard+for+status.", status_code=303)
+        else:
+            return RedirectResponse(url="/?message=warning&detail=Scan+already+running", status_code=303)
 
     except Exception as e:
         # Log the error
@@ -455,6 +490,21 @@ async def run_analysis(
     csrf.verify_token(request, csrf_token)
     results = swarm.analyze_single_stock(ticker.upper())
     analysis_id, signal, confidence = db.save_analysis(ticker.upper(), results)
+
+    # Run AI cross-check against yfinance ground truth
+    try:
+        analysis_text = ' '.join(filter(None, [
+            results.get('fundamental', ''),
+            results.get('recommendation', ''),
+            results.get('technical', ''),
+        ]))
+        if analysis_text.strip():
+            crosscheck = ai_crosscheck.check_analysis(ticker.upper(), analysis_text)
+            db.save_crosscheck(ticker.upper(), analysis_id, crosscheck)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"Cross-check failed for {ticker}: {e}")
+
     return RedirectResponse(url=f"/analysis/{analysis_id}", status_code=303)
 
 # ==================== DISCOVERY ====================
@@ -803,18 +853,158 @@ async def export_portfolio(request: Request, username: str = Depends(require_aut
     response.headers["Content-Disposition"] = "attachment; filename=portfolio_export.csv"
     return response
 
+# ==================== BACKTEST ====================
+
+@app.get("/backtest", response_class=HTMLResponse)
+async def backtest_page(request: Request, username: str = Depends(require_auth)):
+    """Backtest dashboard"""
+    from engine.quant_screener import quant_screener
+    past_runs = db.get_backtest_runs(limit=20)
+    return templates.TemplateResponse("backtest.html", {
+        "request": request,
+        "csrf_token": request.state.csrf_token,
+        "past_runs": past_runs,
+        "active_weights": quant_screener.config['composite_weights'],
+    })
+
+@app.post("/backtest/run")
+@limiter.limit("2/hour")
+async def start_backtest(
+    request: Request,
+    csrf_token: str = Form(...),
+    months: int = Form(24),
+    username: str = Depends(require_auth),
+):
+    """Start a backtest in a background thread."""
+    csrf.verify_token(request, csrf_token)
+
+    from engine.backtest_engine import backtest_engine
+
+    progress = backtest_engine.get_progress()
+    if progress.get('running'):
+        return {"success": False, "error": "A backtest is already running"}
+
+    months = max(6, min(60, months))
+
+    import threading
+    def _run():
+        backtest_engine.run(tickers=None, months=months)
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+    return {"success": True, "message": "Backtest started"}
+
+@app.get("/api/backtest/progress")
+async def backtest_progress(request: Request, username: str = Depends(require_auth)):
+    """Poll backtest progress."""
+    from engine.backtest_engine import backtest_engine
+    return backtest_engine.get_progress()
+
+@app.post("/api/backtest/apply-weights/{run_id}")
+async def apply_backtest_weights(
+    request: Request,
+    run_id: int,
+    username: str = Depends(require_auth),
+):
+    """Apply best weights from a backtest run to the live screener."""
+    run = db.get_backtest_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if not run.get('best_weights'):
+        raise HTTPException(status_code=400, detail="No best_weights in this run")
+
+    import json as _json
+    try:
+        weights = _json.loads(run['best_weights']) if isinstance(run['best_weights'], str) else run['best_weights']
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid best_weights JSON")
+
+    if 'tech_weight' not in weights or 'momentum_weight' not in weights:
+        raise HTTPException(status_code=400, detail="Missing tech_weight or momentum_weight")
+
+    # Save to settings
+    db.set_setting('quant_weights_override', weights)
+
+    # Reload in live screener singleton
+    from engine.quant_screener import quant_screener
+    quant_screener.reload_weights()
+
+    audit_log.log("apply_backtest_weights", username=username, ip=request.client.host,
+                  details={"run_id": run_id, "weights": weights})
+
+    return {"success": True, "weights": weights, "active": quant_screener.config['composite_weights']}
+
+@app.get("/api/backtest/results/{run_id}")
+async def backtest_results(request: Request, run_id: int, username: str = Depends(require_auth)):
+    """Get detailed results for a backtest run."""
+    run = db.get_backtest_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    results = db.get_backtest_results(run_id)
+
+    # Build per-ticker summary
+    ticker_summary = {}
+    for r in results:
+        t = r['ticker']
+        if t not in ticker_summary:
+            ticker_summary[t] = {'ticker': t, 'signals': 0, 'hits': 0,
+                                 'returns': [], 'alphas': [], 'benchmarks': set(),
+                                 'regimes': []}
+        ticker_summary[t]['signals'] += 1
+        ticker_summary[t]['hits'] += r.get('hit', 0)
+        if r.get('forward_20d_return') is not None:
+            ticker_summary[t]['returns'].append(r['forward_20d_return'])
+        if r.get('alpha') is not None:
+            ticker_summary[t]['alphas'].append(r['alpha'])
+        if r.get('benchmark_ticker'):
+            ticker_summary[t]['benchmarks'].add(r['benchmark_ticker'])
+        if r.get('regime'):
+            ticker_summary[t]['regimes'].append(r['regime'])
+
+    for ts in ticker_summary.values():
+        ts['accuracy'] = round(ts['hits'] / ts['signals'] * 100, 1) if ts['signals'] else 0
+        ts['avg_return'] = round(sum(ts['returns']) / len(ts['returns']), 2) if ts['returns'] else 0
+        ts['avg_alpha'] = round(sum(ts['alphas']) / len(ts['alphas']), 2) if ts['alphas'] else None
+        ts['benchmark'] = ', '.join(ts['benchmarks']) if ts['benchmarks'] else None
+        # Primary regime: most common regime for this ticker's signals
+        if ts['regimes']:
+            from collections import Counter
+            ts['primary_regime'] = Counter(ts['regimes']).most_common(1)[0][0]
+        else:
+            ts['primary_regime'] = None
+        del ts['returns']
+        del ts['alphas']
+        del ts['regimes']
+        ts['benchmarks'] = list(ts['benchmarks'])  # make JSON-serializable
+
+    return {
+        "run": run,
+        "results": results[:500],
+        "ticker_summary": sorted(ticker_summary.values(), key=lambda x: x['accuracy'], reverse=True),
+    }
+
 # ==================== API ENDPOINTS ====================
 
 @app.get("/api/status")
 async def api_status(request: Request, username: str = Depends(require_auth)):
     """API endpoint for status"""
+    # Count stale analyses
+    recent = db.get_analysis_history(limit=50)
+    stale_count = 0
+    for a in recent:
+        staleness_tracker.enrich_analysis(a)
+        if a.get('staleness_level') in ('stale', 'very_stale'):
+            stale_count += 1
+
     return {
         "scheduler": scheduler.get_status(),
         "api_usage": {
             "perplexity": pplx_client.get_usage(),
             "gemini": gemini_client.get_usage()
         },
-        "watchlist_count": len(db.get_watchlist())
+        "watchlist_count": len(db.get_watchlist()),
+        "stale_analyses": stale_count,
     }
 
 @app.get("/api/budget")
@@ -828,6 +1018,11 @@ async def api_portfolio_alerts(request: Request, username: str = Depends(require
     from engine.portfolio_manager import portfolio_manager
     return portfolio_manager.check_all_rules()
 
+@app.get("/api/signal-pnl")
+async def api_signal_pnl(request: Request, username: str = Depends(require_auth)):
+    """Signal P&L scorecard — aggregated prediction outcome stats."""
+    return db.get_signal_pnl_summary()
+
 @app.get("/api/quant-screen")
 async def api_quant_screen(request: Request, username: str = Depends(require_auth)):
     """Run quant screener on watchlist — zero API cost."""
@@ -838,6 +1033,166 @@ async def api_quant_screen(request: Request, username: str = Depends(require_aut
         return {'results': [], 'message': 'Watchlist empty'}
     results = quant_screener.screen_batch(tickers)
     return {'results': results, 'count': len(results)}
+
+# ==================== AI CROSS-CHECK ====================
+
+@app.get("/crosscheck", response_class=HTMLResponse)
+async def crosscheck_page(request: Request, username: str = Depends(require_auth)):
+    """Cross-check history page"""
+    history = db.get_crosscheck_history(limit=50)
+    return templates.TemplateResponse("crosscheck.html", {
+        "request": request,
+        "csrf_token": request.state.csrf_token,
+        "history": history
+    })
+
+@app.post("/api/crosscheck/{analysis_id}")
+@limiter.limit("10/hour")
+async def run_crosscheck(
+    request: Request,
+    analysis_id: int,
+    username: str = Depends(require_auth),
+):
+    """Run cross-check on an existing analysis."""
+    conn = db._get_conn()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM analysis_history WHERE id = ?", (analysis_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+
+    analysis = dict(row)
+    ticker = analysis['ticker']
+
+    analysis_text = ' '.join(filter(None, [
+        analysis.get('fundamental', ''),
+        analysis.get('recommendation', ''),
+        analysis.get('technical', ''),
+    ]))
+
+    if not analysis_text.strip():
+        return {"success": False, "error": "No analysis text to cross-check"}
+
+    crosscheck = ai_crosscheck.check_analysis(ticker, analysis_text)
+    db.save_crosscheck(ticker, analysis_id, crosscheck)
+
+    return {"success": True, "result": crosscheck}
+
+@app.get("/api/crosscheck/history")
+async def crosscheck_history(
+    request: Request,
+    ticker: str = None,
+    username: str = Depends(require_auth),
+):
+    """Get cross-check history."""
+    return db.get_crosscheck_history(ticker=ticker, limit=50)
+
+# ==================== MARKET REGIME ====================
+
+@app.get("/api/market-regime")
+async def api_market_regime(request: Request, username: str = Depends(require_auth)):
+    """Get current market regime (bull/bear/choppy) with VIX and yield data."""
+    from engine.market_regime import market_regime
+    return market_regime.get_current_regime()
+
+# ==================== PORTFOLIO BENCHMARK ====================
+
+@app.get("/api/portfolio/benchmark")
+async def api_portfolio_benchmark(request: Request, username: str = Depends(require_auth)):
+    """Portfolio vs SPY benchmark comparison."""
+    from engine.portfolio_benchmark import portfolio_benchmark
+    return portfolio_benchmark.calculate_portfolio_vs_spy()
+
+# ==================== CONCENTRATION CHECK ====================
+
+@app.get("/api/portfolio/concentration")
+async def api_portfolio_concentration(request: Request, username: str = Depends(require_auth)):
+    """Check portfolio concentration and correlation risks."""
+    from engine.concentration_checker import concentration_checker
+    holdings = db.get_portfolio_holdings()
+    return concentration_checker.check_portfolio_concentration(holdings)
+
+# ==================== PRICE CHART DATA ====================
+
+@app.get("/api/chart-data/{ticker}")
+async def api_chart_data(request: Request, ticker: str, username: str = Depends(require_auth)):
+    """Return 6mo OHLCV + SMA overlays + signal markers for a ticker."""
+    import yfinance as yf_local
+
+    ticker = ticker.upper().strip()
+    try:
+        stock = yf_local.Ticker(ticker)
+        hist = stock.history(period="6mo")
+        if hist.empty:
+            return {"error": "No data available"}
+
+        close = hist['Close']
+        dates = [d.strftime('%Y-%m-%d') for d in hist.index]
+        prices = [round(float(p), 2) for p in close]
+
+        # SMAs
+        sma20 = close.rolling(20).mean()
+        sma50 = close.rolling(50).mean()
+        sma200 = close.rolling(200).mean()
+
+        def safe_list(series):
+            return [round(float(v), 2) if not (v != v) else None for v in series]
+
+        # Signal markers from analysis history
+        signals = db.get_analysis_history(ticker=ticker, limit=20)
+        markers = []
+        for s in signals:
+            sig_date = s['timestamp'][:10] if s.get('timestamp') else None
+            if sig_date and sig_date in dates:
+                idx = dates.index(sig_date)
+                markers.append({
+                    'date': sig_date,
+                    'price': prices[idx],
+                    'signal': s.get('signal', ''),
+                    'confidence': s.get('confidence', 0),
+                })
+
+        return {
+            'ticker': ticker,
+            'dates': dates,
+            'prices': prices,
+            'sma20': safe_list(sma20),
+            'sma50': safe_list(sma50),
+            'sma200': safe_list(sma200),
+            'volume': [int(v) for v in hist['Volume']],
+            'signals': markers,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+# ==================== LEARNING WEIGHT OPTIMIZATION ====================
+
+@app.get("/api/learning/weight-suggestions")
+async def api_weight_suggestions(request: Request, username: str = Depends(require_auth)):
+    """Get current vs suggested quant weights based on learning data."""
+    return learning_optimizer.calculate_optimal_weights()
+
+@app.post("/api/learning/apply-weights")
+@limiter.limit("5/hour")
+async def api_apply_weights(request: Request, username: str = Depends(require_auth)):
+    """Apply suggested weight optimizations to the live screener."""
+    data = await request.json()
+
+    # Validate CSRF token from header
+    token = request.headers.get('X-CSRF-Token', '')
+    if not csrf.validate_token(token):
+        raise HTTPException(status_code=403, detail="Invalid CSRF token")
+
+    dry_run = data.get('dry_run', True)
+    result = learning_optimizer.auto_adjust_weights(dry_run=dry_run)
+
+    if not dry_run:
+        audit_log.log("apply_learning_weights", username=username,
+                      ip=request.client.host, details={"result": str(result)})
+
+    return result
 
 @app.get("/health")
 async def health_check():

@@ -90,6 +90,52 @@ class QuantScreener:
         self._stock_cache = {}
         self._cache_duration = timedelta(minutes=30)
         self.config = QUANT_SCREENER_CONFIG
+        self._apply_weight_overrides()
+
+    def _apply_weight_overrides(self):
+        """Load quant_weights_override from DB and remap 2-factor backtest
+        weights into the 4-factor live screener."""
+        try:
+            from core.database import db
+            override = db.get_setting('quant_weights_override')
+            if not override or not isinstance(override, dict):
+                return
+
+            tech_w = override.get('tech_weight')
+            mom_w = override.get('momentum_weight')
+            if tech_w is None or mom_w is None:
+                return
+
+            # Default 4-factor weights from config
+            defaults = QUANT_SCREENER_CONFIG['composite_weights']
+            val = defaults['valuation']   # 0.30
+            qual = defaults['quality']    # 0.20
+
+            # Scale technical and momentum proportionally, keep val/qual ratio
+            tech_new = (val + defaults['technical'] + defaults['momentum'] + qual) * 0.5 * (tech_w / 0.5)
+            mom_new = (val + defaults['technical'] + defaults['momentum'] + qual) * 0.5 * (mom_w / 0.5)
+            # Simplified: tech_new = tech_w, mom_new = mom_w (since they split 50/50 of 1.0)
+            # But we need to preserve val/qual. Formula from plan:
+            tech_new = defaults['technical'] * (tech_w / 0.5)
+            mom_new = defaults['momentum'] * (mom_w / 0.5)
+
+            # Normalize to sum = 1.0
+            total = val + tech_new + mom_new + qual
+            self.config = dict(self.config)  # don't mutate global
+            self.config['composite_weights'] = {
+                'valuation': round(val / total, 4),
+                'technical': round(tech_new / total, 4),
+                'momentum': round(mom_new / total, 4),
+                'quality': round(qual / total, 4),
+            }
+            logger.info(f"Applied weight override: {self.config['composite_weights']}")
+        except Exception as e:
+            logger.warning(f"Could not load weight overrides: {e}")
+
+    def reload_weights(self):
+        """Reload weight overrides from DB (call after applying new weights)."""
+        self.config = QUANT_SCREENER_CONFIG
+        self._apply_weight_overrides()
 
     def screen_batch(self, tickers: list, variant: str = "balanced") -> list:
         """Screen multiple tickers, return sorted by composite score."""
@@ -150,7 +196,7 @@ class QuantScreener:
 
         # Compute scores for each group (0-100)
         val_score = self._score_valuation(valuation, variant)
-        tech_score = self._score_technicals(technicals)
+        tech_score = self._score_technicals(technicals, volume_metrics)
         mom_score = self._score_momentum(momentum)
         qual_score = self._score_quality(quality)
 
@@ -181,11 +227,26 @@ class QuantScreener:
             enhanced_signal = signal
             volume_note = ""
 
+        # Market regime adjustment
+        regime_label = None
+        regime_adjustment = 0
+        try:
+            from engine.market_regime import market_regime
+            regime_data = market_regime.get_current_regime()
+            regime_label = regime_data.get('regime')
+            regime_adjustment = market_regime.get_confidence_adjustment(signal, regime_label)
+            if regime_adjustment != 0:
+                composite = max(0, min(100, composite + regime_adjustment))
+        except Exception as e:
+            logger.debug(f"Market regime check skipped: {e}")
+
         result = {
             'ticker': ticker,
             'composite_score': composite,
             'signal': signal,
             'enhanced_signal': enhanced_signal,
+            'regime': regime_label,
+            'regime_adjustment': regime_adjustment,
             'scores': {
                 'valuation': val_score,
                 'technical': tech_score,
@@ -488,8 +549,8 @@ class QuantScreener:
             return 50.0  # No data, neutral
         return sum(scores) / len(scores)
 
-    def _score_technicals(self, tech: Dict) -> float:
-        """Score technical indicators."""
+    def _score_technicals(self, tech: Dict, volume_metrics: Dict = None) -> float:
+        """Score technical indicators. Volume > 2x boosts by 5-10 pts."""
         scores = []
 
         # RSI scoring (30-70 is healthy)
@@ -542,7 +603,23 @@ class QuantScreener:
         else:
             scores.append(15)  # Near upper band
 
-        return sum(scores) / len(scores) if scores else 50.0
+        base = sum(scores) / len(scores) if scores else 50.0
+
+        # Volume confirmation boost: high volume during a directional signal
+        if volume_metrics and volume_metrics.get('volume_ratio', 1.0) >= 2.0:
+            vol_conf = volume_metrics.get('volume_confirmation', 'neutral')
+            if vol_conf == 'strong_bullish' and base >= 55:
+                base = min(100, base + 10)
+            elif vol_conf == 'strong_bearish' and base <= 45:
+                base = max(0, base - 10)
+            elif vol_conf == 'moderate':
+                # Moderate volume still provides some confirmation
+                if base >= 55:
+                    base = min(100, base + 5)
+                elif base <= 45:
+                    base = max(0, base - 5)
+
+        return base
 
     def _score_momentum(self, mom: Dict) -> float:
         """Score momentum — positive excess returns = higher score."""

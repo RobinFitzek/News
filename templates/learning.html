@@ -93,6 +93,7 @@
                         <th>Actual</th>
                         <th>Result</th>
                         <th>Change</th>
+                        <th>Window</th>
                         <th>Date</th>
                     </tr>
                 </thead>
@@ -123,8 +124,16 @@
                         </td>
                         <td>
                             <span style="font-family: var(--font-mono); font-weight: 500;">
+                                {% if pred.actual_price_after and pred.actual_price_at_prediction %}
                                 {% if (pred.actual_price_after - pred.actual_price_at_prediction) > 0 %}+{% endif %}{{ ((pred.actual_price_after - pred.actual_price_at_prediction) / pred.actual_price_at_prediction * 100)|round(2) }}%
+                                {% else %}—{% endif %}
                             </span>
+                        </td>
+                        <td style="font-size: var(--text-sm); color: var(--text-muted);">
+                            {% if pred.signal_type %}
+                            <span style="font-family: var(--font-mono);">{{ pred.verification_window_days or '—' }}d</span>
+                            <span style="font-size: 0.625rem; color: var(--text-ghost); display: block;">{{ pred.signal_type }}</span>
+                            {% else %}—{% endif %}
                         </td>
                         <td style="font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-muted);">
                             {{ pred.prediction_date[:10] }}
@@ -187,6 +196,20 @@
     </div>
     {% endif %}
 
+    <!-- Weight Optimization (loaded via AJAX) -->
+    <div id="weight-optimization-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Weight Optimization</h3>
+                <p style="margin: 0; font-size: var(--text-sm);" id="weight-opt-subtitle">Suggested screener weight adjustments based on prediction accuracy</p>
+            </div>
+            <button id="apply-weights-btn" class="btn btn-primary" style="display: none;" onclick="applyWeights()">Apply Suggested Weights</button>
+        </div>
+
+        <div id="weight-opt-content"></div>
+        <div id="weight-opt-insufficient" style="display: none; text-align: center; padding: var(--space-6); color: var(--text-muted); font-size: 0.875rem;"></div>
+    </div>
+
     <!-- System Info -->
     <div class="grid grid-3">
         <div class="card" style="margin-bottom: 0;">
@@ -199,11 +222,14 @@
         </div>
 
         <div class="card" style="margin-bottom: 0;">
-            <h3 style="margin: 0 0 var(--space-4) 0; font-size: 0.875rem;">Verification</h3>
-            <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; color: var(--text-primary); margin-bottom: var(--space-2); letter-spacing: -0.02em;">7</div>
-            <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-3);">Days to Verify</div>
-            <p style="margin: 0; font-size: 0.75rem; color: var(--text-muted); line-height: 1.6;">
-                Continuous learning from historical data
+            <h3 style="margin: 0 0 var(--space-4) 0; font-size: 0.875rem;">Verification Windows</h3>
+            <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.8;">
+                <div><span style="font-family: var(--font-mono); font-weight: 500;">20d</span> — Momentum signals</div>
+                <div><span style="font-family: var(--font-mono); font-weight: 500;">60d</span> — Default signals</div>
+                <div><span style="font-family: var(--font-mono); font-weight: 500;">180d</span> — Value signals</div>
+            </div>
+            <p style="margin: var(--space-3) 0 0; font-size: 0.75rem; color: var(--text-muted); line-height: 1.6;">
+                Adaptive windows per signal type
             </p>
         </div>
 
@@ -217,4 +243,94 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Weight Optimization
+    fetch('/api/learning/weight-suggestions')
+        .then(r => r.json())
+        .then(data => {
+            const card = document.getElementById('weight-optimization-card');
+            card.style.display = '';
+
+            if (!data.sufficient_data) {
+                document.getElementById('weight-opt-insufficient').style.display = '';
+                document.getElementById('weight-opt-insufficient').textContent = data.message || 'Insufficient data for weight optimization';
+                return;
+            }
+
+            document.getElementById('apply-weights-btn').style.display = '';
+
+            const factors = ['valuation', 'technical', 'momentum', 'quality'];
+            let html = '<div style="overflow-x: auto;"><table><thead><tr>' +
+                '<th>Factor</th><th>Current</th><th>Suggested</th><th>Change</th><th>Factor Accuracy</th>' +
+                '</tr></thead><tbody>';
+
+            factors.forEach(f => {
+                const curr = (data.current_weights[f] * 100).toFixed(1);
+                const sugg = (data.suggested_weights[f] * 100).toFixed(1);
+                const change = (data.changes[f] * 100).toFixed(1);
+                const changeColor = data.changes[f] > 0 ? '#4ade80' : data.changes[f] < 0 ? '#f87171' : 'var(--text-muted)';
+                const changePrefix = data.changes[f] > 0 ? '+' : '';
+
+                html += '<tr>' +
+                    '<td style="font-weight: 500; text-transform: capitalize;">' + f + '</td>' +
+                    '<td style="font-family: var(--font-mono);">' + curr + '%</td>' +
+                    '<td style="font-family: var(--font-mono); font-weight: 500;">' + sugg + '%</td>' +
+                    '<td style="font-family: var(--font-mono); color: ' + changeColor + ';">' + changePrefix + change + '%</td>' +
+                    '<td style="font-family: var(--font-mono); color: var(--text-muted);">—</td>' +
+                    '</tr>';
+            });
+            html += '</tbody></table></div>';
+
+            // Factor accuracy breakdown
+            if (data.factor_accuracy) {
+                html += '<div style="margin-top: var(--space-5); padding-top: var(--space-5); border-top: 1px solid var(--border-hairline);">';
+                html += '<div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-3);">Signal Type Performance</div>';
+                for (const [type, stats] of Object.entries(data.factor_accuracy)) {
+                    const acc = (stats.accuracy * 100).toFixed(1);
+                    const accColor = stats.accuracy >= 0.6 ? '#4ade80' : stats.accuracy >= 0.45 ? '#facc15' : '#f87171';
+                    html += '<div style="display: flex; justify-content: space-between; padding: var(--space-2) 0; font-size: 0.8125rem;">' +
+                        '<span style="text-transform: capitalize; color: var(--text-secondary);">' + type + ' (' + stats.total + ' predictions)</span>' +
+                        '<span style="font-family: var(--font-mono); font-weight: 500; color: ' + accColor + ';">' + acc + '% accuracy</span>' +
+                        '</div>';
+                }
+                if (data.regime) {
+                    html += '<div style="margin-top: var(--space-3); font-size: 0.75rem; color: var(--text-muted);">Current regime: <span style="font-weight: 500; text-transform: uppercase;">' + data.regime + '</span> (factored into suggestion)</div>';
+                }
+                html += '</div>';
+            }
+
+            document.getElementById('weight-opt-content').innerHTML = html;
+        })
+        .catch(() => {});
+
+    async function applyWeights() {
+        const btn = document.getElementById('apply-weights-btn');
+        btn.disabled = true;
+        btn.textContent = 'Applying...';
+        try {
+            const resp = await fetch('/api/learning/apply-weights', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ dry_run: false })
+            });
+            const data = await resp.json();
+            if (data.applied) {
+                btn.textContent = 'Applied!';
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                btn.textContent = 'Failed';
+            }
+        } catch(e) {
+            btn.textContent = 'Error';
+        }
+    }
+</script>
 {% endblock %}

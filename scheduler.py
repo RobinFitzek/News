@@ -17,6 +17,7 @@ class InvestmentScheduler:
     def __init__(self):
         self.scheduler = BackgroundScheduler()
         self.is_running = False
+        self.is_scanning = False  # Track scanning state
         self._load_settings()
     
     def _load_settings(self):
@@ -46,43 +47,48 @@ class InvestmentScheduler:
         except Exception:
             return True  # If error, assume always active
     
-    def run_scan(self):
+    def run_scan(self, force=False):
         """Run the Daily Analysis Pipeline"""
-        if not self._is_active_time():
-            print(f"⏸️ Outside active hours ({self.active_start}-{self.active_end}), skipping scan")
+        if self.is_scanning:
+            print("(!) Scan already in progress")
+            return
+
+        if not force and not self._is_active_time():
+            print(f"(-) Outside active hours ({self.active_start}-{self.active_end}), skipping scan")
             return
 
         print(f"\n{'='*50}")
-        print(f"🔄 SCHEDULED PIPELINE - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        print(f"      SCHEDULED PIPELINE - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
         print(f"{'='*50}")
 
+        self.is_scanning = True
         try:
             from engine.pipeline import pipeline
             results = pipeline.run_daily_cycle()
             return results
         except ImportError as e:
             error_msg = f"Import Error: {e}. Check if all dependencies are installed."
-            print(f"❌ {error_msg}")
+            print(f"(Error) {error_msg}")
             db.log_scheduler_run(
                 tickers_scanned=0,
                 alerts_sent=0,
                 errors=error_msg,
                 duration=0
             )
-            raise Exception(error_msg)
+            # Don't raise in background thread, just log
+            # raise Exception(error_msg)
         except AttributeError as e:
             error_msg = f"API Method Error: {e}. Check API client configuration."
-            print(f"❌ {error_msg}")
+            print(f"(Error) {error_msg}")
             db.log_scheduler_run(
                 tickers_scanned=0,
                 alerts_sent=0,
                 errors=error_msg,
                 duration=0
             )
-            raise Exception(error_msg)
         except Exception as e:
             error_msg = f"Pipeline Error: {str(e)}"
-            print(f"❌ {error_msg}")
+            print(f"(Error) {error_msg}")
             # Log error
             db.log_scheduler_run(
                 tickers_scanned=0,
@@ -90,7 +96,8 @@ class InvestmentScheduler:
                 errors=error_msg,
                 duration=0
             )
-            raise Exception(error_msg)
+        finally:
+            self.is_scanning = False
     
     def run_daily_summary(self):
         """Send daily summary email"""
@@ -105,7 +112,7 @@ class InvestmentScheduler:
         
         if today_analyses:
             notifications.send_daily_summary(today_analyses)
-            print("📧 Daily summary sent")
+            print("Daily summary sent")
     
     def start(self):
         """Start the scheduler with all cycle jobs"""
@@ -158,7 +165,7 @@ class InvestmentScheduler:
         
         self.scheduler.start()
         self.is_running = True
-        print(f"✅ Scheduler started: Daily every {self.interval_hours}h, Weekly Sun 20:00, Monthly 28th 18:00")
+        print(f"Scheduler started: Daily every {self.interval_hours}h, Weekly Sun 20:00, Monthly 28th 18:00")
     
     def stop(self):
         """Stop the scheduler"""
@@ -166,7 +173,7 @@ class InvestmentScheduler:
             return
         self.scheduler.shutdown()
         self.is_running = False
-        print("⏹️ Scheduler stopped")
+        print("Scheduler stopped")
     
     def get_status(self) -> dict:
         """Get scheduler status"""
@@ -181,6 +188,7 @@ class InvestmentScheduler:
         
         return {
             "is_running": self.is_running,
+            "is_scanning": self.is_scanning,
             "interval_hours": self.interval_hours,
             "active_hours": f"{self.active_start} - {self.active_end}",
             "timezone": self.timezone,
@@ -189,9 +197,22 @@ class InvestmentScheduler:
         }
     
     def trigger_manual_scan(self):
-        """Trigger an immediate scan (raises exceptions for error handling)"""
-        print("🔄 Manual scan triggered")
-        return self.run_scan()
+        """Trigger an immediate scan in background"""
+        if self.is_scanning:
+            print("(!) Scan already in progress")
+            return False
+            
+        print("Manual scan triggered in background")
+        self.scheduler.add_job(
+            self.run_scan,
+            args=[True], # force=True
+            trigger='date',
+            run_date=datetime.now(),
+            id='manual_scan_immediate',
+            name='Manual Scan (User Triggered)',
+            replace_existing=True
+        )
+        return True
 
 # Singleton
 scheduler = InvestmentScheduler()
