@@ -28,6 +28,11 @@ class InvestmentScheduler:
         self.timezone = db.get_setting("timezone")
         self.daily_summary_enabled = db.get_setting("daily_summary_enabled")
         self.daily_summary_time = db.get_setting("daily_summary_time")
+        # Discovery settings
+        self.discovery_enabled = db.get_setting("discovery_enabled")
+        self.discovery_daily_time = db.get_setting("discovery_daily_time") or "06:00"
+        self.discovery_weekly_day = db.get_setting("discovery_weekly_day") or "wed"
+        self.discovery_weekly_time = db.get_setting("discovery_weekly_time") or "12:00"
     
     def reload_settings(self):
         """Reload settings and reschedule jobs"""
@@ -151,18 +156,73 @@ class InvestmentScheduler:
             replace_existing=True
         )
         
+        # Daily Auto-Discovery (free, runs before first scan)
+        if self.discovery_enabled:
+            try:
+                disc_hour, disc_minute = map(int, self.discovery_daily_time.split(':'))
+                self.scheduler.add_job(
+                    self.run_discovery,
+                    CronTrigger(hour=disc_hour, minute=disc_minute,
+                               timezone=self.timezone),
+                    id='daily_discovery',
+                    name='Daily Auto-Discovery',
+                    replace_existing=True
+                )
+
+                # Weekly AI Discovery
+                weekly_hour, weekly_minute = map(int, self.discovery_weekly_time.split(':'))
+                self.scheduler.add_job(
+                    self.run_ai_discovery,
+                    CronTrigger(day_of_week=self.discovery_weekly_day,
+                               hour=weekly_hour, minute=weekly_minute,
+                               timezone=self.timezone),
+                    id='weekly_ai_discovery',
+                    name='Weekly AI Discovery',
+                    replace_existing=True
+                )
+            except Exception as e:
+                print(f"(!) Error scheduling discovery jobs: {e}")
+
         # Daily summary job
         if self.daily_summary_enabled:
             summary_hour, summary_minute = map(int, self.daily_summary_time.split(':'))
             self.scheduler.add_job(
                 self.run_daily_summary,
-                CronTrigger(hour=summary_hour, minute=summary_minute, 
+                CronTrigger(hour=summary_hour, minute=summary_minute,
                            timezone=self.timezone),
                 id='daily_summary',
                 name='Daily Summary Email',
                 replace_existing=True
             )
-        
+
+        # Weekly report (Sunday evening at 18:00)
+        self.scheduler.add_job(
+            self.run_weekly_report,
+            CronTrigger(day_of_week='sun', hour=18, minute=0,
+                       timezone=self.timezone),
+            id='weekly_report',
+            name='Weekly Report',
+            replace_existing=True
+        )
+
+        # Discovery hit rate check (daily at 21:00)
+        self.scheduler.add_job(
+            self.check_hit_rates,
+            CronTrigger(hour=21, minute=0, timezone=self.timezone),
+            id='hit_rate_check',
+            name='Hit Rate Check',
+            replace_existing=True
+        )
+
+        # Price alert check (every 15 min during market hours Mon–Fri)
+        self.scheduler.add_job(
+            self.check_price_alerts,
+            IntervalTrigger(minutes=15),
+            id='price_alert_check',
+            name='Price Alert Check',
+            replace_existing=True
+        )
+
         self.scheduler.start()
         self.is_running = True
         print(f"Scheduler started: Daily every {self.interval_hours}h, Weekly Sun 20:00, Monthly 28th 18:00")
@@ -196,6 +256,144 @@ class InvestmentScheduler:
             "last_runs": db.get_scheduler_logs(limit=5)
         }
     
+    def run_discovery(self):
+        """Run daily auto-discovery (free strategies)"""
+        try:
+            from engine.auto_discovery import auto_discovery
+            result = auto_discovery.run_daily_discovery()
+            print(f"Discovery completed: {result.get('discoveries', 0)} found, {len(result.get('promoted', []))} promoted")
+        except Exception as e:
+            print(f"(Error) Discovery failed: {e}")
+
+    def run_ai_discovery(self):
+        """Run weekly AI discovery (Perplexity)"""
+        try:
+            from engine.auto_discovery import auto_discovery
+            result = auto_discovery.run_weekly_ai_discovery()
+            print(f"AI Discovery completed: {result.get('discoveries', 0)} found")
+        except Exception as e:
+            print(f"(Error) AI Discovery failed: {e}")
+
+    def run_weekly_report(self):
+        """Generate and send weekly portfolio report."""
+        try:
+            from engine.report_generator import report_generator
+            html = report_generator.generate_weekly_report()
+            if html:
+                report_generator.send_report(html)
+                print("Weekly report generated and sent")
+        except Exception as e:
+            print(f"(Error) Weekly report failed: {e}")
+
+    def check_hit_rates(self):
+        """Check discovery hit rates and log outcomes. Also flags stale fundamental data."""
+        try:
+            from engine.discovery_hit_rate import discovery_hit_rate
+            result = discovery_hit_rate.check_outcomes()
+            checked = result.get('checked', 0) if result else 0
+            print(f"Hit rate check: {checked} outcomes evaluated")
+        except Exception as e:
+            print(f"(Error) Hit rate check failed: {e}")
+
+        # Flag watchlist stocks with fundamental data > 48h stale
+        try:
+            stale_tickers = db.query("""
+                SELECT w.ticker
+                FROM watchlist w
+                LEFT JOIN (
+                    SELECT ticker, MAX(snapshot_date) as latest_snapshot
+                    FROM fundamental_snapshots
+                    GROUP BY ticker
+                ) fs ON w.ticker = fs.ticker
+                WHERE w.is_active = 1
+                  AND (fs.latest_snapshot IS NULL
+                       OR julianday('now') - julianday(fs.latest_snapshot) > 2)
+            """) or []
+            if stale_tickers:
+                tickers_str = ', '.join(t['ticker'] for t in stale_tickers)
+                msg = f"Stale fundamental data (>48h): {tickers_str}"
+                print(f"(!) {msg}")
+                try:
+                    from engine.webhook_notifier import webhook_notifier
+                    webhook_notifier.send_custom(
+                        title="Data Staleness Alert",
+                        message=msg,
+                        level="warning"
+                    )
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"(Error) Staleness check failed: {e}")
+
+    def check_price_alerts(self):
+        """Check all active price alerts and fire notifications when triggered."""
+        try:
+            tz = pytz.timezone(self.timezone)
+            now = datetime.now(tz)
+            # Only run Monday–Friday, 9:30–16:05 ET
+            if now.weekday() >= 5:
+                return
+            market_open = time(9, 30)
+            market_close = time(16, 5)
+            if not (market_open <= now.time() <= market_close):
+                return
+
+            alerts = db.query(
+                "SELECT * FROM price_alerts WHERE active = 1 ORDER BY created_at DESC"
+            ) or []
+            if not alerts:
+                return
+
+            import yfinance as yf
+
+            # Group by ticker to avoid duplicate fetches
+            tickers_needed = list({a['ticker'] for a in alerts})
+            prices = {}
+            for ticker in tickers_needed:
+                try:
+                    info = yf.Ticker(ticker).fast_info
+                    price = getattr(info, 'last_price', None) or getattr(info, 'regular_market_price', None)
+                    if price:
+                        prices[ticker] = float(price)
+                except Exception:
+                    pass
+
+            triggered = 0
+            for alert in alerts:
+                ticker = alert['ticker']
+                current_price = prices.get(ticker)
+                if current_price is None:
+                    continue
+
+                threshold = float(alert['threshold'])
+                direction = alert.get('direction', 'above')
+                hit = (direction == 'above' and current_price >= threshold) or \
+                      (direction == 'below' and current_price <= threshold)
+
+                if hit:
+                    msg = (
+                        f"🔔 *Price Alert: {ticker}*\n"
+                        f"Current: ${current_price:.2f} — "
+                        f"triggered {direction} ${threshold:.2f}"
+                    )
+                    try:
+                        from engine.webhook_notifier import webhook_notifier
+                        webhook_notifier.reload()
+                        webhook_notifier.send_custom(msg)
+                    except Exception:
+                        pass
+                    db.execute(
+                        "UPDATE price_alerts SET active = 0, triggered_at = ? WHERE id = ?",
+                        (datetime.now().isoformat(), alert['id'])
+                    )
+                    triggered += 1
+                    print(f"Price alert triggered: {msg}")
+
+            if triggered:
+                print(f"Price alerts: {triggered} triggered out of {len(alerts)} active")
+        except Exception as e:
+            print(f"(Error) Price alert check failed: {e}")
+
     def trigger_manual_scan(self):
         """Trigger an immediate scan in background"""
         if self.is_scanning:

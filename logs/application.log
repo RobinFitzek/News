@@ -6361,3 +6361,252 @@ sqlite3.OperationalError: table earnings_calendar has no column named fetched_at
 2026-02-06 17:39:24 - [DEBUG] python_multipart.multipart:629 - callback() - Calling on_field_end with no data
 2026-02-06 17:39:24 - [DEBUG] python_multipart.multipart:629 - callback() - Calling on_end with no data
 2026-02-06 17:47:54 - [INFO] core.database:490 - set_setting() - Setting updated: development_mode
+2026-02-11 16:20:17 - root - INFO - Logging initialized
+2026-02-11 16:20:18 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-11 16:20:18 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 13:33:19 - root - INFO - Logging initialized
+2026-02-12 13:33:22 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 13:33:23 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 13:35:46 - root - INFO - Logging initialized
+2026-02-12 13:35:47 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 13:35:48 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 13:43:42 - root - INFO - Logging initialized
+2026-02-12 13:43:44 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 13:43:44 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 13:49:23 - root - INFO - Logging initialized
+2026-02-12 13:49:27 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 13:49:29 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 13:52:37 - root - INFO - Logging initialized
+2026-02-12 13:52:42 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 13:52:43 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 13:56:00 - root - INFO - Logging initialized
+2026-02-12 13:56:03 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 13:56:04 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 13:58:20 - root - INFO - Logging initialized
+2026-02-12 13:58:23 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 13:58:25 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 14:03:25 - root - INFO - Logging initialized
+2026-02-12 14:03:26 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 14:03:27 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 14:03:35 - root - INFO - Logging initialized
+2026-02-12 14:03:35 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 14:03:35 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 14:17:01 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such table: paper_snapshots
+2026-02-12 14:18:24 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 14:18:30 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 14:19:04 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 14:19:34 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 14:22:00 - root - INFO - Logging initialized
+2026-02-12 14:22:01 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 14:22:01 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 14:22:13 - root - INFO - Logging initialized
+2026-02-12 14:22:13 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 14:22:13 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 14:25:48 - root - INFO - Logging initialized
+2026-02-12 14:25:50 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 14:25:50 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 14:50:00 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 14:50:34 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:10:42 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:10:53 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:11:42 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:11:50 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:19:43 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:19:48 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:25:48 - apscheduler.executors.default - INFO - Running job "Daily Investment Scan (trigger: interval[2:00:00], next run at: 2026-02-12 18:25:48 CET)" (scheduled at 2026-02-12 16:25:48.101026+01:00)
+2026-02-12 16:25:48 - engine.pipeline - INFO - Pipeline limits: {'stage1_max': 50, 'stage2_max': 25, 'stage3_max': 10, 'perplexity_max': 51, 'gemini_total': 587}
+2026-02-12 16:25:48 - engine.quant_screener - INFO - Quant screening 7 tickers (variant: balanced)
+2026-02-12 16:25:49 - yfinance - ERROR - $AFX: possibly delisted; no price data found  (period=1y)
+2026-02-12 16:25:49 - yfinance - ERROR - HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: CORE MSCI WORLD USD (ACC)"}}}
+2026-02-12 16:25:50 - yfinance - ERROR - HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: FTSE ALL-WORLD USD (ACC)"}}}
+2026-02-12 16:25:54 - core.database - ERROR - Transaction rolled back due to error: table volume_metrics has no column named volume_trend
+2026-02-12 16:25:54 - core.database - ERROR - Execute error: table volume_metrics has no column named volume_trend
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 598, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table volume_metrics has no column named volume_trend
+2026-02-12 16:25:54 - engine.volume_analyzer - WARNING - Could not store volume metrics: table volume_metrics has no column named volume_trend
+2026-02-12 16:25:54 - core.database - ERROR - Transaction rolled back due to error: table earnings_calendar has no column named fetched_at
+2026-02-12 16:25:54 - core.database - ERROR - Execute error: table earnings_calendar has no column named fetched_at
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 598, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table earnings_calendar has no column named fetched_at
+2026-02-12 16:25:54 - engine.earnings_tracker - WARNING - Could not store earnings date: table earnings_calendar has no column named fetched_at
+2026-02-12 16:25:57 - core.database - ERROR - Transaction rolled back due to error: table volume_metrics has no column named volume_trend
+2026-02-12 16:25:57 - core.database - ERROR - Execute error: table volume_metrics has no column named volume_trend
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 598, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table volume_metrics has no column named volume_trend
+2026-02-12 16:25:57 - engine.volume_analyzer - WARNING - Could not store volume metrics: table volume_metrics has no column named volume_trend
+2026-02-12 16:25:58 - core.database - ERROR - Transaction rolled back due to error: table earnings_calendar has no column named fetched_at
+2026-02-12 16:25:58 - core.database - ERROR - Execute error: table earnings_calendar has no column named fetched_at
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 598, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table earnings_calendar has no column named fetched_at
+2026-02-12 16:25:58 - engine.earnings_tracker - WARNING - Could not store earnings date: table earnings_calendar has no column named fetched_at
+2026-02-12 16:25:58 - yfinance - ERROR - HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: PAG911"}}}
+2026-02-12 16:26:03 - core.database - ERROR - Transaction rolled back due to error: table volume_metrics has no column named volume_trend
+2026-02-12 16:26:03 - core.database - ERROR - Execute error: table volume_metrics has no column named volume_trend
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 598, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table volume_metrics has no column named volume_trend
+2026-02-12 16:26:03 - engine.volume_analyzer - WARNING - Could not store volume metrics: table volume_metrics has no column named volume_trend
+2026-02-12 16:26:03 - core.database - ERROR - Transaction rolled back due to error: table earnings_calendar has no column named fetched_at
+2026-02-12 16:26:03 - core.database - ERROR - Execute error: table earnings_calendar has no column named fetched_at
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 598, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table earnings_calendar has no column named fetched_at
+2026-02-12 16:26:03 - engine.earnings_tracker - WARNING - Could not store earnings date: table earnings_calendar has no column named fetched_at
+2026-02-12 16:26:03 - engine.agents - INFO - Stage 1 (quant screen) complete: 3 candidates
+2026-02-12 16:26:03 - engine.pipeline - INFO - Stage 1 (quant screen) complete: 3 candidates
+2026-02-12 16:26:03 - clients.perplexity_client - ERROR - HTTP error None: 401 Client Error: Unauthorized for url: https://api.perplexity.ai/chat/completions
+2026-02-12 16:26:03 - clients.perplexity_client - ERROR - HTTP error None: 401 Client Error: Unauthorized for url: https://api.perplexity.ai/chat/completions
+2026-02-12 16:26:03 - clients.perplexity_client - ERROR - HTTP error None: 401 Client Error: Unauthorized for url: https://api.perplexity.ai/chat/completions
+2026-02-12 16:26:03 - engine.pipeline - INFO - Stage 2 complete: 3 analyzed
+2026-02-12 16:26:03 - google_genai.models - INFO - AFC is enabled with max remote calls: 10.
+2026-02-12 16:26:16 - core.budget_tracker - INFO - Logged cost: gemini/flash $0.000264 (370in/348out)
+2026-02-12 16:26:16 - clients.gemini_client - INFO - Gemini flash OK: $0.00026 (370in/348out)
+2026-02-12 16:26:16 - core.database - INFO - Analysis saved for RR: ID=22, Signal=NEUTRAL
+2026-02-12 16:26:16 - engine.ai_crosscheck - INFO - Extracted 0 financial claims from analysis text
+2026-02-12 16:26:16 - engine.ai_crosscheck - INFO - Fetched 7 actual metrics for RR from yfinance
+2026-02-12 16:26:16 - engine.ai_crosscheck - INFO - No verifiable financial claims found in analysis for RR
+2026-02-12 16:26:16 - google_genai.models - INFO - AFC is enabled with max remote calls: 10.
+2026-02-12 16:26:30 - core.budget_tracker - INFO - Logged cost: gemini/flash $0.000213 (357in/265out)
+2026-02-12 16:26:30 - clients.gemini_client - INFO - Gemini flash OK: $0.00021 (357in/265out)
+2026-02-12 16:26:30 - core.database - INFO - Analysis saved for GOOGL: ID=23, Signal=NEUTRAL
+2026-02-12 16:26:30 - engine.ai_crosscheck - INFO - Extracted 1 financial claims from analysis text
+2026-02-12 16:26:30 - engine.ai_crosscheck - INFO - Fetched 10 actual metrics for GOOGL from yfinance
+2026-02-12 16:26:30 - engine.ai_crosscheck - INFO - GOOGL P/E Ratio: AI=28.92, Actual=28.912199, Score=1.0, Status=accurate
+2026-02-12 16:26:30 - engine.ai_crosscheck - INFO - Cross-check complete for GOOGL: 1/1 verified, accuracy=100.00%, trust=100.00%
+2026-02-12 16:26:30 - google_genai.models - INFO - AFC is enabled with max remote calls: 10.
+2026-02-12 16:26:40 - core.budget_tracker - INFO - Logged cost: gemini/flash $0.000223 (341in/286out)
+2026-02-12 16:26:40 - clients.gemini_client - INFO - Gemini flash OK: $0.00022 (341in/286out)
+2026-02-12 16:26:40 - core.database - INFO - Analysis saved for NVDA: ID=24, Signal=NEUTRAL
+2026-02-12 16:26:40 - engine.ai_crosscheck - INFO - Extracted 1 financial claims from analysis text
+2026-02-12 16:26:40 - engine.ai_crosscheck - INFO - Fetched 10 actual metrics for NVDA from yfinance
+2026-02-12 16:26:40 - engine.ai_crosscheck - INFO - NVDA P/E Ratio: AI=47.38, Actual=47.37037, Score=1.0, Status=accurate
+2026-02-12 16:26:40 - engine.ai_crosscheck - INFO - Cross-check complete for NVDA: 1/1 verified, accuracy=100.00%, trust=100.00%
+2026-02-12 16:26:41 - apscheduler.executors.default - INFO - Job "Daily Investment Scan (trigger: interval[2:00:00], next run at: 2026-02-12 18:25:48 CET)" executed successfully
+2026-02-12 16:32:29 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:32:40 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:33:18 - root - INFO - Logging initialized
+2026-02-12 16:33:21 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 16:33:21 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 16:34:17 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:36:10 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:36:29 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:36:30 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:36:31 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:36:32 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:37:37 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:37:46 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:37:57 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:38:10 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:38:29 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: scan_interval_hours
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: active_hours_start
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: active_hours_end
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: email_enabled
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: email_recipient
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: email_smtp_host
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: email_smtp_port
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: email_smtp_user
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: notify_on_strong_signals
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: daily_summary_enabled
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: daily_summary_time
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: include_news
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: include_fundamental
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: include_technical
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: analysis_variant
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: portfolio_max_position_pct
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: portfolio_stop_loss_pct
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: portfolio_max_sector_pct
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: portfolio_rebalance_drift_pct
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: portfolio_risk_guard_enabled
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: portfolio_global_loss_limit_pct
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: portfolio_risk_cooldown_hours
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: auth_max_failed_attempts
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: auth_attempt_window_minutes
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: auth_lockout_minutes
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: learning_verification_days
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: perplexity_monthly_budget
+2026-02-12 16:38:36 - core.database - INFO - Setting updated: gemini_monthly_budget
+2026-02-12 16:38:36 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-02-12 16:38:36 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-12 16:38:36 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-12 16:38:36 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-12 16:38:36 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
+2026-02-12 16:38:36 - apscheduler.scheduler - INFO - Added job "Daily Investment Scan" to job store "default"
+2026-02-12 16:38:36 - apscheduler.scheduler - INFO - Added job "Weekly Deep Analysis" to job store "default"
+2026-02-12 16:38:36 - apscheduler.scheduler - INFO - Added job "Monthly Portfolio Review" to job store "default"
+2026-02-12 16:38:36 - apscheduler.scheduler - INFO - Added job "Daily Summary Email" to job store "default"
+2026-02-12 16:38:36 - apscheduler.scheduler - INFO - Scheduler started
+2026-02-12 16:38:37 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:38:42 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:38:45 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:38:53 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:43:46 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:54:45 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:54:52 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:55:06 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:55:08 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:55:16 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:55:24 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 16:55:46 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 17:00:22 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 17:01:43 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 17:06:43 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 17:07:24 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 17:07:34 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 19:16:53 - root - INFO - Logging initialized
+2026-02-12 19:16:53 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 19:16:53 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 19:17:19 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 19:18:03 - engine.sector_momentum - WARNING - Error fetching XLY: unsupported operand type(s) for -: 'NoneType' and 'float'
+2026-02-12 19:18:33 - engine.sector_momentum - WARNING - Error fetching XLP: unsupported operand type(s) for -: 'NoneType' and 'float'
+2026-02-12 19:19:03 - engine.sector_momentum - WARNING - Error fetching XLU: unsupported operand type(s) for -: 'NoneType' and 'float'
+2026-02-12 19:19:33 - engine.sector_momentum - WARNING - Error fetching XLRE: unsupported operand type(s) for -: 'NoneType' and 'float'
+2026-02-12 19:20:03 - engine.sector_momentum - WARNING - Error fetching XLB: unsupported operand type(s) for -: 'NoneType' and 'float'
+2026-02-12 19:20:23 - engine.market_regime - WARNING - Failed to fetch SPY data: 'NoneType' object is not subscriptable
+2026-02-12 19:20:33 - engine.market_regime - WARNING - Failed to fetch VIX: 'NoneType' object is not subscriptable
+2026-02-12 19:20:43 - engine.market_regime - WARNING - Failed to fetch 10Y yield: 'NoneType' object is not subscriptable
+2026-02-12 19:20:51 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 19:31:26 - root - INFO - Logging initialized
+2026-02-12 19:31:26 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 19:31:26 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-12 19:35:58 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 19:36:18 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 19:36:34 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 19:38:57 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 19:39:00 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 19:39:01 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 19:41:11 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-12 20:00:00 - apscheduler.executors.default - INFO - Running job "Daily Summary Email (trigger: cron[hour='20', minute='0'], next run at: 2026-02-13 20:00:00 CET)" (scheduled at 2026-02-12 20:00:00+01:00)
+2026-02-12 20:00:00 - apscheduler.executors.default - INFO - Job "Daily Summary Email (trigger: cron[hour='20', minute='0'], next run at: 2026-02-13 20:00:00 CET)" executed successfully
+2026-02-20 14:57:23 - root - INFO - Logging initialized
+2026-02-20 14:57:25 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-20 14:57:25 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-20 14:58:02 - root - INFO - Logging initialized
+2026-02-20 14:58:03 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-20 14:58:03 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-20 14:58:52 - root - INFO - Logging initialized
+2026-02-20 14:58:54 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-20 14:58:54 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-20 15:07:09 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-20 16:55:10 - root - INFO - Logging initialized
+2026-02-20 16:55:12 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-20 16:55:12 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-20 16:55:29 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-20 16:55:52 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-20 16:56:00 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value

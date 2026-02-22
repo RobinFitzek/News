@@ -200,8 +200,22 @@ class QuantScreener:
         mom_score = self._score_momentum(momentum)
         qual_score = self._score_quality(quality)
 
-        # Weighted composite
-        weights = self.config['composite_weights']
+        # Weighted composite (with optional regime-based adjustments)
+        weights = dict(self.config['composite_weights'])
+        try:
+            from engine.market_regime import market_regime
+            regime_data = market_regime.get_current_regime()
+            regime_adjustments = market_regime.get_regime_weight_adjustments(regime_data.get('regime'))
+            adjusted_weights = {
+                k: weights[k] * regime_adjustments.get(k, 1.0) for k in weights
+            }
+            # Normalize to sum = 1.0
+            total_w = sum(adjusted_weights.values())
+            if total_w > 0:
+                weights = {k: v / total_w for k, v in adjusted_weights.items()}
+        except Exception:
+            pass  # Fall back to unadjusted weights
+
         composite = (
             val_score * weights['valuation'] +
             tech_score * weights['technical'] +
@@ -247,6 +261,7 @@ class QuantScreener:
             'enhanced_signal': enhanced_signal,
             'regime': regime_label,
             'regime_adjustment': regime_adjustment,
+            'data_stale': stock_data.get('data_stale', False),
             'scores': {
                 'valuation': val_score,
                 'technical': tech_score,
@@ -278,13 +293,78 @@ class QuantScreener:
             result = earnings_tracker.flag_pre_earnings_risk(ticker, result)
         except Exception as e:
             logger.warning(f"Could not check earnings risk: {e}")
-        
+
+        # Save fundamental snapshot for 4-factor backtesting (Feature 5)
+        try:
+            from core.database import db
+            today = datetime.now().strftime('%Y-%m-%d')
+            db.execute("""
+                INSERT OR REPLACE INTO fundamental_snapshots
+                (ticker, snapshot_date, pe_ratio, pb_ratio, roe, debt_to_equity, current_ratio, fcf_yield)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                ticker, today,
+                valuation.get('pe_ratio'),
+                valuation.get('pb_ratio'),
+                quality.get('roe'),
+                quality.get('debt_to_equity'),
+                quality.get('current_ratio'),
+                quality.get('fcf_yield'),
+            ))
+        except Exception as e:
+            logger.debug(f"Could not save fundamental snapshot for {ticker}: {e}")
+
         return result
 
     # --- Data Fetching (with caching) ---
 
+    @staticmethod
+    def _fetch_yfinance_info(ticker: str, retries: int = 2, delay: float = 1.0) -> Tuple[Dict, bool]:
+        """
+        Fetch yfinance info with retry logic and DB cache fallback.
+        Returns (info_dict, from_cache) where from_cache=True means stale DB data was used.
+        """
+        import time as _time
+        for attempt in range(retries + 1):
+            try:
+                info = yf.Ticker(ticker).info
+                if info and len(info) >= 3:
+                    return info, False
+            except Exception as e:
+                logger.warning(f"yfinance info attempt {attempt+1} failed for {ticker}: {e}")
+            if attempt < retries:
+                _time.sleep(delay)
+
+        # All retries failed — fall back to last DB snapshot
+        try:
+            from core.database import db
+            rows = db.query("""
+                SELECT pe_ratio, pb_ratio, roe, debt_to_equity, current_ratio, fcf_yield, snapshot_date
+                FROM fundamental_snapshots
+                WHERE ticker = ?
+                ORDER BY snapshot_date DESC
+                LIMIT 1
+            """, (ticker,))
+            if rows:
+                row = rows[0]
+                stale_info = {
+                    'trailingPE': row.get('pe_ratio'),
+                    'priceToBook': row.get('pb_ratio'),
+                    'returnOnEquity': row.get('roe'),
+                    'debtToEquity': row.get('debt_to_equity'),
+                    'currentRatio': row.get('current_ratio'),
+                    'data_stale': True,
+                    'stale_as_of': row.get('snapshot_date'),
+                }
+                logger.warning(f"Using stale DB snapshot for {ticker} (as of {row.get('snapshot_date')})")
+                return stale_info, True
+        except Exception as e:
+            logger.error(f"DB fallback also failed for {ticker}: {e}")
+
+        return {}, False
+
     def _get_stock_data(self, ticker: str) -> Optional[Dict]:
-        """Fetch and cache stock info + 1yr history."""
+        """Fetch and cache stock info + 1yr history. Uses retry wrapper with DB fallback."""
         cache_key = ticker
         if cache_key in self._stock_cache:
             entry = self._stock_cache[cache_key]
@@ -292,12 +372,12 @@ class QuantScreener:
                 return entry['data']
 
         try:
-            stock = yf.Ticker(ticker)
-            info = stock.info
-            if not info or len(info) < 3:
+            info, from_cache = self._fetch_yfinance_info(ticker)
+            if not info:
                 return None
+            stock = yf.Ticker(ticker)
             hist = stock.history(period="1y")
-            data = {'info': info, 'hist': hist}
+            data = {'info': info, 'hist': hist, 'data_stale': from_cache}
             self._stock_cache[cache_key] = {'data': data, 'timestamp': datetime.now()}
             return data
         except Exception as e:

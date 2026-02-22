@@ -30,3 +30,21 @@
 {"timestamp": "2026-02-06T17:31:42.120624", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
 {"timestamp": "2026-02-06T17:31:56.027142", "event": "manual_scan_triggered", "username": "admin", "ip": "127.0.0.1", "details": {"source": "web_dashboard"}}
 {"timestamp": "2026-02-06T17:47:54.531755", "event": "toggle_dev_mode", "username": "admin", "ip": "127.0.0.1", "details": {"enabled": false}}
+{"timestamp": "2026-02-12T14:16:43.300208", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-12T14:17:01.366709", "event": "password_change", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-12T14:21:02.964626", "event": "login_failed", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-12T14:21:32.944593", "event": "login_failed", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-12T16:11:50.699197", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-12T16:37:32.935377", "event": "login_failed", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-12T16:37:37.832287", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-12T16:37:46.638836", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-12T16:38:45.681191", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-12T19:20:53.407544", "event": "login_failed", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-12T19:21:08.613474", "event": "login_failed", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-12T19:21:19.924599", "event": "login_failed", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-12T19:31:50.125591", "event": "login_failed", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-12T19:35:57.769043", "event": "login_success", "username": "admin", "ip": "192.168.1.117", "details": {}}
+{"timestamp": "2026-02-20T15:02:06.338937", "event": "login_failed", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-20T15:02:19.856847", "event": "login_failed", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-20T15:03:21.081820", "event": "login_failed", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-20T15:07:08.473834", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}

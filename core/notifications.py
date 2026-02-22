@@ -1,5 +1,5 @@
 """
-Email Notification System for Investment Monitor
+Notification System — Email + Telegram + Discord
 """
 import smtplib
 import ssl
@@ -8,6 +8,9 @@ from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 from typing import Optional
 from core.database import db
+import logging
+
+logger = logging.getLogger(__name__)
 
 class NotificationService:
     def __init__(self):
@@ -36,37 +39,47 @@ class NotificationService:
             return signal in ["STRONG_BUY", "STRONG_SELL"]
         return signal in ["STRONG_BUY", "STRONG_SELL", "BUY", "SELL"]
     
-    def send_alert(self, ticker: str, signal: str, recommendation: str) -> bool:
-        """Send email alert for a stock signal"""
-        if not self.should_notify(signal):
-            return False
-        
-        subject = f"🚨 {signal}: {ticker}"
-        
-        # Create HTML email
-        html = f"""
-        <html>
-        <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background: {'#10b981' if 'BUY' in signal else '#ef4444'}; 
-                        color: white; padding: 20px; text-align: center;">
-                <h1 style="margin: 0;">{signal}</h1>
-                <h2 style="margin: 10px 0 0 0;">{ticker}</h2>
-            </div>
-            <div style="padding: 20px; background: #f9fafb;">
-                <h3>📊 Analyse</h3>
-                <div style="background: white; padding: 15px; border-radius: 8px;">
-                    {recommendation}
+    def send_alert(self, ticker: str, signal: str, recommendation: str,
+                   confidence: int = 0) -> bool:
+        """Send alert to email + webhooks for a stock signal."""
+        sent = False
+
+        # Email channel
+        if self.should_notify(signal):
+            subject = f"\U0001f6a8 {signal}: {ticker}"
+            signal_color = '#10b981' if 'BUY' in signal else '#ef4444'
+            html = f"""
+            <html><body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <div style="background: {signal_color}; color: white; padding: 20px; text-align: center;">
+                    <h1 style="margin: 0;">{signal}</h1>
+                    <h2 style="margin: 10px 0 0 0;">{ticker}</h2>
                 </div>
-                <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">
-                    Gesendet am {datetime.now().strftime('%d.%m.%Y %H:%M')} | 
-                    AI Investment Monitor
-                </p>
-            </div>
-        </body>
-        </html>
-        """
-        
-        return self._send_email(subject, html)
+                <div style="padding: 20px; background: #f9fafb;">
+                    <h3>\U0001f4ca Analysis</h3>
+                    <div style="background: white; padding: 15px; border-radius: 8px;">{recommendation}</div>
+                    <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">
+                        {datetime.now().strftime('%d.%m.%Y %H:%M')} | AI Investment Monitor
+                    </p>
+                </div>
+            </body></html>
+            """
+            sent |= self._send_email(subject, html)
+
+        # Webhook channels (Telegram / Discord)
+        try:
+            from engine.webhook_notifier import webhook_notifier
+            webhook_notifier.reload()
+            if webhook_notifier.any_configured():
+                sent |= webhook_notifier.send_signal_alert(
+                    ticker=ticker,
+                    signal=signal,
+                    confidence=confidence,
+                    recommendation=recommendation[:300],
+                )
+        except Exception as e:
+            logger.debug(f"Webhook send skipped: {e}")
+
+        return sent
     
     def send_daily_summary(self, analyses: list) -> bool:
         """Send daily summary email"""

@@ -13,7 +13,8 @@
     </header>
 
     {% if request.query_params.get('saved') %}
-    <div style="background: var(--signal-positive-bg); border: 1px solid var(--border-default); color: var(--text-primary); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-6); font-weight: 500; display: flex; align-items: center; gap: var(--space-3);">
+    <div
+        style="background: var(--signal-positive-bg); border: 1px solid var(--border-default); color: var(--text-primary); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-6); font-weight: 500; display: flex; align-items: center; gap: var(--space-3);">
         <span>Settings saved successfully</span>
     </div>
     {% endif %}
@@ -44,26 +45,30 @@
             <div class="grid grid-2" style="margin-bottom: var(--space-5);">
                 <div>
                     <label>Perplexity API Key</label>
-                    <input type="password" name="perplexity_key" placeholder="{% if api_keys.perplexity %}••••••••••••{% else %}pplx-xxx...{% endif %}">
+                    <input type="password" name="perplexity_key"
+                        placeholder="{% if api_keys.perplexity %}••••••••••••{% else %}pplx-xxx...{% endif %}">
                     <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
                         {% if api_keys.perplexity %}
                         <span style="color: var(--text-primary);">Configured</span>
                         {% else %}
                         <span>Not configured</span>
                         {% endif %}
-                        · <a href="https://perplexity.ai/settings" target="_blank" style="color: var(--text-secondary);">Get API Key</a>
+                        · <a href="https://perplexity.ai/settings" target="_blank"
+                            style="color: var(--text-secondary);">Get API Key</a>
                     </div>
                 </div>
                 <div>
                     <label>Gemini API Key</label>
-                    <input type="password" name="gemini_key" placeholder="{% if api_keys.gemini %}••••••••••••{% else %}AIzaSy...{% endif %}">
+                    <input type="password" name="gemini_key"
+                        placeholder="{% if api_keys.gemini %}••••••••••••{% else %}AIzaSy...{% endif %}">
                     <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
                         {% if api_keys.gemini %}
                         <span style="color: var(--text-primary);">Configured</span>
                         {% else %}
                         <span>Not configured</span>
                         {% endif %}
-                        · <a href="https://ai.google.dev" target="_blank" style="color: var(--text-secondary);">Get Free API Key</a>
+                        · <a href="https://ai.google.dev" target="_blank" style="color: var(--text-secondary);">Get Free
+                            API Key</a>
                     </div>
                 </div>
             </div>
@@ -81,7 +86,8 @@
             <div class="grid grid-3">
                 <div>
                     <label>Scan Interval (Hours)</label>
-                    <input type="number" name="scan_interval_hours" value="{{ settings.scan_interval_hours }}" min="1" max="24">
+                    <input type="number" name="scan_interval_hours" value="{{ settings.scan_interval_hours }}" min="1"
+                        max="24">
                 </div>
                 <div>
                     <label>Active Time: Start</label>
@@ -94,12 +100,138 @@
             </div>
         </div>
 
+        <!-- Auto-Discovery Settings -->
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
+                <h3 style="margin: 0;">Auto-Discovery</h3>
+                <label class="checkbox-wrapper">
+                    <input type="checkbox" id="discovery-toggle" name="discovery_enabled" {% if
+                        settings.discovery_enabled %}checked{% endif %} onchange="toggleDiscoverySettings()">
+                    <div class="checkbox-custom"></div>
+                    <span class="checkbox-label">Enable Discovery</span>
+                </label>
+            </div>
+
+            <div id="discovery-settings-container">
+                <p
+                    style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
+                    Automatically scan for new stock opportunities using free data sources. Discovered stocks are
+                    screened and promoted to your watchlist if they pass quality checks.
+                </p>
+
+                <!-- Schedule -->
+                <div class="grid grid-3" style="gap: var(--space-5); margin-bottom: var(--space-6);">
+                    <div>
+                        <label>Daily Discovery Time</label>
+                        <input type="time" name="discovery_daily_time"
+                            value="{{ settings.discovery_daily_time|default('06:00') }}">
+                        <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                            Free strategies run daily at this time
+                        </div>
+                    </div>
+                    <div>
+                        <label>Weekly AI Day</label>
+                        <select name="discovery_weekly_day"
+                            style="width: 100%; padding: var(--space-3); background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: var(--radius-sm); color: var(--text-primary); font-size: 0.875rem;">
+                            {% for val, label in [('mon', 'Monday'), ('tue', 'Tuesday'), ('wed', 'Wednesday'), ('thu',
+                            'Thursday'), ('fri', 'Friday'), ('sat', 'Saturday'), ('sun', 'Sunday')] %}
+                            <option value="{{ val }}" {% if settings.discovery_weekly_day|default('wed')==val
+                                %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                            Perplexity AI discovery day (~1 API call)
+                        </div>
+                    </div>
+                    <div>
+                        <label>Weekly AI Time</label>
+                        <input type="time" name="discovery_weekly_time"
+                            value="{{ settings.discovery_weekly_time|default('12:00') }}">
+                        <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                            Time for weekly AI-powered discovery
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Promotion Rules -->
+                <div
+                    style="padding-top: var(--space-5); border-top: 1px solid var(--border-light); margin-bottom: var(--space-6);">
+                    <div
+                        style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">
+                        Promotion Rules
+                    </div>
+                    <div class="grid grid-3" style="gap: var(--space-5);">
+                        <div>
+                            <label>Promotion Threshold</label>
+                            <input type="number" name="discovery_promotion_threshold"
+                                value="{{ settings.discovery_promotion_threshold|default(55) }}" min="30" max="90"
+                                step="5">
+                            <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                                Quant score needed to auto-promote (0-100)
+                            </div>
+                        </div>
+                        <div>
+                            <label>Max Promote Per Run</label>
+                            <input type="number" name="discovery_max_promote_per_run"
+                                value="{{ settings.discovery_max_promote_per_run|default(5) }}" min="1" max="20"
+                                step="1">
+                            <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                                Limit stocks auto-added to watchlist per run
+                            </div>
+                        </div>
+                        <div>
+                            <label>Max Watchlist Size</label>
+                            <input type="number" name="discovery_max_watchlist_size"
+                                value="{{ settings.discovery_max_watchlist_size|default(50) }}" min="10" max="200"
+                                step="5">
+                            <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                                Stop auto-promoting if watchlist exceeds this
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Strategy Toggles -->
+                <div style="padding-top: var(--space-5); border-top: 1px solid var(--border-light);">
+                    <div
+                        style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">
+                        Discovery Strategies
+                    </div>
+                    <div class="grid grid-3" style="gap: var(--space-3);">
+                        {% set active_strategies = settings.discovery_strategies|default(['volume_spike', 'breakout',
+                        'oversold', 'sector_rotation', 'insider_buy', 'value_screen']) %}
+                        {% for strategy_val, strategy_label, strategy_desc in [
+                        ('volume_spike', 'Volume Spikes', 'Unusual volume activity'),
+                        ('breakout', 'Breakouts', '52-week highs, golden cross'),
+                        ('oversold', 'RSI Oversold', 'Quality stocks with RSI < 30'),
+                            ('sector_rotation', 'Sector Rotation' , 'Hot sector momentum plays' ),
+                            ('insider_buy', 'Insider Buying' , 'Cluster insider purchases' ),
+                            ('value_screen', 'Value Screen' , 'Low P/E, high quality' ) ] %} <label
+                            class="checkbox-wrapper" style="align-items: flex-start;">
+                            <input type="checkbox" name="strategy_{{ strategy_val }}" {% if strategy_val in
+                                active_strategies %}checked{% endif %}>
+                            <div class="checkbox-custom" style="margin-top: 2px;"></div>
+                            <div>
+                                <span class="checkbox-label">{{ strategy_label }}</span>
+                                <div style="font-size: 0.6875rem; color: var(--text-muted); margin-top: 2px;">{{
+                                    strategy_desc }}</div>
+                            </div>
+                            </label>
+                            {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Email Settings -->
         <div class="card" style="margin-bottom: var(--space-8);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-hairline);">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
                 <h3 style="margin: 0;">Email Notifications</h3>
                 <label class="checkbox-wrapper">
-                    <input type="checkbox" id="email-toggle" name="email_enabled" {% if settings.email_enabled %}checked{% endif %} onchange="toggleEmailSettings()">
+                    <input type="checkbox" id="email-toggle" name="email_enabled" {% if settings.email_enabled
+                        %}checked{% endif %} onchange="toggleEmailSettings()">
                     <div class="checkbox-custom"></div>
                     <span class="checkbox-label">Enable Notifications</span>
                 </label>
@@ -109,11 +241,13 @@
                 <div class="grid grid-2" style="margin-bottom: var(--space-5);">
                     <div>
                         <label>Recipient Email</label>
-                        <input type="email" name="email_recipient" value="{{ settings.email_recipient }}" placeholder="your@email.com">
+                        <input type="email" name="email_recipient" value="{{ settings.email_recipient }}"
+                            placeholder="your@email.com">
                     </div>
                     <div style="display: flex; align-items: center; padding-top: var(--space-6);">
                         <label class="checkbox-wrapper">
-                            <input type="checkbox" name="notify_on_strong_signals" {% if settings.notify_on_strong_signals %}checked{% endif %}>
+                            <input type="checkbox" name="notify_on_strong_signals" {% if
+                                settings.notify_on_strong_signals %}checked{% endif %}>
                             <div class="checkbox-custom"></div>
                             <span class="checkbox-label">Only Strong BUY/SELL Signals</span>
                         </label>
@@ -123,7 +257,8 @@
                 <div class="grid grid-2" style="margin-bottom: var(--space-5);">
                     <div>
                         <label>SMTP Host</label>
-                        <input type="text" name="email_smtp_host" value="{{ settings.email_smtp_host }}" placeholder="smtp.gmail.com">
+                        <input type="text" name="email_smtp_host" value="{{ settings.email_smtp_host }}"
+                            placeholder="smtp.gmail.com">
                     </div>
                     <div>
                         <label>SMTP Port</label>
@@ -138,15 +273,17 @@
                     </div>
                     <div>
                         <label>SMTP Password</label>
-                        <input type="password" name="email_smtp_password" placeholder="{% if settings.email_smtp_password %}••••••••{% else %}App password{% endif %}">
+                        <input type="password" name="email_smtp_password"
+                            placeholder="{% if settings.email_smtp_password %}••••••••{% else %}App password{% endif %}">
                     </div>
                 </div>
 
-                <div style="padding-top: var(--space-5); border-top: 1px solid var(--border-hairline);">
+                <div style="padding-top: var(--space-5); border-top: 1px solid var(--border-light);">
                     <div class="grid grid-2">
                         <div style="display: flex; align-items: center;">
                             <label class="checkbox-wrapper">
-                                <input type="checkbox" name="daily_summary_enabled" {% if settings.daily_summary_enabled %}checked{% endif %}>
+                                <input type="checkbox" name="daily_summary_enabled" {% if settings.daily_summary_enabled
+                                    %}checked{% endif %}>
                                 <div class="checkbox-custom"></div>
                                 <span class="checkbox-label">Send Daily Summary</span>
                             </label>
@@ -160,56 +297,190 @@
             </div>
         </div>
 
+        <!-- Webhook Settings (Telegram / Discord) -->
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
+                <h3 style="margin: 0;">Telegram &amp; Discord Alerts</h3>
+            </div>
+            <!-- Note: webhook settings use their own form -->
+        </div>
+    </form>
+
+    <form action="/settings/save-webhooks" method="POST" style="margin-bottom: var(--space-8);">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="card" style="margin-bottom: var(--space-4);">
+            <h3 style="margin: 0 0 var(--space-4) 0;">📲 Telegram</h3>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-4); line-height: 1.5;">
+                Get instant stock alerts on Telegram. Create a bot via <a href="https://t.me/BotFather" target="_blank"
+                    style="color:var(--text-secondary);">@BotFather</a>, then message your bot and get your chat ID.</p>
+            <div class="grid grid-3" style="gap:var(--space-4); margin-bottom:var(--space-4);">
+                <label class="checkbox-wrapper" style="align-self:center;">
+                    <input type="checkbox" name="telegram_enabled" {% if settings.telegram_enabled %}checked{% endif %}>
+                    <div class="checkbox-custom"></div>
+                    <span class="checkbox-label">Enable Telegram Alerts</span>
+                </label>
+                <div>
+                    <label>Bot Token</label>
+                    <input type="password" name="telegram_bot_token"
+                        placeholder="{% if settings.telegram_bot_token %}••••••••{% else %}123456789:ABC-...{% endif %}">
+                </div>
+                <div>
+                    <label>Chat ID</label>
+                    <input type="text" name="telegram_chat_id" value="{{ settings.telegram_chat_id|default('') }}"
+                        placeholder="-100...">
+                </div>
+            </div>
+            <div style="display:flex;gap:0.5rem;">
+                <button type="submit" class="btn btn-primary">Save Telegram</button>
+                <button type="submit" formaction="/settings/test-telegram" class="btn btn-secondary">Test</button>
+            </div>
+            {% if request.query_params.get('telegram_ok') %}
+            <p style="color:var(--signal-positive);margin-top:0.5rem;">✓ Telegram connected!</p>
+            {% elif request.query_params.get('telegram_error') %}
+            <p style="color:var(--signal-negative);margin-top:0.5rem;">✗ Telegram error: {{
+                request.query_params.get('msg','') }}</p>
+            {% endif %}
+        </div>
+        <div class="card">
+            <h3 style="margin: 0 0 var(--space-4) 0;">🎮 Discord</h3>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-4); line-height: 1.5;">
+                Create a webhook in any Discord channel via Server Settings &rarr; Integrations &rarr; Webhooks.</p>
+            <div class="grid grid-2" style="gap:var(--space-4); margin-bottom:var(--space-4);">
+                <label class="checkbox-wrapper" style="align-self:center;">
+                    <input type="checkbox" name="discord_enabled" {% if settings.discord_enabled %}checked{% endif %}>
+                    <div class="checkbox-custom"></div>
+                    <span class="checkbox-label">Enable Discord Alerts</span>
+                </label>
+                <div>
+                    <label>Webhook URL</label>
+                    <input type="password" name="discord_webhook_url"
+                        placeholder="{% if settings.discord_webhook_url %}••••••••{% else %}https://discord.com/api/webhooks/...{% endif %}">
+                </div>
+            </div>
+            <div style="display:flex;gap:0.5rem;">
+                <button type="submit" class="btn btn-primary">Save Discord</button>
+                <button type="submit" formaction="/settings/test-discord" class="btn btn-secondary">Test</button>
+            </div>
+            {% if request.query_params.get('discord_ok') %}
+            <p style="color:var(--signal-positive);margin-top:0.5rem;">✓ Discord connected!</p>
+            {% elif request.query_params.get('discord_error') %}
+            <p style="color:var(--signal-negative);margin-top:0.5rem;">✗ Discord error: {{
+                request.query_params.get('msg','') }}</p>
+            {% endif %}
+        </div>
+    </form>
+
+    <!-- Weekly Report -->
+    <form action="/settings/save-report" method="POST" style="margin-bottom: var(--space-8);">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5);">
+                <div>
+                    <h3 style="margin: 0 0 var(--space-1) 0;">Weekly Report</h3>
+                    <p style="margin: 0; font-size: var(--text-sm);">Portfolio, discoveries, earnings &amp; sector digest — sent via email/webhook</p>
+                </div>
+                <div style="display: flex; gap: var(--space-2);">
+                    <a href="/api/report/preview" target="_blank" class="btn btn-ghost" style="font-size: 0.75rem;">Preview</a>
+                    <button type="button" onclick="sendReportNow()" class="btn btn-secondary" style="font-size: 0.75rem;" id="send-report-btn">Send Now</button>
+                </div>
+            </div>
+
+            <div class="grid grid-3" style="gap: var(--space-5); margin-bottom: var(--space-5);">
+                <label class="checkbox-wrapper" style="align-self: center;">
+                    <input type="checkbox" name="weekly_report_auto_send"
+                        {% if settings.weekly_report_auto_send == '1' %}checked{% endif %}>
+                    <div class="checkbox-custom"></div>
+                    <span class="checkbox-label">Auto-send weekly report</span>
+                </label>
+                <div>
+                    <label>Send On</label>
+                    <select name="weekly_report_day">
+                        {% for day in ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] %}
+                        <option value="{{ day }}" {% if settings.weekly_report_day == day %}selected{% endif %}>{{ day }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label>Send At</label>
+                    <input type="time" name="weekly_report_time"
+                        value="{{ settings.weekly_report_time|default('08:00') }}">
+                </div>
+            </div>
+
+            <div style="display: flex; gap: var(--space-2); align-items: center;">
+                <button type="submit" class="btn btn-primary">Save Report Settings</button>
+                <span id="report-send-status" style="font-size: 0.75rem; color: var(--text-muted);"></span>
+            </div>
+        </div>
+    </form>
+
+    <!-- Reopen main form for remaining settings -->
+    <form action="/settings/save" method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
         <!-- Analysis Settings -->
+
         <div class="card" style="margin-bottom: var(--space-8);">
             <h3 style="margin: 0 0 var(--space-6) 0;">Analysis Configuration</h3>
 
-            <!-- Analysis Variant -->
-            <div style="margin-bottom: var(--space-6);">
-                <label style="margin-bottom: var(--space-3); display: block;">Analysis Variant</label>
-                <select name="analysis_variant">
-                    <option value="conservative" {% if settings.analysis_variant=='conservative' %}selected{% endif %}>
-                        Conservative — Watchlist focus, strict filters, low risk
-                    </option>
-                    <option value="balanced" {% if settings.analysis_variant=='balanced' or not settings.analysis_variant %}selected{% endif %}>
-                        Balanced — Standard distribution, mixed risk/reward
-                    </option>
-                    <option value="aggressive" {% if settings.analysis_variant=='aggressive' %}selected{% endif %}>
-                        Aggressive — Watchlist + discovery, high risk/momentum
-                    </option>
-                </select>
-            </div>
+            <!-- Analysis Variant Clickable Tiles -->
+            <div class="grid grid-3" style="margin-bottom: var(--space-8); gap: var(--space-4);">
+                <!-- Conservative -->
+                <label class="variant-card {% if settings.analysis_variant=='conservative' %}active{% endif %}">
+                    <input type="radio" name="analysis_variant" value="conservative" style="display: none;" {% if
+                        settings.analysis_variant=='conservative' %}checked{% endif %}
+                        onchange="updateVariantSelection(this)">
+                    <div class="variant-card-content">
+                        <div class="variant-card-title">Conservative</div>
+                        <p class="variant-card-desc">
+                            Very strict filtering on blue-chips and dividends. Only watchlist stocks are analyzed.
+                        </p>
+                    </div>
+                    <div class="variant-card-indicator"></div>
+                </label>
 
-            <!-- Variant Cards -->
-            <div class="grid grid-3" style="margin-bottom: var(--space-8);">
-                <div style="padding: var(--space-5); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
-                    <div style="font-weight: 500; margin-bottom: var(--space-2); color: var(--text-primary);">Conservative</div>
-                    <p style="font-size: 0.75rem; margin: 0; color: var(--text-muted); line-height: 1.5;">
-                        Very strict filtering on blue-chips and dividends. Only watchlist stocks are analyzed.
-                    </p>
-                </div>
-                <div style="padding: var(--space-5); background: var(--bg-secondary); border: 1px solid var(--text-primary);">
-                    <div style="font-weight: 500; margin-bottom: var(--space-2); color: var(--text-primary);">Balanced</div>
-                    <p style="font-size: 0.75rem; margin: 0; color: var(--text-muted); line-height: 1.5;">
-                        Default setting. Optimized for balanced request distribution. Solid analysis coverage.
-                    </p>
-                </div>
-                <div style="padding: var(--space-5); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
-                    <div style="font-weight: 500; margin-bottom: var(--space-2); color: var(--text-primary);">Aggressive</div>
-                    <p style="font-size: 0.75rem; margin: 0; color: var(--text-muted); line-height: 1.5;">
-                        Includes Market Discovery. Searches beyond watchlist for opportunities.
-                    </p>
-                </div>
+                <!-- Balanced -->
+                <label
+                    class="variant-card {% if settings.analysis_variant=='balanced' or not settings.analysis_variant %}active{% endif %}">
+                    <input type="radio" name="analysis_variant" value="balanced" style="display: none;" {% if
+                        settings.analysis_variant=='balanced' or not settings.analysis_variant %}checked{% endif %}
+                        onchange="updateVariantSelection(this)">
+                    <div class="variant-card-content">
+                        <div class="variant-card-title">Balanced</div>
+                        <p class="variant-card-desc">
+                            Default setting. Optimized for balanced request distribution. Solid analysis coverage.
+                        </p>
+                    </div>
+                    <div class="variant-card-indicator"></div>
+                </label>
+
+                <!-- Aggressive -->
+                <label class="variant-card {% if settings.analysis_variant=='aggressive' %}active{% endif %}">
+                    <input type="radio" name="analysis_variant" value="aggressive" style="display: none;" {% if
+                        settings.analysis_variant=='aggressive' %}checked{% endif %}
+                        onchange="updateVariantSelection(this)">
+                    <div class="variant-card-content">
+                        <div class="variant-card-title">Aggressive</div>
+                        <p class="variant-card-desc">
+                            Includes Market Discovery. Searches beyond watchlist for opportunities.
+                        </p>
+                    </div>
+                    <div class="variant-card-indicator"></div>
+                </label>
             </div>
 
             <!-- Monthly API Budget -->
-            <div style="padding: var(--space-6); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
+            <div
+                style="padding: var(--space-6); background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: var(--radius-md); box-shadow: var(--shadow-sm);">
                 <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5);">
                     <h3 style="margin: 0; font-size: 1rem; font-family: var(--font-body);">Monthly API Budget</h3>
-                    <span style="background: var(--bg-inverse); color: var(--text-inverse); font-size: 0.5625rem; font-weight: 500; padding: 2px 8px; text-transform: uppercase; letter-spacing: 0.06em;">Adaptive</span>
+                    <span
+                        style="background: var(--bg-inverse); color: var(--text-inverse); font-size: 0.5625rem; font-weight: 500; padding: 2px 8px; text-transform: uppercase; letter-spacing: 0.06em;">Adaptive</span>
                 </div>
 
-                <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0 0 var(--space-5) 0; line-height: 1.5;">
+                <p
+                    style="font-size: 0.75rem; color: var(--text-muted); margin: 0 0 var(--space-5) 0; line-height: 1.5;">
                     Set your monthly spending limit per API. Daily request limits are calculated automatically
                     based on remaining budget and days left in the month.
                 </p>
@@ -220,10 +491,10 @@
                         <label>Perplexity Monthly Budget</label>
                         <div style="display: flex; align-items: center; gap: var(--space-2);">
                             <input type="number" name="perplexity_monthly_budget"
-                                   value="{{ settings.perplexity_monthly_budget|default(5.0) }}"
-                                   min="0" max="100" step="0.50"
-                                   style="flex: 1;">
-                            <span style="font-size: 0.8125rem; color: var(--text-secondary); font-weight: 500;">EUR</span>
+                                value="{{ settings.perplexity_monthly_budget|default(5.0) }}" min="0" max="100"
+                                step="0.50" style="flex: 1;">
+                            <span
+                                style="font-size: 0.8125rem; color: var(--text-secondary); font-weight: 500;">EUR</span>
                         </div>
                         <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
                             Sonar model: ~0.006 EUR/request
@@ -233,10 +504,10 @@
                         <label>Gemini Monthly Budget</label>
                         <div style="display: flex; align-items: center; gap: var(--space-2);">
                             <input type="number" name="gemini_monthly_budget"
-                                   value="{{ settings.gemini_monthly_budget|default(5.0) }}"
-                                   min="0" max="100" step="0.50"
-                                   style="flex: 1;">
-                            <span style="font-size: 0.8125rem; color: var(--text-secondary); font-weight: 500;">EUR</span>
+                                value="{{ settings.gemini_monthly_budget|default(5.0) }}" min="0" max="100" step="0.50"
+                                style="flex: 1;">
+                            <span
+                                style="font-size: 0.8125rem; color: var(--text-secondary); font-weight: 500;">EUR</span>
                         </div>
                         <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
                             Flash-Lite: ~0.0003 | Flash: ~0.0005 | 3-Flash: ~0.002 EUR/req
@@ -249,28 +520,39 @@
                 <div class="grid grid-2" style="gap: var(--space-4); margin-bottom: var(--space-4);">
                     {% for api_name, label in [('perplexity', 'Perplexity'), ('gemini', 'Gemini')] %}
                     {% set bs = budget_status.get(api_name, {}) %}
-                    <div style="padding: var(--space-4); background: var(--bg-card); border: 1px solid var(--border-hairline);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
-                            <span style="font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary);">{{ label }}</span>
-                            <span style="font-size: 0.6875rem; color: var(--text-muted);">{{ bs.get('days_left', 0) }} days left</span>
+                    <div
+                        style="padding: var(--space-4); background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-sm);">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
+                            <span
+                                style="font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary);">{{
+                                label }}</span>
+                            <span style="font-size: 0.6875rem; color: var(--text-muted);">{{ bs.get('days_left', 0) }}
+                                days left</span>
                         </div>
                         <!-- Progress bar -->
                         <div style="height: 4px; background: var(--border-hairline); margin-bottom: var(--space-3);">
-                            <div style="height: 100%; width: {{ bs.get('percent_used', 0) }}%; background: {% if bs.get('percent_used', 0) > 80 %}var(--signal-negative){% elif bs.get('percent_used', 0) > 50 %}var(--signal-warning, #f59e0b){% else %}var(--signal-positive){% endif %}; transition: width 0.3s;"></div>
+                            <div
+                                style="height: 100%; width: {{ bs.get('percent_used', 0) }}%; background: {% if bs.get('percent_used', 0) > 80 %}var(--signal-negative){% elif bs.get('percent_used', 0) > 50 %}var(--signal-warning, #f59e0b){% else %}var(--signal-positive){% endif %}; transition: width 0.3s;">
+                            </div>
                         </div>
                         <div style="display: flex; justify-content: space-between; font-size: 0.75rem;">
-                            <span style="color: var(--text-muted);">Spent: <span style="color: var(--text-primary);">{{ "%.2f"|format(bs.get('spent_eur', 0)) }} EUR</span></span>
-                            <span style="color: var(--text-muted);">Left: <span style="color: var(--text-primary);">{{ "%.2f"|format(bs.get('remaining_eur', 0)) }} EUR</span></span>
+                            <span style="color: var(--text-muted);">Spent: <span style="color: var(--text-primary);">{{
+                                    "%.2f"|format(bs.get('spent_eur', 0)) }} EUR</span></span>
+                            <span style="color: var(--text-muted);">Left: <span style="color: var(--text-primary);">{{
+                                    "%.2f"|format(bs.get('remaining_eur', 0)) }} EUR</span></span>
                         </div>
                         <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-ghost);">
-                            Today: {{ bs.get('today_requests', 0) }} requests · Limit: ~{{ bs.get('daily_request_limit', 0) }}/day
+                            Today: {{ bs.get('today_requests', 0) }} requests · Limit: ~{{ bs.get('daily_request_limit',
+                            0) }}/day
                         </div>
                     </div>
                     {% endfor %}
                 </div>
 
                 {% if budget_status.pipeline %}
-                <div style="text-align: center; font-size: 0.75rem; color: var(--text-muted); padding-top: var(--space-3); border-top: 1px solid var(--border-hairline);">
+                <div
+                    style="text-align: center; font-size: 0.75rem; color: var(--text-muted); padding-top: var(--space-3); border-top: 1px solid var(--border-hairline);">
                     Pipeline capacity today:
                     <span style="font-weight: 500;">{{ budget_status.pipeline.stage1_max }}</span> scan &rarr;
                     <span style="font-weight: 500;">{{ budget_status.pipeline.stage2_max }}</span> analyze &rarr;
@@ -281,19 +563,22 @@
             </div>
 
             <!-- Analysis Toggles -->
-            <div class="grid grid-3" style="margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--border-hairline);">
+            <div class="grid grid-3"
+                style="margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--border-light);">
                 <label class="checkbox-wrapper">
                     <input type="checkbox" name="include_news" {% if settings.include_news %}checked{% endif %}>
                     <div class="checkbox-custom"></div>
                     <span class="checkbox-label">Include News</span>
                 </label>
                 <label class="checkbox-wrapper">
-                    <input type="checkbox" name="include_fundamental" {% if settings.include_fundamental %}checked{% endif %}>
+                    <input type="checkbox" name="include_fundamental" {% if settings.include_fundamental %}checked{%
+                        endif %}>
                     <div class="checkbox-custom"></div>
                     <span class="checkbox-label">Fundamental Analysis</span>
                 </label>
                 <label class="checkbox-wrapper">
-                    <input type="checkbox" name="include_technical" {% if settings.include_technical %}checked{% endif %}>
+                    <input type="checkbox" name="include_technical" {% if settings.include_technical %}checked{% endif
+                        %}>
                     <div class="checkbox-custom"></div>
                     <span class="checkbox-label">Technical Analysis</span>
                 </label>
@@ -311,8 +596,7 @@
                 <div>
                     <label>Max Position Size (%)</label>
                     <input type="number" name="portfolio_max_position_pct"
-                           value="{{ settings.portfolio_max_position_pct|default(10.0) }}"
-                           min="1" max="100" step="1">
+                        value="{{ settings.portfolio_max_position_pct|default(10.0) }}" min="1" max="100" step="1">
                     <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
                         Alert when any single position exceeds this % of portfolio
                     </div>
@@ -320,8 +604,7 @@
                 <div>
                     <label>Stop-Loss Threshold (%)</label>
                     <input type="number" name="portfolio_stop_loss_pct"
-                           value="{{ settings.portfolio_stop_loss_pct|default(15.0) }}"
-                           min="1" max="50" step="1">
+                        value="{{ settings.portfolio_stop_loss_pct|default(15.0) }}" min="1" max="50" step="1">
                     <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
                         Alert when a position drops this % from entry price
                     </div>
@@ -332,8 +615,7 @@
                 <div>
                     <label>Max Sector Concentration (%)</label>
                     <input type="number" name="portfolio_max_sector_pct"
-                           value="{{ settings.portfolio_max_sector_pct|default(30.0) }}"
-                           min="5" max="100" step="5">
+                        value="{{ settings.portfolio_max_sector_pct|default(30.0) }}" min="5" max="100" step="5">
                     <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
                         Alert when any sector exceeds this % of portfolio
                     </div>
@@ -341,13 +623,91 @@
                 <div>
                     <label>Rebalance Drift Threshold (%)</label>
                     <input type="number" name="portfolio_rebalance_drift_pct"
-                           value="{{ settings.portfolio_rebalance_drift_pct|default(5.0) }}"
-                           min="1" max="25" step="1">
+                        value="{{ settings.portfolio_rebalance_drift_pct|default(5.0) }}" min="1" max="25" step="1">
                     <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
                         Suggest rebalancing when allocation drifts beyond this %
                     </div>
                 </div>
             </div>
+
+            <div class="grid grid-3" style="gap: var(--space-5); margin-top: var(--space-5);">
+                <label class="checkbox-wrapper" style="padding-top: var(--space-6);">
+                    <input type="checkbox" name="portfolio_risk_guard_enabled" {% if
+                        settings.portfolio_risk_guard_enabled|default(true) %}checked{% endif %}>
+                    <div class="checkbox-custom"></div>
+                    <span class="checkbox-label">Enable Global Risk Guard</span>
+                </label>
+                <div>
+                    <label>Global Loss Limit (%)</label>
+                    <input type="number" name="portfolio_global_loss_limit_pct"
+                        value="{{ settings.portfolio_global_loss_limit_pct|default(10.0) }}" min="1" max="50"
+                        step="0.5">
+                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                        Suspend new analysis cycles when portfolio loss exceeds this value
+                    </div>
+                </div>
+                <div>
+                    <label>Risk Cooldown (Hours)</label>
+                    <input type="number" name="portfolio_risk_cooldown_hours"
+                        value="{{ settings.portfolio_risk_cooldown_hours|default(24) }}" min="0" max="168" step="1">
+                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                        Keep guard active for this duration after trigger
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Ticker Risk Overrides -->
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <h3 style="margin: 0 0 var(--space-5) 0;">Ticker Risk Overrides</h3>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
+                Optional per-stock override for stop-loss and max position limits.
+            </p>
+
+            <div class="grid grid-3" style="gap: var(--space-4); margin-bottom: var(--space-5);">
+                <div>
+                    <label>Ticker</label>
+                    <input type="text" name="ticker" placeholder="AAPL">
+                </div>
+                <div>
+                    <label>Stop-Loss Override (%)</label>
+                    <input type="number" name="stop_loss_pct" min="1" max="50" step="0.5" placeholder="z.B. 8">
+                </div>
+                <div>
+                    <label>Max Position Override (%)</label>
+                    <input type="number" name="max_position_pct" min="1" max="100" step="0.5" placeholder="z.B. 6">
+                </div>
+                <div style="grid-column: span 3; display: flex; justify-content: flex-end;">
+                    <button type="submit" formaction="/settings/risk-override" formmethod="post"
+                        class="btn btn-secondary">
+                        Save Override
+                    </button>
+                </div>
+            </div>
+
+            {% if risk_overrides and risk_overrides|length > 0 %}
+            <div style="display: grid; gap: var(--space-3);">
+                {% for override in risk_overrides %}
+                <div
+                    style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3); border: 1px solid var(--border-light); border-radius: var(--radius-md);">
+                    <div style="font-size: 0.8125rem; color: var(--text-secondary);">
+                        <strong style="color: var(--text-primary);">{{ override.ticker }}</strong>
+                        · Stop-Loss: {{ override.stop_loss_pct if override.stop_loss_pct is not none else '-' }}%
+                        · Max Position: {{ override.max_position_pct if override.max_position_pct is not none else '-'
+                        }}%
+                    </div>
+                    <button type="submit" formaction="/settings/risk-override/delete/{{ override.ticker }}"
+                        formmethod="post" class="btn btn-ghost" style="font-size: 0.75rem;">
+                        Remove
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div style="font-size: 0.75rem; color: var(--text-muted);">
+                No overrides configured.
+            </div>
+            {% endif %}
         </div>
 
         <!-- Learning System -->
@@ -357,16 +717,136 @@
                 <div>
                     <label>Verification Window (Days)</label>
                     <input type="number" name="learning_verification_days"
-                           value="{{ settings.learning_verification_days|default(90) }}"
-                           min="30" max="365" step="30">
+                        value="{{ settings.learning_verification_days|default(90) }}" min="30" max="365" step="30">
                     <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        How many days to wait before verifying a prediction (30-365). Longer = more meaningful but slower feedback.
+                        How many days to wait before verifying a prediction (30-365). Longer = more meaningful but
+                        slower feedback.
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; padding-top: var(--space-6);">
                     <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.6;">
                         Predictions are compared against actual price movement and SPY benchmark after this window.
                         System warns if accuracy drops below 55% over 20+ predictions.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Session Management -->
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); gap: var(--space-3); flex-wrap: wrap;">
+                <div>
+                    <h3 style="margin: 0 0 var(--space-1) 0;">Active Sessions</h3>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0;">Review active devices and end
+                        all other sessions.</p>
+                </div>
+                <button type="submit" formaction="/settings/sessions/logout-others" formmethod="post"
+                    class="btn btn-secondary" style="font-size: 0.75rem;">
+                    Logout Other Sessions
+                </button>
+            </div>
+
+            {% if sessions and sessions|length > 0 %}
+            <div style="display: grid; gap: var(--space-3);">
+                {% for s in sessions %}
+                <div
+                    style="padding: var(--space-3); border: 1px solid var(--border-light); border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.5;">
+                        <div style="font-weight: 500; color: var(--text-primary); font-family: var(--font-mono);">
+                            {% if s.session_id == current_session_id %}Current Session{% else %}Session{% endif %}
+                        </div>
+                        <div>Last Activity: {{ s.last_activity }}</div>
+                        <div>Expires: {{ s.expires_at }}</div>
+                        <div>IP: {{ s.ip_address if s.ip_address else 'unknown' }}</div>
+                        <div>User-Agent: {{ (s.user_agent or 'unknown')[:90] }}{% if s.user_agent and
+                            s.user_agent|length > 90 %}...{% endif %}</div>
+                    </div>
+                    <div>
+                        {% if s.session_id == current_session_id %}
+                        <span class="badge badge-success">Current</span>
+                        {% else %}
+                        <div style="display: flex; align-items: center; gap: var(--space-2);">
+                            <span class="badge badge-secondary">Other</span>
+                            <button type="submit" formaction="/settings/sessions/logout/{{ s.session_id }}"
+                                formmethod="post" class="btn btn-ghost" style="font-size: 0.6875rem;">
+                                Logout
+                            </button>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div style="font-size: 0.75rem; color: var(--text-muted);">No active sessions found.</div>
+            {% endif %}
+        </div>
+
+        <!-- Price Alerts -->
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <h3 style="margin: 0 0 var(--space-5) 0;">Price Alerts</h3>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
+                Set up alerts when stocks reach specific price levels. Alerts are checked during scheduled scans.
+            </p>
+            <div class="grid grid-4" style="gap: var(--space-4); margin-bottom: var(--space-5);">
+                <div>
+                    <label>Ticker</label>
+                    <input type="text" id="alert-ticker" placeholder="AAPL" style="text-transform: uppercase;">
+                </div>
+                <div>
+                    <label>Alert Type</label>
+                    <select id="alert-type">
+                        <option value="target_price">Target Price</option>
+                        <option value="support_break">Support Break</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Price</label>
+                    <input type="number" id="alert-threshold" step="0.01" placeholder="150.00">
+                </div>
+                <div>
+                    <label>Direction</label>
+                    <select id="alert-direction">
+                        <option value="above">Above</option>
+                        <option value="below">Below</option>
+                    </select>
+                </div>
+            </div>
+            <button type="button" class="btn btn-secondary" onclick="createAlert()" style="margin-bottom: var(--space-5);">Add Price Alert</button>
+            <div id="active-alerts"></div>
+        </div>
+
+        <!-- Authentication Security -->
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <h3 style="margin: 0 0 var(--space-5) 0;">Authentication Security</h3>
+            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
+                Configure login backoff/lockout behavior to reduce brute-force risk.
+            </p>
+
+            <div class="grid grid-3" style="gap: var(--space-5);">
+                <div>
+                    <label>Max Failed Attempts</label>
+                    <input type="number" name="auth_max_failed_attempts"
+                        value="{{ settings.auth_max_failed_attempts|default(5) }}" min="3" max="20" step="1">
+                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                        Failed attempts before temporary lockout
+                    </div>
+                </div>
+                <div>
+                    <label>Attempt Window (Minutes)</label>
+                    <input type="number" name="auth_attempt_window_minutes"
+                        value="{{ settings.auth_attempt_window_minutes|default(15) }}" min="5" max="120" step="1">
+                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                        Count failed attempts inside this rolling window
+                    </div>
+                </div>
+                <div>
+                    <label>Lockout Duration (Minutes)</label>
+                    <input type="number" name="auth_lockout_minutes"
+                        value="{{ settings.auth_lockout_minutes|default(15) }}" min="1" max="240" step="1">
+                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                        How long login stays locked after threshold is hit
                     </div>
                 </div>
             </div>
@@ -394,8 +874,178 @@
         }
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
+    function toggleDiscoverySettings() {
+        const toggle = document.getElementById('discovery-toggle');
+        const container = document.getElementById('discovery-settings-container');
+
+        if (toggle.checked) {
+            container.classList.remove('section-disabled');
+        } else {
+            container.classList.add('section-disabled');
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
         toggleEmailSettings();
+        toggleDiscoverySettings();
     });
+
+    function updateVariantSelection(radioInput) {
+        // Remove active class from all variant cards
+        document.querySelectorAll('.variant-card').forEach(card => {
+            card.classList.remove('active');
+        });
+
+        // Add active class to the selected one
+        if (radioInput.checked) {
+            radioInput.closest('.variant-card').classList.add('active');
+        }
+    }
+    // Weekly Report
+    function sendReportNow() {
+        const btn = document.getElementById('send-report-btn');
+        const status = document.getElementById('report-send-status');
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+        status.textContent = '';
+        fetch('/api/report/send', { method: 'POST', credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.textContent = 'Send Now';
+                if (data.sent) {
+                    status.style.color = 'var(--signal-positive)';
+                    status.textContent = '✓ Report sent successfully';
+                } else {
+                    status.style.color = 'var(--signal-negative)';
+                    status.textContent = '✗ ' + (data.error || 'Send failed — check email/webhook settings');
+                }
+            })
+            .catch(() => {
+                btn.disabled = false;
+                btn.textContent = 'Send Now';
+                status.style.color = 'var(--signal-negative)';
+                status.textContent = '✗ Request failed';
+            });
+    }
+
+    // Price Alerts
+    function createAlert() {
+        const ticker = document.getElementById('alert-ticker').value.trim().toUpperCase();
+        const type = document.getElementById('alert-type').value;
+        const threshold = parseFloat(document.getElementById('alert-threshold').value);
+        const direction = document.getElementById('alert-direction').value;
+        if (!ticker || isNaN(threshold)) return;
+
+        fetch('/api/price-alerts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ticker, alert_type: type, threshold, direction })
+        })
+        .then(r => r.json())
+        .then(() => {
+            document.getElementById('alert-ticker').value = '';
+            document.getElementById('alert-threshold').value = '';
+            loadAlerts();
+        });
+    }
+
+    function deleteAlert(id) {
+        fetch('/api/price-alerts/' + id, { method: 'DELETE' })
+            .then(() => loadAlerts());
+    }
+
+    function loadAlerts() {
+        fetch('/api/price-alerts')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('active-alerts');
+                if (!data.alerts || data.alerts.length === 0) {
+                    container.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted);">No active price alerts.</div>';
+                    return;
+                }
+                let html = '';
+                data.alerts.forEach(a => {
+                    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-3);border:1px solid var(--border-light);border-radius:var(--radius-md);margin-bottom:var(--space-2);font-size:0.8125rem;">';
+                    html += '<div><span style="font-family:var(--font-mono);font-weight:500;">' + a.ticker + '</span>';
+                    html += ' <span style="color:var(--text-muted);">·</span> ';
+                    html += '<span style="color:var(--text-secondary);">' + a.alert_type.replace('_', ' ') + '</span>';
+                    html += ' <span style="color:var(--text-muted);">·</span> ';
+                    html += '<span style="font-family:var(--font-mono);">' + a.direction + ' $' + a.threshold + '</span></div>';
+                    html += '<button type="button" onclick="deleteAlert(' + a.id + ')" class="btn btn-ghost" style="font-size:0.7rem;">Remove</button>';
+                    html += '</div>';
+                });
+                container.innerHTML = html;
+            });
+    }
+    loadAlerts();
 </script>
+
+<style>
+    /* Clickable Variant Cards Styling */
+    .variant-card {
+        display: flex;
+        flex-direction: column;
+        padding: var(--space-5);
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-light);
+        border-radius: var(--radius-md);
+        cursor: pointer;
+        transition: all var(--duration-normal) var(--ease-spring);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .variant-card:hover {
+        background: var(--bg-hover);
+        border-color: var(--border-default);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    .variant-card.active {
+        border-color: var(--text-primary);
+        background: var(--glass-bg-hover);
+        box-shadow: 0 0 0 1px inset var(--text-primary), 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .variant-card-title {
+        font-weight: 600;
+        margin-bottom: var(--space-2);
+        color: var(--text-secondary);
+        transition: color var(--duration-fast) var(--ease-smooth);
+    }
+
+    .variant-card.active .variant-card-title {
+        color: var(--text-primary);
+    }
+
+    .variant-card-desc {
+        font-size: 0.75rem;
+        margin: 0;
+        color: var(--text-muted);
+        line-height: 1.5;
+    }
+
+    /* Optional glowing active indicator */
+    .variant-card-indicator {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 0;
+        height: 0;
+        border-style: solid;
+        border-width: 0 24px 24px 0;
+        border-color: transparent var(--text-primary) transparent transparent;
+        opacity: 0;
+        transform: scale(0.5);
+        transform-origin: top right;
+        transition: all var(--duration-normal) var(--ease-spring);
+    }
+
+    .variant-card.active .variant-card-indicator {
+        opacity: 1;
+        transform: scale(1);
+    }
+</style>
 {% endblock %}

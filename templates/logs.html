@@ -4,6 +4,20 @@
 
 {% block content %}
 <div class="animate-fade-in">
+    {% if request.query_params.get('unlock') == '1' %}
+    <div style="background: var(--signal-positive-bg); border: 1px solid var(--border-default); color: var(--text-primary); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-6); font-weight: 500; display: flex; align-items: center; gap: var(--space-3);">
+        <span>Login failure records unlocked successfully</span>
+    </div>
+    {% elif request.query_params.get('unlock') == 'all' %}
+    <div style="background: var(--signal-positive-bg); border: 1px solid var(--border-default); color: var(--text-primary); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-6); font-weight: 500; display: flex; align-items: center; gap: var(--space-3);">
+        <span>All login failure records from the last 24h were cleared</span>
+    </div>
+    {% elif request.query_params.get('unlock') == 'error' %}
+    <div style="background: rgba(248, 113, 113, 0.12); border: 1px solid rgba(248, 113, 113, 0.35); color: var(--text-primary); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-6); font-weight: 500; display: flex; align-items: center; gap: var(--space-3);">
+        <span>Please provide a username or IP to unlock.</span>
+    </div>
+    {% endif %}
+
     <!-- Page Header -->
     <header class="page-header">
         <div>
@@ -70,9 +84,85 @@
         {% endif %}
     </div>
 
-    <!-- Alerts Sent -->
+    <!-- Alert Lifecycle -->
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-3);">
+            <h3 style="margin: 0;">Portfolio Alert Lifecycle</h3>
+            <div style="display: flex; gap: var(--space-2); align-items: center;">
+                <a href="/logs?alert_filter=active" class="btn {% if alert_filter == 'active' %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size: 0.6875rem;">Active</a>
+                <a href="/logs?alert_filter=all" class="btn {% if alert_filter == 'all' %}btn-primary{% else %}btn-ghost{% endif %}" style="font-size: 0.6875rem;">All (7d)</a>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: var(--space-5); margin-bottom: var(--space-4); flex-wrap: wrap; font-size: 0.75rem; color: var(--text-muted);">
+            <span>Total active: <strong style="color: var(--text-primary);">{{ alert_summary.total_active|default(0) }}</strong></span>
+            <span>Critical: <strong style="color: var(--text-primary);">{{ alert_summary.critical_count|default(0) }}</strong></span>
+            <span>Warning: <strong style="color: var(--text-primary);">{{ alert_summary.warning_count|default(0) }}</strong></span>
+        </div>
+
+        {% if dedup_alerts %}
+        <div style="overflow-x: auto; margin: 0 calc(var(--space-6) * -1); padding: 0 var(--space-6);">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Ticker</th>
+                        <th>Type</th>
+                        <th>Severity</th>
+                        <th>Message</th>
+                        <th>Status</th>
+                        <th style="width: 120px;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for alert in dedup_alerts %}
+                    <tr>
+                        <td style="font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-muted);">{{ alert.timestamp }}</td>
+                        <td><span style="font-family: var(--font-mono); font-weight: 500;">{{ alert.ticker or '—' }}</span></td>
+                        <td style="font-family: var(--font-mono); font-size: 0.75rem;">{{ alert.type }}</td>
+                        <td>
+                            {% if alert.severity == 'CRITICAL' %}
+                            <span class="badge badge-danger">CRITICAL</span>
+                            {% elif alert.severity == 'WARNING' %}
+                            <span class="badge" style="background: rgba(250, 204, 21, 0.15); color: #d4a84b; border: 1px solid rgba(250, 204, 21, 0.3);">WARNING</span>
+                            {% else %}
+                            <span class="badge badge-secondary">{{ alert.severity or 'INFO' }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-size: 0.8125rem; color: var(--text-secondary);">{{ alert.message }}</td>
+                        <td>
+                            {% if alert.acknowledged %}
+                            <span class="badge badge-secondary">Acknowledged</span>
+                            {% else %}
+                            <span class="badge badge-success">Active</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if not alert.acknowledged %}
+                            <button class="btn btn-ghost" style="font-size: 0.6875rem;"
+                                    onclick="ackAlert({{ alert.id }}, '{{ alert.alert_hash }}')">
+                                Acknowledge
+                            </button>
+                            {% else %}
+                            <span style="font-size: 0.6875rem; color: var(--text-muted);">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">—</div>
+            <p>No deduplicated alerts in selected filter</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Alerts Sent (legacy log) -->
     <div class="card">
-        <h3 style="margin: 0 0 var(--space-6) 0;">Sent Alerts</h3>
+        <h3 style="margin: 0 0 var(--space-6) 0;">Sent Alerts (Legacy Log)</h3>
 
         {% if alerts %}
         <div style="overflow-x: auto; margin: 0 calc(var(--space-6) * -1); padding: 0 var(--space-6);">
@@ -109,6 +199,75 @@
         <div class="empty-state">
             <div class="empty-state-icon">—</div>
             <p>No alerts sent yet</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Login Security (Lockout/Backoff) -->
+    <div class="card" style="margin-top: var(--space-8);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); gap: var(--space-3); flex-wrap: wrap;">
+            <h3 style="margin: 0;">Login Security (Last 24h)</h3>
+            <form method="post" action="/logs/login-failures/unlock-all" style="margin: 0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit"
+                        class="btn btn-secondary"
+                        style="font-size: 0.75rem;"
+                        onclick="return confirm('Unlock all login failures from the last 24h?');">
+                    Unlock All (24h)
+                </button>
+            </form>
+        </div>
+
+        <div style="display: flex; gap: var(--space-5); margin-bottom: var(--space-5); flex-wrap: wrap; font-size: 0.75rem; color: var(--text-muted);">
+            <span>Failures: <strong style="color: var(--text-primary);">{{ login_fail_summary.total_failures|default(0) }}</strong></span>
+            <span>Estimated Locked Users: <strong style="color: var(--text-primary);">{{ login_fail_summary.estimated_locked_users|default(0) }}</strong></span>
+            <span>Policy: <strong style="color: var(--text-primary);">{{ login_fail_summary.max_attempts|default(5) }}</strong> fails / {{ login_fail_summary.window_minutes|default(15) }} min</span>
+        </div>
+
+        {% if recent_login_failures %}
+        <div style="overflow-x: auto; margin: 0 calc(var(--space-6) * -1); padding: 0 var(--space-6);">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Username</th>
+                        <th>IP Address</th>
+                        <th style="width: 180px;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in recent_login_failures %}
+                    <tr>
+                        <td style="font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-muted);">{{ f.attempted_at }}</td>
+                        <td style="font-family: var(--font-mono);">{{ f.username or 'unknown' }}</td>
+                        <td style="font-family: var(--font-mono);">{{ f.ip_address or 'unknown' }}</td>
+                        <td>
+                            <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+                                {% if f.username %}
+                                <form method="post" action="/logs/login-failures/unlock" style="margin: 0;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="unlock_username" value="{{ f.username }}">
+                                    <button type="submit" class="btn btn-ghost" style="font-size: 0.6875rem;">Unlock User</button>
+                                </form>
+                                {% endif %}
+                                {% if f.ip_address %}
+                                <form method="post" action="/logs/login-failures/unlock" style="margin: 0;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="unlock_ip" value="{{ f.ip_address }}">
+                                    <button type="submit" class="btn btn-ghost" style="font-size: 0.6875rem;">Unlock IP</button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">—</div>
+            <p>No failed login attempts in last 24 hours</p>
         </div>
         {% endif %}
     </div>
@@ -196,6 +355,28 @@
 
 <script>
 const devModeToggle = document.getElementById('devModeToggle');
+
+async function ackAlert(alertId, alertHash) {
+    try {
+        const response = await fetch('/api/portfolio/alerts/ack', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ alert_id: alertId, alert_hash: alertHash })
+        });
+
+        if (response.ok) {
+            window.location.reload();
+        } else {
+            alert('Failed to acknowledge alert');
+        }
+    } catch (error) {
+        console.error('Acknowledge error:', error);
+        alert('Error acknowledging alert');
+    }
+}
 
 devModeToggle.addEventListener('change', async function() {
     const isEnabled = this.checked;

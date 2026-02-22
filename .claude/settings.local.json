@@ -15,7 +15,14 @@
       "Bash(python3 -m py_compile:*)",
       "WebSearch",
       "Bash(python3:*)",
-      "Bash(sqlite3:*)"
+      "Bash(sqlite3:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(wc:*)",
+      "Bash(xargs -I {} basename {})",
+      "Bash(head:*)",
+      "Bash(sort -k2)",
+      "Bash(cat:*)"
     ]
   }
 }

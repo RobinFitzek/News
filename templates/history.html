@@ -10,6 +10,10 @@
             <h1>Analysis History</h1>
             <p>Browse all past analyses and predictions</p>
         </div>
+        <div style="display: flex; gap: var(--space-2);">
+            <a href="/api/export/analyses?format=csv" class="btn btn-ghost" style="font-size: 0.75rem;">Export CSV</a>
+            <a href="/api/export/analyses?format=json" class="btn btn-ghost" style="font-size: 0.75rem;">Export JSON</a>
+        </div>
     </header>
 
     <!-- Filter -->
@@ -37,8 +41,8 @@
         </h3>
 
         {% if analyses %}
-        <div style="overflow-x: auto; margin: 0 calc(var(--space-6) * -1); padding: 0 var(--space-6);">
-            <table>
+        <div class="table-wrapper" style="overflow-x: auto; margin: 0 calc(var(--space-6) * -1); padding: 0 var(--space-6);">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Ticker</th>

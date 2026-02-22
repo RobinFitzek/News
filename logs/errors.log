@@ -178,3 +178,52 @@ sqlite3.OperationalError: table earnings_calendar has no column named fetched_at
 2026-02-06 17:32:15 - clients.perplexity_client - ERROR - HTTP error None: 401 Client Error: Unauthorized for url: https://api.perplexity.ai/chat/completions
 2026-02-06 17:32:15 - clients.perplexity_client - ERROR - HTTP error None: 401 Client Error: Unauthorized for url: https://api.perplexity.ai/chat/completions
 2026-02-06 17:32:16 - clients.perplexity_client - ERROR - HTTP error None: 401 Client Error: Unauthorized for url: https://api.perplexity.ai/chat/completions
+2026-02-12 16:25:49 - yfinance - ERROR - $AFX: possibly delisted; no price data found  (period=1y)
+2026-02-12 16:25:49 - yfinance - ERROR - HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: CORE MSCI WORLD USD (ACC)"}}}
+2026-02-12 16:25:50 - yfinance - ERROR - HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: FTSE ALL-WORLD USD (ACC)"}}}
+2026-02-12 16:25:54 - core.database - ERROR - Transaction rolled back due to error: table volume_metrics has no column named volume_trend
+2026-02-12 16:25:54 - core.database - ERROR - Execute error: table volume_metrics has no column named volume_trend
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 598, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table volume_metrics has no column named volume_trend
+2026-02-12 16:25:54 - core.database - ERROR - Transaction rolled back due to error: table earnings_calendar has no column named fetched_at
+2026-02-12 16:25:54 - core.database - ERROR - Execute error: table earnings_calendar has no column named fetched_at
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 598, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table earnings_calendar has no column named fetched_at
+2026-02-12 16:25:57 - core.database - ERROR - Transaction rolled back due to error: table volume_metrics has no column named volume_trend
+2026-02-12 16:25:57 - core.database - ERROR - Execute error: table volume_metrics has no column named volume_trend
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 598, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table volume_metrics has no column named volume_trend
+2026-02-12 16:25:58 - core.database - ERROR - Transaction rolled back due to error: table earnings_calendar has no column named fetched_at
+2026-02-12 16:25:58 - core.database - ERROR - Execute error: table earnings_calendar has no column named fetched_at
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 598, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table earnings_calendar has no column named fetched_at
+2026-02-12 16:25:58 - yfinance - ERROR - HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: PAG911"}}}
+2026-02-12 16:26:03 - core.database - ERROR - Transaction rolled back due to error: table volume_metrics has no column named volume_trend
+2026-02-12 16:26:03 - core.database - ERROR - Execute error: table volume_metrics has no column named volume_trend
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 598, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table volume_metrics has no column named volume_trend
+2026-02-12 16:26:03 - core.database - ERROR - Transaction rolled back due to error: table earnings_calendar has no column named fetched_at
+2026-02-12 16:26:03 - core.database - ERROR - Execute error: table earnings_calendar has no column named fetched_at
+Traceback (most recent call last):
+  File "/home/robin/Documents/GitHub/News/core/database.py", line 598, in execute
+    cursor.execute(sql, params)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^
+sqlite3.OperationalError: table earnings_calendar has no column named fetched_at
+2026-02-12 16:26:03 - clients.perplexity_client - ERROR - HTTP error None: 401 Client Error: Unauthorized for url: https://api.perplexity.ai/chat/completions
+2026-02-12 16:26:03 - clients.perplexity_client - ERROR - HTTP error None: 401 Client Error: Unauthorized for url: https://api.perplexity.ai/chat/completions
+2026-02-12 16:26:03 - clients.perplexity_client - ERROR - HTTP error None: 401 Client Error: Unauthorized for url: https://api.perplexity.ai/chat/completions
