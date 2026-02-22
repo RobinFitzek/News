@@ -102,15 +102,15 @@
     <!-- AI Cross-Check -->
     {% if crosscheck %}
     <div class="card" style="margin-bottom: var(--space-6); border-left: 3px solid
-        {% if crosscheck.trust_score and crosscheck.trust_score >= 0.8 %}#4ade80
-        {% elif crosscheck.trust_score and crosscheck.trust_score >= 0.5 %}#facc15
-        {% else %}#f87171{% endif %};">
+        {% if crosscheck.trust_score and crosscheck.trust_score >= 0.8 %}#6bba7e
+        {% elif crosscheck.trust_score and crosscheck.trust_score >= 0.5 %}#d4a84b
+        {% else %}#d47272{% endif %};">
 
         <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
             <span class="status-dot" style="background:
-                {% if crosscheck.trust_score and crosscheck.trust_score >= 0.8 %}#4ade80
-                {% elif crosscheck.trust_score and crosscheck.trust_score >= 0.5 %}#facc15
-                {% else %}#f87171{% endif %};"></span>
+                {% if crosscheck.trust_score and crosscheck.trust_score >= 0.8 %}#6bba7e
+                {% elif crosscheck.trust_score and crosscheck.trust_score >= 0.5 %}#d4a84b
+                {% else %}#d47272{% endif %};"></span>
             AI Fact-Check
         </h3>
 
@@ -119,9 +119,9 @@
             <div>
                 <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em;">Trust Score</div>
                 <div style="font-family: var(--font-display); font-size: 1.5rem; color:
-                    {% if crosscheck.trust_score and crosscheck.trust_score >= 0.8 %}#4ade80
-                    {% elif crosscheck.trust_score and crosscheck.trust_score >= 0.5 %}#facc15
-                    {% else %}#f87171{% endif %};">
+                    {% if crosscheck.trust_score and crosscheck.trust_score >= 0.8 %}#6bba7e
+                    {% elif crosscheck.trust_score and crosscheck.trust_score >= 0.5 %}#d4a84b
+                    {% else %}#d47272{% endif %};">
                     {{ "%.0f"|format((crosscheck.trust_score or 0) * 100) }}%
                 </div>
             </div>
@@ -141,7 +141,7 @@
 
         <!-- Warning -->
         {% if crosscheck.warning %}
-        <div style="background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); border-radius: 6px; padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); font-size: 0.875rem; color: #f87171;">
+        <div style="background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); border-radius: 6px; padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); font-size: 0.875rem; color: #d47272;">
             {{ crosscheck.warning }}
         </div>
         {% endif %}
@@ -173,11 +173,11 @@
                     </td>
                     <td style="padding: var(--space-2); text-align: center;">
                         {% if d.status == 'accurate' %}
-                        <span style="color: #4ade80; font-size: 0.75rem; font-weight: 600;">ACCURATE</span>
+                        <span style="color: #6bba7e; font-size: 0.75rem; font-weight: 600;">ACCURATE</span>
                         {% elif d.status == 'approximate' %}
-                        <span style="color: #facc15; font-size: 0.75rem; font-weight: 600;">APPROX</span>
+                        <span style="color: #d4a84b; font-size: 0.75rem; font-weight: 600;">APPROX</span>
                         {% else %}
-                        <span style="color: #f87171; font-size: 0.75rem; font-weight: 600;">INACCURATE</span>
+                        <span style="color: #d47272; font-size: 0.75rem; font-weight: 600;">INACCURATE</span>
                         {% endif %}
                     </td>
                 </tr>
@@ -236,9 +236,9 @@
             const label = document.getElementById('regime-label');
             label.style.display = '';
             const colors = {
-                'bull': { bg: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'rgba(74,222,128,0.3)' },
-                'bear': { bg: 'rgba(248,113,113,0.15)', color: '#f87171', border: 'rgba(248,113,113,0.3)' },
-                'choppy': { bg: 'rgba(250,204,21,0.15)', color: '#facc15', border: 'rgba(250,204,21,0.3)' },
+                'bull': { bg: 'rgba(107,186,126,0.15)', color: '#6bba7e', border: 'rgba(107,186,126,0.3)' },
+                'bear': { bg: 'rgba(212,114,114,0.15)', color: '#d47272', border: 'rgba(212,114,114,0.3)' },
+                'choppy': { bg: 'rgba(212,168,75,0.15)', color: '#d4a84b', border: 'rgba(212,168,75,0.3)' },
             };
             const c = colors[data.regime] || colors['choppy'];
             label.textContent = 'Generated during ' + data.regime.toUpperCase() + ' market';
@@ -271,7 +271,7 @@
                 {
                     label: 'SMA 20',
                     data: data.sma20,
-                    borderColor: '#4ade80',
+                    borderColor: '#6bba7e',
                     borderWidth: 1,
                     borderDash: [4, 2],
                     pointRadius: 0,
@@ -280,7 +280,7 @@
                 {
                     label: 'SMA 50',
                     data: data.sma50,
-                    borderColor: '#facc15',
+                    borderColor: '#d4a84b',
                     borderWidth: 1,
                     borderDash: [4, 2],
                     pointRadius: 0,
@@ -289,7 +289,7 @@
                 {
                     label: 'SMA 200',
                     data: data.sma200,
-                    borderColor: '#f87171',
+                    borderColor: '#d47272',
                     borderWidth: 1,
                     borderDash: [6, 3],
                     pointRadius: 0,
@@ -306,7 +306,7 @@
                     if (idx >= 0) {
                         markerData[idx] = s.price;
                         const isPositive = ['OPPORTUNITY', 'BUY', 'STRONG_BUY'].includes(s.signal);
-                        markerColors.push(isPositive ? '#4ade80' : '#f87171');
+                        markerColors.push(isPositive ? '#6bba7e' : '#d47272');
                     }
                 });
                 datasets.push({

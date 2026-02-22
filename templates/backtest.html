@@ -77,8 +77,10 @@
 
         <!-- Accuracy Summary -->
         <div class="card" style="margin-bottom: var(--space-8); position: relative; overflow: visible;">
-            <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, var(--text-primary), transparent);"></div>
-            <h3 style="margin: 0 0 var(--space-6) 0;">Results</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6);">
+                <h3 style="margin: 0;">Results</h3>
+                <div id="bt-export-btns" style="display: flex; gap: var(--space-2);"></div>
+            </div>
             <div class="grid grid-4" id="bt-summary-metrics">
                 <!-- Populated by JS -->
             </div>
@@ -132,6 +134,38 @@
             </div>
             <div id="bt-weights" style="font-size: var(--text-sm); color: var(--text-secondary);"></div>
             <div id="bt-apply-status" style="display: none; margin-top: var(--space-4); padding: var(--space-3) var(--space-4); font-size: 0.8125rem;"></div>
+        </div>
+
+        <!-- Walk-Forward Analysis (shown when data available) -->
+        <div id="bt-walkforward-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+            <h3 style="margin: 0 0 var(--space-2) 0;">Walk-Forward Validation</h3>
+            <p style="margin: 0 0 var(--space-6) 0; font-size: var(--text-sm); color: var(--text-muted);">
+                Rolling window optimization to detect overfitting. Each window trains on past data and tests on unseen future data.
+            </p>
+            <div id="bt-wf-metrics" class="grid grid-3" style="margin-bottom: var(--space-6);"></div>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Train Period</th>
+                            <th>Test Period</th>
+                            <th>Train Size</th>
+                            <th>Test Size</th>
+                            <th>In-Sample Acc</th>
+                            <th>OOS Acc</th>
+                            <th>Tech Weight</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bt-wf-tbody"></tbody>
+                </table>
+            </div>
+            <div id="bt-wf-warning" style="display: none; margin-top: var(--space-4); padding: var(--space-4); background: rgba(248, 113, 113, 0.1); border-left: 2px solid #d47272; font-size: 0.875rem; color: #d47272;"></div>
+        </div>
+
+        <!-- Weight Version History (loaded via AJAX) -->
+        <div id="weight-history-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+            <h3 style="margin: 0 0 var(--space-6) 0;">Weight Change History</h3>
+            <div id="weight-history-content"></div>
         </div>
 
         <!-- Current Active Weights -->
@@ -303,15 +337,15 @@
                 statusEl.style.display = '';
                 if (data.success) {
                     const w = data.active;
-                    statusEl.style.background = 'rgba(74,222,128,0.1)';
-                    statusEl.style.border = '1px solid rgba(74,222,128,0.3)';
-                    statusEl.style.color = '#4ade80';
+                    statusEl.style.background = 'rgba(107,186,126,0.1)';
+                    statusEl.style.border = '1px solid rgba(107,186,126,0.3)';
+                    statusEl.style.color = '#6bba7e';
                     statusEl.textContent = 'Weights applied! Live: Val=' + (w.valuation*100).toFixed(0) + '% Tech=' + (w.technical*100).toFixed(0) + '% Mom=' + (w.momentum*100).toFixed(0) + '% Qual=' + (w.quality*100).toFixed(0) + '%';
                     btn.textContent = 'Applied';
                 } else {
                     statusEl.style.background = 'rgba(239,68,68,0.1)';
                     statusEl.style.border = '1px solid rgba(239,68,68,0.3)';
-                    statusEl.style.color = '#f87171';
+                    statusEl.style.color = '#d47272';
                     statusEl.textContent = data.detail || 'Failed to apply weights';
                     btn.disabled = false;
                     btn.textContent = 'Apply to Live Screener';
@@ -332,6 +366,11 @@
                 const section = document.getElementById('bt-results-section');
                 section.style.display = '';
 
+                // Export buttons
+                document.getElementById('bt-export-btns').innerHTML =
+                    `<a href="/api/export/backtest/${runId}?format=csv" class="btn btn-ghost" style="font-size: 0.75rem; padding: var(--space-2) var(--space-3);">Export CSV</a>` +
+                    `<a href="/api/export/backtest/${runId}?format=json" class="btn btn-ghost" style="font-size: 0.75rem; padding: var(--space-2) var(--space-3);">Export JSON</a>`;
+
                 // Coverage / look-ahead bias warning
                 const coverageEl = document.getElementById('bt-coverage-warning');
                 if (run.coverage_warning) {
@@ -350,7 +389,7 @@
                     try {
                         const sw = typeof run.survivorship_warning === 'string' ? JSON.parse(run.survivorship_warning) : run.survivorship_warning;
                         survEl.style.display = '';
-                        const levelColors = { 'High': '#f87171', 'Medium': '#ff9800', 'Low': '#4ade80' };
+                        const levelColors = { 'High': '#d47272', 'Medium': '#ff9800', 'Low': '#6bba7e' };
                         const c = levelColors[sw.risk_level] || '#ff9800';
                         survEl.style.borderColor = c + '4d';
                         survEl.style.background = c + '14';
@@ -379,7 +418,7 @@
                 const evPerTrade = riskData && riskData.expected_value_per_trade !== null && riskData.expected_value_per_trade !== undefined
                     ? riskData.expected_value_per_trade : null;
                 const evDisplay = evPerTrade !== null ? (evPerTrade > 0 ? '+' : '') + Number(evPerTrade).toFixed(2) + '%' : '—';
-                const evColor = evPerTrade !== null ? (evPerTrade > 0 ? 'color: #4ade80;' : 'color: #f87171;') : '';
+                const evColor = evPerTrade !== null ? (evPerTrade > 0 ? 'color: #6bba7e;' : 'color: #d47272;') : '';
                 const accuracy = run.overall_accuracy !== null ? run.overall_accuracy + '%' : '—';
                 const oosAccuracy = run.out_of_sample_accuracy !== null && run.out_of_sample_accuracy !== undefined
                     ? run.out_of_sample_accuracy + '%' : '—';
@@ -402,9 +441,9 @@
 
                 function riskColor(val, thresholds) {
                     if (val === null || val === undefined) return '';
-                    if (val >= thresholds[1]) return 'color: #4ade80;';
+                    if (val >= thresholds[1]) return 'color: #6bba7e;';
                     if (val >= thresholds[0]) return 'color: #ff9800;';
-                    return 'color: #f87171;';
+                    return 'color: #d47272;';
                 }
 
                 const optHold = riskData && riskData.optimal_holding_days !== null && riskData.optimal_holding_days !== undefined
@@ -449,7 +488,7 @@
                 const regimeCard = document.getElementById('bt-regime-card');
                 const regimeTbody = document.getElementById('bt-regime-tbody');
                 if (riskData && riskData.accuracy_by_regime) {
-                    const regimeColors = { bull: '#4ade80', bear: '#f87171', choppy: '#facc15' };
+                    const regimeColors = { bull: '#6bba7e', bear: '#d47272', choppy: '#d4a84b' };
                     regimeTbody.innerHTML = '';
                     const regimes = riskData.accuracy_by_regime;
                     Object.keys(regimes).forEach(regime => {
@@ -491,7 +530,7 @@
                         '<div style="font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--space-2);">Signal Diversity</div>' +
                         '<div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 600; margin-bottom: var(--space-2);">' + (diversity !== null ? diversity + '%' : '—') + '</div>' +
                         '<div style="background: var(--bg-secondary); border-radius: var(--radius-md); height: 6px; overflow: hidden; max-width: 200px;">' +
-                        '<div style="height: 100%; background: #4ade80; width: ' + (diversity !== null ? diversity : 0) + '%; transition: width 0.4s;"></div>' +
+                        '<div style="height: 100%; background: #6bba7e; width: ' + (diversity !== null ? diversity : 0) + '%; transition: width 0.4s;"></div>' +
                         '</div></div>';
 
                     // Effective N
@@ -510,7 +549,7 @@
 
                     // Correlation warning
                     if (corrWarning) {
-                        html += '<div style="margin-top: var(--space-4); padding: var(--space-3) var(--space-4); background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); border-radius: var(--radius-md); font-size: var(--text-sm); color: #f87171;">' +
+                        html += '<div style="margin-top: var(--space-4); padding: var(--space-3) var(--space-4); background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); border-radius: var(--radius-md); font-size: var(--text-sm); color: #d47272;">' +
                             corrWarning + '</div>';
                     }
 
@@ -547,10 +586,10 @@
                 // Ticker table
                 const tbody = document.getElementById('bt-ticker-tbody');
                 tbody.innerHTML = '';
-                const regimeColorMap = { bull: '#4ade80', bear: '#f87171', choppy: '#facc15' };
+                const regimeColorMap = { bull: '#6bba7e', bear: '#d47272', choppy: '#d4a84b' };
                 (data.ticker_summary || []).forEach(ts => {
-                    const retColor = ts.avg_return > 0 ? 'color: #4ade80;' : ts.avg_return < 0 ? 'color: #f87171;' : '';
-                    const alphaColor = ts.avg_alpha > 0 ? 'color: #4ade80;' : ts.avg_alpha < 0 ? 'color: #f87171;' : '';
+                    const retColor = ts.avg_return > 0 ? 'color: #6bba7e;' : ts.avg_return < 0 ? 'color: #d47272;' : '';
+                    const alphaColor = ts.avg_alpha > 0 ? 'color: #6bba7e;' : ts.avg_alpha < 0 ? 'color: #d47272;' : '';
                     const alphaVal = ts.avg_alpha !== null && ts.avg_alpha !== undefined ? ts.avg_alpha + '%' : '—';
                     const benchVal = ts.benchmark || '—';
                     const regime = ts.primary_regime || '—';
@@ -568,6 +607,56 @@
                         '</tr>';
                 });
 
+                // Walk-Forward Results
+                const wfCard = document.getElementById('bt-walkforward-card');
+                const wfWindows = run.walk_forward_windows;
+                if (wfWindows && wfWindows.length > 0) {
+                    wfCard.style.display = '';
+
+                    // Metrics
+                    const oosAccuracies = wfWindows.map(w => w.out_of_sample_accuracy);
+                    const avgOos = (oosAccuracies.reduce((a, b) => a + b, 0) / oosAccuracies.length).toFixed(1);
+                    const stability = run.weight_stability !== null ? run.weight_stability : 0;
+                    const stabColor = stability <= 5 ? '#6bba7e' : stability <= 10 ? '#d4a84b' : '#d47272';
+                    const stabLabel = stability <= 5 ? 'Stable' : stability <= 10 ? 'Moderate' : 'Unstable';
+
+                    document.getElementById('bt-wf-metrics').innerHTML =
+                        '<div class="metric"><div class="metric-value">' + avgOos + '%</div><div class="metric-label">Avg OOS Accuracy</div></div>' +
+                        '<div class="metric"><div class="metric-value" style="color: ' + stabColor + ';">' + stability.toFixed(1) + '%</div><div class="metric-label">Stability (std dev)</div></div>' +
+                        '<div class="metric"><div class="metric-value">' + wfWindows.length + '</div><div class="metric-label">Windows Tested</div></div>';
+
+                    // Table
+                    const wfTbody = document.getElementById('bt-wf-tbody');
+                    wfTbody.innerHTML = '';
+                    wfWindows.forEach(w => {
+                        const oosColor = w.out_of_sample_accuracy >= 55 ? '#6bba7e' : w.out_of_sample_accuracy >= 45 ? '#d4a84b' : '#d47272';
+                        wfTbody.innerHTML +=
+                            '<tr>' +
+                            '<td style="font-size: var(--text-sm);">' + w.train_period + '</td>' +
+                            '<td style="font-size: var(--text-sm);">' + w.test_period + '</td>' +
+                            '<td style="font-family: var(--font-mono);">' + w.train_size + '</td>' +
+                            '<td style="font-family: var(--font-mono);">' + w.test_size + '</td>' +
+                            '<td style="font-family: var(--font-mono);">' + w.in_sample_accuracy + '%</td>' +
+                            '<td style="font-family: var(--font-mono); font-weight: 500; color: ' + oosColor + ';">' + w.out_of_sample_accuracy + '%</td>' +
+                            '<td style="font-family: var(--font-mono);">' + (w.best_tech_weight * 100).toFixed(0) + '/' + (w.best_momentum_weight * 100).toFixed(0) + '</td>' +
+                            '</tr>';
+                    });
+
+                    // Degradation warning
+                    const wfWarning = document.getElementById('bt-wf-warning');
+                    try {
+                        const bw = JSON.parse(run.best_weights);
+                        if (bw.degrading) {
+                            wfWarning.style.display = '';
+                            wfWarning.textContent = 'OOS accuracy is degrading over time. Recent market conditions may differ from historical. Consider using shorter training windows or reviewing strategy.';
+                        } else {
+                            wfWarning.style.display = 'none';
+                        }
+                    } catch(e) { wfWarning.style.display = 'none'; }
+                } else {
+                    wfCard.style.display = 'none';
+                }
+
                 // Scroll to results
                 section.scrollIntoView({ behavior: 'smooth', block: 'start' });
             });
@@ -584,6 +673,69 @@
         return '<div class="metric">' +
             '<div class="metric-value" style="' + (colorStyle || '') + '">' + display + '</div>' +
             '<div class="metric-label">' + label + '</div></div>';
+    }
+
+    // Weight History
+    fetch('/api/weight-history')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || data.length === 0) return;
+            const card = document.getElementById('weight-history-card');
+            card.style.display = '';
+
+            let html = '<div style="overflow-x: auto;"><table><thead><tr>' +
+                '<th>Date</th><th>Trigger</th><th>Old Weights</th><th>New Weights</th><th>Reason</th><th></th>' +
+                '</tr></thead><tbody>';
+
+            data.forEach(v => {
+                const oldW = v.old_weights || {};
+                const newW = v.new_weights || {};
+                const triggerColors = { backtest: '#6bba7e', auto_adjust: '#d4a84b', manual: 'var(--text-muted)', rollback: '#d47272' };
+                const tc = triggerColors[v.trigger] || 'var(--text-muted)';
+
+                function formatWeights(w) {
+                    if (!w || typeof w !== 'object') return '—';
+                    if (w.tech_weight !== undefined) return 'T:' + (w.tech_weight * 100).toFixed(0) + '% M:' + (w.momentum_weight * 100).toFixed(0) + '%';
+                    const parts = [];
+                    if (w.valuation !== undefined) parts.push('V:' + (w.valuation * 100).toFixed(0));
+                    if (w.technical !== undefined) parts.push('T:' + (w.technical * 100).toFixed(0));
+                    if (w.momentum !== undefined) parts.push('M:' + (w.momentum * 100).toFixed(0));
+                    if (w.quality !== undefined) parts.push('Q:' + (w.quality * 100).toFixed(0));
+                    return parts.join(' ') + '%';
+                }
+
+                html += '<tr>' +
+                    '<td style="font-size: var(--text-sm); color: var(--text-muted); white-space: nowrap;">' + (v.timestamp || '—').substring(0, 16) + '</td>' +
+                    '<td><span style="font-family: var(--font-mono); font-size: 0.75rem; color: ' + tc + '; text-transform: uppercase;">' + (v.trigger || '—') + '</span></td>' +
+                    '<td style="font-family: var(--font-mono); font-size: var(--text-sm);">' + formatWeights(oldW) + '</td>' +
+                    '<td style="font-family: var(--font-mono); font-size: var(--text-sm); font-weight: 500;">' + formatWeights(newW) + '</td>' +
+                    '<td style="font-size: var(--text-sm); color: var(--text-muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis;">' + (v.reason || '—') + '</td>' +
+                    '<td><button class="btn btn-ghost" style="padding: 2px 8px; font-size: 0.625rem;" onclick="rollbackWeight(' + v.id + ')">Rollback</button></td>' +
+                    '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+            document.getElementById('weight-history-content').innerHTML = html;
+        })
+        .catch(() => {});
+
+    async function rollbackWeight(versionId) {
+        if (!confirm('Rollback to this weight version?')) return;
+        try {
+            const resp = await fetch('/api/weight-rollback/' + versionId, {
+                method: 'POST',
+                headers: { 'X-CSRF-Token': csrfToken }
+            });
+            const data = await resp.json();
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert(data.message || 'Rollback failed');
+            }
+        } catch(e) {
+            alert('Rollback error');
+        }
     }
 </script>
 {% endblock %}

@@ -290,6 +290,10 @@
             <div class="error-box">
                 Invalid username or password
             </div>
+            {% elif error == 'locked' %}
+            <div class="error-box">
+                Too many failed attempts. Try again in {{ request.query_params.get('minutes', 'a few') }} minute(s).
+            </div>
             {% endif %}
 
             <form method="POST" action="/login">
@@ -308,6 +312,7 @@
                 </button>
             </form>
 
+            {% if show_default_credentials %}
             <div class="info-section">
                 <div class="info-title">Default Credentials</div>
                 <div class="credentials">
@@ -324,6 +329,7 @@
                     Change password after first login
                 </div>
             </div>
+            {% endif %}
         </div>
     </div>
 </body>

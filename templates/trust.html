@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block title %}Trust — Stockholm{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+    <header class="page-header">
+        <div>
+            <h1>Should You Trust This System?</h1>
+            <p>Everything you need at a glance</p>
+        </div>
+    </header>
+
+    <!-- Trust Score Hero -->
+    <div class="card" style="margin-bottom: var(--space-8); text-align: center; padding: var(--space-10) var(--space-8);">
+        <div style="font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: var(--space-4);">Overall Trust Score</div>
+        <div id="trust-score" style="font-family: var(--font-display); font-size: 5rem; font-weight: 300; letter-spacing: -0.04em; line-height: 1;">
+            —
+        </div>
+        <div id="trust-label" style="font-size: 1rem; color: var(--text-muted); margin-top: var(--space-3);">Loading...</div>
+        <div id="trust-breakdown" style="display: flex; justify-content: center; gap: var(--space-8); margin-top: var(--space-6); font-size: 0.8125rem; color: var(--text-secondary);"></div>
+    </div>
+
+    <!-- Quick Health Cards -->
+    <div class="grid grid-4" style="margin-bottom: var(--space-8);">
+        <div class="card" style="margin-bottom: 0;">
+            <div style="font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: var(--space-3);">Last Run</div>
+            <div style="font-family: var(--font-display); font-size: 1.75rem; font-weight: 300; margin-bottom: var(--space-2);">
+                {% if last_run and last_run.run_at %}{{ last_run.run_at[:10] }}{% else %}Never{% endif %}
+            </div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">
+                {% if last_run %}
+                    {% if last_run.errors %}
+                    <span style="color: #d47272;">Had errors</span>
+                    {% else %}
+                    <span style="color: #6bba7e;">Clean run</span>
+                    {% endif %}
+                {% else %}No runs yet{% endif %}
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 0;">
+            <div style="font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: var(--space-3);">Hit Rate (30d)</div>
+            <div id="hit-rate-30d" style="font-family: var(--font-display); font-size: 1.75rem; font-weight: 300; margin-bottom: var(--space-2);">
+                {% if accuracy_30d is not none %}{{ accuracy_30d }}%{% else %}—{% endif %}
+            </div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">
+                {{ predictions_30d }} predictions verified
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 0;">
+            <div style="font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: var(--space-3);">Watchlist</div>
+            <div style="font-family: var(--font-display); font-size: 1.75rem; font-weight: 300; margin-bottom: var(--space-2);">
+                {{ watchlist_count }}
+            </div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">Active tickers</div>
+        </div>
+
+        <div class="card" style="margin-bottom: 0;">
+            <div style="font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: var(--space-3);">Error Rate</div>
+            <div style="font-family: var(--font-display); font-size: 1.75rem; font-weight: 300; margin-bottom: var(--space-2);">
+                {% if error_rate is not none %}
+                <span style="color: {% if error_rate <= 5 %}#6bba7e{% elif error_rate <= 20 %}#d4a84b{% else %}#d47272{% endif %};">{{ error_rate }}%</span>
+                {% else %}—{% endif %}
+            </div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">Last 10 runs</div>
+        </div>
+    </div>
+
+    <!-- Current Top Signals -->
+    {% if top_signals %}
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <h3 style="margin: 0 0 var(--space-6) 0;">Current Top Signals</h3>
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Signal</th>
+                        <th>Confidence</th>
+                        <th>Track Record</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in top_signals %}
+                    <tr>
+                        <td><span style="font-family: var(--font-mono); font-weight: 500;">{{ s.ticker }}</span></td>
+                        <td>
+                            {% if s.signal == 'Opportunity' %}
+                            <span class="badge badge-success">{{ s.signal }}</span>
+                            {% elif s.signal == 'Caution' %}
+                            <span class="badge badge-danger">{{ s.signal }}</span>
+                            {% else %}
+                            <span class="badge">{{ s.signal }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-family: var(--font-mono);">{{ s.confidence }}%</td>
+                        <td>
+                            {% if s.accuracy is not none %}
+                            <span style="font-family: var(--font-mono); color: {% if s.accuracy >= 0.65 %}#6bba7e{% elif s.accuracy >= 0.45 %}#d4a84b{% else %}#d47272{% endif %};">
+                                {{ (s.accuracy * 100)|round(0) }}% ({{ s.prediction_count }} pred)
+                            </span>
+                            {% else %}
+                            <span style="color: var(--text-ghost);">New ticker</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-family: var(--font-mono); color: var(--text-muted); font-size: 0.8125rem;">{{ s.timestamp[:10] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Trust Component Scores (loaded via AJAX) -->
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <h3 style="margin: 0 0 var(--space-6) 0;">Trust Components</h3>
+        <div id="trust-components" style="display: grid; gap: var(--space-4);">
+            <div style="text-align: center; padding: var(--space-6); color: var(--text-muted);">Loading component scores...</div>
+        </div>
+    </div>
+
+    <!-- Honest Verdict -->
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <h3 style="margin: 0 0 var(--space-6) 0;">Honest Verdict</h3>
+        <div id="verdict-content" style="padding: var(--space-4); background: var(--bg-secondary); border-left: 1px solid var(--text-primary); font-size: 0.9375rem; line-height: 1.7;">
+            {% if learning_stats.total_verified < 20 %}
+            <p style="margin: 0 0 var(--space-3) 0;"><strong>Too early to judge.</strong></p>
+            <p style="margin: 0; color: var(--text-muted);">
+                The system has only {{ learning_stats.total_verified }} verified predictions.
+                You need at least 20 to get meaningful statistics. Run the pipeline daily and check back in a few weeks.
+            </p>
+            {% elif learning_stats.avg_accuracy >= 0.65 %}
+            <p style="margin: 0 0 var(--space-3) 0;"><strong>Promising.</strong></p>
+            <p style="margin: 0; color: var(--text-muted);">
+                {{ (learning_stats.avg_accuracy * 100)|round(1) }}% accuracy over {{ learning_stats.total_verified }} predictions
+                is meaningfully above random (50%). The system appears to have a real edge,
+                but keep monitoring — markets change.
+            </p>
+            {% elif learning_stats.avg_accuracy >= 0.50 %}
+            <p style="margin: 0 0 var(--space-3) 0;"><strong>Marginal.</strong></p>
+            <p style="margin: 0; color: var(--text-muted);">
+                {{ (learning_stats.avg_accuracy * 100)|round(1) }}% accuracy is barely above random chance.
+                After accounting for transaction costs, this may not generate profit.
+                Consider tweaking weights or running backtests.
+            </p>
+            {% else %}
+            <p style="margin: 0 0 var(--space-3) 0;"><strong>Not trustworthy yet.</strong></p>
+            <p style="margin: 0; color: var(--text-muted);">
+                {{ (learning_stats.avg_accuracy * 100)|round(1) }}% accuracy is below random guessing.
+                Do not trade based on these signals. Review your watchlist composition,
+                weight settings, and consider whether the market regime has changed.
+            </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Calculate and render trust score from multiple sources
+    async function loadTrustScore() {
+        const components = [];
+
+        // 1. Calibration
+        try {
+            const cal = await fetch('/api/calibration').then(r => r.json());
+            if (cal.sufficient_data) {
+                const calScore = Math.max(0, Math.min(100, Math.round((1 - cal.brier_score / 0.25) * 100)));
+                components.push({ name: 'Calibration', score: calScore, detail: `Brier: ${cal.brier_score.toFixed(3)}` });
+            }
+        } catch(e) {}
+
+        // 2. Prediction accuracy (from page data)
+        const hitRate = {{ learning_stats.hit_rate|default(0) }};
+        const verified = {{ learning_stats.total_verified|default(0) }};
+        if (verified >= 5) {
+            components.push({ name: 'Accuracy', score: Math.round(hitRate), detail: `${hitRate}% hit rate` });
+        }
+
+        // 3. Backtest stability (walk-forward)
+        try {
+            const wh = await fetch('/api/weight-history').then(r => r.json());
+            if (wh && wh.length > 0) {
+                components.push({ name: 'Weight Stability', score: 70, detail: `${wh.length} weight changes` });
+            }
+        } catch(e) {}
+
+        // 4. Paper trading risk metrics
+        try {
+            const rm = await fetch('/api/paper-trading/risk-metrics').then(r => r.json());
+            if (rm && !rm.insufficient_data) {
+                const sharpe = rm.sharpe_ratio || 0;
+                const riskScore = Math.max(0, Math.min(100, Math.round(sharpe * 50 + 25)));
+                components.push({ name: 'Risk-Adjusted', score: riskScore, detail: `Sharpe: ${sharpe.toFixed(2)}` });
+            }
+        } catch(e) {}
+
+        // Calculate overall trust score
+        let overallScore = 0;
+        if (components.length > 0) {
+            overallScore = Math.round(components.reduce((s, c) => s + c.score, 0) / components.length);
+        }
+
+        // Render trust score
+        const scoreEl = document.getElementById('trust-score');
+        const labelEl = document.getElementById('trust-label');
+
+        if (components.length === 0) {
+            scoreEl.textContent = '—';
+            labelEl.textContent = 'Insufficient data to compute trust score';
+        } else {
+            let color, label;
+            if (overallScore >= 70) { color = '#6bba7e'; label = 'Trustworthy'; }
+            else if (overallScore >= 50) { color = '#d4a84b'; label = 'Proceed with Caution'; }
+            else if (overallScore >= 30) { color = '#fb923c'; label = 'Weak Trust'; }
+            else { color = '#d47272'; label = 'Do Not Trust'; }
+
+            scoreEl.textContent = overallScore;
+            scoreEl.style.color = color;
+            labelEl.textContent = label;
+            labelEl.style.color = color;
+        }
+
+        // Render breakdown
+        const breakdownEl = document.getElementById('trust-breakdown');
+        breakdownEl.innerHTML = components.map(c => {
+            const color = c.score >= 60 ? '#6bba7e' : c.score >= 40 ? '#d4a84b' : '#d47272';
+            return `<div><span style="font-family: var(--font-mono); color: ${color}; font-weight: 500;">${c.score}</span> <span style="color: var(--text-ghost);">${c.name}</span></div>`;
+        }).join('');
+
+        // Render components grid
+        const compEl = document.getElementById('trust-components');
+        if (components.length === 0) {
+            compEl.innerHTML = '<div style="text-align: center; padding: var(--space-6); color: var(--text-muted);">Run analyses and let predictions verify before trust components can be calculated.</div>';
+        } else {
+            compEl.innerHTML = components.map(c => {
+                const color = c.score >= 60 ? '#6bba7e' : c.score >= 40 ? '#d4a84b' : '#d47272';
+                const barWidth = Math.max(5, c.score);
+                return `<div style="display: flex; align-items: center; gap: var(--space-4);">
+                    <div style="min-width: 120px; font-size: 0.8125rem; color: var(--text-secondary);">${c.name}</div>
+                    <div class="progress" style="flex: 1;">
+                        <div class="progress-bar" style="width: ${barWidth}%; background: ${color};"></div>
+                    </div>
+                    <div style="min-width: 80px; text-align: right;">
+                        <span style="font-family: var(--font-mono); font-weight: 500; color: ${color};">${c.score}</span>
+                        <span style="font-size: 0.6875rem; color: var(--text-ghost); margin-left: var(--space-2);">${c.detail}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+    }
+
+    loadTrustScore();
+</script>
+{% endblock %}

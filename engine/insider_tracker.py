@@ -163,6 +163,7 @@ class InsiderTracker:
         Detect patterns in insider transactions.
         - Cluster buying: multiple unique insiders buying within 14 days
         - Large positions, executive buying, consistent direction
+        - 10b5-1 heuristic: regular interval purchases (likely pre-planned)
         """
         if not transactions:
             return {}
@@ -211,6 +212,68 @@ class InsiderTracker:
             purchase_ratio = len(all_voluntary) / len(transactions)
             if purchase_ratio > 0.8:
                 patterns['consistent_direction'] = True
+
+        # 10b5-1 heuristic: detect likely pre-planned purchases per insider
+        # Flag if >=3 purchases occur in regular intervals (same calendar month ±7 days)
+        # with similar share counts (±20%)
+        planned_insiders = set()
+        insiders_seen = set(t.get('insider_name', '') for t in all_voluntary)
+        for insider in insiders_seen:
+            if not insider:
+                continue
+            insider_purchases = sorted(
+                [t for t in all_voluntary
+                 if t.get('insider_name') == insider
+                 and t.get('shares', 0) > 0
+                 and t.get('transaction_date')],
+                key=lambda t: t['transaction_date']
+            )
+            if len(insider_purchases) < 3:
+                continue
+
+            # Check if at least 3 purchases span a 12-month window
+            try:
+                dates = [datetime.fromisoformat(t['transaction_date'][:10])
+                         for t in insider_purchases]
+            except (ValueError, TypeError):
+                continue
+
+            dates_12mo = [d for d in dates
+                          if (datetime.now() - d).days <= 365]
+            if len(dates_12mo) < 3:
+                continue
+
+            # Check regular intervals: same calendar month ±7 days
+            months = [d.month for d in dates_12mo]
+            unique_months = set(months)
+            # Regular = each purchase in a distinct month
+            if len(unique_months) < 3:
+                continue
+
+            # Check day-of-month regularity (±7 days)
+            days_of_month = [d.day for d in dates_12mo]
+            avg_day = sum(days_of_month) / len(days_of_month)
+            day_regular = all(abs(dom - avg_day) <= 7 for dom in days_of_month)
+
+            # Check share count similarity (±20%)
+            shares = [t.get('shares', 0) for t in insider_purchases
+                      if t.get('transaction_date') and
+                      (datetime.now() - datetime.fromisoformat(
+                          t['transaction_date'][:10])).days <= 365]
+            if not shares:
+                continue
+            avg_shares = sum(shares) / len(shares)
+            shares_similar = (avg_shares > 0 and
+                              all(abs(s - avg_shares) / avg_shares <= 0.20 for s in shares))
+
+            if day_regular and shares_similar:
+                planned_insiders.add(insider)
+
+        # Tag each voluntary purchase with likely_planned flag
+        for t in all_voluntary:
+            t['likely_planned'] = t.get('insider_name', '') in planned_insiders
+
+        patterns['planned_insider_count'] = len(planned_insiders)
 
         return patterns
 

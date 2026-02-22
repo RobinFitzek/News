@@ -140,9 +140,28 @@ DEFAULT_SETTINGS = {
     "portfolio_stop_loss_pct": 15.0,
     "portfolio_max_sector_pct": 30.0,
     "portfolio_rebalance_drift_pct": 5.0,
+    "portfolio_risk_guard_enabled": True,
+    "portfolio_global_loss_limit_pct": 10.0,
+    "portfolio_risk_cooldown_hours": 24,
+    "portfolio_risk_guard_triggered_at": None,
+
+    # Authentication Safety
+    "auth_max_failed_attempts": 5,
+    "auth_attempt_window_minutes": 15,
+    "auth_lockout_minutes": 15,
 
     # Learning System
     "learning_verification_days": 90,
+
+    # Auto-Discovery
+    "discovery_enabled": True,
+    "discovery_daily_time": "06:00",
+    "discovery_weekly_day": "wed",
+    "discovery_weekly_time": "12:00",
+    "discovery_promotion_threshold": 55,
+    "discovery_max_promote_per_run": 5,
+    "discovery_max_watchlist_size": 50,
+    "discovery_strategies": ["volume_spike", "breakout", "oversold", "sector_rotation", "insider_buy", "value_screen"],
 }
 
 # Web Server

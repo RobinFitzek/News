@@ -102,6 +102,42 @@ class MarketRegime:
             return +15
         return 0
 
+    def get_regime_weight_adjustments(self, regime: str = None) -> Dict:
+        """Return weight adjustment multipliers for each scoring factor based on regime.
+
+        In bull markets: boost momentum and technical.
+        In bear markets: boost quality and valuation (defensive).
+        In choppy markets: keep balanced.
+
+        Returns dict with keys: valuation, technical, momentum, quality
+        Each value is a multiplier (1.0 = no change, >1 = boost, <1 = reduce).
+        """
+        if regime is None:
+            regime = self.get_current_regime().get('regime', 'choppy')
+
+        adjustments = {
+            'bull': {
+                'valuation': 0.85,
+                'technical': 1.15,
+                'momentum': 1.20,
+                'quality': 0.80,
+            },
+            'bear': {
+                'valuation': 1.15,
+                'technical': 0.90,
+                'momentum': 0.75,
+                'quality': 1.20,
+            },
+            'choppy': {
+                'valuation': 1.0,
+                'technical': 1.0,
+                'momentum': 1.0,
+                'quality': 1.0,
+            },
+        }
+
+        return adjustments.get(regime, adjustments['choppy'])
+
     def invalidate_cache(self):
         self._cache = None
         self._cache_time = None

@@ -22,6 +22,32 @@ class DailyPipeline:
 
     def run_daily_cycle(self) -> Dict:
         """Run the full daily analysis cycle with adaptive budget limits"""
+        # Feature 6: Accuracy kill switch — pause if accuracy < 50% with 20+ verified
+        try:
+            kill_switch_paused = db.get_setting('system_paused_accuracy')
+            if kill_switch_paused:
+                msg = "Pipeline paused: accuracy kill switch active (sub-50% accuracy). Clear in Settings to resume."
+                self.logger.critical(msg)
+                print(f"  {msg}")
+                db.log_scheduler_run(tickers_scanned=0, alerts_sent=0, duration=0, errors=msg)
+                return []
+
+            accuracy_stats = learning_optimizer.get_learning_stats()
+            if (accuracy_stats.get('total_verified', 0) >= 20
+                    and accuracy_stats.get('avg_accuracy', 1.0) < 0.50):
+                db.set_setting('system_paused_accuracy', True)
+                msg = (
+                    f"KILL SWITCH TRIGGERED: System accuracy {accuracy_stats['avg_accuracy']:.0%} "
+                    f"over {accuracy_stats['total_verified']} predictions is below 50%. "
+                    f"Pipeline paused. Clear in Settings to resume."
+                )
+                self.logger.critical(msg)
+                print(f"  {msg}")
+                db.log_scheduler_run(tickers_scanned=0, alerts_sent=0, duration=0, errors=msg)
+                return []
+        except Exception as e:
+            self.logger.warning(f"Could not evaluate accuracy kill switch: {e}")
+
         # Calculate today's limits from budget
         limits = budget_tracker.get_pipeline_limits()
         self.logger.info(f"Pipeline limits: {limits}")
@@ -33,6 +59,28 @@ class DailyPipeline:
         errors = []
 
         try:
+            # Global risk gate: suspend new AI cycles if portfolio risk guard is active
+            try:
+                from engine.portfolio_manager import portfolio_manager
+                risk_gate = portfolio_manager.get_risk_gate_status()
+                if risk_gate.get('active'):
+                    msg = (
+                        f"Risk guard active: {risk_gate.get('reason', 'loss limit breached')} | "
+                        f"loss={risk_gate.get('loss_pct', 0):.2f}% "
+                        f"limit=-{risk_gate.get('threshold_pct', 10):.2f}%"
+                    )
+                    self.logger.warning(msg)
+                    print(f"  ⛔ {msg}")
+                    db.log_scheduler_run(
+                        tickers_scanned=0,
+                        alerts_sent=0,
+                        duration=0,
+                        errors=msg
+                    )
+                    return []
+            except Exception as e:
+                self.logger.warning(f"Could not evaluate risk guard gate: {e}")
+
             # 0. Get Configuration
             try:
                 settings = db.get_all_settings()
@@ -76,6 +124,19 @@ class DailyPipeline:
 
             # Filter for Stage 2 (adaptive limit) — higher threshold since scores are math-based
             stage2_candidates = [c for c in candidates if c.get('composite_score', c.get('score', 0)) >= 40][:limits['stage2_max']]
+            stage2_tickers = {c.get('ticker') for c in stage2_candidates}
+
+            # Record quant-only predictions for tickers NOT going to Stage 2 (A/B comparison)
+            for candidate in candidates:
+                ticker = candidate.get('ticker')
+                if ticker and ticker not in stage2_tickers:
+                    try:
+                        signal = candidate.get('signal', 'Neutral')
+                        confidence = candidate.get('composite_score', candidate.get('score', 50))
+                        learning_optimizer.record_and_learn(ticker, signal, confidence, has_ai=False)
+                    except Exception as e:
+                        self.logger.debug(f"Failed to record quant-only prediction for {ticker}: {e}")
+
             print(f"\n  Promoting {len(stage2_candidates)} candidates to Stage 2 (limit: {limits['stage2_max']})")
 
             full_results = []
@@ -133,12 +194,29 @@ class DailyPipeline:
                         except Exception as e:
                             self.logger.warning(f"Cross-check failed for {final['ticker']}: {e}")
 
+                    # Feature 3: Earnings proximity check — cap confidence if near earnings
+                    try:
+                        from engine.earnings_tracker import earnings_tracker
+                        earnings_info = earnings_tracker.get_next_earnings(final['ticker'])
+                        if earnings_info and earnings_info.get('days_until') is not None:
+                            days_until = earnings_info['days_until']
+                            if 0 <= days_until <= 7:
+                                original_conf = final.get('confidence', final.get('quant_metrics', {}).get('composite_score', 50))
+                                capped = min(original_conf, 55)
+                                if 'quant_metrics' in final:
+                                    final['quant_metrics']['composite_score'] = capped
+                                final['confidence'] = capped
+                                final['earnings_warning'] = f"Earnings in {days_until} days — confidence capped at {capped}"
+                                self.logger.info(f"{final['ticker']}: Earnings in {days_until}d, confidence capped {original_conf}->{capped}")
+                    except Exception as e:
+                        self.logger.debug(f"Earnings check skipped for {final.get('ticker', '?')}: {e}")
+
                     # Record prediction for learning system verification
                     try:
                         signal = final.get('signal', 'Neutral')
                         qm = final.get('quant_metrics', {})
                         confidence = qm.get('composite_score', 50)
-                        learning_optimizer.record_and_learn(final['ticker'], signal, confidence)
+                        learning_optimizer.record_and_learn(final['ticker'], signal, confidence, has_ai=True)
                     except Exception as e:
                         self.logger.error(f"Failed to record prediction for {final['ticker']}: {e}")
 

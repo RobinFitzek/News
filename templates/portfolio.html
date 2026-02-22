@@ -23,9 +23,8 @@
     <!-- Portfolio Summary -->
     <div class="grid grid-3" style="margin-bottom: var(--space-8);">
         <div class="card" style="margin-bottom: 0; position: relative; overflow: visible;">
-            <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, var(--text-primary), transparent);"></div>
             <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--space-3);">Total Invested</div>
-            <div style="font-family: var(--font-display); font-size: 2.5rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.03em;">
+            <div style="font-family: var(--font-body); font-size: 2rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">
                 ${{ "{:,.2f}".format(summary.total_invested) }}
             </div>
         </div>
@@ -33,7 +32,7 @@
         <div class="card" style="margin-bottom: 0; position: relative; overflow: visible;">
             <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.5), transparent);"></div>
             <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--space-3);">Realized Gains</div>
-            <div style="font-family: var(--font-display); font-size: 2.5rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.03em;">
+            <div style="font-family: var(--font-body); font-size: 2rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">
                 {% if summary.realized_gains >= 0 %}+{% endif %}${{ "{:,.2f}".format(summary.realized_gains) }}
             </div>
         </div>
@@ -41,7 +40,7 @@
         <div class="card" style="margin-bottom: 0; position: relative; overflow: visible;">
             <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.3), transparent);"></div>
             <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--space-3);">Active Holdings</div>
-            <div style="font-family: var(--font-display); font-size: 2.5rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.03em;">
+            <div style="font-family: var(--font-body); font-size: 2rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">
                 {{ summary.holdings_count }}
             </div>
         </div>
@@ -102,6 +101,18 @@
         </form>
     </div>
 
+    <!-- Rebalancing Execution Plan (AJAX) -->
+    <div id="rebalancing-plan-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">⚖️ Rebalancing Execution Plan</h3>
+                <p style="margin: 0; font-size: var(--text-sm);">Specific actions to bring portfolio back to target allocation</p>
+            </div>
+            <button onclick="copyRebalancingPlan()" class="btn btn-ghost" style="font-size: 0.8rem;">📋 Copy Plan</button>
+        </div>
+        <div id="rebalancing-plan-content"></div>
+    </div>
+
     <!-- Concentration Risk (loaded via AJAX) -->
     <div id="concentration-card" class="card" style="margin-bottom: var(--space-8); display: none;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
@@ -120,13 +131,76 @@
         </div>
     </div>
 
+    <!-- Portfolio Alerts (loaded via AJAX) -->
+    <div id="portfolio-alerts-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-3);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Portfolio Alerts</h3>
+                <p id="portfolio-alerts-subtitle" style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);"></p>
+            </div>
+            <button class="btn btn-ghost" style="font-size: 0.75rem;" onclick="refreshPortfolioAlerts()">Refresh</button>
+        </div>
+        <div id="portfolio-alerts-list"></div>
+    </div>
+
+    <!-- Risk Metrics (loaded via AJAX) -->
+    <div id="risk-metrics-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Risk Metrics</h3>
+                <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);">Portfolio risk-adjusted performance</p>
+            </div>
+        </div>
+        <div class="grid grid-3" id="risk-metrics-grid" style="margin-bottom: var(--space-5);"></div>
+        <div class="grid grid-4" id="risk-metrics-secondary"></div>
+    </div>
+
+    <!-- Value at Risk (loaded via AJAX) -->
+    <div id="var-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Value at Risk</h3>
+                <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);" id="var-subtitle">95% confidence — worst expected loss</p>
+            </div>
+        </div>
+        <div class="grid grid-3" id="var-metrics"></div>
+    </div>
+
+    <!-- Correlation Matrix (loaded via AJAX) -->
+    <div id="correlation-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Correlation Matrix</h3>
+                <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);">Pairwise correlations between holdings</p>
+            </div>
+        </div>
+        <div id="correlation-grid" style="overflow-x: auto;"></div>
+    </div>
+
+    <!-- Scenario Analysis (loaded via AJAX) -->
+    <div id="scenario-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Scenario Analysis</h3>
+                <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);">Stress test your portfolio</p>
+            </div>
+            <select id="scenario-select" style="min-width: 180px;" onchange="runScenario(this.value)">
+                <option value="">Select scenario...</option>
+            </select>
+        </div>
+        <div id="scenario-result" style="display: none;">
+            <div class="grid grid-3" style="margin-bottom: var(--space-5);" id="scenario-metrics"></div>
+            <div id="scenario-positions"></div>
+        </div>
+    </div>
+
     <!-- Current Holdings -->
     <div class="card" style="margin-bottom: var(--space-8);">
         <h3 style="margin: 0 0 var(--space-6) 0;">Current Holdings</h3>
 
         {% if holdings %}
-        <div style="overflow-x: auto; margin: 0 calc(var(--space-8) * -1); padding: 0 var(--space-8);">
-            <table>
+        <div class="table-wrapper" style="overflow-x: auto; margin: 0 calc(var(--space-8) * -1); padding: 0 var(--space-8);">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Ticker</th>
@@ -173,8 +247,8 @@
         <h3 style="margin: 0 0 var(--space-6) 0;">Recent Activity</h3>
 
         {% if trades %}
-        <div style="overflow-x: auto; margin: 0 calc(var(--space-8) * -1); padding: 0 var(--space-8);">
-            <table>
+        <div class="table-wrapper" style="overflow-x: auto; margin: 0 calc(var(--space-8) * -1); padding: 0 var(--space-8);">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Date</th>
@@ -224,6 +298,208 @@
 
 {% block extra_scripts %}
 <script>
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    async function acknowledgeAlert(alertId, alertHash) {
+        try {
+            const response = await fetch('/api/portfolio/alerts/ack', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    alert_id: alertId,
+                    alert_hash: alertHash,
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to acknowledge alert');
+            }
+
+            refreshPortfolioAlerts();
+        } catch (error) {
+            console.error('Acknowledge alert failed:', error);
+        }
+    }
+
+    async function refreshPortfolioAlerts() {
+        try {
+            const response = await fetch('/api/portfolio/alerts');
+            if (!response.ok) return;
+            const data = await response.json();
+
+            const card = document.getElementById('portfolio-alerts-card');
+            const subtitle = document.getElementById('portfolio-alerts-subtitle');
+            const list = document.getElementById('portfolio-alerts-list');
+
+            const activeAlerts = data.active_alerts || [];
+            const rawCount = data.raw_alert_count || 0;
+            const dedupCount = data.alerts ? data.alerts.length : 0;
+            const gate = data.risk_gate || {};
+
+            if (activeAlerts.length === 0 && rawCount === 0) {
+                card.style.display = 'none';
+                return;
+            }
+
+            card.style.display = '';
+
+            const gateText = gate.active
+                ? ' · Risk Guard: ACTIVE'
+                : ' · Risk Guard: inactive';
+            subtitle.textContent = `${dedupCount} new / ${activeAlerts.length} active alerts${gateText}`;
+
+            if (activeAlerts.length === 0) {
+                list.innerHTML = '<div style="font-size: 0.8125rem; color: var(--text-muted);">No active alerts.</div>';
+                return;
+            }
+
+            list.innerHTML = activeAlerts.map(alert => {
+                const severity = (alert.severity || 'INFO').toUpperCase();
+                const sevColor = severity === 'CRITICAL' ? '#d47272' : severity === 'WARNING' ? '#d4a84b' : '#94a3b8';
+                const ticker = escapeHtml(alert.ticker || '—');
+                const message = escapeHtml(alert.message || '');
+                const timestamp = escapeHtml(alert.timestamp || '');
+                const alertId = alert.id ? Number(alert.id) : null;
+                const hash = escapeHtml(alert.alert_hash || '');
+
+                return `
+                    <div style="border: 1px solid var(--border-hairline); border-left: 2px solid ${sevColor}; padding: var(--space-3); margin-bottom: var(--space-3); border-radius: var(--radius-sm);">
+                        <div style="display: flex; justify-content: space-between; gap: var(--space-3); align-items: flex-start;">
+                            <div>
+                                <div style="font-size: 0.6875rem; color: ${sevColor}; font-weight: 600; letter-spacing: 0.08em; margin-bottom: var(--space-1);">${severity}</div>
+                                <div style="font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.5;">
+                                    <span style="font-family: var(--font-mono); color: var(--text-primary); font-weight: 500;">${ticker}</span>
+                                    · ${message}
+                                </div>
+                                <div style="font-size: 0.6875rem; color: var(--text-muted); margin-top: var(--space-1);">${timestamp}</div>
+                            </div>
+                            <button class="btn btn-ghost"
+                                    style="font-size: 0.6875rem;"
+                                    onclick="acknowledgeAlert(${alertId}, '${hash}')">
+                                Acknowledge
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } catch (error) {
+            console.error('Failed to load portfolio alerts:', error);
+        }
+    }
+
+    refreshPortfolioAlerts();
+
+    // Risk Metrics
+    fetch('/api/portfolio/risk-metrics')
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) return;
+            const card = document.getElementById('risk-metrics-card');
+            card.style.display = '';
+
+            const sharpeColor = data.sharpe >= 1.0 ? '#6bba7e' : data.sharpe >= 0.5 ? '#d4a84b' : '#d47272';
+            const sortinoColor = data.sortino >= 1.5 ? '#6bba7e' : data.sortino >= 0.8 ? '#d4a84b' : '#d47272';
+            const calmarColor = data.calmar >= 1.0 ? '#6bba7e' : data.calmar >= 0.3 ? '#d4a84b' : '#d47272';
+
+            document.getElementById('risk-metrics-grid').innerHTML =
+                '<div class="metric"><div class="metric-value" style="color:' + sharpeColor + ';">' + data.sharpe + '</div><div class="metric-label">Sharpe Ratio</div></div>' +
+                '<div class="metric"><div class="metric-value" style="color:' + sortinoColor + ';">' + data.sortino + '</div><div class="metric-label">Sortino Ratio</div></div>' +
+                '<div class="metric"><div class="metric-value" style="color:' + calmarColor + ';">' + data.calmar + '</div><div class="metric-label">Calmar Ratio</div></div>';
+
+            document.getElementById('risk-metrics-secondary').innerHTML =
+                '<div class="metric"><div class="metric-value">' + data.beta + '</div><div class="metric-label">Beta vs SPY</div></div>' +
+                '<div class="metric"><div class="metric-value">' + data.volatility + '%</div><div class="metric-label">Ann. Volatility</div></div>' +
+                '<div class="metric"><div class="metric-value" style="color: #d47272;">' + data.max_drawdown + '%</div><div class="metric-label">Max Drawdown</div></div>' +
+                '<div class="metric"><div class="metric-value" style="color:' + (data.annual_return >= 0 ? '#6bba7e' : '#d47272') + ';">' + (data.annual_return >= 0 ? '+' : '') + data.annual_return + '%</div><div class="metric-label">Ann. Return</div></div>';
+        })
+        .catch(() => {});
+
+    // Value at Risk
+    fetch('/api/portfolio/var')
+        .then(r => r.json())
+        .then(data => {
+            if (data.error) return;
+            const card = document.getElementById('var-card');
+            card.style.display = '';
+
+            const fmtPct = v => (v * 100).toFixed(2) + '%';
+            document.getElementById('var-metrics').innerHTML =
+                '<div class="metric"><div class="metric-value" style="color: #d47272;">' + fmtPct(data.var_daily) + '</div><div class="metric-label">Daily VaR (95%)</div></div>' +
+                '<div class="metric"><div class="metric-value" style="color: #d47272;">' + fmtPct(data.var_weekly) + '</div><div class="metric-label">Weekly VaR</div></div>' +
+                '<div class="metric"><div class="metric-value" style="color: #d47272;">' + fmtPct(data.var_monthly) + '</div><div class="metric-label">Monthly VaR</div></div>';
+
+            if (data.portfolio_value) {
+                document.getElementById('var-subtitle').textContent =
+                    '95% confidence — Portfolio: $' + data.portfolio_value.toLocaleString();
+            }
+        })
+        .catch(() => {});
+
+    // Correlation Matrix
+    fetch('/api/portfolio/correlation')
+        .then(r => r.json())
+        .then(data => {
+            if (data.error || !data.tickers) return;
+            const card = document.getElementById('correlation-card');
+            card.style.display = '';
+
+            const tickers = data.tickers;
+            const matrix = data.matrix;
+            let html = '<table style="font-size: 0.75rem;"><thead><tr><th></th>';
+            tickers.forEach(t => { html += '<th style="font-family: var(--font-mono); padding: var(--space-2);">' + t + '</th>'; });
+            html += '</tr></thead><tbody>';
+
+            matrix.forEach((row, i) => {
+                html += '<tr><td style="font-family: var(--font-mono); font-weight: 500; padding: var(--space-2);">' + tickers[i] + '</td>';
+                row.forEach((val, j) => {
+                    const v = parseFloat(val).toFixed(2);
+                    const absV = Math.abs(v);
+                    let bg, color;
+                    if (i === j) {
+                        bg = 'rgba(255,255,255,0.05)'; color = 'var(--text-muted)';
+                    } else if (v >= 0.7) {
+                        bg = 'rgba(212,114,114,' + (absV * 0.3) + ')'; color = '#d47272';
+                    } else if (v <= -0.3) {
+                        bg = 'rgba(107,186,126,' + (absV * 0.3) + ')'; color = '#6bba7e';
+                    } else {
+                        bg = 'rgba(255,255,255,' + (absV * 0.05) + ')'; color = 'var(--text-secondary)';
+                    }
+                    html += '<td style="text-align: center; padding: var(--space-2); background: ' + bg + '; color: ' + color + '; font-family: var(--font-mono);">' + v + '</td>';
+                });
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            document.getElementById('correlation-grid').innerHTML = html;
+        })
+        .catch(() => {});
+
+    // Scenario Analysis
+    fetch('/api/scenario-analysis/presets')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.scenarios || data.scenarios.length === 0) return;
+            const card = document.getElementById('scenario-card');
+            card.style.display = '';
+            const select = document.getElementById('scenario-select');
+            data.scenarios.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.key;
+                opt.textContent = s.name;
+                select.appendChild(opt);
+            });
+        })
+        .catch(() => {});
+
     // Concentration Risk
     fetch('/api/portfolio/concentration')
         .then(r => r.json())
@@ -234,14 +510,14 @@
 
             // Score
             const score = data.diversification_score;
-            const scoreColor = score >= 70 ? '#4ade80' : score >= 40 ? '#facc15' : '#f87171';
+            const scoreColor = score >= 70 ? '#6bba7e' : score >= 40 ? '#d4a84b' : '#d47272';
             document.getElementById('conc-score').innerHTML = '<span style="color:' + scoreColor + ';">' + score + '</span><span style="font-size: 0.875rem; color: var(--text-muted);"> / 100</span>';
             document.getElementById('conc-subtitle').textContent = 'Diversification Score';
 
             // Warnings
             if (data.warnings && data.warnings.length > 0) {
                 document.getElementById('conc-warnings').innerHTML = data.warnings.map(w => {
-                    const sevColor = w.severity === 'HIGH' ? '#f87171' : '#facc15';
+                    const sevColor = w.severity === 'HIGH' ? '#d47272' : '#d4a84b';
                     return '<div style="padding: var(--space-2) var(--space-3); margin-bottom: var(--space-2); border-left: 2px solid ' + sevColor + '; background: var(--bg-secondary); font-size: 0.8125rem;">' +
                         '<span style="color: ' + sevColor + '; font-weight: 500; margin-right: var(--space-2);">' + w.severity + '</span>' +
                         '<span style="color: var(--text-secondary);">' + w.message + '</span></div>';
@@ -252,7 +528,7 @@
             const sectors = data.sector_breakdown;
             const sectorLabels = Object.keys(sectors);
             const sectorValues = sectorLabels.map(s => sectors[s].percentage);
-            const sectorColors = ['#4ade80', '#60a5fa', '#f87171', '#facc15', '#a78bfa', '#fb923c', '#2dd4bf', '#f472b6', '#94a3b8', '#e879f9', '#34d399'];
+            const sectorColors = ['#6bba7e', '#60a5fa', '#d47272', '#d4a84b', '#a78bfa', '#fb923c', '#2dd4bf', '#f472b6', '#94a3b8', '#e879f9', '#34d399'];
 
             if (sectorLabels.length > 0 && typeof Chart !== 'undefined') {
                 new Chart(document.getElementById('sector-chart'), {
@@ -283,7 +559,7 @@
                 let posHtml = '<div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-3);">Position Sizes</div>';
                 data.position_sizes.sort((a, b) => b.percentage - a.percentage);
                 data.position_sizes.forEach(p => {
-                    const barColor = p.percentage > 25 ? '#f87171' : p.percentage > 15 ? '#facc15' : '#4ade80';
+                    const barColor = p.percentage > 25 ? '#d47272' : p.percentage > 15 ? '#d4a84b' : '#6bba7e';
                     posHtml += '<div style="margin-bottom: var(--space-3);">' +
                         '<div style="display: flex; justify-content: space-between; font-size: 0.8125rem; margin-bottom: var(--space-1);">' +
                         '<span style="font-family: var(--font-mono); font-weight: 500;">' + p.ticker + '</span>' +
@@ -294,5 +570,96 @@
             }
         })
         .catch(() => {});
+
+    // Run scenario analysis
+    window.runScenario = function(scenario) {
+        if (!scenario) return;
+        const result = document.getElementById('scenario-result');
+        result.style.display = '';
+        document.getElementById('scenario-metrics').innerHTML = '<div class="metric"><div class="metric-value" style="color: var(--text-muted);">Loading...</div></div>';
+        document.getElementById('scenario-positions').innerHTML = '';
+
+        fetch('/api/scenario-analysis?scenario=' + encodeURIComponent(scenario))
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('scenario-metrics').innerHTML =
+                        '<div class="metric"><div class="metric-value" style="color: var(--text-muted);">' + data.error + '</div></div>';
+                    return;
+                }
+
+                const impactColor = data.estimated_impact_pct >= 0 ? '#6bba7e' : '#d47272';
+                document.getElementById('scenario-metrics').innerHTML =
+                    '<div class="metric"><div class="metric-value" style="color: ' + impactColor + ';">' + (data.estimated_impact_pct >= 0 ? '+' : '') + data.estimated_impact_pct + '%</div><div class="metric-label">Portfolio Impact</div></div>' +
+                    '<div class="metric"><div class="metric-value" style="color: ' + impactColor + ';">$' + Math.abs(data.estimated_impact_dollar).toLocaleString() + '</div><div class="metric-label">Dollar Impact</div></div>' +
+                    '<div class="metric"><div class="metric-value">$' + (data.total_value ? data.total_value.toLocaleString() : '—') + '</div><div class="metric-label">Portfolio Value</div></div>';
+
+                if (data.position_impacts && data.position_impacts.length > 0) {
+                    let html = '<div style="overflow-x: auto; margin-top: var(--space-4);"><table style="font-size: 0.8125rem;"><thead><tr><th>Ticker</th><th>Sector</th><th>Beta</th><th>Weight</th><th>Impact</th></tr></thead><tbody>';
+                    data.position_impacts.sort((a, b) => a.impact_pct - b.impact_pct);
+                    data.position_impacts.forEach(p => {
+                        const c = p.impact_pct >= 0 ? '#6bba7e' : '#d47272';
+                        html += '<tr><td style="font-family: var(--font-mono); font-weight: 500;">' + p.ticker + '</td>';
+                        html += '<td style="color: var(--text-muted);">' + (p.sector || '—') + '</td>';
+                        html += '<td style="font-family: var(--font-mono);">' + p.beta + '</td>';
+                        html += '<td style="font-family: var(--font-mono);">' + p.weight + '%</td>';
+                        html += '<td style="font-family: var(--font-mono); color: ' + c + ';">' + (p.impact_pct >= 0 ? '+' : '') + p.impact_pct + '%</td></tr>';
+                    });
+                    html += '</tbody></table></div>';
+                    document.getElementById('scenario-positions').innerHTML = html;
+                }
+            })
+            .catch(() => {
+                document.getElementById('scenario-metrics').innerHTML =
+                    '<div class="metric"><div class="metric-value" style="color: var(--text-muted);">Failed to load</div></div>';
+            });
+    };
+
+    // Rebalancing Execution Plan
+    let _rebalancingPlan = [];
+    fetch('/api/portfolio/rebalancing-plan')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.plan || data.plan.length === 0) return;
+            _rebalancingPlan = data.plan;
+            const card = document.getElementById('rebalancing-plan-card');
+            card.style.display = '';
+            const content = document.getElementById('rebalancing-plan-content');
+            let html = '<div style="display:flex;flex-direction:column;gap:0.5rem;">';
+            data.plan.forEach((a, i) => {
+                const isSell = a.action === 'sell';
+                const color = isSell ? '#d47272' : '#6bba7e';
+                const icon = isSell ? '🔴' : '🟢';
+                let actionText = '';
+                if (isSell) {
+                    actionText = `Sell <strong>${a.shares} shares</strong> of <strong>${a.ticker}</strong> @ $${a.price?.toFixed(2)} = <strong>$${a.value?.toLocaleString()}</strong>`;
+                } else {
+                    actionText = `Add <strong>$${a.value?.toLocaleString()}</strong> to <strong>${a.category}</strong> category`;
+                }
+                html += `
+                    <div style="display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;background:var(--bg-secondary);border-radius:var(--radius-md);border-left:3px solid ${color};">
+                        <span style="font-size:0.75rem;color:var(--text-muted);min-width:1.5rem;">${i + 1}</span>
+                        <div style="flex:1;font-size:0.875rem;">${icon} ${actionText}</div>
+                        <div style="font-size:0.75rem;color:var(--text-muted);text-align:right;max-width:200px;">${a.reason}</div>
+                    </div>`;
+            });
+            html += '</div>';
+            content.innerHTML = html;
+        })
+        .catch(() => {});
+
+    function copyRebalancingPlan() {
+        if (!_rebalancingPlan.length) return;
+        const lines = _rebalancingPlan.map((a, i) => {
+            if (a.action === 'sell') {
+                return `${i+1}. Sell ${a.shares} shares of ${a.ticker} @ $${a.price?.toFixed(2)} = $${a.value?.toLocaleString()} (${a.reason})`;
+            }
+            return `${i+1}. Add $${a.value?.toLocaleString()} to ${a.category} (${a.reason})`;
+        });
+        navigator.clipboard.writeText(lines.join('\n')).then(() => {
+            const btn = document.querySelector('[onclick="copyRebalancingPlan()"]');
+            if (btn) { btn.textContent = '✓ Copied'; setTimeout(() => btn.textContent = '📋 Copy Plan', 2000); }
+        });
+    }
 </script>
 {% endblock %}

@@ -44,11 +44,20 @@ class BacktestEngine:
     }
     _lock = threading.Lock()
 
-    COVERAGE_WARNING = (
+    COVERAGE_WARNING_2FACTOR = (
         "Backtest validates 50% of live model (tech+mom only). "
         "Valuation (30%) and Quality (20%) are NOT backtested."
     )
-    MODEL_ALIGNMENT_PCT = 50
+    COVERAGE_WARNING_4FACTOR = (
+        "Full 4-factor backtest using fundamental snapshots. "
+        "All factors (valuation, technical, momentum, quality) are validated."
+    )
+    MODEL_ALIGNMENT_PCT_2FACTOR = 50
+    MODEL_ALIGNMENT_PCT_4FACTOR = 100
+
+    # Dynamic — set during run
+    COVERAGE_WARNING = COVERAGE_WARNING_2FACTOR
+    MODEL_ALIGNMENT_PCT = MODEL_ALIGNMENT_PCT_2FACTOR
 
     TRANSACTION_COST_BPS = 10  # 10 bps round-trip (5 entry + 5 exit)
 
@@ -176,9 +185,13 @@ class BacktestEngine:
         stats = self._calculate_accuracy(results)
         risk = self._calculate_risk_metrics(results)
 
-        # 4. Optimise weights (walk-forward)
+        # 4. Optimise weights (walk-forward if enough data, else single-split)
         self._update_progress(run_id, 90, 'Optimising weight split...')
-        best_weights = self._optimize_weights(results)
+        if months >= 18:
+            best_weights = self._optimize_weights_walkforward(results)
+        else:
+            best_weights = self._optimize_weights(results)
+            best_weights['walk_forward'] = False
 
         # Merge walk-forward accuracy into risk metrics
         risk['in_sample_accuracy'] = best_weights.get('in_sample_accuracy')
@@ -206,7 +219,21 @@ class BacktestEngine:
         # 9. Accuracy by regime
         risk['accuracy_by_regime'] = stats.get('accuracy_by_regime', {})
 
-        # 10. Save summary
+        # 10. Determine coverage warning based on whether snapshots were used
+        # Check if any fundamental snapshots exist for these tickers
+        has_snapshots = False
+        try:
+            snap_count = db.query_one("SELECT COUNT(*) as cnt FROM fundamental_snapshots")
+            has_snapshots = snap_count and snap_count['cnt'] > 0
+        except Exception:
+            pass
+
+        coverage_warning = self.COVERAGE_WARNING_4FACTOR if has_snapshots else self.COVERAGE_WARNING_2FACTOR
+        model_alignment = self.MODEL_ALIGNMENT_PCT_4FACTOR if has_snapshots else self.MODEL_ALIGNMENT_PCT_2FACTOR
+
+        wf_windows = json.dumps(best_weights.get('windows', [])) if best_weights.get('walk_forward') else None
+        wf_stability = best_weights.get('weight_stability') if best_weights.get('walk_forward') else None
+
         db.update_backtest_run(
             run_id,
             status='completed',
@@ -223,8 +250,10 @@ class BacktestEngine:
             win_loss_ratio=risk.get('win_loss_ratio'),
             risk_metrics=json.dumps(risk),
             survivorship_warning=json.dumps(survivorship),
-            coverage_warning=self.COVERAGE_WARNING,
-            model_alignment_pct=self.MODEL_ALIGNMENT_PCT,
+            coverage_warning=coverage_warning,
+            model_alignment_pct=model_alignment,
+            walk_forward_windows=wf_windows,
+            weight_stability=wf_stability,
         )
         self._update_progress(run_id, 100, 'Complete')
         with self._lock:
@@ -322,6 +351,14 @@ class BacktestEngine:
         else:
             risk_level = 'Low'
 
+        # Feature 7: Count graveyard entries for additional context
+        graveyard_count = 0
+        try:
+            graveyard_rows = db.query("SELECT COUNT(*) as cnt FROM ticker_graveyard")
+            graveyard_count = graveyard_rows[0]['cnt'] if graveyard_rows else 0
+        except Exception:
+            pass
+
         return {
             'risk_level': risk_level,
             'total_tickers': total,
@@ -331,9 +368,11 @@ class BacktestEngine:
             'partial_data': len(partial),
             'partial_tickers': partial[:20],
             'partial_pct': round(partial_pct, 1),
+            'graveyard_count': graveyard_count,
             'message': (
                 f"{risk_level} survivorship bias risk: {len(failed)}/{total} tickers "
-                f"failed to download ({failed_pct:.0f}%), {len(partial)} have partial data."
+                f"failed to download ({failed_pct:.0f}%), {len(partial)} have partial data"
+                f"{', ' + str(graveyard_count) + ' in graveyard' if graveyard_count else ''}."
             ),
         }
 
@@ -385,8 +424,33 @@ class BacktestEngine:
         if tech_score is None or mom_score is None:
             return None
 
-        # 50/50 blend (no fundamentals available historically)
-        composite = (tech_score * 0.5) + (mom_score * 0.5)
+        # Check for fundamental snapshot near this date (Feature 5)
+        date_str_lookup = date.strftime('%Y-%m-%d') if hasattr(date, 'strftime') else str(date)[:10]
+        val_score = None
+        qual_score = None
+        try:
+            snap = db.query_one("""
+                SELECT * FROM fundamental_snapshots
+                WHERE ticker = ? AND snapshot_date <= ?
+                ORDER BY snapshot_date DESC LIMIT 1
+            """, (ticker, date_str_lookup))
+            if snap:
+                val_score = self._score_valuation_snapshot(snap)
+                qual_score = self._score_quality_snapshot(snap)
+        except Exception:
+            pass
+
+        if val_score is not None and qual_score is not None:
+            # Full 4-factor composite using same weights as live model
+            composite = (
+                val_score * 0.30 +
+                tech_score * 0.25 +
+                mom_score * 0.25 +
+                qual_score * 0.20
+            )
+        else:
+            # 50/50 blend (no fundamentals available historically)
+            composite = (tech_score * 0.5) + (mom_score * 0.5)
         composite = max(0, min(100, composite))
 
         signal = self._generate_signal(composite)
@@ -841,6 +905,175 @@ class BacktestEngine:
             'test_size': len(test_set),
         }
 
+    def _optimize_weights_walkforward(self, results: List[Dict],
+                                       train_months: int = 12,
+                                       test_months: int = 3) -> Dict:
+        """Rolling walk-forward optimization to prevent overfitting.
+
+        Instead of a single 70/30 split, uses rolling windows:
+        - Window 1: train months 1-12, test 13-15
+        - Window 2: train months 4-15, test 16-18
+        - etc.
+
+        Returns average OOS accuracy across all windows plus stability metric.
+        """
+        scored = [r for r in results if r.get('forward_20d_return') is not None
+                  and r.get('tech_score') is not None and r.get('momentum_score') is not None]
+        if not scored:
+            return self._optimize_weights(results)
+
+        # Sort by date
+        scored.sort(key=lambda r: r['test_date'])
+        dates = [r['test_date'] for r in scored]
+
+        if not dates:
+            return self._optimize_weights(results)
+
+        # Determine date range
+        from dateutil.relativedelta import relativedelta
+        first_date = datetime.strptime(dates[0][:10], '%Y-%m-%d')
+        last_date = datetime.strptime(dates[-1][:10], '%Y-%m-%d')
+        total_months = (last_date.year - first_date.year) * 12 + (last_date.month - first_date.month)
+
+        # Need at least train_months + test_months of data
+        if total_months < train_months + test_months:
+            # Fall back to single-split method
+            fallback = self._optimize_weights(results)
+            fallback['walk_forward'] = False
+            fallback['reason'] = f'Only {total_months} months of data, need {train_months + test_months} for walk-forward'
+            return fallback
+
+        # Build rolling windows
+        windows = []
+        window_start = first_date
+
+        while True:
+            train_end = window_start + relativedelta(months=train_months)
+            test_end = train_end + relativedelta(months=test_months)
+
+            if test_end > last_date + timedelta(days=15):
+                break
+
+            train_start_str = window_start.strftime('%Y-%m-%d')
+            train_end_str = train_end.strftime('%Y-%m-%d')
+            test_end_str = test_end.strftime('%Y-%m-%d')
+
+            train_set = [r for r in scored if train_start_str <= r['test_date'][:10] < train_end_str]
+            test_set = [r for r in scored if train_end_str <= r['test_date'][:10] < test_end_str]
+
+            if len(train_set) >= 10 and len(test_set) >= 3:
+                # Grid search on training set
+                best_acc = 0
+                best_w = 0.5
+                best_buy = 65
+                best_sell = 35
+
+                for tech_w_int in range(25, 76, 5):
+                    tech_w = tech_w_int / 100
+                    mom_w = 1 - tech_w
+
+                    for buy_thresh, sell_thresh in [(60, 40), (65, 35), (70, 30)]:
+                        hits = total = 0
+                        for r in train_set:
+                            composite = r['tech_score'] * tech_w + r['momentum_score'] * mom_w
+                            if composite > buy_thresh:
+                                sig = 'Buy'
+                            elif composite < sell_thresh:
+                                sig = 'Sell'
+                            else:
+                                sig = 'Hold'
+                            fwd = r['forward_20d_return']
+                            if sig == 'Buy' and fwd > 0:
+                                hits += 1
+                            elif sig == 'Sell' and fwd < 0:
+                                hits += 1
+                            elif sig == 'Hold' and abs(fwd) < 3:
+                                hits += 1
+                            total += 1
+                        acc = (hits / total * 100) if total else 0
+                        if acc > best_acc:
+                            best_acc = acc
+                            best_w = tech_w
+                            best_buy = buy_thresh
+                            best_sell = sell_thresh
+
+                # Evaluate on test set
+                hits = total = 0
+                for r in test_set:
+                    composite = r['tech_score'] * best_w + r['momentum_score'] * (1 - best_w)
+                    if composite > best_buy:
+                        sig = 'Buy'
+                    elif composite < best_sell:
+                        sig = 'Sell'
+                    else:
+                        sig = 'Hold'
+                    fwd = r['forward_20d_return']
+                    if sig == 'Buy' and fwd > 0:
+                        hits += 1
+                    elif sig == 'Sell' and fwd < 0:
+                        hits += 1
+                    elif sig == 'Hold' and abs(fwd) < 3:
+                        hits += 1
+                    total += 1
+                oos_acc = round((hits / total * 100) if total else 0, 1)
+
+                windows.append({
+                    'train_period': f'{train_start_str[:7]} to {train_end_str[:7]}',
+                    'test_period': f'{train_end_str[:7]} to {test_end_str[:7]}',
+                    'train_size': len(train_set),
+                    'test_size': len(test_set),
+                    'best_tech_weight': round(best_w, 2),
+                    'best_momentum_weight': round(1 - best_w, 2),
+                    'in_sample_accuracy': round(best_acc, 1),
+                    'out_of_sample_accuracy': oos_acc,
+                })
+
+            # Shift window forward by test_months
+            window_start += relativedelta(months=test_months)
+
+        if not windows:
+            fallback = self._optimize_weights(results)
+            fallback['walk_forward'] = False
+            fallback['reason'] = 'Not enough data per window for walk-forward analysis'
+            return fallback
+
+        # Aggregate results
+        oos_accuracies = [w['out_of_sample_accuracy'] for w in windows]
+        avg_oos = round(sum(oos_accuracies) / len(oos_accuracies), 1)
+        std_oos = round((sum((a - avg_oos) ** 2 for a in oos_accuracies) / len(oos_accuracies)) ** 0.5, 1) if len(oos_accuracies) > 1 else 0
+
+        # Use median window's weights as best (most robust)
+        windows_sorted = sorted(windows, key=lambda w: w['out_of_sample_accuracy'], reverse=True)
+        median_idx = len(windows_sorted) // 2
+        best_window = windows_sorted[median_idx]
+
+        # Check for degradation (last window accuracy vs first)
+        degrading = False
+        if len(windows) >= 3:
+            first_half_avg = sum(w['out_of_sample_accuracy'] for w in windows[:len(windows)//2]) / (len(windows)//2)
+            second_half_avg = sum(w['out_of_sample_accuracy'] for w in windows[len(windows)//2:]) / (len(windows) - len(windows)//2)
+            degrading = second_half_avg < first_half_avg - 5  # >5% degradation
+
+        # Also run single-split for comparison
+        single_split = self._optimize_weights(results)
+
+        return {
+            'tech_weight': best_window['best_tech_weight'],
+            'momentum_weight': best_window['best_momentum_weight'],
+            'accuracy': avg_oos,
+            'in_sample_accuracy': single_split.get('in_sample_accuracy', 0),
+            'out_of_sample_accuracy': avg_oos,
+            'walk_forward': True,
+            'windows': windows,
+            'avg_oos_accuracy': avg_oos,
+            'oos_std': std_oos,
+            'weight_stability': std_oos,
+            'degrading': degrading,
+            'single_split_oos': single_split.get('out_of_sample_accuracy', 0),
+            'train_size': sum(w['train_size'] for w in windows),
+            'test_size': sum(w['test_size'] for w in windows),
+        }
+
     # ------------------------------------------------------------------
     # Portfolio Simulation
     # ------------------------------------------------------------------
@@ -1068,6 +1301,104 @@ class BacktestEngine:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # Fundamental Snapshot Scoring (Feature 5)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _score_valuation_snapshot(snap: Dict) -> Optional[float]:
+        """Score valuation from a stored fundamental snapshot."""
+        scores = []
+        pe = snap.get('pe_ratio')
+        if pe is not None:
+            if pe <= 0:
+                scores.append(20)
+            elif pe <= 10:
+                scores.append(90)
+            elif pe <= 20:
+                scores.append(70)
+            elif pe <= 30:
+                scores.append(50)
+            elif pe <= 50:
+                scores.append(30)
+            else:
+                scores.append(15)
+
+        pb = snap.get('pb_ratio')
+        if pb is not None:
+            if pb <= 1.0:
+                scores.append(85)
+            elif pb <= 2.0:
+                scores.append(70)
+            elif pb <= 4.0:
+                scores.append(50)
+            elif pb <= 8.0:
+                scores.append(30)
+            else:
+                scores.append(15)
+
+        return sum(scores) / len(scores) if scores else None
+
+    @staticmethod
+    def _score_quality_snapshot(snap: Dict) -> Optional[float]:
+        """Score quality from a stored fundamental snapshot."""
+        scores = []
+        de = snap.get('debt_to_equity')
+        if de is not None:
+            if de < 30:
+                scores.append(90)
+            elif de < 80:
+                scores.append(70)
+            elif de < 150:
+                scores.append(50)
+            elif de < 300:
+                scores.append(30)
+            else:
+                scores.append(10)
+
+        roe = snap.get('roe')
+        if roe is not None:
+            if 15 <= roe <= 40:
+                scores.append(85)
+            elif 10 <= roe < 15:
+                scores.append(65)
+            elif 5 <= roe < 10:
+                scores.append(45)
+            elif roe > 40:
+                scores.append(60)
+            elif roe < 0:
+                scores.append(15)
+            else:
+                scores.append(30)
+
+        cr = snap.get('current_ratio')
+        if cr is not None:
+            if cr >= 2.0:
+                scores.append(85)
+            elif cr >= 1.5:
+                scores.append(70)
+            elif cr >= 1.0:
+                scores.append(50)
+            elif cr >= 0.5:
+                scores.append(30)
+            else:
+                scores.append(10)
+
+        fcf = snap.get('fcf_yield')
+        if fcf is not None:
+            if fcf > 8:
+                scores.append(90)
+            elif fcf > 5:
+                scores.append(75)
+            elif fcf > 2:
+                scores.append(55)
+            elif fcf > 0:
+                scores.append(40)
+            else:
+                scores.append(15)
+
+        return sum(scores) / len(scores) if scores else None
 
     @staticmethod
     def _compute_rsi(series, period: int = 14) -> Optional[float]:

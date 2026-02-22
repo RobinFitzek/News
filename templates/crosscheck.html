@@ -33,9 +33,9 @@
                     </td>
                     <td style="padding: var(--space-2) var(--space-3); text-align: center;">
                         <span style="color:
-                            {% if cc.trust_score and cc.trust_score >= 0.8 %}#4ade80
-                            {% elif cc.trust_score and cc.trust_score >= 0.5 %}#facc15
-                            {% else %}#f87171{% endif %}; font-weight: 600;">
+                            {% if cc.trust_score and cc.trust_score >= 0.8 %}#6bba7e
+                            {% elif cc.trust_score and cc.trust_score >= 0.5 %}#d4a84b
+                            {% else %}#d47272{% endif %}; font-weight: 600;">
                             {{ "%.0f"|format((cc.trust_score or 0) * 100) }}%
                         </span>
                     </td>

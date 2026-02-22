@@ -149,7 +149,7 @@ class DividendTracker:
         """Get all dividend-paying stocks from portfolio."""
         try:
             results = db.query("""
-                SELECT ticker, last_dividend, estimated_next_ex_date, 
+                SELECT ticker, last_dividend, estimated_next_ex_date,
                        days_until_ex_date, dividend_yield
                 FROM dividend_calendar
                 WHERE dividend_yield > 0
@@ -159,6 +159,93 @@ class DividendTracker:
         except Exception as e:
             logger.error(f"Error retrieving dividend stocks: {e}")
             return []
+
+    def get_dividend_growth(self, ticker: str) -> Optional[Dict]:
+        """Calculate 1/3/5-year dividend CAGR from history."""
+        try:
+            stock = yf.Ticker(ticker)
+            divs = stock.dividends
+            if divs is None or len(divs) < 4:
+                return None
+
+            now = datetime.now()
+            result = {}
+
+            for years, label in [(1, 'growth_1yr'), (3, 'growth_3yr'), (5, 'growth_5yr')]:
+                cutoff = now - timedelta(days=years * 365)
+                period_divs = divs[divs.index >= cutoff.strftime('%Y-%m-%d')]
+                if len(period_divs) >= 2:
+                    earliest = float(period_divs.iloc[0])
+                    latest = float(period_divs.iloc[-1])
+                    if earliest > 0:
+                        cagr = ((latest / earliest) ** (1 / years) - 1) * 100
+                        result[label] = round(cagr, 1)
+
+            return result if result else None
+        except Exception as e:
+            logger.debug(f"Dividend growth calc failed for {ticker}: {e}")
+            return None
+
+    def get_payout_ratio(self, ticker: str) -> Optional[float]:
+        """Calculate payout ratio: dividends / EPS."""
+        try:
+            stock = yf.Ticker(ticker)
+            info = stock.info
+            eps = info.get('trailingEps')
+            div_rate = info.get('dividendRate')
+            if eps and div_rate and eps > 0:
+                return round((div_rate / eps) * 100, 1)
+            return None
+        except Exception:
+            return None
+
+    def get_consecutive_increases(self, ticker: str) -> int:
+        """Count consecutive years of unbroken dividend growth."""
+        try:
+            stock = yf.Ticker(ticker)
+            divs = stock.dividends
+            if divs is None or len(divs) < 8:
+                return 0
+
+            # Group by year and sum
+            annual = {}
+            for date, amount in divs.items():
+                year = date.year
+                annual[year] = annual.get(year, 0) + float(amount)
+
+            years = sorted(annual.keys())
+            if len(years) < 2:
+                return 0
+
+            streak = 0
+            for i in range(len(years) - 1, 0, -1):
+                if annual[years[i]] > annual[years[i - 1]]:
+                    streak += 1
+                else:
+                    break
+            return streak
+        except Exception:
+            return 0
+
+    def is_dividend_aristocrat(self, ticker: str) -> bool:
+        """Check if stock has 25+ consecutive years of dividend increases."""
+        return self.get_consecutive_increases(ticker) >= 25
+
+    def get_enhanced_dividend_info(self, ticker: str) -> Optional[Dict]:
+        """Get comprehensive dividend data including growth and payout."""
+        base = self.get_dividend_info(ticker)
+        if not base:
+            return None
+
+        growth = self.get_dividend_growth(ticker)
+        payout = self.get_payout_ratio(ticker)
+        consecutive = self.get_consecutive_increases(ticker)
+
+        base['growth'] = growth
+        base['payout_ratio'] = payout
+        base['consecutive_increases'] = consecutive
+        base['is_aristocrat'] = consecutive >= 25
+        return base
 
 
 # Singleton

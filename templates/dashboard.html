@@ -4,154 +4,464 @@
 
 {% block content %}
 <div id="dashboard-page" class="animate-fade-in">
+
     <!-- Page Header -->
     <header class="page-header">
         <div>
             <h1>Dashboard</h1>
-            <p>Market intelligence and portfolio insights</p>
-        </div>
-        <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); letter-spacing: 0.04em;">
-            <span id="current-time"></span>
+            <p>Autonomous investment intelligence</p>
         </div>
     </header>
 
-    <!-- Market Regime Card (loaded via AJAX) -->
-    <div id="regime-card" class="card" style="margin-bottom: var(--space-8); display: none; position: relative; overflow: visible;">
-        <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, var(--text-primary), transparent);"></div>
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
-            <div style="display: flex; align-items: center; gap: var(--space-4);">
-                <h3 style="margin: 0;">Market Regime</h3>
-                <span id="regime-badge" class="badge" style="font-size: 0.75rem; padding: var(--space-2) var(--space-4);"></span>
-            </div>
-            <div id="regime-updated" style="font-size: 0.6875rem; color: var(--text-muted);"></div>
-        </div>
-        <div class="grid grid-4" style="margin-top: var(--space-5);">
-            <div class="metric">
-                <div class="metric-value" id="regime-spy">—</div>
-                <div class="metric-label">SPY Price</div>
-            </div>
-            <div class="metric">
-                <div class="metric-value" id="regime-vix">—</div>
-                <div class="metric-label">VIX</div>
-            </div>
-            <div class="metric">
-                <div class="metric-value" id="regime-yield">—</div>
-                <div class="metric-label">10Y Yield</div>
-            </div>
-            <div class="metric">
-                <div class="metric-value" id="regime-sma" style="font-size: 0.875rem;">—</div>
-                <div class="metric-label">SMA50 / SMA200</div>
-            </div>
-        </div>
-    </div>
+    <!-- ─── BANNERS ─────────────────────────────────────── -->
 
-    <!-- Portfolio vs SPY Benchmark (loaded via AJAX) -->
-    <div id="benchmark-card" class="card" style="margin-bottom: var(--space-8); display: none; position: relative; overflow: visible;">
-        <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, var(--text-primary), transparent);"></div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
-            <div>
-                <h3 style="margin: 0 0 var(--space-1) 0;">Portfolio vs SPY</h3>
-                <p style="margin: 0; font-size: var(--text-sm);" id="benchmark-subtitle">Are you beating the market?</p>
-            </div>
-            <a href="/portfolio" class="btn btn-secondary">View Portfolio</a>
+    {% if system_paused %}
+    <div
+        style="background: rgba(220, 38, 38, 0.15); border: 1px solid rgba(220, 38, 38, 0.4); color: #fca5a5; padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4); display: flex; justify-content: space-between; align-items: center; gap: var(--space-4);">
+        <div>
+            <span style="font-weight: 600; color: #f87171;">PIPELINE PAUSED</span>
+            <span style="margin-left: var(--space-3); font-size: 0.875rem;">Accuracy kill switch active — accuracy
+                dropped below 50%. Pipeline will not run until cleared.</span>
         </div>
-        <div class="grid grid-3" style="margin-bottom: var(--space-5);">
-            <div class="metric">
-                <div class="metric-value" id="bm-portfolio-return">—</div>
-                <div class="metric-label">Portfolio Return</div>
-            </div>
-            <div class="metric">
-                <div class="metric-value" id="bm-spy-return">—</div>
-                <div class="metric-label">SPY Return</div>
-            </div>
-            <div class="metric">
-                <div class="metric-value" id="bm-alpha">—</div>
-                <div class="metric-label">Alpha</div>
-            </div>
-        </div>
-        <canvas id="benchmark-chart" height="120" style="display: none;"></canvas>
+        <a href="/settings" class="btn btn-danger" style="white-space: nowrap; font-size: 0.8125rem;">Clear in
+            Settings</a>
     </div>
+    {% endif %}
 
-    <!-- Scheduler Status Card -->
-    <div class="card" style="margin-bottom: var(--space-8);">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
-            <div style="display: flex; align-items: center; gap: var(--space-4);">
-                <div>
-                    <h3 style="margin: 0 0 var(--space-2) 0;">Scheduler Engine</h3>
-                    {% if scheduler_status.is_scanning %}
-                    <span class="badge" style="background: rgba(255, 152, 0, 0.2); color: #ff9800; border: 1px solid rgba(255, 152, 0, 0.3);">
-                        <span style="display: inline-block; width: 5px; height: 5px; background: currentColor; border-radius: 50%; box-shadow: 0 0 6px currentColor; animation: pulse 1.5s infinite;"></span>
-                        Scanning...
-                    </span>
-                    {% elif scheduler_status.is_running %}
-                    <span class="badge badge-success">
-                        <span style="width: 5px; height: 5px; background: currentColor; border-radius: 50%; box-shadow: 0 0 6px currentColor;"></span>
-                        Running
-                    </span>
-                    {% else %}
-                    <span class="badge badge-danger">
-                        <span style="width: 5px; height: 5px; background: currentColor; border-radius: 50%;"></span>
-                        Stopped
-                    </span>
-                    {% endif %}
-                </div>
-            </div>
-            <div style="display: flex; gap: var(--space-3);">
-                {% if scheduler_status.is_running %}
-                <form action="/scheduler/stop" method="POST" style="display: inline;">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit" class="btn btn-danger">Stop</button>
-                </form>
+    {% if cold_start %}
+    <div
+        style="background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3); color: #fde68a; padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4); font-size: 0.875rem;">
+        <span style="font-weight: 600; color: #fbbf24;">COLD START</span>
+        <span style="margin-left: var(--space-3);">{{ cold_start_reason }}. Needs 60 days + 20 verified predictions
+            before accuracy is reliable.</span>
+    </div>
+    {% endif %}
+
+    <!-- ─── LAYER 1: SYSTEM STATUS BAR ─────────────────── -->
+
+    <div class="sys-status-bar">
+        <div class="sys-status-info">
+            <!-- Engine state -->
+            <div class="sys-status-item">
+                {% if scheduler_status.is_scanning %}
+                <span class="sys-dot sys-dot-scanning"></span>
+                <span class="sys-value">Scanning</span>
+                {% elif scheduler_status.is_running %}
+                <span class="sys-dot sys-dot-running"></span>
+                <span class="sys-value">Running</span>
                 {% else %}
-                <form action="/scheduler/start" method="POST" style="display: inline;">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button type="submit" class="btn btn-success">Start</button>
-                </form>
+                <span class="sys-dot sys-dot-stopped"></span>
+                <span class="sys-value" style="color: var(--signal-negative);">Stopped</span>
                 {% endif %}
-                <form action="/scheduler/run-now" method="POST" style="display: inline;">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    {% if scheduler_status.is_scanning %}
-                    <button type="button" class="btn btn-secondary" disabled style="opacity: 0.7; cursor: not-allowed;">Scanning...</button>
-                    {% else %}
-                    <button type="submit" class="btn btn-primary">Scan Now</button>
-                    {% endif %}
-                </form>
+            </div>
+
+            {% if discovery_stats and discovery_stats.last_run %}
+            <div class="sys-sep"></div>
+            <div class="sys-status-item">
+                <span class="sys-label">Last scan</span>
+                <span class="sys-value">{{ discovery_stats.last_run.run_at }}</span>
+                {% if discovery_stats.last_run.errors %}
+                <span class="badge badge-danger" style="font-size: 0.5rem; padding: 1px 5px;">Error</span>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            {% if scheduler_status.jobs %}
+            <div class="sys-sep"></div>
+            <div class="sys-status-item">
+                <span class="sys-value">{{ scheduler_status.jobs|length }}</span>
+                <span class="sys-label">scheduled jobs</span>
+            </div>
+            {% endif %}
+
+            {% if discovery_stats %}
+            <div class="sys-sep"></div>
+            <div class="sys-status-item">
+                {% set pending = (discovery_stats.total_new|default(0)) + (discovery_stats.total_screened|default(0)) %}
+                <span class="sys-value" {% if pending > 0 %}style="color: var(--signal-warning);"{% endif %}>{{ pending }}</span>
+                <span class="sys-label">pending review</span>
+            </div>
+            {% endif %}
+
+            {% if learning_stats.total_verified > 0 %}
+            <div class="sys-sep"></div>
+            <div class="sys-status-item">
+                <span class="sys-value"
+                    {% if learning_stats.hit_rate >= 60 %}style="color: var(--signal-positive);"
+                    {% elif learning_stats.hit_rate < 50 %}style="color: var(--signal-negative);"{% endif %}>
+                    {{ learning_stats.hit_rate }}%
+                </span>
+                <span class="sys-label">AI accuracy</span>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="sys-status-actions">
+            <span id="current-time" class="sys-time"></span>
+
+            {% if scheduler_status.is_running %}
+            <form action="/scheduler/stop" method="POST" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-danger sys-btn">Stop</button>
+            </form>
+            {% else %}
+            <form action="/scheduler/start" method="POST" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-success sys-btn">Start</button>
+            </form>
+            {% endif %}
+
+            <form action="/scheduler/run-now" method="POST" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                {% if scheduler_status.is_scanning %}
+                <button type="button" class="btn btn-secondary sys-btn" disabled>Scanning…</button>
+                {% else %}
+                <button type="submit" class="btn btn-primary sys-btn">
+                    <svg class="icon-svg" viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    Scan Now
+                </button>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+
+    <!-- ─── LAYER 2: MARKET + PORTFOLIO (primary 2-col) ── -->
+
+    <div class="dash-primary-row">
+        <!-- Market Regime (AJAX) -->
+        <div id="regime-card" class="card" style="display: none; margin-bottom: 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-3);">
+                <div style="display: flex; align-items: center; gap: var(--space-3);">
+                    <h3 style="margin: 0;">Market Regime</h3>
+                    <span id="regime-badge" class="badge" style="font-size: 0.75rem; padding: var(--space-2) var(--space-4);"></span>
+                </div>
+                <div id="regime-updated" style="font-size: 0.6875rem; color: var(--text-muted);"></div>
+            </div>
+            <div class="grid grid-4" style="margin-top: var(--space-5);">
+                <div class="metric">
+                    <div class="metric-value" id="regime-spy">—</div>
+                    <div class="metric-label">SPY</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" id="regime-vix">—</div>
+                    <div class="metric-label">VIX</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" id="regime-yield">—</div>
+                    <div class="metric-label">10Y Yield</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" id="regime-sma" style="font-size: 0.875rem;">—</div>
+                    <div class="metric-label">SMA50 / SMA200</div>
+                </div>
             </div>
         </div>
 
-        {% if scheduler_status.jobs %}
-        <div style="margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--border-hairline);">
-            <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">
-                Scheduled Jobs
-            </div>
-            <div class="grid grid-3">
-                {% for job in scheduler_status.jobs %}
-                <div style="padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline); border-radius: var(--radius-md);">
-                    <div style="font-weight: 500; margin-bottom: var(--space-1); color: var(--text-primary); font-size: 0.875rem;">{{ job.name }}</div>
-                    <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">{{ job.next_run }}</div>
+        <!-- Portfolio vs SPY (AJAX) -->
+        <div id="benchmark-card" class="card" style="display: none; margin-bottom: 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4); flex-wrap: wrap; gap: var(--space-3);">
+                <div>
+                    <h3 style="margin: 0 0 var(--space-1) 0;">Portfolio vs SPY</h3>
+                    <p style="margin: 0; font-size: var(--text-sm);" id="benchmark-subtitle">Beating the market?</p>
                 </div>
-                {% endfor %}
+                <a href="/portfolio" class="btn btn-secondary" style="font-size: 0.75rem;">Portfolio →</a>
             </div>
+            <div class="grid grid-3" style="margin-bottom: var(--space-4);">
+                <div class="metric">
+                    <div class="metric-value" id="bm-portfolio-return">—</div>
+                    <div class="metric-label">Portfolio</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" id="bm-spy-return">—</div>
+                    <div class="metric-label">SPY</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" id="bm-alpha">—</div>
+                    <div class="metric-label">Alpha</div>
+                </div>
+            </div>
+            <canvas id="benchmark-chart" height="100" style="display: none;"></canvas>
+        </div>
+    </div>
+
+    <!-- ─── INTELLIGENCE SUMMARY STRIP (always visible) ── -->
+
+    {% if discovery_stats or learning_stats.total_verified > 0 %}
+    <div class="dash-intel-strip">
+        {% if learning_stats.total_verified > 0 %}
+        <div class="intel-metric">
+            <div class="intel-value"
+                {% if learning_stats.hit_rate >= 60 %}style="color: var(--signal-positive);"
+                {% elif learning_stats.hit_rate < 50 %}style="color: var(--signal-negative);"{% endif %}>
+                {{ learning_stats.hit_rate }}%
+            </div>
+            <div class="intel-label">AI Hit Rate</div>
+        </div>
+        <div class="intel-metric">
+            <div class="intel-value">{{ learning_stats.total_verified }}</div>
+            <div class="intel-label">Verified Predictions</div>
+        </div>
+        {% endif %}
+
+        {% if discovery_stats %}
+        <div class="intel-metric">
+            <div class="intel-value">{{ discovery_stats.week_total|default(0) }}</div>
+            <div class="intel-label">Discovered (7d)</div>
+        </div>
+        <div class="intel-metric">
+            <div class="intel-value" style="color: var(--signal-positive);">{{ discovery_stats.week_promoted|default(0) }}</div>
+            <div class="intel-label">Promoted (7d)</div>
+        </div>
+        {% set pending = (discovery_stats.total_new|default(0)) + (discovery_stats.total_screened|default(0)) %}
+        <div class="intel-metric">
+            <div class="intel-value" {% if pending > 0 %}style="color: var(--signal-warning);"{% endif %}>{{ pending }}</div>
+            <div class="intel-label">Pending Review</div>
+        </div>
+        {% endif %}
+
+        <div class="intel-actions">
+            {% if discovery_stats %}
+            <a href="/discoveries" class="btn btn-secondary" style="font-size: 0.75rem;">Discoveries</a>
+            {% endif %}
+            {% if learning_stats.total_verified > 0 %}
+            <a href="/learning" class="btn btn-ghost" style="font-size: 0.75rem;">Learning</a>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ─── LAYER 3: CONTEXT (sector + calendar, 2-col) ── -->
+
+    <div class="dash-context-row">
+        <!-- Sector Momentum (AJAX) -->
+        <div id="sector-momentum-card" class="card" style="display: none; margin-bottom: 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-3);">
+                <div>
+                    <h3 style="margin: 0 0 var(--space-1) 0;">Sector Momentum</h3>
+                    <p style="margin: 0; font-size: var(--text-sm);" id="sector-momentum-subtitle">Which sectors are moving?</p>
+                </div>
+                <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">
+                    SPY: <span id="sector-spy-return" style="color: var(--text-primary);">—</span>
+                </div>
+            </div>
+            <div id="sector-heat-grid"
+                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: var(--space-2);">
+            </div>
+            <div id="sector-rotation"
+                style="margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border-hairline); display: none;">
+                <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-2);">Rotation</div>
+                <div id="sector-rotation-content" style="font-size: 0.8125rem;"></div>
+            </div>
+        </div>
+
+        <!-- Economic Calendar (AJAX) -->
+        <div id="econ-calendar-card" class="card" style="display: none; margin-bottom: 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-3);">
+                <div>
+                    <h3 style="margin: 0 0 var(--space-1) 0;">Economic Calendar</h3>
+                    <p style="margin: 0; font-size: var(--text-sm);" id="econ-calendar-subtitle">Upcoming market-moving events</p>
+                </div>
+                <span id="econ-calendar-badge" class="badge" style="display: none;"></span>
+            </div>
+            <div id="econ-events-list" style="display: grid; gap: var(--space-3);"></div>
+        </div>
+    </div>
+
+    <!-- ─── LAYER 4: AUTO-DISCOVERY STATS ───────────────── -->
+
+    {% if discovery_stats %}
+    <div class="dash-section-label">Auto-Discovery</div>
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-4);">
+            <div style="display: flex; align-items: center; gap: var(--space-3);">
+                <h3 style="margin: 0;">Auto-Discovery</h3>
+                {% if discovery_stats.enabled %}
+                <span class="badge badge-success">
+                    <span style="width: 5px; height: 5px; background: currentColor; border-radius: 50%; box-shadow: 0 0 6px currentColor;"></span>
+                    Enabled
+                </span>
+                {% else %}
+                <span class="badge" style="background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid var(--border-hairline);">Disabled</span>
+                {% endif %}
+            </div>
+            <a href="/discoveries" class="btn btn-secondary">View All →</a>
+        </div>
+
+        {% if discovery_stats.last_run %}
+        <div style="padding: var(--space-3) var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); font-size: 0.75rem; color: var(--text-muted);">
+            <span>Last run:</span>
+            <span style="color: var(--text-secondary); font-weight: 500;">{{ discovery_stats.last_run.run_type }}</span>
+            <span style="margin: 0 var(--space-1);">at</span>
+            <span style="color: var(--text-secondary);">{{ discovery_stats.last_run.run_at }}</span>
+            <span style="margin-left: var(--space-2);">
+                {{ discovery_stats.last_run.tickers_scanned }} scanned,
+                {{ discovery_stats.last_run.discoveries_found }} found,
+                {{ discovery_stats.last_run.promoted_count }} promoted
+            </span>
+            {% if discovery_stats.last_run.errors %}
+            <span class="badge badge-danger" style="font-size: 0.5rem; margin-left: var(--space-2);">Error</span>
+            {% else %}
+            <span class="badge badge-success" style="font-size: 0.5rem; margin-left: var(--space-2);">OK</span>
+            {% endif %}
+        </div>
+        {% elif not discovery_stats.enabled %}
+        <div style="font-size: 0.75rem; color: var(--text-muted);">
+            Enable auto-discovery in <a href="/settings" style="color: var(--text-secondary);">Settings</a> to automatically find new stock opportunities.
         </div>
         {% endif %}
     </div>
+    {% endif %}
 
-    <!-- Learning Performance Summary -->
+    <!-- ─── TOP PICKS PREVIEW ───────────────────────────── -->
+
+    {% if top_picks_preview and top_picks_preview|length > 0 %}
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Top Picks</h3>
+                <p style="margin: 0; font-size: var(--text-sm);">Proven prediction accuracy</p>
+            </div>
+            <a href="/top-picks" class="btn btn-primary animate-pulse">View All →</a>
+        </div>
+        <div class="grid grid-3">
+            {% for pick in top_picks_preview %}
+            <div style="position: relative; padding: var(--space-6); background: var(--bg-secondary); border: 1px solid var(--border-hairline); text-align: center; transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);"
+                onmouseover="this.style.borderColor='rgba(255,255,255,0.15)';"
+                onmouseout="this.style.borderColor='';">
+                <div style="font-family: var(--font-mono); font-size: 1.125rem; font-weight: 500; color: var(--text-primary); margin-bottom: var(--space-3); letter-spacing: 0.04em;">
+                    {{ pick.ticker }}</div>
+                <div style="font-family: var(--font-body); font-size: 2.5rem; font-weight: 300; color: var(--text-primary); line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; margin-bottom: var(--space-1);">
+                    {{ pick.pick_score }}</div>
+                <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">Pick Score</div>
+                <div style="display: flex; justify-content: center; gap: var(--space-6); padding-top: var(--space-3); border-top: 1px solid var(--border-hairline);">
+                    <div>
+                        <div style="font-weight: 500; color: var(--text-primary);">{{ pick.accuracy }}%</div>
+                        <div style="font-size: 0.5625rem; color: var(--text-muted); letter-spacing: 0.06em;">Accuracy</div>
+                    </div>
+                    <div>
+                        <div style="font-weight: 500; color: var(--text-primary);">{{ pick.total_predictions }}</div>
+                        <div style="font-size: 0.5625rem; color: var(--text-muted); letter-spacing: 0.06em;">Predictions</div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ─── PORTFOLIO ALERTS (AJAX) ──────────────────────── -->
+
+    <div id="portfolio-alerts-container" class="card" style="margin-bottom: var(--space-6); display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Portfolio Alerts</h3>
+                <p style="margin: 0; font-size: var(--text-sm);" id="portfolio-alerts-subtitle"></p>
+            </div>
+            <a href="/portfolio" class="btn btn-secondary">View Portfolio</a>
+        </div>
+        <div id="portfolio-benchmark" style="display: none; padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline); margin-bottom: var(--space-4);"></div>
+        <div id="portfolio-alerts-list"></div>
+        <div id="portfolio-rebalancing" style="display: none; margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border-hairline);"></div>
+    </div>
+
+    <!-- ─── ANALYTICS ROW (reality check + signal P&L) ─── -->
+
+    <div class="dash-analytics-row">
+        <!-- Reality Check (AJAX) -->
+        <div id="reality-check-card" class="card" style="display: none; margin-bottom: 0; border: 1px solid rgba(212,114,114,0.3);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-3);">
+                <div>
+                    <h3 style="margin: 0 0 var(--space-1) 0;">Reality Check</h3>
+                    <p style="margin: 0; font-size: var(--text-sm);" id="reality-check-subtitle">Honest performance assessment</p>
+                </div>
+                <span id="reality-severity-badge" class="badge"></span>
+            </div>
+            <div class="grid grid-2" style="margin-bottom: var(--space-5);">
+                <div id="significance-box" style="padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
+                    <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-2);">Statistical Significance</div>
+                    <div id="significance-verdict" style="font-size: 0.9375rem; color: var(--text-primary); margin-bottom: var(--space-1);"></div>
+                    <div id="significance-details" style="font-size: 0.75rem; color: var(--text-muted);"></div>
+                </div>
+                <div id="drawdown-box" style="padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
+                    <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-2);">Max Drawdown</div>
+                    <div id="drawdown-value" style="font-family: var(--font-body); font-size: 1.75rem; font-weight: 300; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">—</div>
+                    <div id="drawdown-details" style="font-size: 0.75rem; color: var(--text-muted);"></div>
+                </div>
+            </div>
+            <div id="reality-warnings" style="display: grid; gap: var(--space-2);"></div>
+        </div>
+
+        <!-- Signal P&L Scorecard (AJAX) -->
+        <div id="signal-pnl-card" class="card" style="display: none; margin-bottom: 0;">
+            <div style="margin-bottom: var(--space-5);">
+                <h3 style="margin: 0 0 var(--space-1) 0;">Signal P&L</h3>
+                <p style="margin: 0; font-size: var(--text-sm);">How well do signals predict price movement?</p>
+            </div>
+            <div class="grid grid-4" id="signal-pnl-metrics"></div>
+        </div>
+    </div>
+
+    <!-- Signal Expected Value (AJAX) -->
+    <div id="signal-ev-card" class="card" style="margin-bottom: var(--space-6); display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Signal Expected Value</h3>
+                <p style="margin: 0; font-size: var(--text-sm);" id="signal-ev-subtitle">Would following signals make money?</p>
+            </div>
+            <span id="signal-ev-verdict" class="badge"></span>
+        </div>
+        <div class="grid grid-3" id="signal-ev-by-type" style="margin-bottom: var(--space-5);"></div>
+        <div id="signal-ev-best" style="padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline); font-size: 0.875rem; display: none;">
+            <span style="color: var(--text-muted);">Best performing:</span>
+            <span id="signal-ev-best-text" style="color: var(--text-primary); font-weight: 500;"></span>
+        </div>
+    </div>
+
+    <!-- Confidence Calibration (AJAX) -->
+    <div id="dash-calibration-card" class="card" style="margin-bottom: var(--space-6); display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Confidence Calibration</h3>
+                <p style="margin: 0; font-size: var(--text-sm);">Do confidence scores match reality?</p>
+            </div>
+            <a href="/learning" class="btn btn-ghost" style="font-size: 0.75rem;">Full Details</a>
+        </div>
+        <div id="dash-calibration-metrics" class="grid grid-3" style="margin-bottom: var(--space-5);"></div>
+        <div style="height: 200px; position: relative;">
+            <canvas id="dash-calibration-chart"></canvas>
+        </div>
+        <div id="dash-calibration-interpretation"
+            style="margin-top: var(--space-4); padding: var(--space-3); background: var(--bg-secondary); border-left: 1px solid var(--text-primary); font-size: 0.8125rem; color: var(--text-secondary);">
+        </div>
+    </div>
+
+    <!-- Regime Weight Adjustments (AJAX) -->
+    <div id="regime-adjustments-card" class="card" style="margin-bottom: var(--space-6); display: none;">
+        <div style="margin-bottom: var(--space-4);">
+            <h3 style="margin: 0 0 var(--space-1) 0;">Active Regime Adjustments</h3>
+            <p style="margin: 0; font-size: var(--text-sm);">How the current regime adjusts scoring weights</p>
+        </div>
+        <div id="regime-adjustments-content"></div>
+    </div>
+
+    <!-- ─── LEARNING PERFORMANCE ──────────────────────────── -->
+
     {% if learning_stats.total_verified > 0 %}
-    <div class="card" style="margin-bottom: var(--space-8); position: relative; overflow: visible;">
-        <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, var(--text-primary), transparent);"></div>
-
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); flex-wrap: wrap; gap: var(--space-4);">
+    <div class="dash-section-label">System Performance</div>
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
             <div>
                 <h3 style="margin: 0 0 var(--space-1) 0;">Learning Performance</h3>
                 <p style="margin: 0; font-size: var(--text-sm);">
                     <span style="color: var(--text-primary); font-weight: 500;">{{ learning_stats.total_verified }}</span> predictions verified
                 </p>
             </div>
-            <a href="/learning" class="btn btn-secondary">View Details</a>
+            <a href="/learning" class="btn btn-secondary">Details →</a>
         </div>
-
-        <div class="grid grid-4" style="margin-bottom: var(--space-6);">
+        <div class="grid grid-4" style="margin-bottom: var(--space-5);">
             <div class="metric">
                 <div class="metric-value">{{ learning_stats.hit_rate }}%</div>
                 <div class="metric-label">Hit Rate</div>
@@ -169,7 +479,6 @@
                 <div class="metric-label">Avg Confidence</div>
             </div>
         </div>
-
         <div>
             <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2); font-size: 0.75rem;">
                 <span style="color: var(--text-muted);">Overall Accuracy</span>
@@ -179,126 +488,106 @@
                 <div class="progress-bar" data-width="{{ (learning_stats.avg_accuracy * 100)|round(0) }}"></div>
             </div>
         </div>
-
         {% if learning_stats.health_warning %}
-        <div style="margin-top: var(--space-5); padding: var(--space-4); background: var(--signal-negative-bg, rgba(239,68,68,0.1)); border: 1px solid var(--signal-negative, #ef4444); font-size: 0.8125rem; color: var(--text-secondary);">
+        <div style="margin-top: var(--space-4); padding: var(--space-4); background: var(--signal-negative-bg); border: 1px solid var(--signal-negative); font-size: 0.8125rem; color: var(--text-secondary);">
             {{ learning_stats.health_warning }}
         </div>
         {% endif %}
     </div>
     {% endif %}
 
-    <!-- Signal P&L Scorecard (loaded via AJAX) -->
-    <div id="signal-pnl-card" class="card" style="margin-bottom: var(--space-8); display: none; position: relative; overflow: visible;">
-        <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, var(--text-primary), transparent);"></div>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); flex-wrap: wrap; gap: var(--space-4);">
+    <!-- ─── MARKET DATA ROW (3-col) ──────────────────────── -->
+
+    <div class="dash-section-label">Market Data</div>
+    <div class="dash-data-row">
+        <!-- Upcoming Dividends (AJAX) -->
+        <div id="dividends-card" class="card" style="display: none; margin-bottom: 0;">
+            <div style="margin-bottom: var(--space-4);">
+                <h3 style="margin: 0 0 var(--space-1) 0;">Upcoming Dividends</h3>
+                <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);" id="dividends-subtitle">Watchlist ex-dividend dates</p>
+            </div>
+            <div id="dividends-list"></div>
+        </div>
+
+        <!-- RS Ranking (AJAX) -->
+        <div id="rs-ranking-card" class="card" style="display: none; margin-bottom: 0;">
+            <div style="margin-bottom: var(--space-4);">
+                <h3 style="margin: 0 0 var(--space-1) 0;">Relative Strength</h3>
+                <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);" id="rs-subtitle">Watchlist ranked vs SPY</p>
+            </div>
             <div>
-                <h3 style="margin: 0 0 var(--space-1) 0;">Signal P&L Scorecard</h3>
-                <p style="margin: 0; font-size: var(--text-sm);">How well do our signals predict price movement?</p>
+                <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-2);">Leaders</div>
+                <div id="rs-top-list" style="margin-bottom: var(--space-4);"></div>
+                <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-2);">Laggards</div>
+                <div id="rs-bottom-list"></div>
             </div>
         </div>
-        <div class="grid grid-4" id="signal-pnl-metrics"></div>
+
+        <!-- Extended Hours (AJAX) -->
+        <div id="extended-hours-card" class="card" style="display: none; margin-bottom: 0;">
+            <div style="margin-bottom: var(--space-4);">
+                <h3 style="margin: 0 0 var(--space-1) 0;">Extended Hours</h3>
+                <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);" id="extended-hours-subtitle">Pre/post-market moves</p>
+            </div>
+            <div id="extended-hours-list"></div>
+        </div>
     </div>
 
-    <!-- Top Picks Preview -->
-    {% if top_picks_preview and top_picks_preview|length > 0 %}
-    <div class="card" style="margin-bottom: var(--space-8);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); flex-wrap: wrap; gap: var(--space-4);">
-            <div>
-                <h3 style="margin: 0 0 var(--space-1) 0;">Top Picks</h3>
-                <p style="margin: 0; font-size: var(--text-sm);">Stocks with proven prediction accuracy</p>
-            </div>
-            <a href="/top-picks" class="btn btn-primary">View All</a>
+    <!-- 52-Week Range (AJAX) -->
+    <div id="week52-card" class="card" style="margin-bottom: var(--space-6); display: none;">
+        <div style="margin-bottom: var(--space-4);">
+            <h3 style="margin: 0 0 var(--space-1) 0;">52-Week Range</h3>
+            <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);">Proximity to 52-week highs and lows</p>
         </div>
-
-        <div class="grid grid-3">
-            {% for pick in top_picks_preview %}
-            <div style="position: relative; padding: var(--space-8); background: var(--bg-secondary); border: 1px solid var(--border-hairline); border-radius: var(--radius-lg); text-align: center; transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);" onmouseover="this.style.borderColor='rgba(255,255,255,0.15)'; this.style.boxShadow='0 0 20px rgba(255,255,255,0.03)';" onmouseout="this.style.borderColor=''; this.style.boxShadow='';">
-                <div style="font-family: var(--font-mono); font-size: 1.25rem; font-weight: 500; color: var(--text-primary); margin-bottom: var(--space-4); letter-spacing: 0.04em;">{{ pick.ticker }}</div>
-
-                <div style="margin-bottom: var(--space-4);">
-                    <div style="font-family: var(--font-display); font-size: 3.5rem; font-weight: 300; color: var(--text-primary); line-height: 1; letter-spacing: -0.03em;">
-                        {{ pick.pick_score }}
-                    </div>
-                    <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-top: var(--space-2);">Pick Score</div>
-                </div>
-
-                <div style="display: flex; justify-content: center; gap: var(--space-8); padding-top: var(--space-4); border-top: 1px solid var(--border-hairline);">
-                    <div>
-                        <div style="font-weight: 500; color: var(--text-primary);">{{ pick.accuracy }}%</div>
-                        <div style="font-size: 0.625rem; color: var(--text-muted); letter-spacing: 0.06em;">Accuracy</div>
-                    </div>
-                    <div>
-                        <div style="font-weight: 500; color: var(--text-primary);">{{ pick.total_predictions }}</div>
-                        <div style="font-size: 0.625rem; color: var(--text-muted); letter-spacing: 0.06em;">Predictions</div>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Portfolio Alerts -->
-    <div id="portfolio-alerts-container" class="card" style="margin-bottom: var(--space-8); display: none;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); flex-wrap: wrap; gap: var(--space-4);">
-            <div>
-                <h3 style="margin: 0 0 var(--space-1) 0;">Portfolio Alerts</h3>
-                <p style="margin: 0; font-size: var(--text-sm);" id="portfolio-alerts-subtitle"></p>
-            </div>
-            <a href="/portfolio" class="btn btn-secondary">View Portfolio</a>
-        </div>
-
-        <!-- Benchmark -->
-        <div id="portfolio-benchmark" style="display: none; padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline); margin-bottom: var(--space-5);">
-        </div>
-
-        <!-- Alerts List -->
-        <div id="portfolio-alerts-list"></div>
-
-        <!-- Rebalancing -->
-        <div id="portfolio-rebalancing" style="display: none; margin-top: var(--space-5); padding-top: var(--space-5); border-top: 1px solid var(--border-hairline);"></div>
+        <div id="week52-list" style="display: flex; flex-direction: column; gap: var(--space-3);"></div>
     </div>
 
-    <!-- API Status -->
-    <div class="grid grid-3" style="margin-bottom: var(--space-8);">
+    <!-- ─── SYSTEM STATUS (API + Scheduler Jobs) ─────────── -->
+
+    <div class="dash-section-label">System</div>
+
+    <div class="grid grid-3" style="margin-bottom: var(--space-6);">
         <!-- Perplexity API -->
         <div class="card" style="margin-bottom: 0;">
-            <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5);">
-                <div class="status-dot active"></div>
-                <h3 style="margin: 0; font-size: 0.875rem;">Perplexity API</h3>
+            <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4);">
+                <div class="status-dot {% if api_status.perplexity.is_configured %}active{% endif %}"></div>
+                <h3 style="margin: 0; font-size: 0.875rem;">Perplexity</h3>
             </div>
             {% if api_status.perplexity.is_configured %}
-            <div style="text-align: center; margin-bottom: var(--space-4);">
-                <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em;" id="perplexity-usage">
+            <div style="text-align: center; margin-bottom: var(--space-3);">
+                <div style="font-size: 1.5rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;" id="perplexity-usage">
                     {{ api_status.perplexity.used_today }}<span style="color: var(--text-muted); font-weight: 300;">/{{ api_status.perplexity.daily_limit }}</span>
                 </div>
-                <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">Requests Today</div>
+                <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">Requests Today</div>
             </div>
             <div class="progress">
-                <div class="progress-bar" id="perplexity-progress" data-width="{{ (api_status.perplexity.used_today / api_status.perplexity.daily_limit * 100)|int }}"></div>
+                <div class="progress-bar" id="perplexity-progress"
+                    data-width="{{ (api_status.perplexity.used_today / api_status.perplexity.daily_limit * 100)|int }}">
+                </div>
             </div>
             {% else %}
-            <p style="color: var(--text-muted); margin-bottom: var(--space-4); font-size: 0.875rem;">Not configured</p>
-            <a href="/settings" class="btn btn-secondary" style="width: 100%;">Configure</a>
+            <p style="color: var(--text-muted); margin-bottom: var(--space-3); font-size: 0.875rem;">Not configured</p>
+            <a href="/settings" class="btn btn-secondary" style="width: 100%; font-size: 0.75rem;">Configure</a>
             {% endif %}
         </div>
 
         <!-- Gemini Flash -->
         <div class="card" style="margin-bottom: 0;">
-            <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5);">
-                <div class="status-dot active"></div>
+            <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4);">
+                <div class="status-dot {% if api_status.gemini.is_configured %}active{% endif %}"></div>
                 <h3 style="margin: 0; font-size: 0.875rem;">Gemini Flash</h3>
             </div>
             {% if api_status.gemini.is_configured %}
-            <div style="text-align: center; margin-bottom: var(--space-4);">
-                <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em;" id="gemini-flash-usage">
+            <div style="text-align: center; margin-bottom: var(--space-3);">
+                <div style="font-size: 1.5rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;" id="gemini-flash-usage">
                     {{ api_status.gemini.flash.used_today }}<span style="color: var(--text-muted); font-weight: 300;">/{{ api_status.gemini.flash.daily_limit }}</span>
                 </div>
-                <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">Requests Today</div>
+                <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">Requests Today</div>
             </div>
             <div class="progress">
-                <div class="progress-bar" id="gemini-flash-progress" data-width="{{ (api_status.gemini.flash.used_today / api_status.gemini.flash.daily_limit * 100)|int }}"></div>
+                <div class="progress-bar" id="gemini-flash-progress"
+                    data-width="{{ (api_status.gemini.flash.used_today / api_status.gemini.flash.daily_limit * 100)|int }}">
+                </div>
             </div>
             {% else %}
             <p style="color: var(--text-muted); font-size: 0.875rem;">Not configured</p>
@@ -307,19 +596,21 @@
 
         <!-- Gemini Pro -->
         <div class="card" style="margin-bottom: 0;">
-            <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5);">
-                <div class="status-dot active"></div>
+            <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4);">
+                <div class="status-dot {% if api_status.gemini.is_configured %}active{% endif %}"></div>
                 <h3 style="margin: 0; font-size: 0.875rem;">Gemini Pro</h3>
             </div>
             {% if api_status.gemini.is_configured %}
-            <div style="text-align: center; margin-bottom: var(--space-4);">
-                <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em;" id="gemini-pro-usage">
+            <div style="text-align: center; margin-bottom: var(--space-3);">
+                <div style="font-size: 1.5rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;" id="gemini-pro-usage">
                     {{ api_status.gemini.pro.used_today }}<span style="color: var(--text-muted); font-weight: 300;">/{{ api_status.gemini.pro.daily_limit }}</span>
                 </div>
-                <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">Requests Today</div>
+                <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">Requests Today</div>
             </div>
             <div class="progress">
-                <div class="progress-bar" id="gemini-pro-progress" data-width="{{ (api_status.gemini.pro.used_today / api_status.gemini.pro.daily_limit * 100)|int }}"></div>
+                <div class="progress-bar" id="gemini-pro-progress"
+                    data-width="{{ (api_status.gemini.pro.used_today / api_status.gemini.pro.daily_limit * 100)|int }}">
+                </div>
             </div>
             {% else %}
             <p style="color: var(--text-muted); font-size: 0.875rem;">Not configured</p>
@@ -327,13 +618,28 @@
         </div>
     </div>
 
-    <!-- Recent Analyses -->
-    <div class="card" style="margin-bottom: var(--space-8);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); flex-wrap: wrap; gap: var(--space-4);">
+    <!-- Scheduled Jobs (if running) -->
+    {% if scheduler_status.jobs %}
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">Scheduled Jobs</div>
+        <div class="grid grid-3">
+            {% for job in scheduler_status.jobs %}
+            <div style="padding: var(--space-3) var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
+                <div style="font-weight: 500; margin-bottom: var(--space-1); color: var(--text-primary); font-size: 0.875rem;">{{ job.name }}</div>
+                <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">{{ job.next_run }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ─── RECENT ANALYSES ───────────────────────────────── -->
+
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
             <h3 style="margin: 0;">Recent Analyses</h3>
             <a href="/history" class="btn btn-secondary">View All</a>
         </div>
-
         {% if recent_analyses %}
         <div style="overflow-x: auto; margin: 0 calc(var(--space-8) * -1); padding: 0 var(--space-8);">
             <table>
@@ -344,32 +650,31 @@
                         <th>Strength</th>
                         <th>Freshness</th>
                         <th>Time</th>
-                        <th style="width: 100px;"></th>
+                        <th style="width: 80px;"></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for a in recent_analyses %}
                     <tr>
                         <td>
-                            <span style="font-family: var(--font-mono); font-weight: 500; font-size: var(--text-base);">{{ a.ticker }}</span>
+                            <a href="/stock/{{ a.ticker }}"
+                                style="font-family: var(--font-mono); font-weight: 500; font-size: var(--text-base); color: var(--text-primary); text-decoration: none;"
+                                onmouseover="this.style.textDecoration='underline'"
+                                onmouseout="this.style.textDecoration='none'">{{ a.ticker }}</a>
                             {% if a.ticker in trusted_tickers %}
-                            <span style="display: inline-flex; align-items: center; margin-left: var(--space-2); padding: 2px 8px; background: rgba(255,255,255,0.06); color: var(--text-muted); font-size: 0.5625rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid var(--border-hairline); border-radius: var(--radius-sm);">Trusted</span>
+                            <span style="display: inline-flex; align-items: center; margin-left: var(--space-2); padding: 2px 6px; background: rgba(255,255,255,0.06); color: var(--text-muted); font-size: 0.5625rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid var(--border-hairline);">Trusted</span>
                             {% endif %}
                         </td>
-                        <td>
-                            <span class="signal-text signal-{{ a.signal|lower }}">{{ a.signal }}</span>
-                        </td>
-                        <td>
-                            <span style="font-family: var(--font-mono); font-weight: 500;">{{ a.confidence }}/100</span>
-                        </td>
+                        <td><span class="signal-text signal-{{ a.signal|lower }}">{{ a.signal }}</span></td>
+                        <td><span style="font-family: var(--font-mono); font-weight: 500;">{{ a.confidence }}/100</span></td>
                         <td>
                             {% set level = a.staleness_level|default('fresh') %}
                             {% if level == 'fresh' %}
                             <span class="badge badge-success" style="font-size: 0.5625rem;">Fresh</span>
                             {% elif level == 'recent' %}
-                            <span class="badge" style="background: rgba(74,222,128,0.1); color: #4ade80; border: 1px solid rgba(74,222,128,0.25); font-size: 0.5625rem;">Recent</span>
+                            <span class="badge" style="background: rgba(107,186,126,0.1); color: #6bba7e; border: 1px solid rgba(107,186,126,0.25); font-size: 0.5625rem;">Recent</span>
                             {% elif level == 'aging' %}
-                            <span class="badge" style="background: rgba(250,204,21,0.1); color: #facc15; border: 1px solid rgba(250,204,21,0.25); font-size: 0.5625rem;">{{ a.age_days|default(0) }}d</span>
+                            <span class="badge" style="background: rgba(212,168,75,0.1); color: #d4a84b; border: 1px solid rgba(212,168,75,0.25); font-size: 0.5625rem;">{{ a.age_days|default(0) }}d</span>
                             {% elif level == 'stale' %}
                             <span class="badge badge-danger" style="font-size: 0.5625rem;">Stale ({{ a.age_days|default(0) }}d)</span>
                             {% else %}
@@ -387,53 +692,97 @@
         </div>
         {% else %}
         <div class="empty-state">
-            <div class="empty-state-icon">—</div>
+            <div style="display: flex; justify-content: center; margin-bottom: var(--space-4);">
+                <svg class="icon-svg" style="width: 40px; height: 40px; opacity: 0.3;" viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+            </div>
             <p>No analyses yet</p>
-            <a href="/analyze" class="btn btn-primary">Run First Analysis</a>
         </div>
         {% endif %}
     </div>
 
-    <!-- Watchlist Overview -->
-    <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); flex-wrap: wrap; gap: var(--space-4);">
+    <!-- ─── WATCHLIST OVERVIEW ───────────────────────────── -->
+
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
             <h3 style="margin: 0;">Watchlist <span style="color: var(--text-muted); font-weight: 400;">({{ watchlist|length }})</span></h3>
             <a href="/watchlist" class="btn btn-secondary">Manage</a>
         </div>
-
         {% if watchlist %}
         <div style="display: flex; flex-wrap: wrap; gap: var(--space-3);">
             {% for stock in watchlist %}
-            <div class="ticker-tag">
+            <a href="/stock/{{ stock.ticker }}" class="ticker-tag" data-sparkline="{{ stock.ticker }}"
+                style="text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;gap:0.5rem;"
+                onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity=''">
                 <span style="font-weight: 500;">{{ stock.ticker }}</span>
                 {% if stock.name %}
-                <span style="color: var(--text-muted); margin-left: var(--space-2); font-weight: 400;">{{ stock.name }}</span>
+                <span style="color: var(--text-muted); margin-left: var(--space-1); font-weight: 400;">{{ stock.name }}</span>
                 {% endif %}
-            </div>
+                <svg class="sparkline-svg" width="60" height="20" style="display:none;flex-shrink:0;"></svg>
+            </a>
             {% endfor %}
         </div>
         {% else %}
-        <div style="text-align: center; padding: var(--space-10) var(--space-6);">
+        <div style="text-align: center; padding: var(--space-8) var(--space-6);">
             <p style="color: var(--text-muted); margin-bottom: var(--space-4);">No stocks in watchlist</p>
             <a href="/watchlist" class="btn btn-secondary">Add Stocks</a>
         </div>
         {% endif %}
     </div>
+
+    <!-- ─── QUICK TOOLS (collapsible, de-emphasized) ────── -->
+
+    <div class="quick-tools-section">
+        <button class="quick-tools-toggle" id="qt-toggle" onclick="toggleQuickTools()">
+            Manual Tools
+            <span class="qt-chevron"></span>
+        </button>
+        <div class="quick-tools-panel" id="quick-tools-panel">
+            <div class="qt-grid">
+                <!-- Analyze form -->
+                <div>
+                    <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--space-3);">Quick Analyze</div>
+                    <form action="/analyze" method="GET" style="display: flex; gap: var(--space-2);">
+                        <input type="text" name="ticker" placeholder="Ticker (e.g. AAPL)" required
+                            style="flex: 1; padding: var(--space-2) var(--space-3); background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-primary); font-family: var(--font-mono); font-size: 0.8125rem; outline: none;">
+                        <button type="submit" class="btn btn-secondary" style="font-size: 0.75rem; white-space: nowrap;">Analyze →</button>
+                    </form>
+                </div>
+
+                <!-- Compare -->
+                <a href="/stock/compare" class="qt-tool-link">
+                    <div class="qt-tool-name">Compare Stocks</div>
+                    <div class="qt-tool-desc">Side-by-side metrics and chart overlay</div>
+                </a>
+
+                <!-- Backtest -->
+                <a href="/backtest" class="qt-tool-link">
+                    <div class="qt-tool-name">Backtest</div>
+                    <div class="qt-tool-desc">Validate scoring logic against historical data</div>
+                </a>
+
+                <!-- Trade Journal -->
+                <a href="/journal" class="qt-tool-link">
+                    <div class="qt-tool-name">Trade Journal</div>
+                    <div class="qt-tool-desc">Log and review your manual trades</div>
+                </a>
+            </div>
+        </div>
+    </div>
+
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-    // Update current time
+    // Time display in status bar
     function updateTime() {
         const now = new Date();
         const timeStr = now.toLocaleString('en-US', {
-            weekday: 'short',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
+            weekday: 'short', month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit', hour12: false
         });
         const timeEl = document.getElementById('current-time');
         if (timeEl) timeEl.textContent = timeStr;
@@ -441,10 +790,19 @@
     updateTime();
     setInterval(updateTime, 60000);
 
-    // Initialize progress bars from data attributes
+    // Initialize progress bars
     document.querySelectorAll('[data-width]').forEach(el => {
         el.style.width = el.getAttribute('data-width') + '%';
     });
+
+    // Quick Tools toggle
+    function toggleQuickTools() {
+        var btn = document.getElementById('qt-toggle');
+        var panel = document.getElementById('quick-tools-panel');
+        if (!btn || !panel) return;
+        var open = panel.classList.toggle('open');
+        btn.classList.toggle('open', open);
+    }
 
     // Portfolio alerts
     fetch('/api/portfolio/alerts')
@@ -452,21 +810,16 @@
         .then(data => {
             const container = document.getElementById('portfolio-alerts-container');
             if (!data || data.message === 'No active holdings') return;
-
             const hasAlerts = (data.alerts && data.alerts.length > 0);
             const hasBenchmark = !!data.benchmark;
             const hasRebalancing = (data.rebalancing && data.rebalancing.length > 0);
-
             if (!hasAlerts && !hasBenchmark && !hasRebalancing) return;
-
             container.style.display = '';
 
-            // Subtitle
             const subtitle = document.getElementById('portfolio-alerts-subtitle');
             const val = data.portfolio_value || 0;
             subtitle.textContent = val > 0 ? 'Portfolio: $' + val.toLocaleString() : '';
 
-            // Benchmark
             if (hasBenchmark) {
                 const bm = data.benchmark;
                 const bmEl = document.getElementById('portfolio-benchmark');
@@ -477,162 +830,93 @@
                     '<span style="color: var(--text-muted);">Portfolio:</span> <span style="font-weight: 500; color: var(--text-primary);">' + bm.portfolio_return.toFixed(1) + '%</span>' +
                     ' <span style="color: var(--text-muted); margin: 0 var(--space-2);">vs</span> ' +
                     '<span style="color: var(--text-muted);">SPY:</span> <span style="font-weight: 500; color: var(--text-primary);">' + bm.spy_return.toFixed(1) + '%</span>' +
-                    '</div>' +
-                    '<div style="font-size: 0.875rem; font-weight: 500; color: ' + alphaColor + ';">Alpha: ' + (bm.alpha >= 0 ? '+' : '') + bm.alpha.toFixed(1) + '% (' + bm.period_days + 'd)</div>' +
-                    '</div>';
+                    ' &nbsp; Alpha: <span style="font-weight: 600; color:' + alphaColor + ';">' + (bm.alpha >= 0 ? '+' : '') + bm.alpha.toFixed(1) + '%</span>' +
+                    '</div></div>';
             }
 
-            // Alerts
             if (hasAlerts) {
-                const listEl = document.getElementById('portfolio-alerts-list');
-                listEl.innerHTML = data.alerts.map(a => {
-                    const sevColor = a.severity === 'CRITICAL' ? 'var(--signal-negative)' : 'var(--signal-warning, #f59e0b)';
-                    return '<div style="padding: var(--space-3) var(--space-4); margin-bottom: var(--space-2); border-left: 2px solid ' + sevColor + '; background: var(--bg-secondary); font-size: 0.8125rem;">' +
-                        '<span style="color: ' + sevColor + '; font-weight: 500; margin-right: var(--space-2);">' + a.severity + '</span>' +
-                        '<span style="color: var(--text-secondary);">' + a.message + '</span></div>';
+                const alertsEl = document.getElementById('portfolio-alerts-list');
+                alertsEl.innerHTML = data.alerts.map(a => {
+                    const colors = { CRITICAL: '#d47272', WARNING: '#d4a84b', INFO: '#6bba7e' };
+                    const c = colors[a.severity] || 'var(--text-muted)';
+                    return '<div style="padding: var(--space-3) var(--space-4); border-left: 2px solid ' + c + '; background: var(--bg-secondary); margin-bottom: var(--space-2); font-size: 0.8125rem;">' +
+                        '<span style="font-weight: 600; color: ' + c + '; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em;">' + a.severity + '</span>' +
+                        '<span style="margin-left: var(--space-3); color: var(--text-secondary);">' + a.message + '</span>' +
+                        '</div>';
                 }).join('');
             }
-
-            // Rebalancing
-            if (hasRebalancing) {
-                const rebEl = document.getElementById('portfolio-rebalancing');
-                rebEl.style.display = '';
-                rebEl.innerHTML = '<div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-3);">Rebalancing Suggestions</div>' +
-                    data.rebalancing.map(r =>
-                        '<div style="font-size: 0.8125rem; color: var(--text-secondary); margin-bottom: var(--space-2);">' +
-                        (r.action === 'reduce' ? '&#x25BC;' : '&#x25B2;') + ' ' + r.message + '</div>'
-                    ).join('');
-            }
         })
         .catch(() => {});
 
-    // Signal P&L scorecard
-    fetch('/api/signal-pnl')
+    // Watchlist sparklines — load 30-day price trend for each ticker
+    (function() {
+        const tags = document.querySelectorAll('[data-sparkline]');
+        if (!tags.length) return;
+        tags.forEach(tag => {
+            const ticker = tag.getAttribute('data-sparkline');
+            const svg = tag.querySelector('.sparkline-svg');
+            if (!svg) return;
+            fetch(`/api/chart-data/${ticker}`)
+                .then(r => r.json())
+                .then(d => {
+                    if (!d || !d.prices) return;
+                    const prices = d.prices.filter(p => p != null).slice(-30);
+                    if (prices.length < 5) return;
+                    const min = Math.min(...prices);
+                    const max = Math.max(...prices);
+                    const range = max - min || 1;
+                    const W = 60, H = 20, pad = 1;
+                    const pts = prices.map((p, i) => {
+                        const x = pad + (i / (prices.length - 1)) * (W - 2 * pad);
+                        const y = H - pad - ((p - min) / range) * (H - 2 * pad);
+                        return `${x.toFixed(1)},${y.toFixed(1)}`;
+                    }).join(' ');
+                    const isUp = prices[prices.length - 1] >= prices[0];
+                    const color = isUp ? '#6bba7e' : '#d47272';
+                    svg.innerHTML = `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+                    svg.style.display = '';
+                })
+                .catch(() => {});
+        });
+    })();
+
+    // Regime Weight Adjustments
+    fetch('/api/regime-adjustments')
         .then(r => r.json())
         .then(data => {
-            if (!data || data.total_verified === 0) return;
-            const card = document.getElementById('signal-pnl-card');
+            if (!data || !data.regime || data.regime === 'choppy') return;
+            const card = document.getElementById('regime-adjustments-card');
             card.style.display = '';
-            const m = document.getElementById('signal-pnl-metrics');
-            const buyColor = data.avg_buy_return >= 0 ? 'color: #4ade80;' : 'color: #f87171;';
-            const sellColor = data.avg_sell_return <= 0 ? 'color: #4ade80;' : 'color: #f87171;';
-            m.innerHTML =
-                '<div class="metric"><div class="metric-value">' + data.hit_rate + '%</div><div class="metric-label">Hit Rate</div></div>' +
-                '<div class="metric"><div class="metric-value" style="' + buyColor + '">' + (data.avg_buy_return >= 0 ? '+' : '') + data.avg_buy_return + '%</div><div class="metric-label">Avg Buy Return</div></div>' +
-                '<div class="metric"><div class="metric-value" style="' + sellColor + '">' + (data.avg_sell_return >= 0 ? '+' : '') + data.avg_sell_return + '%</div><div class="metric-label">Avg Sell Return</div></div>' +
-                '<div class="metric"><div class="metric-value">' + data.total_verified + '</div><div class="metric-label">Verified Signals</div></div>';
+            const content = document.getElementById('regime-adjustments-content');
+            const regimeColor = data.regime === 'bull' ? '#6bba7e' : data.regime === 'bear' ? '#d47272' : '#d4a84b';
+            const adj = data.adjustments || {};
+            const factors = [
+                { key: 'valuation', label: 'Valuation', icon: '💵' },
+                { key: 'technical', label: 'Technical', icon: '📉' },
+                { key: 'momentum', label: 'Momentum', icon: '🚀' },
+                { key: 'quality', label: 'Quality', icon: '⭐' },
+            ];
+            let html = `<div style="margin-bottom:0.75rem;padding:0.5rem 0.75rem;background:rgba(0,0,0,0.2);border-radius:var(--radius-md);font-size:0.8125rem;color:${regimeColor};">
+                <strong>${data.regime.toUpperCase()} MARKET</strong> — ${data.description || ''}
+            </div>`;
+            html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0.75rem;">';
+            factors.forEach(f => {
+                const mult = adj[f.key] ?? 1.0;
+                const isBoost = mult > 1.0;
+                const isReduce = mult < 1.0;
+                const color = isBoost ? '#6bba7e' : isReduce ? '#d47272' : 'var(--text-muted)';
+                const arrow = isBoost ? '▲' : isReduce ? '▼' : '—';
+                const pctChange = ((mult - 1) * 100).toFixed(0);
+                html += `<div style="text-align:center;padding:0.75rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
+                    <div style="font-size:1.25rem;">${f.icon}</div>
+                    <div class="metric-label" style="margin:0.25rem 0;">${f.label}</div>
+                    <div style="font-size:1rem;font-weight:500;color:${color};">${arrow} ${isBoost ? '+' : ''}${pctChange}%</div>
+                    <div style="font-size:0.6875rem;color:var(--text-muted);">×${mult.toFixed(2)}</div>
+                </div>`;
+            });
+            html += '</div>';
+            content.innerHTML = html;
         })
         .catch(() => {});
-
-    // Market Regime
-    fetch('/api/market-regime')
-        .then(r => r.json())
-        .then(data => {
-            if (!data || !data.regime) return;
-            const card = document.getElementById('regime-card');
-            card.style.display = '';
-
-            const badge = document.getElementById('regime-badge');
-            const regimeColors = {
-                'bull': { bg: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'rgba(74,222,128,0.3)' },
-                'bear': { bg: 'rgba(248,113,113,0.15)', color: '#f87171', border: 'rgba(248,113,113,0.3)' },
-                'choppy': { bg: 'rgba(250,204,21,0.15)', color: '#facc15', border: 'rgba(250,204,21,0.3)' },
-            };
-            const rc = regimeColors[data.regime] || regimeColors['choppy'];
-            badge.textContent = data.regime.toUpperCase();
-            badge.style.background = rc.bg;
-            badge.style.color = rc.color;
-            badge.style.border = '1px solid ' + rc.border;
-
-            document.getElementById('regime-spy').textContent = data.spy_price ? '$' + data.spy_price.toLocaleString() : '—';
-            document.getElementById('regime-vix').textContent = data.vix != null ? data.vix.toFixed(1) : '—';
-            document.getElementById('regime-yield').textContent = data.ten_year_yield != null ? data.ten_year_yield.toFixed(2) + '%' : '—';
-            document.getElementById('regime-sma').textContent = (data.sma50 || '—') + ' / ' + (data.sma200 || '—');
-        })
-        .catch(() => {});
-
-    // Portfolio vs SPY Benchmark
-    fetch('/api/portfolio/benchmark')
-        .then(r => r.json())
-        .then(data => {
-            if (!data || data.message || !data.portfolio_value) return;
-            const card = document.getElementById('benchmark-card');
-            card.style.display = '';
-
-            const pColor = data.portfolio_return_pct >= 0 ? '#4ade80' : '#f87171';
-            const sColor = data.spy_return_pct >= 0 ? '#4ade80' : '#f87171';
-            const aColor = data.alpha >= 0 ? '#4ade80' : '#f87171';
-
-            document.getElementById('bm-portfolio-return').innerHTML = '<span style="color:' + pColor + ';">' + (data.portfolio_return_pct >= 0 ? '+' : '') + data.portfolio_return_pct.toFixed(1) + '%</span>';
-            document.getElementById('bm-spy-return').innerHTML = '<span style="color:' + sColor + ';">' + (data.spy_return_pct >= 0 ? '+' : '') + data.spy_return_pct.toFixed(1) + '%</span>';
-            document.getElementById('bm-alpha').innerHTML = '<span style="color:' + aColor + ';">' + (data.alpha >= 0 ? '+' : '') + data.alpha.toFixed(1) + '%</span>';
-
-            document.getElementById('benchmark-subtitle').textContent = 'Portfolio: $' + data.portfolio_value.toLocaleString() + ' invested: $' + data.total_invested.toLocaleString();
-        })
-        .catch(() => {});
-
-    // Auto-refresh API usage counters every 30s
-    function refreshApiStatus() {
-        fetch('/api/status')
-            .then(r => r.json())
-            .then(data => {
-                const usage = data.api_usage || {};
-
-                // Perplexity
-                const pplx = usage.perplexity || {};
-                const pplxEl = document.getElementById('perplexity-usage');
-                if (pplxEl && pplx.used_today !== undefined) {
-                    pplxEl.innerHTML = pplx.used_today + '<span style="color: var(--text-muted); font-weight: 300;">/' + pplx.daily_limit + '</span>';
-                    const pplxBar = document.getElementById('perplexity-progress');
-                    if (pplxBar) pplxBar.style.width = Math.min(100, (pplx.used_today / pplx.daily_limit * 100)) + '%';
-                }
-
-                // Gemini Flash
-                const gFlash = (usage.gemini || {}).flash || {};
-                const flashEl = document.getElementById('gemini-flash-usage');
-                if (flashEl && gFlash.used_today !== undefined) {
-                    flashEl.innerHTML = gFlash.used_today + '<span style="color: var(--text-muted); font-weight: 300;">/' + gFlash.daily_limit + '</span>';
-                    const flashBar = document.getElementById('gemini-flash-progress');
-                    if (flashBar) flashBar.style.width = Math.min(100, (gFlash.used_today / gFlash.daily_limit * 100)) + '%';
-                }
-
-                // Gemini Pro
-                const gPro = (usage.gemini || {}).pro || {};
-                const proEl = document.getElementById('gemini-pro-usage');
-                if (proEl && gPro.used_today !== undefined) {
-                    proEl.innerHTML = gPro.used_today + '<span style="color: var(--text-muted); font-weight: 300;">/' + gPro.daily_limit + '</span>';
-                    const proBar = document.getElementById('gemini-pro-progress');
-                    if (proBar) proBar.style.width = Math.min(100, (gPro.used_today / gPro.daily_limit * 100)) + '%';
-                }
-            })
-            .catch(() => {});
-    }
-    // Poll every 60 seconds (limits are cached server-side for 2 min)
-    setInterval(refreshApiStatus, 60000);
-
-    // Toast notifications from query parameters
-    document.addEventListener('DOMContentLoaded', () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const messageType = urlParams.get('message');
-        const messageDetail = urlParams.get('detail');
-
-        if (messageType && messageDetail) {
-            const decodedDetail = decodeURIComponent(messageDetail.replace(/\+/g, ' '));
-            const toastTypeMap = {
-                'success': 'success',
-                'error': 'danger',
-                'warning': 'warning',
-                'info': 'info'
-            };
-            const toastType = toastTypeMap[messageType] || 'info';
-
-            if (window.dashboardUtils && window.dashboardUtils.showToast) {
-                window.dashboardUtils.showToast(decodedDetail, toastType, 5000);
-            }
-
-            const cleanUrl = window.location.pathname;
-            window.history.replaceState({}, document.title, cleanUrl);
-        }
-    });
 </script>
 {% endblock %}

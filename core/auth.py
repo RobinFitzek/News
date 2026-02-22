@@ -7,10 +7,10 @@ from datetime import datetime, timedelta
 from typing import Optional
 import secrets
 from fastapi import Request, HTTPException, status
+from core.database import db
 
 class AuthManager:
     def __init__(self):
-        self.sessions = {}  # In-memory sessions
         self.session_timeout = timedelta(hours=24)
 
     def hash_password(self, password: str) -> str:
@@ -31,36 +31,60 @@ class AuthManager:
             print(f"Password verification error: {e}")
             return False
 
-    def create_session(self, username: str) -> str:
+    def create_session(self, username: str, ip_address: str = None, user_agent: str = None) -> str:
         """Create a new session and return session ID"""
         session_id = secrets.token_urlsafe(32)
-        self.sessions[session_id] = {
-            "username": username,
-            "created_at": datetime.now(),
-            "last_activity": datetime.now()
-        }
+        now = datetime.now()
+        db.create_user_session(
+            session_id=session_id,
+            username=username,
+            created_at=now.isoformat(),
+            last_activity=now.isoformat(),
+            expires_at=(now + self.session_timeout).isoformat(),
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
         return session_id
 
     def validate_session(self, session_id: str) -> Optional[str]:
         """Validate a session and return username if valid"""
-        if not session_id or session_id not in self.sessions:
+        if not session_id:
             return None
 
-        session = self.sessions[session_id]
+        # Best-effort cleanup of expired sessions
+        try:
+            db.cleanup_expired_sessions()
+        except Exception:
+            pass
 
-        # Check if session has expired
-        if datetime.now() - session["last_activity"] > self.session_timeout:
-            del self.sessions[session_id]
+        session = db.get_user_session(session_id)
+        if not session:
+            return None
+
+        # Check expiry from persisted session
+        try:
+            expires_at = datetime.fromisoformat(session['expires_at'])
+        except Exception:
+            db.delete_user_session(session_id)
+            return None
+
+        if datetime.now() > expires_at:
+            db.delete_user_session(session_id)
             return None
 
         # Update last activity
-        session["last_activity"] = datetime.now()
+        now = datetime.now()
+        db.touch_user_session(
+            session_id=session_id,
+            last_activity=now.isoformat(),
+            expires_at=(now + self.session_timeout).isoformat(),
+        )
         return session["username"]
 
     def destroy_session(self, session_id: str):
         """Destroy a session (logout)"""
-        if session_id in self.sessions:
-            del self.sessions[session_id]
+        if session_id:
+            db.delete_user_session(session_id)
 
     def get_current_user(self, request: Request) -> Optional[str]:
         """Get current authenticated user from request"""
