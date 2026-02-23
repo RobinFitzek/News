@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}AI Fact-Check History — Stockholm{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+    <header class="page-header">
+        <div>
+            <h1 style="margin-bottom: var(--space-2);">AI Fact-Check History</h1>
+            <p style="margin: 0;">Cross-check results comparing AI claims against live market data</p>
+        </div>
+    </header>
+
+    {% if history %}
+    <div class="card">
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.8125rem;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <th style="text-align: left; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500;">Ticker</th>
+                    <th style="text-align: center; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500;">Trust</th>
+                    <th style="text-align: center; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500;">Accuracy</th>
+                    <th style="text-align: center; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500;">Verified</th>
+                    <th style="text-align: left; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500;">Warning</th>
+                    <th style="text-align: right; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500;">Checked</th>
+                    <th style="text-align: center; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500;">Analysis</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cc in history %}
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: var(--space-2) var(--space-3); font-family: var(--font-mono); font-weight: 600;">
+                        {{ cc.ticker }}
+                    </td>
+                    <td style="padding: var(--space-2) var(--space-3); text-align: center;">
+                        <span style="color:
+                            {% if cc.trust_score and cc.trust_score >= 0.8 %}#6bba7e
+                            {% elif cc.trust_score and cc.trust_score >= 0.5 %}#d4a84b
+                            {% else %}#d47272{% endif %}; font-weight: 600;">
+                            {{ "%.0f"|format((cc.trust_score or 0) * 100) }}%
+                        </span>
+                    </td>
+                    <td style="padding: var(--space-2) var(--space-3); text-align: center; font-family: var(--font-mono);">
+                        {{ "%.0f"|format((cc.accuracy or 0) * 100) }}%
+                    </td>
+                    <td style="padding: var(--space-2) var(--space-3); text-align: center; font-family: var(--font-mono);">
+                        {{ cc.claims_verified or 0 }}/{{ cc.claims_found or 0 }}
+                    </td>
+                    <td style="padding: var(--space-2) var(--space-3); font-size: 0.75rem; color: var(--text-muted); max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        {{ cc.warning or '---' }}
+                    </td>
+                    <td style="padding: var(--space-2) var(--space-3); text-align: right; font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
+                        {{ cc.checked_at[:16] if cc.checked_at else '---' }}
+                    </td>
+                    <td style="padding: var(--space-2) var(--space-3); text-align: center;">
+                        {% if cc.analysis_id %}
+                        <a href="/analysis/{{ cc.analysis_id }}" class="btn btn-ghost" style="font-size: 0.75rem; padding: 2px 8px;">View</a>
+                        {% else %}---{% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card" style="text-align: center; padding: var(--space-8);">
+        <p style="color: var(--text-muted);">No cross-check results yet. Run an analysis to generate fact-check data.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,505 @@
+{% extends "base.html" %}
+
+{% block title %}Auto-Discovery — Stockholm{% endblock %}
+
+{% block content %}
+<div id="discoveries-page" class="animate-fade-in">
+    <header class="page-header">
+        <div>
+            <h1>Auto-Discovery</h1>
+            <p>Automated stock opportunity scanner</p>
+        </div>
+        <div style="display: flex; gap: var(--space-3);">
+            <form action="/discovery/run-now" method="POST" style="display: inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-primary">
+                    <svg class="icon-svg svg-animated" viewBox="0 0 24 24">
+                        <circle cx="11" cy="11" r="8" />
+                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    Run Discovery Now
+                </button>
+            </form>
+        </div>
+    </header>
+
+    <!-- Stats Header -->
+    {% if stats %}
+    <div class="grid grid-4" style="margin-bottom: var(--space-8);">
+        <div class="card" style="margin-bottom: 0; text-align: center;">
+            <div
+                style="font-family: var(--font-body); font-size: 2rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">
+                {{ stats.week_total }}
+            </div>
+            <div
+                style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-top: var(--space-2);">
+                Discovered (7d)
+            </div>
+        </div>
+        <div class="card" style="margin-bottom: 0; text-align: center;">
+            <div
+                style="font-family: var(--font-body); font-size: 2rem; font-weight: 300; color: #6bba7e; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">
+                {{ stats.week_promoted }}
+            </div>
+            <div
+                style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-top: var(--space-2);">
+                Promoted (7d)
+            </div>
+        </div>
+        <div class="card" style="margin-bottom: 0; text-align: center;">
+            <div
+                style="font-family: var(--font-body); font-size: 2rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">
+                {{ stats.total_new + stats.total_screened }}
+            </div>
+            <div
+                style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-top: var(--space-2);">
+                Pending Review
+            </div>
+        </div>
+        <div class="card" style="margin-bottom: 0; text-align: center;">
+            <div
+                style="font-family: var(--font-body); font-size: 2rem; font-weight: 300; color: var(--text-muted); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">
+                {{ stats.total_dismissed }}
+            </div>
+            <div
+                style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-top: var(--space-2);">
+                Dismissed
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Last Run Info -->
+    {% if stats and stats.last_run %}
+    <div
+        style="margin-bottom: var(--space-6); padding: var(--space-4) var(--space-5); background: var(--bg-secondary); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-3);">
+        <div style="font-size: 0.8125rem; color: var(--text-secondary);">
+            <span style="color: var(--text-muted);">Last run:</span>
+            <span style="font-weight: 500;">{{ stats.last_run.run_type }}</span>
+            <span style="color: var(--text-muted); margin: 0 var(--space-2);">at</span>
+            {{ stats.last_run.run_at }}
+            <span style="color: var(--text-muted); margin-left: var(--space-3);">
+                {{ stats.last_run.tickers_scanned }} scanned,
+                {{ stats.last_run.discoveries_found }} found,
+                {{ stats.last_run.promoted_count }} promoted
+                ({{ stats.last_run.duration_seconds|round(1) }}s)
+            </span>
+        </div>
+        {% if stats.last_run.errors %}
+        <span class="badge badge-danger" style="font-size: 0.6875rem;">Errors</span>
+        {% else %}
+        <span class="badge badge-success" style="font-size: 0.6875rem;">OK</span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Filter Tabs -->
+    <div style="display: flex; gap: var(--space-2); margin-bottom: var(--space-6); flex-wrap: wrap;">
+        {% for filter_val, filter_label in [('all', 'All'), ('new', 'New'), ('screened', 'Screened'), ('promoted',
+        'Promoted'), ('dismissed', 'Dismissed')] %}
+        <a href="/discoveries?status={{ filter_val }}"
+            class="filter-tab {{ 'active' if status_filter == filter_val else '' }}">
+            {{ filter_label }}
+        </a>
+        {% endfor %}
+    </div>
+
+    <!-- Discoveries Table -->
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);">
+            <h3 style="margin:0;">
+                Discoveries
+                <span style="color: var(--text-muted); font-weight: 400;">({{ discoveries|length }})</span>
+            </h3>
+            {% if discoveries %}
+            <div style="display:flex;gap:var(--space-2);" id="bulk-controls">
+                <span class="metric-label" id="selected-count" style="display:none;align-self:center;">0 selected</span>
+                <form id="bulk-promote-form" action="/discoveries/bulk-promote" method="POST" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div id="bulk-promote-ids"></div>
+                    <button type="submit" id="bulk-promote-btn" class="btn btn-secondary"
+                        style="display:none;font-size:0.8rem;color:#6bba7e;">✓ Promote Selected</button>
+                </form>
+                <form id="bulk-dismiss-form" action="/discoveries/bulk-dismiss" method="POST" style="display:inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div id="bulk-dismiss-ids"></div>
+                    <button type="submit" id="bulk-dismiss-btn" class="btn btn-ghost"
+                        style="display:none;font-size:0.8rem;">✕ Dismiss Selected</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if discoveries %}
+        <div class="table-wrapper"
+            style="overflow-x: auto; margin: 0 calc(var(--space-8) * -1); padding: 0 var(--space-8);">
+            <table id="discoveries-table" class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width:32px;"><input type="checkbox" id="select-all" title="Select All"
+                                onchange="toggleSelectAll(this)"></th>
+                        <th>Ticker</th>
+                        <th>Strategy</th>
+                        <th>Signal</th>
+                        <th>Score</th>
+                        <th>Sector</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                        <th>Discovered</th>
+                        <th style="width: 150px;"></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in discoveries %}
+                    <tr>
+                        <td><input type="checkbox" class="row-check" data-id="{{ d.id }}"
+                                onchange="updateBulkButtons()"></td>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:var(--space-3);">
+                                <a href="/stock/{{ d.ticker }}"
+                                    style="font-family: var(--font-mono); font-weight: 500; font-size: var(--text-base); color: var(--text-primary); text-decoration: none;"
+                                    onmouseover="this.style.textDecoration='underline'"
+                                    onmouseout="this.style.textDecoration='none'">
+                                    {{ d.ticker }}
+                                </a>
+                                <svg class="sparkline-svg" data-sparkline="{{ d.ticker }}" width="60" height="20"
+                                    style="flex-shrink:0;overflow:visible;"></svg>
+                            </div>
+                        </td>
+                        <td>
+                            <span style="font-size: 0.75rem; color: var(--text-secondary);">
+                                {{ d.strategy|default(d.signal_type)|replace('_', ' ')|title }}
+                            </span>
+                        </td>
+                        <td>
+                            {% set signal_colors = {
+                            'VOLUME_SPIKE': '#3b82f6',
+                            'BREAKOUT_HIGH': '#6bba7e',
+                            'GOLDEN_CROSS': '#6bba7e',
+                            'RSI_OVERSOLD': '#d4a84b',
+                            'SECTOR_ROTATION': '#a855f7',
+                            'INSIDER_BUY': '#14b8a6',
+                            'VALUE_SCREEN': '#ec4899',
+                            'AI_TRENDING': '#f97316',
+                            } %}
+                            {% set sig_color = signal_colors.get(d.signal_type, 'var(--text-muted)') %}
+                            <span
+                                style="font-size: 0.6875rem; padding: 2px 8px; border: 1px solid {{ sig_color }}40; color: {{ sig_color }}; border-radius: var(--radius-sm);">
+                                {{ d.signal_type|replace('_', ' ') }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if d.quant_score %}
+                            <span
+                                style="font-family: var(--font-mono); font-weight: 500; color: {{ '#6bba7e' if d.quant_score >= 55 else '#d4a84b' if d.quant_score >= 40 else '#d47272' }};">
+                                {{ d.quant_score|round(0)|int }}/100
+                            </span>
+                            {% else %}
+                            <span style="color: var(--text-muted); font-size: 0.75rem;">—</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-size: 0.75rem; color: var(--text-muted);">{{ d.sector|default('—') }}</td>
+                        <td style="font-family: var(--font-mono); font-size: 0.875rem;">
+                            {% if d.price %}${{ "%.2f"|format(d.price) }}{% else %}—{% endif %}
+                        </td>
+                        <td>
+                            {% if d.status == 'promoted' %}
+                            <span class="badge badge-success" style="font-size: 0.5625rem;">Promoted</span>
+                            {% elif d.status == 'screened' %}
+                            <span class="badge"
+                                style="background: rgba(59,130,246,0.15); color: #3b82f6; border: 1px solid rgba(59,130,246,0.3); font-size: 0.5625rem;">Screened</span>
+                            {% elif d.status == 'dismissed' %}
+                            <span class="badge"
+                                style="background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid var(--border-hairline); font-size: 0.5625rem;">Dismissed</span>
+                            {% else %}
+                            <span class="badge"
+                                style="background: rgba(212,168,75,0.15); color: #d4a84b; border: 1px solid rgba(212,168,75,0.3); font-size: 0.5625rem;">New</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-size: 0.75rem; color: var(--text-muted);">
+                            {{ d.found_at[:16] if d.found_at else '—' }}
+                        </td>
+                        <td>
+                            {% if d.status not in ('promoted', 'dismissed') %}
+                            <div style="display: flex; gap: var(--space-2);">
+                                <form action="/discoveries/{{ d.id }}/promote" method="POST" style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button type="submit" class="btn btn-ghost"
+                                        style="padding: var(--space-1) var(--space-3); font-size: 0.6875rem; color: #6bba7e;">
+                                        Promote
+                                    </button>
+                                </form>
+                                <form action="/discoveries/{{ d.id }}/dismiss" method="POST" style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="reason" value="manual">
+                                    <button type="submit" class="btn btn-ghost"
+                                        style="padding: var(--space-1) var(--space-3); font-size: 0.6875rem; color: var(--text-muted);">
+                                        Dismiss
+                                    </button>
+                                </form>
+                            </div>
+                            {% elif d.status == 'promoted' %}
+                            <a href="/stock/{{ d.ticker }}" class="btn btn-ghost"
+                                style="padding: var(--space-1) var(--space-3); font-size: 0.6875rem;">
+                                View
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p style="color: var(--text-muted);">No discoveries found for this filter.</p>
+            <p style="font-size: 0.75rem; color: var(--text-ghost);">
+                The discovery engine runs daily at the configured time, or you can trigger it manually.
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Strategy Performance — Hit Rates (loaded via AJAX) -->
+    <div id="hit-rate-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Strategy Performance</h3>
+                <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);" id="hit-rate-subtitle">
+                    Discovery hit rates at 30/60/90 days</p>
+            </div>
+            <div id="overall-hit-rate" style="font-family: var(--font-body); font-size: 2rem; font-weight: 300;"></div>
+        </div>
+        <div id="hit-rate-table" style="overflow-x: auto;"></div>
+        <div id="hit-rate-recent" style="margin-top: var(--space-5); display: none;">
+            <div
+                style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-3);">
+                Recent Outcomes</div>
+            <div id="hit-rate-recent-list"></div>
+        </div>
+    </div>
+
+    <!-- Strategy Breakdown -->
+    {% if stats and stats.by_strategy %}
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <h3 style="margin: 0 0 var(--space-5) 0;">Strategy Breakdown (7d)</h3>
+        <div class="grid grid-3" style="gap: var(--space-4);">
+            {% for strategy, count in stats.by_strategy.items() %}
+            <div
+                style="padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 0.8125rem; color: var(--text-secondary);">
+                    {{ strategy|replace('_', ' ')|title }}
+                </span>
+                <span style="font-family: var(--font-mono); font-weight: 500; color: var(--text-primary);">
+                    {{ count }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Discovery Run History -->
+    {% if discovery_log %}
+    <div class="card">
+        <h3 style="margin: 0 0 var(--space-5) 0;">Run History</h3>
+        <div style="overflow-x: auto; margin: 0 calc(var(--space-8) * -1); padding: 0 var(--space-8);">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Type</th>
+                        <th>Scanned</th>
+                        <th>Found</th>
+                        <th>Promoted</th>
+                        <th>Duration</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in discovery_log %}
+                    <tr>
+                        <td style="font-size: 0.75rem; color: var(--text-muted);">{{ log.run_at[:16] }}</td>
+                        <td>
+                            <span style="font-size: 0.75rem; font-weight: 500; color: var(--text-secondary);">
+                                {{ log.run_type|replace('_', ' ')|title }}
+                            </span>
+                        </td>
+                        <td style="font-family: var(--font-mono);">{{ log.tickers_scanned }}</td>
+                        <td style="font-family: var(--font-mono);">{{ log.discoveries_found }}</td>
+                        <td style="font-family: var(--font-mono); color: #6bba7e;">{{ log.promoted_count }}</td>
+                        <td style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">{{
+                            log.duration_seconds|round(1) }}s</td>
+                        <td>
+                            {% if log.errors %}
+                            <span class="badge badge-danger" style="font-size: 0.5625rem;">Error</span>
+                            {% else %}
+                            <span class="badge badge-success" style="font-size: 0.5625rem;">OK</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function getCheckedIds() {
+        return Array.from(document.querySelectorAll('.row-check:checked')).map(cb => cb.dataset.id);
+    }
+
+    function updateBulkButtons() {
+        const ids = getCheckedIds();
+        const count = ids.length;
+        const countEl = document.getElementById('selected-count');
+        const promoteBtn = document.getElementById('bulk-promote-btn');
+        const dismissBtn = document.getElementById('bulk-dismiss-btn');
+
+        countEl.style.display = count > 0 ? 'inline' : 'none';
+        countEl.textContent = count + ' selected';
+        promoteBtn.style.display = count > 0 ? 'inline-block' : 'none';
+        dismissBtn.style.display = count > 0 ? 'inline-block' : 'none';
+
+        // Sync hidden inputs
+        ['bulk-promote-ids', 'bulk-dismiss-ids'].forEach(containerId => {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            ids.forEach(id => {
+                const inp = document.createElement('input');
+                inp.type = 'hidden';
+                inp.name = 'discovery_ids';
+                inp.value = id;
+                container.appendChild(inp);
+            });
+        });
+    }
+
+    function toggleSelectAll(masterCb) {
+        document.querySelectorAll('.row-check').forEach(cb => {
+            cb.checked = masterCb.checked;
+        });
+        updateBulkButtons();
+    }
+
+    // Hit Rate Data
+    fetch('/api/discovery-hit-rate')
+        .then(r => r.json())
+        .then(data => {
+            const card = document.getElementById('hit-rate-card');
+
+            // Overall hit rate
+            const overall = data.overall;
+            if (overall && overall.total > 0) {
+                card.style.display = '';
+                const hrColor = overall.hit_rate >= 60 ? '#6bba7e' : overall.hit_rate >= 40 ? '#d4a84b' : '#d47272';
+                document.getElementById('overall-hit-rate').innerHTML =
+                    '<span style="color: ' + hrColor + ';">' + overall.hit_rate.toFixed(0) + '%</span>' +
+                    '<span style="font-size: 0.875rem; color: var(--text-muted); font-weight: 400;"> overall</span>';
+                document.getElementById('hit-rate-subtitle').textContent =
+                    overall.total + ' tracked discoveries (' + overall.hits + ' hits)';
+            }
+
+            // Strategy breakdown table
+            const strategies = data.by_strategy;
+            if (strategies && strategies.length > 0) {
+                card.style.display = '';
+                let html = '<table style="font-size: 0.8125rem;"><thead><tr><th>Strategy</th><th>Tracked</th><th>Hit Rate</th><th>Avg Return</th><th>30d</th><th>60d</th><th>90d</th></tr></thead><tbody>';
+                strategies.forEach(s => {
+                    const hrColor = s.hit_rate >= 60 ? '#6bba7e' : s.hit_rate >= 40 ? '#d4a84b' : '#d47272';
+                    const retColor = (s.avg_return || 0) >= 0 ? '#6bba7e' : '#d47272';
+                    html += '<tr>';
+                    html += '<td style="font-weight: 500;">' + (s.strategy || '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) + '</td>';
+                    html += '<td style="font-family: var(--font-mono);">' + (s.total || 0) + '</td>';
+                    html += '<td style="font-family: var(--font-mono); color: ' + hrColor + '; font-weight: 500;">' + (s.hit_rate || 0).toFixed(0) + '%</td>';
+                    html += '<td style="font-family: var(--font-mono); color: ' + retColor + ';">' + ((s.avg_return || 0) >= 0 ? '+' : '') + (s.avg_return || 0).toFixed(1) + '%</td>';
+                    html += '<td style="font-family: var(--font-mono); color: var(--text-muted);">' + (s.hit_rate_30d != null ? s.hit_rate_30d.toFixed(0) + '%' : '—') + '</td>';
+                    html += '<td style="font-family: var(--font-mono); color: var(--text-muted);">' + (s.hit_rate_60d != null ? s.hit_rate_60d.toFixed(0) + '%' : '—') + '</td>';
+                    html += '<td style="font-family: var(--font-mono); color: var(--text-muted);">' + (s.hit_rate_90d != null ? s.hit_rate_90d.toFixed(0) + '%' : '—') + '</td>';
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+                document.getElementById('hit-rate-table').innerHTML = html;
+            }
+
+            // Recent outcomes
+            const recent = data.recent;
+            if (recent && recent.length > 0) {
+                const container = document.getElementById('hit-rate-recent');
+                container.style.display = '';
+                let html = '';
+                recent.forEach(r => {
+                    const retColor = (r.return_pct || 0) >= 0 ? '#6bba7e' : '#d47272';
+                    const hitBadge = r.is_hit ? '<span class="badge badge-success" style="font-size:0.5rem;">HIT</span>' :
+                        '<span class="badge badge-danger" style="font-size:0.5rem;">MISS</span>';
+                    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:var(--space-2) var(--space-3);border-bottom:1px solid var(--border-hairline);font-size:0.8125rem;">';
+                    html += '<div><a href="/stock/' + r.ticker + '" style="font-family:var(--font-mono);font-weight:500;color:var(--text-primary);text-decoration:none;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + r.ticker + '</a>';
+                    html += ' <span style="color:var(--text-muted);margin:0 var(--space-2);">·</span> ' + (r.strategy || '').replace(/_/g, ' ') + '</div>';
+                    html += '<div style="display:flex;align-items:center;gap:var(--space-3);">';
+                    html += '<span style="font-family:var(--font-mono);color:' + retColor + ';">' + ((r.return_pct || 0) >= 0 ? '+' : '') + (r.return_pct || 0).toFixed(1) + '%</span>';
+                    html += hitBadge + '</div></div>';
+                });
+                document.getElementById('hit-rate-recent-list').innerHTML = html;
+            }
+        })
+        .catch(() => { });
+
+    // Flash promoted/dismissed banner
+    const params = new URLSearchParams(location.search);
+    if (params.get('promoted')) {
+        const banner = document.createElement('div');
+        banner.style.cssText = 'position:fixed;top:80px;right:1rem;background:var(--signal-positive-bg);border:1px solid var(--border-default);padding:0.75rem 1rem;border-radius:8px;z-index:9999;font-size:0.875rem;';
+        banner.textContent = `✓ ${params.get('promoted')} stocks promoted to watchlist`;
+        document.body.appendChild(banner);
+        setTimeout(() => banner.remove(), 3500);
+    }
+    if (params.get('dismissed')) {
+        const banner = document.createElement('div');
+        banner.style.cssText = 'position:fixed;top:80px;right:1rem;background:var(--bg-secondary);border:1px solid var(--border-default);padding:0.75rem 1rem;border-radius:8px;z-index:9999;font-size:0.875rem;';
+        banner.textContent = `${params.get('dismissed')} discoveries dismissed`;
+        document.body.appendChild(banner);
+        setTimeout(() => banner.remove(), 3500);
+    }
+
+    // Sparklines for ticker column
+    (function () {
+        function renderSparkline(svg, prices) {
+            if (!prices || prices.length < 2) return;
+            var w = 60, h = 20, pad = 1;
+            var min = Math.min.apply(null, prices);
+            var max = Math.max.apply(null, prices);
+            var range = max - min || 1;
+            var pts = prices.map(function (p, i) {
+                var x = pad + (i / (prices.length - 1)) * (w - pad * 2);
+                var y = h - pad - ((p - min) / range) * (h - pad * 2);
+                return x.toFixed(1) + ',' + y.toFixed(1);
+            }).join(' ');
+            var color = prices[prices.length - 1] >= prices[0] ? '#6bba7e' : '#d47272';
+            var poly = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+            poly.setAttribute('points', pts);
+            poly.setAttribute('fill', 'none');
+            poly.setAttribute('stroke', color);
+            poly.setAttribute('stroke-width', '1.5');
+            poly.setAttribute('stroke-linejoin', 'round');
+            svg.appendChild(poly);
+        }
+
+        document.querySelectorAll('svg[data-sparkline]').forEach(function (svg) {
+            var ticker = svg.getAttribute('data-sparkline');
+            fetch('/api/chart-data/' + ticker, { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
+                    if (!data || !data.prices) return;
+                    var prices = data.prices.slice(-30);
+                    renderSparkline(svg, prices);
+                })
+                .catch(function () { });
+        });
+    })();
+</script>
+{% endblock %}

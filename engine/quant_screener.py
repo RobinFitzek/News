@@ -2,6 +2,11 @@
 Quantitative Stock Screener
 Pure math-based screening — zero API cost. Replaces AI-generated "interest scores"
 with actual financial metrics computed from yfinance data.
+
+PRODUCTION FEATURES:
+- Earnings calendar integration (flags pre-earnings risk)
+- Volume confirmation (distinguishes RSI 28 on 3x volume vs normal volume)
+- Sector-relative signals (compares against sector peers, not universal thresholds)
 """
 import yfinance as yf
 import numpy as np
@@ -85,6 +90,52 @@ class QuantScreener:
         self._stock_cache = {}
         self._cache_duration = timedelta(minutes=30)
         self.config = QUANT_SCREENER_CONFIG
+        self._apply_weight_overrides()
+
+    def _apply_weight_overrides(self):
+        """Load quant_weights_override from DB and remap 2-factor backtest
+        weights into the 4-factor live screener."""
+        try:
+            from core.database import db
+            override = db.get_setting('quant_weights_override')
+            if not override or not isinstance(override, dict):
+                return
+
+            tech_w = override.get('tech_weight')
+            mom_w = override.get('momentum_weight')
+            if tech_w is None or mom_w is None:
+                return
+
+            # Default 4-factor weights from config
+            defaults = QUANT_SCREENER_CONFIG['composite_weights']
+            val = defaults['valuation']   # 0.30
+            qual = defaults['quality']    # 0.20
+
+            # Scale technical and momentum proportionally, keep val/qual ratio
+            tech_new = (val + defaults['technical'] + defaults['momentum'] + qual) * 0.5 * (tech_w / 0.5)
+            mom_new = (val + defaults['technical'] + defaults['momentum'] + qual) * 0.5 * (mom_w / 0.5)
+            # Simplified: tech_new = tech_w, mom_new = mom_w (since they split 50/50 of 1.0)
+            # But we need to preserve val/qual. Formula from plan:
+            tech_new = defaults['technical'] * (tech_w / 0.5)
+            mom_new = defaults['momentum'] * (mom_w / 0.5)
+
+            # Normalize to sum = 1.0
+            total = val + tech_new + mom_new + qual
+            self.config = dict(self.config)  # don't mutate global
+            self.config['composite_weights'] = {
+                'valuation': round(val / total, 4),
+                'technical': round(tech_new / total, 4),
+                'momentum': round(mom_new / total, 4),
+                'quality': round(qual / total, 4),
+            }
+            logger.info(f"Applied weight override: {self.config['composite_weights']}")
+        except Exception as e:
+            logger.warning(f"Could not load weight overrides: {e}")
+
+    def reload_weights(self):
+        """Reload weight overrides from DB (call after applying new weights)."""
+        self.config = QUANT_SCREENER_CONFIG
+        self._apply_weight_overrides()
 
     def screen_batch(self, tickers: list, variant: str = "balanced") -> list:
         """Screen multiple tickers, return sorted by composite score."""
@@ -134,15 +185,61 @@ class QuantScreener:
         technicals = self._technical_indicators(hist)
         momentum = self._momentum_scores(hist, benchmark_hist)
         quality = self._quality_metrics(info)
+        
+        # NEW: Add volume metrics
+        try:
+            from engine.volume_analyzer import volume_analyzer
+            volume_metrics = volume_analyzer.get_volume_metrics(ticker, hist)
+        except Exception as e:
+            logger.warning(f"Could not get volume metrics for {ticker}: {e}")
+            volume_metrics = {}
+
+        # Market structure analysis (Hierarchical DC turning points)
+        try:
+            from engine.market_structure import market_structure_analyzer
+            market_structure = market_structure_analyzer.analyze(ticker, hist)
+        except Exception as e:
+            logger.debug(f"Market structure skipped for {ticker}: {e}")
+            market_structure = {}
+
+        # Harmonic pattern detection (XABCD Fibonacci patterns)
+        try:
+            from engine.harmonic_patterns import harmonic_detector
+            harmonic_patterns = harmonic_detector.detect(ticker, hist)
+        except Exception as e:
+            logger.debug(f"Harmonic patterns skipped for {ticker}: {e}")
+            harmonic_patterns = []
+
+        # Visibility graph analysis (topological price indicator)
+        try:
+            from engine.visibility_graph import vg_analyzer
+            vg_metrics = vg_analyzer.analyze(ticker, hist)
+        except Exception as e:
+            logger.debug(f"Visibility graph skipped for {ticker}: {e}")
+            vg_metrics = {}
 
         # Compute scores for each group (0-100)
         val_score = self._score_valuation(valuation, variant)
-        tech_score = self._score_technicals(technicals)
+        tech_score = self._score_technicals(technicals, volume_metrics, market_structure, vg_metrics)
         mom_score = self._score_momentum(momentum)
         qual_score = self._score_quality(quality)
 
-        # Weighted composite
-        weights = self.config['composite_weights']
+        # Weighted composite (with optional regime-based adjustments)
+        weights = dict(self.config['composite_weights'])
+        try:
+            from engine.market_regime import market_regime
+            regime_data = market_regime.get_current_regime()
+            regime_adjustments = market_regime.get_regime_weight_adjustments(regime_data.get('regime'))
+            adjusted_weights = {
+                k: weights[k] * regime_adjustments.get(k, 1.0) for k in weights
+            }
+            # Normalize to sum = 1.0
+            total_w = sum(adjusted_weights.values())
+            if total_w > 0:
+                weights = {k: v / total_w for k, v in adjusted_weights.items()}
+        except Exception:
+            pass  # Fall back to unadjusted weights
+
         composite = (
             val_score * weights['valuation'] +
             tech_score * weights['technical'] +
@@ -151,16 +248,44 @@ class QuantScreener:
         )
         composite = max(0, min(100, int(round(composite))))
 
-        # Anomaly detection
-        anomalies = self._anomaly_detection(valuation, technicals, momentum, quality)
+        # Anomaly detection (now includes volume, harmonic pattern anomalies)
+        anomalies = self._anomaly_detection(valuation, technicals, momentum, quality, volume_metrics, harmonic_patterns)
 
         # Signal determination
         signal = self._determine_signal(composite, anomalies, variant)
+        
+        # NEW: Enhance signal with volume confirmation
+        try:
+            from engine.volume_analyzer import volume_analyzer
+            volume_enhancement = volume_analyzer.enhance_signal(ticker, signal, volume_metrics)
+            enhanced_signal = volume_enhancement['enhanced_signal']
+            volume_note = volume_enhancement['note']
+        except Exception as e:
+            logger.warning(f"Could not enhance signal with volume: {e}")
+            enhanced_signal = signal
+            volume_note = ""
 
-        return {
+        # Market regime adjustment
+        regime_label = None
+        regime_adjustment = 0
+        try:
+            from engine.market_regime import market_regime
+            regime_data = market_regime.get_current_regime()
+            regime_label = regime_data.get('regime')
+            regime_adjustment = market_regime.get_confidence_adjustment(signal, regime_label)
+            if regime_adjustment != 0:
+                composite = max(0, min(100, composite + regime_adjustment))
+        except Exception as e:
+            logger.debug(f"Market regime check skipped: {e}")
+
+        result = {
             'ticker': ticker,
             'composite_score': composite,
             'signal': signal,
+            'enhanced_signal': enhanced_signal,
+            'regime': regime_label,
+            'regime_adjustment': regime_adjustment,
+            'data_stale': stock_data.get('data_stale', False),
             'scores': {
                 'valuation': val_score,
                 'technical': tech_score,
@@ -171,6 +296,11 @@ class QuantScreener:
             'technicals': technicals,
             'momentum': momentum,
             'quality': quality,
+            'volume_metrics': volume_metrics,
+            'volume_note': volume_note,
+            'market_structure': market_structure,
+            'harmonic_patterns': harmonic_patterns,
+            'vg_metrics': vg_metrics,
             'anomalies': anomalies,
             'data': {
                 'name': info.get('longName', info.get('shortName', ticker)),
@@ -181,13 +311,99 @@ class QuantScreener:
             },
             # Compatibility fields for existing pipeline
             'score': composite,
-            'initial_reason': f"Quant Score {composite}/100: Val={val_score}, Tech={tech_score}, Mom={mom_score}, Qual={qual_score}",
+            'initial_reason': f"Quant Score {composite}/100: Val={val_score}, Tech={tech_score}, Mom={mom_score}, Qual={qual_score}. {volume_note}",
         }
+        
+        # NEW: Flag earnings risk
+        try:
+            from engine.earnings_tracker import earnings_tracker
+            result = earnings_tracker.flag_pre_earnings_risk(ticker, result)
+        except Exception as e:
+            logger.warning(f"Could not check earnings risk: {e}")
+
+        # Save fundamental snapshot for 4-factor backtesting (Feature 5)
+        try:
+            from core.database import db
+            today = datetime.now().strftime('%Y-%m-%d')
+            db.execute("""
+                INSERT OR REPLACE INTO fundamental_snapshots
+                (ticker, snapshot_date, pe_ratio, pb_ratio, roe, debt_to_equity, current_ratio, fcf_yield)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                ticker, today,
+                valuation.get('pe_ratio'),
+                valuation.get('pb_ratio'),
+                quality.get('roe'),
+                quality.get('debt_to_equity'),
+                quality.get('current_ratio'),
+                quality.get('fcf_yield'),
+            ))
+        except Exception as e:
+            logger.debug(f"Could not save fundamental snapshot for {ticker}: {e}")
+
+        return result
 
     # --- Data Fetching (with caching) ---
 
+    @staticmethod
+    def _fetch_yfinance_info(ticker: str, retries: int = 2, delay: float = 1.0) -> Tuple[Dict, bool]:
+        """
+        Fetch yfinance info with retry logic and DB cache fallback.
+        Returns (info_dict, from_cache) where from_cache=True means stale DB data was used.
+        """
+        import time as _time
+        try:
+            from engine.data_freshness import data_freshness as _freshness
+        except Exception:
+            _freshness = None
+
+        for attempt in range(retries + 1):
+            try:
+                info = yf.Ticker(ticker).info
+                if info and len(info) >= 3:
+                    if _freshness:
+                        _freshness.record_success(ticker)
+                    return info, False
+            except Exception as e:
+                logger.warning(f"yfinance info attempt {attempt+1} failed for {ticker}: {e}")
+            if attempt < retries:
+                _time.sleep(delay)
+
+        # All retries exhausted — record failure
+        if _freshness:
+            _freshness.record_failure(ticker, 'All yfinance retries exhausted')
+
+        # All retries failed — fall back to last DB snapshot
+        try:
+            from core.database import db
+            rows = db.query("""
+                SELECT pe_ratio, pb_ratio, roe, debt_to_equity, current_ratio, fcf_yield, snapshot_date
+                FROM fundamental_snapshots
+                WHERE ticker = ?
+                ORDER BY snapshot_date DESC
+                LIMIT 1
+            """, (ticker,))
+            if rows:
+                row = rows[0]
+                stale_info = {
+                    'trailingPE': row.get('pe_ratio'),
+                    'priceToBook': row.get('pb_ratio'),
+                    'returnOnEquity': row.get('roe'),
+                    'debtToEquity': row.get('debt_to_equity'),
+                    'currentRatio': row.get('current_ratio'),
+                    'data_stale': True,
+                    'stale_as_of': row.get('snapshot_date'),
+                }
+                logger.warning(f"Using stale DB snapshot for {ticker} (as of {row.get('snapshot_date')})")
+                return stale_info, True
+        except Exception as e:
+            logger.error(f"DB fallback also failed for {ticker}: {e}")
+
+        return {}, False
+
     def _get_stock_data(self, ticker: str) -> Optional[Dict]:
-        """Fetch and cache stock info + 1yr history."""
+        """Fetch and cache stock info + 1yr history. Uses retry wrapper with DB fallback,
+        then API fallback chain if all yfinance retries exhausted."""
         cache_key = ticker
         if cache_key in self._stock_cache:
             entry = self._stock_cache[cache_key]
@@ -195,12 +411,25 @@ class QuantScreener:
                 return entry['data']
 
         try:
-            stock = yf.Ticker(ticker)
-            info = stock.info
-            if not info or len(info) < 3:
+            info, from_cache = self._fetch_yfinance_info(ticker)
+
+            # If yfinance failed entirely, try fallback chain
+            if not info:
+                try:
+                    from engine.api_fallback import api_fallback
+                    info, source = api_fallback.get_stock_info(ticker, retries=1)
+                    if info:
+                        from_cache = True  # Fallback data is partial
+                        logger.info(f"Using API fallback ({source}) for {ticker}")
+                except Exception:
+                    pass
+
+            if not info:
                 return None
+
+            stock = yf.Ticker(ticker)
             hist = stock.history(period="1y")
-            data = {'info': info, 'hist': hist}
+            data = {'info': info, 'hist': hist, 'data_stale': from_cache}
             self._stock_cache[cache_key] = {'data': data, 'timestamp': datetime.now()}
             return data
         except Exception as e:
@@ -452,8 +681,9 @@ class QuantScreener:
             return 50.0  # No data, neutral
         return sum(scores) / len(scores)
 
-    def _score_technicals(self, tech: Dict) -> float:
-        """Score technical indicators."""
+    def _score_technicals(self, tech: Dict, volume_metrics: Dict = None,
+                          market_structure: Dict = None, vg_metrics: Dict = None) -> float:
+        """Score technical indicators. Includes market structure and visibility graph."""
         scores = []
 
         # RSI scoring (30-70 is healthy)
@@ -506,7 +736,31 @@ class QuantScreener:
         else:
             scores.append(15)  # Near upper band
 
-        return sum(scores) / len(scores) if scores else 50.0
+        # Market structure score (hierarchical trend regime)
+        if market_structure and market_structure.get('structure_score') is not None:
+            scores.append(market_structure['structure_score'])
+
+        # Visibility graph score (topological price structure)
+        if vg_metrics and vg_metrics.get('vg_score') is not None:
+            scores.append(vg_metrics['vg_score'])
+
+        base = sum(scores) / len(scores) if scores else 50.0
+
+        # Volume confirmation boost: high volume during a directional signal
+        if volume_metrics and volume_metrics.get('volume_ratio', 1.0) >= 2.0:
+            vol_conf = volume_metrics.get('volume_confirmation', 'neutral')
+            if vol_conf == 'strong_bullish' and base >= 55:
+                base = min(100, base + 10)
+            elif vol_conf == 'strong_bearish' and base <= 45:
+                base = max(0, base - 10)
+            elif vol_conf == 'moderate':
+                # Moderate volume still provides some confirmation
+                if base >= 55:
+                    base = min(100, base + 5)
+                elif base <= 45:
+                    base = max(0, base - 5)
+
+        return base
 
     def _score_momentum(self, mom: Dict) -> float:
         """Score momentum — positive excess returns = higher score."""
@@ -607,10 +861,41 @@ class QuantScreener:
     # --- Anomaly Detection ---
 
     def _anomaly_detection(self, valuation: Dict, technicals: Dict,
-                           momentum: Dict, quality: Dict) -> List[Dict]:
+                           momentum: Dict, quality: Dict, volume_metrics: Dict = None,
+                           harmonic_patterns: List = None) -> List[Dict]:
         """Flag metrics that are extreme outliers."""
         anomalies = []
+
+        # Harmonic pattern anomalies
+        if harmonic_patterns:
+            for pattern in harmonic_patterns[:2]:  # Top 2 patterns max
+                if pattern.get('confidence', 0) >= 60:
+                    direction = 'positive' if pattern['direction'] == 'bullish' else 'negative'
+                    anomalies.append({
+                        'metric': 'Harmonic Pattern',
+                        'value': pattern['pattern_name'],
+                        'direction': direction,
+                        'description': f"{pattern['pattern_name'].title()} {pattern['direction']} pattern (confidence: {pattern['confidence']}%)"
+                    })
         z_threshold = self.config['anomaly_z_threshold']
+
+        # Volume anomalies (NEW)
+        if volume_metrics:
+            if volume_metrics.get('high_volume_anomaly'):
+                anomalies.append({
+                    'metric': 'Volume Spike',
+                    'value': volume_metrics['volume_ratio'],
+                    'direction': 'positive' if volume_metrics['accumulation_distribution'] == 'accumulation' else 'negative',
+                    'description': f"{volume_metrics['volume_ratio']:.1f}x average volume with {volume_metrics['accumulation_distribution']}"
+                })
+            
+            if volume_metrics.get('accumulation_distribution') == 'accumulation' and volume_metrics.get('volume_ratio', 1) >= 1.5:
+                anomalies.append({
+                    'metric': 'Institutional Accumulation',
+                    'value': volume_metrics['volume_ratio'],
+                    'direction': 'positive',
+                    'description': f"High volume accumulation — likely institutional buying"
+                })
 
         # Valuation anomalies
         if valuation['pe_vs_sector'] is not None:

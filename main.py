@@ -16,7 +16,7 @@ def print_banner():
     print("""
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
-║   🤖 AI Investment Monitor                                   ║
+║     AI Investment Monitor                                    ║
 ║   ─────────────────────────────────────────────────────────  ║
 ║   Automatisiertes Investment-Analyse-System                  ║
 ║                                                              ║
@@ -25,9 +25,9 @@ def print_banner():
 
 def signal_handler(sig, frame):
     """Handle shutdown signals"""
-    print("\n\n⏹️ Shutting down...")
+    print("\n\nShutting down...")
     scheduler.stop()
-    print("👋 Goodbye!")
+    print("Goodbye!")
     sys.exit(0)
 
 def main():
@@ -41,9 +41,9 @@ def main():
     pplx_key = db.get_api_key("perplexity")
     gemini_key = db.get_api_key("gemini")
     
-    print("📊 Status Check:")
-    print(f"   ├─ Perplexity API: {'✅ Konfiguriert' if pplx_key else '❌ Nicht konfiguriert'}")
-    print(f"   ├─ Gemini API: {'✅ Konfiguriert' if gemini_key else '❌ Nicht konfiguriert'}")
+    print("Status Check:")
+    print(f"   ├─ Perplexity API: {'Konfiguriert' if pplx_key else 'Nicht konfiguriert'}")
+    print(f"   ├─ Gemini API: {'Konfiguriert' if gemini_key else 'Nicht konfiguriert'}")
     print(f"   ├─ Watchlist: {len(db.get_watchlist())} Aktien")
     print(f"   └─ Datenbank: {db.db_path}")
     print()
@@ -54,16 +54,16 @@ def main():
         auto_start = True  # Default to auto-start
     
     if auto_start and pplx_key and gemini_key:
-        print("🚀 Starting scheduler...")
+        print("Starting scheduler...")
         scheduler.start()
     else:
         if not (pplx_key and gemini_key):
-            print("⚠️  Scheduler nicht gestartet - API Keys fehlen")
+            print("(!) Scheduler nicht gestartet - API Keys fehlen")
             print("   Bitte konfigurieren unter: http://{}:{}/settings".format(WEB_HOST, WEB_PORT))
         print()
     
     # Start web server
-    print(f"🌐 Starting web dashboard...")
+    print(f"Starting web dashboard...")
     print(f"   └─ http://{WEB_HOST}:{WEB_PORT}")
     print()
     print("=" * 60)
@@ -75,6 +75,10 @@ def main():
     import uvicorn
     from app import app
     from core.config import ENABLE_HTTPS, CERT_FILE, KEY_FILE
+
+    # Check if dev mode is enabled for verbose logging
+    dev_mode = db.get_setting('development_mode') or False
+    uvicorn_log_level = "debug" if dev_mode else "warning"
 
     if ENABLE_HTTPS:
         if not CERT_FILE.exists() or not KEY_FILE.exists():
@@ -88,14 +92,14 @@ def main():
             port=WEB_PORT,
             ssl_certfile=str(CERT_FILE),
             ssl_keyfile=str(KEY_FILE),
-            log_level="warning"
+            log_level=uvicorn_log_level
         )
     else:
         uvicorn.run(
             app,
             host=WEB_HOST,
             port=WEB_PORT,
-            log_level="warning"
+            log_level=uvicorn_log_level
         )
 
 if __name__ == "__main__":

@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+{% block title %}Compare Stocks — Stockholm{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+
+    <header class="page-header">
+        <div>
+            <h1>Compare</h1>
+            <p>Side-by-side stock analysis</p>
+        </div>
+    </header>
+
+    <!-- Ticker selector -->
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <form method="GET" action="/stock/compare" style="display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 1; min-width: 260px;">
+                <label style="font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted);">Tickers (comma-separated, max 5)</label>
+                <input type="text" name="tickers" value="{{ tickers }}"
+                    placeholder="AAPL, MSFT, GOOGL, AMZN"
+                    style="font-family: var(--font-mono); text-transform: uppercase; margin-top: var(--space-2);">
+            </div>
+            <button type="submit" class="btn btn-primary">Compare</button>
+            {% if ticker_list %}
+            <a href="/stock/compare" class="btn btn-ghost">Clear</a>
+            {% endif %}
+        </form>
+        {% if ticker_list %}
+        <div style="margin-top: var(--space-4); display: flex; flex-wrap: wrap; gap: var(--space-2);">
+            {% for t in ticker_list %}
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; padding: 3px 10px; background: var(--bg-secondary); border: 1px solid var(--border-light);">
+                {{ t }}
+                <a href="/stock/compare?tickers={{ ticker_list|reject('equalto', t)|join(',') }}"
+                   style="margin-left: 6px; color: var(--text-muted); text-decoration: none; font-size: 0.625rem;">✕</a>
+            </span>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    {% if not ticker_list %}
+    <!-- Empty state -->
+    <div class="card" style="text-align: center; padding: var(--space-16) var(--space-8);">
+        <div style="font-size: 2rem; margin-bottom: var(--space-4); opacity: 0.2;">⇄</div>
+        <h3 style="margin: 0 0 var(--space-3) 0; color: var(--text-muted);">No tickers selected</h3>
+        <p style="color: var(--text-ghost); margin: 0;">Enter 2–5 tickers above to compare them side by side.</p>
+    </div>
+
+    {% else %}
+
+    <!-- Overlaid Price Chart -->
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-3);">
+            <h3 style="margin: 0;">Price Performance</h3>
+            <div style="display: flex; gap: var(--space-2);">
+                {% for btn in ['1M','3M','6M','1Y'] %}
+                <button onclick="loadCharts('{{ btn }}')" data-period="{{ btn }}"
+                    class="btn btn-ghost period-btn" style="font-size: 0.75rem; padding: var(--space-1) var(--space-3);">{{ btn }}</button>
+                {% endfor %}
+            </div>
+        </div>
+        <div style="position: relative; height: 300px;">
+            <canvas id="compareChart"></canvas>
+        </div>
+        <!-- Legend -->
+        <div id="chart-legend" style="display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-4);"></div>
+    </div>
+
+    <!-- Metrics Comparison Table -->
+    <div class="card" style="margin-bottom: var(--space-6); overflow-x: auto;">
+        <h3 style="margin: 0 0 var(--space-5) 0;">Key Metrics</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr>
+                    <th style="text-align: left; width: 160px; padding: var(--space-3) var(--space-4); font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-ghost); border-bottom: 1px solid var(--border-hairline);">Metric</th>
+                    {% for cmp in comparisons %}
+                    <th style="text-align: center; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-hairline);">
+                        <a href="/stock/{{ cmp.ticker }}" style="font-family: var(--font-mono); font-size: 0.9375rem; font-weight: 500; color: var(--text-primary);">{{ cmp.ticker }}</a>
+                    </th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Price -->
+                <tr class="compare-row">
+                    <td class="compare-label">Price</td>
+                    {% for cmp in comparisons %}
+                    <td class="compare-cell">
+                        {% if cmp.stats.available and cmp.stats.current_price %}
+                        ${{ "%.2f"|format(cmp.stats.current_price) }}
+                        {% else %}—{% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+
+                <!-- Market Cap -->
+                <tr class="compare-row compare-row-alt">
+                    <td class="compare-label">Market Cap</td>
+                    {% for cmp in comparisons %}
+                    <td class="compare-cell">
+                        {% if cmp.stats.available and cmp.stats.market_cap_b %}
+                        ${{ "%.1f"|format(cmp.stats.market_cap_b) }}B
+                        {% if cmp.stats.cap_label %}<span class="badge" style="font-size: 0.5rem; margin-left: 4px;">{{ cmp.stats.cap_label }}</span>{% endif %}
+                        {% else %}—{% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+
+                <!-- Sector -->
+                <tr class="compare-row">
+                    <td class="compare-label">Sector</td>
+                    {% for cmp in comparisons %}
+                    <td class="compare-cell" style="font-size: 0.8125rem; color: var(--text-secondary);">
+                        {{ cmp.stats.sector|default('—') }}
+                    </td>
+                    {% endfor %}
+                </tr>
+
+                <!-- P/E TTM -->
+                <tr class="compare-row compare-row-alt">
+                    <td class="compare-label">P/E (TTM)</td>
+                    {% for cmp in comparisons %}
+                    <td class="compare-cell">
+                        {% if cmp.stats.available and cmp.stats.pe_ratio %}
+                        {{ "%.1f"|format(cmp.stats.pe_ratio) }}×
+                        {% else %}—{% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+
+                <!-- Forward P/E -->
+                <tr class="compare-row">
+                    <td class="compare-label">Forward P/E</td>
+                    {% for cmp in comparisons %}
+                    <td class="compare-cell">
+                        {% if cmp.stats.available and cmp.stats.forward_pe %}
+                        {{ "%.1f"|format(cmp.stats.forward_pe) }}×
+                        {% else %}—{% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+
+                <!-- 52W High -->
+                <tr class="compare-row compare-row-alt">
+                    <td class="compare-label">vs 52W High</td>
+                    {% for cmp in comparisons %}
+                    <td class="compare-cell">
+                        {% if cmp.stats.available and cmp.stats.pct_from_52w_high is not none %}
+                        <span style="color: {% if cmp.stats.pct_from_52w_high > -5 %}var(--signal-positive){% elif cmp.stats.pct_from_52w_high < -20 %}var(--signal-negative){% else %}var(--text-secondary){% endif %};">
+                            {{ "%+.1f"|format(cmp.stats.pct_from_52w_high) }}%
+                        </span>
+                        {% else %}—{% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+
+                <!-- vs 52W Low -->
+                <tr class="compare-row">
+                    <td class="compare-label">vs 52W Low</td>
+                    {% for cmp in comparisons %}
+                    <td class="compare-cell">
+                        {% if cmp.stats.available and cmp.stats.pct_from_52w_low is not none %}
+                        <span style="color: var(--signal-positive);">
+                            {{ "%+.1f"|format(cmp.stats.pct_from_52w_low) }}%
+                        </span>
+                        {% else %}—{% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+
+                <!-- Short % Float -->
+                <tr class="compare-row compare-row-alt">
+                    <td class="compare-label">Short % Float</td>
+                    {% for cmp in comparisons %}
+                    <td class="compare-cell">
+                        {% if cmp.stats.available and cmp.stats.short_pct_float %}
+                        <span style="color: {% if cmp.stats.short_pct_float > 15 %}var(--signal-warning){% else %}var(--text-secondary){% endif %};">
+                            {{ cmp.stats.short_pct_float }}%
+                        </span>
+                        {% else %}—{% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+
+                <!-- Pre-market -->
+                <tr class="compare-row">
+                    <td class="compare-label">Pre-market</td>
+                    {% for cmp in comparisons %}
+                    <td class="compare-cell" style="font-size: 0.8125rem; color: var(--text-muted);">
+                        {% if cmp.stats.available and cmp.stats.pre_market_price %}
+                        ${{ "%.2f"|format(cmp.stats.pre_market_price) }}
+                        {% else %}—{% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Financial Trends (AJAX per ticker) -->
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <h3 style="margin: 0 0 var(--space-5) 0;">Revenue Trend (8Q)</h3>
+        <div id="financials-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-5);">
+            {% for cmp in comparisons %}
+            <div>
+                <div style="font-family: var(--font-mono); font-size: 0.75rem; font-weight: 500; color: var(--text-muted); margin-bottom: var(--space-3); letter-spacing: 0.04em;">{{ cmp.ticker }}</div>
+                <div style="position: relative; height: 120px;">
+                    <canvas id="fin-chart-{{ cmp.ticker }}"></canvas>
+                </div>
+                <div id="fin-label-{{ cmp.ticker }}" style="font-size: 0.6875rem; color: var(--text-ghost); text-align: center; margin-top: var(--space-2);">Loading…</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="grid grid-{{ ticker_list|length if ticker_list|length <= 4 else 4 }}" style="margin-bottom: var(--space-6);">
+        {% for cmp in comparisons %}
+        <div style="padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline); text-align: center;">
+            <div style="font-family: var(--font-mono); font-size: 0.9375rem; font-weight: 500; margin-bottom: var(--space-3);">
+                <a href="/stock/{{ cmp.ticker }}" style="color: var(--text-primary);">{{ cmp.ticker }}</a>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: var(--space-2);">
+                <a href="/stock/{{ cmp.ticker }}" class="btn btn-secondary" style="font-size: 0.75rem;">Full Detail</a>
+                <a href="/analyze?ticker={{ cmp.ticker }}" class="btn btn-ghost" style="font-size: 0.75rem;">Analyze</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_head %}
+<style>
+    .compare-row td {
+        padding: var(--space-3) var(--space-4);
+        border-bottom: 1px solid var(--border-hairline);
+        vertical-align: middle;
+    }
+    .compare-row-alt {
+        background: var(--bg-secondary);
+    }
+    .compare-label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+    .compare-cell {
+        text-align: center;
+        font-family: var(--font-mono);
+        font-size: 0.875rem;
+        color: var(--text-primary);
+    }
+    .period-btn.active {
+        background: var(--bg-hover);
+        color: var(--text-primary);
+        border-color: var(--border-light);
+    }
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+{% if ticker_list %}
+<script>
+    const TICKERS = {{ ticker_list | tojson }};
+    const COLORS = ['#6bba7e', '#d4a84b', '#7ec8e3', '#d47272', '#b48be3'];
+
+    let compareChart = null;
+
+    // ── Price Chart ──────────────────────────────────────
+    async function loadCharts(period = '6M') {
+        // Mark active button
+        document.querySelectorAll('.period-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.period === period);
+        });
+
+        const datasets = [];
+        const labelMap = {};
+
+        for (let i = 0; i < TICKERS.length; i++) {
+            const ticker = TICKERS[i];
+            try {
+                const res = await fetch(`/api/chart-data/${ticker}`);
+                if (!res.ok) continue;
+                const data = await res.json();
+
+                let prices = data.prices || [];
+                let labels = data.labels || [];
+
+                // Filter by period
+                const cutoff = {
+                    '1M': 30, '3M': 90, '6M': 180, '1Y': 365
+                }[period] || 180;
+                const sliceFrom = Math.max(0, prices.length - cutoff);
+                prices = prices.slice(sliceFrom);
+                labels = labels.slice(sliceFrom);
+
+                // Normalise to % return from first point
+                if (prices.length > 0) {
+                    const base = prices[0];
+                    const normalised = prices.map(p => base > 0 ? ((p - base) / base * 100) : 0);
+                    datasets.push({
+                        label: ticker,
+                        data: normalised,
+                        borderColor: COLORS[i % COLORS.length],
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.3,
+                    });
+                    if (!labelMap.length || labels.length > (labelMap.len || 0)) {
+                        labelMap.labels = labels;
+                        labelMap.len = labels.length;
+                    }
+                }
+            } catch (e) {}
+        }
+
+        const ctx = document.getElementById('compareChart').getContext('2d');
+        if (compareChart) compareChart.destroy();
+
+        compareChart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: labelMap.labels || [], datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y >= 0 ? '+' : ''}${ctx.parsed.y.toFixed(1)}%`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            color: 'var(--text-ghost)',
+                            maxTicksLimit: 6,
+                            font: { family: 'JetBrains Mono', size: 10 }
+                        },
+                        grid: { color: 'rgba(255,255,255,0.04)' }
+                    },
+                    y: {
+                        ticks: {
+                            color: 'var(--text-ghost)',
+                            font: { family: 'JetBrains Mono', size: 10 },
+                            callback: v => (v >= 0 ? '+' : '') + v.toFixed(1) + '%'
+                        },
+                        grid: { color: 'rgba(255,255,255,0.04)' }
+                    }
+                }
+            }
+        });
+
+        // Legend
+        const legend = document.getElementById('chart-legend');
+        legend.innerHTML = datasets.map((d, i) =>
+            `<div style="display:flex;align-items:center;gap:6px;font-size:0.75rem;font-family:var(--font-mono);">
+                <span style="width:16px;height:2px;background:${COLORS[i % COLORS.length]};display:inline-block;"></span>
+                <a href="/stock/${d.label}" style="color:var(--text-secondary);">${d.label}</a>
+                <span style="color:${d.data[d.data.length-1] >= 0 ? 'var(--signal-positive)' : 'var(--signal-negative)'}">
+                    ${d.data[d.data.length-1] >= 0 ? '+' : ''}${(d.data[d.data.length-1]||0).toFixed(1)}%
+                </span>
+            </div>`
+        ).join('');
+    }
+
+    // ── Financial Trend Mini Charts ───────────────────────
+    async function loadFinancials() {
+        for (let i = 0; i < TICKERS.length; i++) {
+            const ticker = TICKERS[i];
+            const labelEl = document.getElementById(`fin-label-${ticker}`);
+            const canvasEl = document.getElementById(`fin-chart-${ticker}`);
+            if (!canvasEl) continue;
+
+            try {
+                const res = await fetch(`/api/financials/${ticker}`);
+                if (!res.ok) {
+                    if (labelEl) labelEl.textContent = 'No data';
+                    continue;
+                }
+                const data = await res.json();
+                if (!data.available || !data.labels || data.labels.length === 0) {
+                    if (labelEl) labelEl.textContent = 'No quarterly data';
+                    continue;
+                }
+
+                const ctx = canvasEl.getContext('2d');
+                const revenue = data.revenue_b || [];
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            data: revenue,
+                            backgroundColor: COLORS[i % COLORS.length] + '55',
+                            borderColor: COLORS[i % COLORS.length],
+                            borderWidth: 1,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false }, tooltip: {
+                            callbacks: { label: ctx => `$${ctx.parsed.y?.toFixed(2)}B` }
+                        }},
+                        scales: {
+                            x: { ticks: { color: 'var(--text-ghost)', font: { size: 9 }, maxRotation: 45 }, grid: { display: false } },
+                            y: { ticks: { color: 'var(--text-ghost)', font: { size: 9 }, callback: v => `$${v}B` }, grid: { color: 'rgba(255,255,255,0.04)' } }
+                        }
+                    }
+                });
+
+                const latest = revenue[revenue.length - 1];
+                const prev = revenue[revenue.length - 2];
+                let trend = '';
+                if (latest !== null && prev !== null && prev !== 0) {
+                    const chg = ((latest - prev) / Math.abs(prev) * 100).toFixed(1);
+                    trend = ` (${chg >= 0 ? '+' : ''}${chg}% QoQ)`;
+                }
+                if (labelEl) labelEl.textContent = `Revenue (quarterly)${trend}`;
+
+            } catch (e) {
+                if (labelEl) labelEl.textContent = 'Failed to load';
+            }
+        }
+    }
+
+    // ── Copy ticker convenience ────────────────────────────
+    function copyTicker() {
+        navigator.clipboard?.writeText(TICKERS.join(', ')).catch(() => {});
+    }
+
+    // ── Init ──────────────────────────────────────────────
+    loadCharts('6M');
+    loadFinancials();
+</script>
+{% endif %}
+{% endblock %}

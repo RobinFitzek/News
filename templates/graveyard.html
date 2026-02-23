@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}Graveyard — Stockholm{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+    <header class="page-header">
+        <div>
+            <h1>Ticker Graveyard</h1>
+            <p>Post-removal performance analysis</p>
+        </div>
+    </header>
+
+    <!-- Performance Analysis (loaded via AJAX) -->
+    <div id="graveyard-perf" class="card" style="margin-bottom: var(--space-8); display: none;">
+        <h3 style="margin: 0 0 var(--space-5) 0;">Post-Removal Performance</h3>
+        <div id="graveyard-summary" class="grid grid-3" style="margin-bottom: var(--space-5);"></div>
+        <div id="graveyard-table" style="overflow-x: auto;"></div>
+    </div>
+
+    <!-- All Removed Tickers -->
+    <div class="card">
+        <h3 style="margin: 0 0 var(--space-6) 0;">Removed Tickers <span style="color: var(--text-muted); font-weight: 400;">({{ graveyard|length }})</span></h3>
+
+        {% if graveyard %}
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Reason</th>
+                        <th>Last Seen</th>
+                        <th>Removed At</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for g in graveyard %}
+                    <tr>
+                        <td>
+                            <a href="/stock/{{ g.ticker }}"
+                                style="font-family: var(--font-mono); font-weight: 500; color: var(--text-primary); text-decoration: none;"
+                                onmouseover="this.style.textDecoration='underline'"
+                                onmouseout="this.style.textDecoration='none'">{{ g.ticker }}</a>
+                        </td>
+                        <td style="color: var(--text-secondary); font-size: 0.8125rem;">{{ g.reason or '—' }}</td>
+                        <td style="color: var(--text-muted); font-size: 0.8125rem;">{{ g.last_seen or '—' }}</td>
+                        <td style="color: var(--text-muted); font-size: 0.8125rem;">{{ g.added_at[:10] if g.added_at else '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p style="color: var(--text-muted);">No removed tickers yet.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    fetch('/api/graveyard/performance')
+        .then(r => r.json())
+        .then(data => {
+            if (!data.results || data.results.length === 0) return;
+            const card = document.getElementById('graveyard-perf');
+            card.style.display = '';
+
+            const results = data.results;
+            const winners = results.filter(r => r.change_pct > 0).length;
+            const losers = results.filter(r => r.change_pct <= 0).length;
+            const avgChange = results.reduce((sum, r) => sum + r.change_pct, 0) / results.length;
+            const avgColor = avgChange >= 0 ? '#6bba7e' : '#d47272';
+
+            document.getElementById('graveyard-summary').innerHTML =
+                '<div class="metric"><div class="metric-value" style="color: ' + avgColor + ';">' + (avgChange >= 0 ? '+' : '') + avgChange.toFixed(1) + '%</div><div class="metric-label">Avg Post-Removal Change</div></div>' +
+                '<div class="metric"><div class="metric-value" style="color: #d47272;">' + winners + '</div><div class="metric-label">Went Up (Missed)</div></div>' +
+                '<div class="metric"><div class="metric-value" style="color: #6bba7e;">' + losers + '</div><div class="metric-label">Went Down (Good Call)</div></div>';
+
+            let html = '<table style="font-size: 0.8125rem;"><thead><tr><th>Ticker</th><th>Reason</th><th>Removal Price</th><th>Current Price</th><th>Change</th></tr></thead><tbody>';
+            results.sort((a, b) => b.change_pct - a.change_pct);
+            results.forEach(r => {
+                const c = r.change_pct >= 0 ? '#6bba7e' : '#d47272';
+                html += '<tr>';
+                html += '<td><a href="/stock/' + r.ticker + '" style="font-family:var(--font-mono);font-weight:500;color:var(--text-primary);text-decoration:none;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + r.ticker + '</a></td>';
+                html += '<td style="color:var(--text-muted);">' + (r.reason || '—') + '</td>';
+                html += '<td style="font-family:var(--font-mono);">$' + r.removal_price + '</td>';
+                html += '<td style="font-family:var(--font-mono);">$' + r.current_price + '</td>';
+                html += '<td style="font-family:var(--font-mono);color:' + c + ';font-weight:500;">' + (r.change_pct >= 0 ? '+' : '') + r.change_pct + '%</td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+            document.getElementById('graveyard-table').innerHTML = html;
+        })
+        .catch(() => {});
+</script>
+{% endblock %}

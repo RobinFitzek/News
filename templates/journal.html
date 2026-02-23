@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block title %}Trade Journal | Stockholm{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">📓 Trade Journal</h1>
+    <button onclick="document.getElementById('add-modal').style.display='flex'" class="btn btn-primary">+ Log
+        Trade</button>
+</div>
+
+{% if request.query_params.get('added') %}
+<div class="info-box text-positive" style="margin-bottom:1rem;">✓ Trade logged successfully.</div>
+{% endif %}
+{% if request.query_params.get('closed') %}
+<div class="info-box text-positive" style="margin-bottom:1rem;">✓ Trade closed.</div>
+{% endif %}
+
+<!-- Stats Row -->
+<div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:1.5rem;">
+    <div class="stat-card">
+        <div class="metric-label">Total Trades</div>
+        <div class="metric-value">{{ stats.total }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="metric-label">Closed</div>
+        <div class="metric-value">{{ stats.closed }}</div>
+    </div>
+    {% if stats.win_rate is not none %}
+    <div class="stat-card">
+        <div class="metric-label">Win Rate</div>
+        <div class="metric-value {% if stats.win_rate >= 50 %}text-positive{% else %}text-negative{% endif %}">
+            {{ stats.win_rate }}%
+        </div>
+    </div>
+    {% endif %}
+    {% if stats.avg_return is not none %}
+    <div class="stat-card">
+        <div class="metric-label">Avg Return</div>
+        <div class="metric-value {% if stats.avg_return > 0 %}text-positive{% else %}text-negative{% endif %}">
+            {{ "%+.2f"|format(stats.avg_return) }}%
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Entries Table -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Entries</h3>
+        {% if filter_ticker %}
+        <a href="/journal" class="btn btn-ghost" style="font-size:0.8rem;">Clear Filter</a>
+        {% endif %}
+    </div>
+    <div class="card-body" style="padding:0;overflow-x:auto;">
+        {% if entries %}
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Type</th>
+                    <th>Entry Date</th>
+                    <th>Entry Price</th>
+                    <th>Shares</th>
+                    <th>Exit Date</th>
+                    <th>Exit Price</th>
+                    <th>Return</th>
+                    <th>Signal</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in entries %}
+                <tr>
+                    <td>
+                        <a href="/stock/{{ e.ticker }}" style="font-weight:600;color:var(--text-primary);">{{ e.ticker
+                            }}</a>
+                    </td>
+                    <td><span
+                            class="badge {% if e.trade_type == 'LONG' %}badge-success{% else %}badge-danger{% endif %}">{{
+                            e.trade_type }}</span></td>
+                    <td class="metric-label">{{ e.entry_date or '—' }}</td>
+                    <td>${{ "%.2f"|format(e.entry_price) if e.entry_price else '—' }}</td>
+                    <td>{{ e.shares or '—' }}</td>
+                    <td class="metric-label">{{ e.exit_date or '—' }}</td>
+                    <td>${{ "%.2f"|format(e.exit_price) if e.exit_price else '—' }}</td>
+                    <td>
+                        {% if e.outcome_pct is not none %}
+                        <span class="{% if e.outcome_pct > 0 %}text-positive{% else %}text-negative{% endif %}">
+                            {{ "%+.2f"|format(e.outcome_pct) }}%
+                        </span>
+                        {% else %}
+                        <span class="badge badge-neutral">Open</span>
+                        {% endif %}
+                    </td>
+                    <td class="metric-label" style="font-size:0.8rem;">{{ e.system_signal or '—' }}</td>
+                    <td>
+                        <div style="display:flex;gap:4px;">
+                            {% if not e.exit_date %}
+                            <button onclick="openCloseModal({{ e.id }})" class="btn btn-secondary"
+                                style="font-size:0.75rem;padding:4px 8px;">Close</button>
+                            {% endif %}
+                            <form method="post" action="/journal/{{ e.id }}/delete"
+                                onsubmit="return confirm('Delete this entry?')">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-ghost"
+                                    style="font-size:0.75rem;padding:4px 8px;color:var(--signal-negative);">✕</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div style="padding:3rem;text-align:center;">
+            <p class="metric-label">No journal entries yet.</p>
+            <p class="metric-label" style="font-size:0.85rem;">Log your first trade to track performance and learn from
+                it.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Add Trade Modal -->
+<div id="add-modal"
+    style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center;">
+    <div class="card" style="width:min(500px,95vw);max-height:90vh;overflow-y:auto;">
+        <div class="card-header">
+            <h3 class="card-title">Log New Trade</h3>
+            <button onclick="document.getElementById('add-modal').style.display='none'" class="btn btn-ghost">✕</button>
+        </div>
+        <div class="card-body">
+            <form method="post" action="/journal/add">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div style="display:grid;gap:0.75rem;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                        <label>
+                            <div class="metric-label">Ticker *</div>
+                            <input type="text" name="ticker" class="form-input" placeholder="e.g. AAPL" required
+                                style="text-transform:uppercase;">
+                        </label>
+                        <label>
+                            <div class="metric-label">Trade Type</div>
+                            <select name="trade_type" class="form-input">
+                                <option>LONG</option>
+                                <option>SHORT</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.75rem;">
+                        <label>
+                            <div class="metric-label">Entry Date</div>
+                            <input type="date" name="entry_date" class="form-input" value="{{ now_date }}">
+                        </label>
+                        <label>
+                            <div class="metric-label">Entry Price</div>
+                            <input type="number" name="entry_price" class="form-input" placeholder="0.00" step="0.01"
+                                min="0">
+                        </label>
+                        <label>
+                            <div class="metric-label">Shares</div>
+                            <input type="number" name="shares" class="form-input" placeholder="0" step="0.01" min="0">
+                        </label>
+                    </div>
+                    <label>
+                        <div class="metric-label">System Signal (what the AI said)</div>
+                        <select name="system_signal" class="form-input">
+                            <option value="">— Not from AI —</option>
+                            <option>STRONG_BUY</option>
+                            <option>BUY</option>
+                            <option>HOLD</option>
+                            <option>SELL</option>
+                            <option>STRONG_SELL</option>
+                        </select>
+                    </label>
+                    <label>
+                        <div class="metric-label">Your Action (did you follow it?)</div>
+                        <select name="user_action" class="form-input">
+                            <option value="">—</option>
+                            <option>Followed signal</option>
+                            <option>Overrode signal (bought anyway)</option>
+                            <option>Overrode signal (didn't buy)</option>
+                            <option>Independent decision</option>
+                        </select>
+                    </label>
+                    <label>
+                        <div class="metric-label">Entry Reason</div>
+                        <textarea name="entry_reason" class="form-input" rows="2"
+                            placeholder="Why did you enter this trade?"></textarea>
+                    </label>
+                    <label>
+                        <div class="metric-label">Notes</div>
+                        <textarea name="notes" class="form-input" rows="2" placeholder="Additional notes..."></textarea>
+                    </label>
+                </div>
+                <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem;">
+                    <button type="button" onclick="document.getElementById('add-modal').style.display='none'"
+                        class="btn btn-ghost">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Log Trade</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Close Trade Modal -->
+<div id="close-modal"
+    style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center;">
+    <div class="card" style="width:min(400px,95vw);">
+        <div class="card-header">
+            <h3 class="card-title">Close Trade</h3>
+            <button onclick="document.getElementById('close-modal').style.display='none'"
+                class="btn btn-ghost">✕</button>
+        </div>
+        <div class="card-body">
+            <form id="close-form" method="post" action="/journal/__ID__/close">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div style="display:grid;gap:0.75rem;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                        <label>
+                            <div class="metric-label">Exit Date</div>
+                            <input type="date" name="exit_date" class="form-input" id="exit-date-input">
+                        </label>
+                        <label>
+                            <div class="metric-label">Exit Price *</div>
+                            <input type="number" name="exit_price" class="form-input" placeholder="0.00" step="0.01"
+                                min="0" required>
+                        </label>
+                    </div>
+                    <label>
+                        <div class="metric-label">Exit Reason</div>
+                        <select name="exit_reason" class="form-input">
+                            <option value="">—</option>
+                            <option>Target hit</option>
+                            <option>Stop loss hit</option>
+                            <option>AI signal changed</option>
+                            <option>Earnings risk</option>
+                            <option>Portfolio rebalance</option>
+                            <option>Overvalued</option>
+                            <option>Other</option>
+                        </select>
+                    </label>
+                    <label>
+                        <div class="metric-label">Notes</div>
+                        <textarea name="notes" class="form-input" rows="2"></textarea>
+                    </label>
+                </div>
+                <div style="display:flex;gap:0.5rem;justify-content:flex-end;margin-top:1rem;">
+                    <button type="button" onclick="document.getElementById('close-modal').style.display='none'"
+                        class="btn btn-ghost">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Close Trade</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    function openCloseModal(entryId) {
+        document.getElementById('close-form').action = `/journal/${entryId}/close`;
+        document.getElementById('exit-date-input').value = new Date().toISOString().slice(0, 10);
+        document.getElementById('close-modal').style.display = 'flex';
+    }
+
+    // Close modals with Escape
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') {
+            document.getElementById('add-modal').style.display = 'none';
+            document.getElementById('close-modal').style.display = 'none';
+        }
+    });
+</script>
+{% endblock %}

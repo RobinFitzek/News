@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}Sector Screen — Stockholm{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+    <header class="page-header">
+        <div>
+            <h1>Best Sectors × Cheapest Stocks</h1>
+            <p>Top-performing sectors ranked by momentum, with the highest-scoring stocks in each</p>
+        </div>
+        <div>
+            <button id="refresh-btn" class="btn btn-primary" onclick="loadSectorScreen()">
+                <svg class="icon-svg" viewBox="0 0 24 24">
+                    <polyline points="23 4 23 10 17 10" />
+                    <polyline points="1 20 1 14 7 14" />
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+                Refresh
+            </button>
+        </div>
+    </header>
+
+    <!-- Loading state -->
+    <div id="loading-state" style="text-align:center;padding:var(--space-16);color:var(--text-muted);">
+        <div class="animate-pulse">Loading sector rankings…</div>
+    </div>
+
+    <!-- Error state -->
+    <div id="error-state" style="display:none;" class="card">
+        <p style="color:var(--signal-negative);">Failed to load sector data. Please try again.</p>
+    </div>
+
+    <!-- Top Sectors -->
+    <div id="sectors-container" style="display:none;">
+        <div id="sectors-grid"></div>
+
+        <!-- Contrarian Picks -->
+        <div class="card" style="margin-top:var(--space-8);" id="contrarian-card">
+            <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-5);">
+                <h3 style="margin:0;">Contrarian Pick</h3>
+                <span style="font-size:0.6875rem;padding:2px 8px;border:1px solid rgba(212,168,75,0.4);color:#d4a84b;border-radius:var(--radius-sm);">WORST SECTOR</span>
+            </div>
+            <p style="font-size:0.8125rem;color:var(--text-muted);margin:0 0 var(--space-5);">
+                Cheapest high-quality stock in the worst-performing sector — mean-reversion opportunity.
+            </p>
+            <div id="contrarian-content"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function loadSectorScreen() {
+    var loading = document.getElementById('loading-state');
+    var error = document.getElementById('error-state');
+    var container = document.getElementById('sectors-container');
+    var btn = document.getElementById('refresh-btn');
+
+    loading.style.display = 'block';
+    error.style.display = 'none';
+    container.style.display = 'none';
+    if (btn) btn.disabled = true;
+
+    fetch('/api/sector-screen', { credentials: 'same-origin' })
+        .then(function(r) { return r.ok ? r.json() : Promise.reject(r); })
+        .then(function(data) {
+            loading.style.display = 'none';
+            if (btn) btn.disabled = false;
+            if (data.error) {
+                error.style.display = 'block';
+                return;
+            }
+            renderSectors(data);
+            container.style.display = 'block';
+        })
+        .catch(function() {
+            loading.style.display = 'none';
+            error.style.display = 'block';
+            if (btn) btn.disabled = false;
+        });
+}
+
+function signalBadge(signal) {
+    var colors = { 'Opportunity': '#6bba7e', 'Caution': '#d47272', 'Neutral': '#8a8580' };
+    var c = colors[signal] || colors['Neutral'];
+    return '<span style="font-size:0.625rem;padding:1px 6px;border:1px solid ' + c + '40;color:' + c + ';border-radius:3px;">' + (signal || 'Neutral') + '</span>';
+}
+
+function momentumBadge(momentum) {
+    if (momentum === 'hot') return '<span class="badge badge-success" style="font-size:0.625rem;">Hot</span>';
+    if (momentum === 'cold') return '<span class="badge badge-danger" style="font-size:0.625rem;">Cold</span>';
+    return '<span class="badge" style="font-size:0.625rem;">Neutral</span>';
+}
+
+function renderSectors(data) {
+    var grid = document.getElementById('sectors-grid');
+    var html = '';
+
+    (data.sectors || []).forEach(function(sector) {
+        var retColor = sector.return_1mo >= 0 ? '#6bba7e' : '#d47272';
+        html += '<div class="card" style="margin-bottom:var(--space-6);">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);flex-wrap:wrap;gap:var(--space-3);">';
+        html += '<div style="display:flex;align-items:center;gap:var(--space-3);">';
+        html += '<div style="font-size:0.5625rem;color:var(--text-ghost);font-family:var(--font-mono);">RANK #' + sector.rank + '</div>';
+        html += '<h3 style="margin:0;">' + sector.name + '</h3>';
+        html += momentumBadge(sector.momentum);
+        html += '</div>';
+        html += '<div style="text-align:right;">';
+        html += '<div style="font-family:var(--font-mono);font-size:1.25rem;color:' + retColor + ';">' + (sector.return_1mo >= 0 ? '+' : '') + sector.return_1mo.toFixed(2) + '%</div>';
+        html += '<div style="font-size:0.6875rem;color:var(--text-ghost);">1-month return</div>';
+        html += '</div>';
+        html += '</div>';
+
+        if (sector.stocks && sector.stocks.length > 0) {
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--space-4);">';
+            sector.stocks.forEach(function(stock, i) {
+                var scoreColor = stock.score >= 60 ? '#6bba7e' : stock.score >= 40 ? '#d4a84b' : '#d47272';
+                html += '<div style="padding:var(--space-4);background:var(--bg-secondary);border:1px solid var(--border-hairline);border-radius:var(--radius-md);">';
+                html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-3);">';
+                html += '<a href="/stock/' + stock.ticker + '" style="font-family:var(--font-mono);font-weight:500;font-size:1rem;color:var(--text-primary);text-decoration:none;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + stock.ticker + '</a>';
+                html += signalBadge(stock.signal);
+                html += '</div>';
+                html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-2);">';
+                html += '<span style="font-size:0.6875rem;color:var(--text-muted);">Score</span>';
+                html += '<span style="font-family:var(--font-mono);font-weight:500;color:' + scoreColor + ';">' + stock.score + '/100</span>';
+                html += '</div>';
+                if (stock.pe_ratio) {
+                    var peColor = stock.pe_vs_sector && stock.pe_vs_sector < 0.9 ? '#6bba7e' : 'var(--text-secondary)';
+                    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-2);">';
+                    html += '<span style="font-size:0.6875rem;color:var(--text-muted);">P/E</span>';
+                    html += '<span style="font-family:var(--font-mono);font-size:0.875rem;color:' + peColor + ';">' + stock.pe_ratio.toFixed(1) + '</span>';
+                    html += '</div>';
+                }
+                if (stock.price) {
+                    html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+                    html += '<span style="font-size:0.6875rem;color:var(--text-muted);">Price</span>';
+                    html += '<span style="font-family:var(--font-mono);font-size:0.875rem;">$' + Number(stock.price).toFixed(2) + '</span>';
+                    html += '</div>';
+                }
+                html += '<div style="margin-top:var(--space-3);display:flex;gap:var(--space-2);">';
+                html += '<a href="/analyze?ticker=' + stock.ticker + '" class="btn btn-ghost" style="flex:1;text-align:center;font-size:0.6875rem;padding:var(--space-1) var(--space-2);">Analyze</a>';
+                html += '</div>';
+                html += '</div>';
+            });
+            html += '</div>';
+        } else {
+            html += '<p style="color:var(--text-ghost);font-size:0.8125rem;">No screened stocks available for this sector.</p>';
+        }
+
+        html += '</div>';
+    });
+
+    grid.innerHTML = html;
+
+    // Render contrarian pick
+    var contrarian = data.contrarian;
+    var cc = document.getElementById('contrarian-content');
+    if (contrarian && contrarian.stock) {
+        var s = contrarian.stock;
+        var retColor = contrarian.return_1mo >= 0 ? '#6bba7e' : '#d47272';
+        var scoreColor = s.score >= 60 ? '#6bba7e' : s.score >= 40 ? '#d4a84b' : '#d47272';
+        var cHtml = '<div style="display:flex;gap:var(--space-6);flex-wrap:wrap;align-items:center;">';
+        cHtml += '<div>';
+        cHtml += '<div style="font-size:0.6875rem;color:var(--text-muted);margin-bottom:var(--space-1);">Sector</div>';
+        cHtml += '<div style="font-weight:500;">' + contrarian.name + ' <span style="font-family:var(--font-mono);font-size:0.75rem;color:' + retColor + ';">(' + (contrarian.return_1mo >= 0 ? '+' : '') + contrarian.return_1mo.toFixed(2) + '% 1mo)</span></div>';
+        cHtml += '</div>';
+        cHtml += '<div style="padding:var(--space-4);background:var(--bg-secondary);border:1px solid var(--border-hairline);border-radius:var(--radius-md);min-width:220px;">';
+        cHtml += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-3);">';
+        cHtml += '<a href="/stock/' + s.ticker + '" style="font-family:var(--font-mono);font-weight:500;font-size:1.125rem;color:var(--text-primary);text-decoration:none;" onmouseover="this.style.textDecoration=\'underline\'" onmouseout="this.style.textDecoration=\'none\'">' + s.ticker + '</a>';
+        cHtml += signalBadge(s.signal);
+        cHtml += '</div>';
+        if (s.pe_ratio) {
+            cHtml += '<div style="font-size:0.8125rem;color:var(--text-muted);">P/E <span style="font-family:var(--font-mono);color:var(--text-primary);">' + s.pe_ratio.toFixed(1) + '</span></div>';
+        }
+        cHtml += '<div style="font-size:0.8125rem;color:var(--text-muted);">Score <span style="font-family:var(--font-mono);color:' + scoreColor + ';">' + s.score + '/100</span></div>';
+        if (s.price) {
+            cHtml += '<div style="font-size:0.8125rem;color:var(--text-muted);">Price <span style="font-family:var(--font-mono);color:var(--text-primary);">$' + Number(s.price).toFixed(2) + '</span></div>';
+        }
+        cHtml += '<div style="margin-top:var(--space-3);">';
+        cHtml += '<a href="/analyze?ticker=' + s.ticker + '" class="btn btn-ghost" style="font-size:0.75rem;padding:var(--space-2) var(--space-4);">Analyze</a>';
+        cHtml += '</div>';
+        cHtml += '</div>';
+        cHtml += '</div>';
+        cc.innerHTML = cHtml;
+    } else {
+        document.getElementById('contrarian-card').style.display = 'none';
+    }
+}
+
+// Auto-load on page open
+loadSectorScreen();
+</script>
+{% endblock %}

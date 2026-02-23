@@ -12,9 +12,23 @@
         </div>
     </header>
 
+    <!-- Feature 4: Cold Start Warning -->
+    {% if cold_start %}
+    <div style="background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3); color: #fde68a; padding: var(--space-4) var(--space-5); margin-bottom: var(--space-6); font-size: 0.875rem;">
+        <span style="font-weight: 600; color: #fbbf24;">COLD START</span>
+        <span style="margin-left: var(--space-3);">{{ cold_start_reason }}. Accuracy metrics are not yet reliable. The system needs at least 60 days and 20 verified predictions.</span>
+    </div>
+    {% endif %}
+
     <!-- Overall Stats -->
     <div class="card" style="margin-bottom: var(--space-8);">
-        <h3 style="margin: 0 0 var(--space-6) 0;">Accuracy Overview</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); flex-wrap: wrap; gap: var(--space-3);">
+            <h3 style="margin: 0;">Accuracy Overview</h3>
+            <div style="display: flex; gap: var(--space-2);">
+                <a href="/api/export/predictions?format=csv" class="btn btn-ghost" style="font-size: 0.75rem; padding: var(--space-2) var(--space-3);">Export CSV</a>
+                <a href="/api/export/predictions?format=json" class="btn btn-ghost" style="font-size: 0.75rem; padding: var(--space-2) var(--space-3);">Export JSON</a>
+            </div>
+        </div>
 
         {% if learning_stats.total_verified > 0 %}
         <div class="grid grid-4" style="margin-bottom: var(--space-6);">
@@ -35,6 +49,24 @@
                 <div class="metric-label">Wrong</div>
             </div>
         </div>
+
+        <!-- Feature 1: Benchmark comparison stats -->
+        {% if learning_stats.benchmark_total > 0 %}
+        <div class="grid grid-3" style="margin-bottom: var(--space-6);">
+            <div class="metric">
+                <div class="metric-value" style="color: {% if learning_stats.benchmark_beat_rate >= 50 %}#6bba7e{% else %}#d47272{% endif %};">{{ learning_stats.benchmark_beat_rate }}%</div>
+                <div class="metric-label">Beat SPY Rate</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ learning_stats.avg_benchmark_return }}%</div>
+                <div class="metric-label">Avg SPY Return</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">{{ learning_stats.benchmark_total }}</div>
+                <div class="metric-label">Benchmarked</div>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Progress Bar -->
         <div style="margin-bottom: var(--space-5);">
@@ -93,6 +125,9 @@
                         <th>Actual</th>
                         <th>Result</th>
                         <th>Change</th>
+                        <th>SPY</th>
+                        <th>vs SPY</th>
+                        <th>Window</th>
                         <th>Date</th>
                     </tr>
                 </thead>
@@ -123,8 +158,30 @@
                         </td>
                         <td>
                             <span style="font-family: var(--font-mono); font-weight: 500;">
+                                {% if pred.actual_price_after and pred.actual_price_at_prediction %}
                                 {% if (pred.actual_price_after - pred.actual_price_at_prediction) > 0 %}+{% endif %}{{ ((pred.actual_price_after - pred.actual_price_at_prediction) / pred.actual_price_at_prediction * 100)|round(2) }}%
+                                {% else %}—{% endif %}
                             </span>
+                        </td>
+                        <td style="font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-muted);">
+                            {% if pred.benchmark_return is not none %}
+                            {{ pred.benchmark_return }}%
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>
+                            {% if pred.beat_benchmark is not none %}
+                                {% if pred.beat_benchmark %}
+                                <span class="badge badge-success" style="font-size: 0.6875rem;">Beat</span>
+                                {% else %}
+                                <span class="badge badge-danger" style="font-size: 0.6875rem;">Miss</span>
+                                {% endif %}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td style="font-size: var(--text-sm); color: var(--text-muted);">
+                            {% if pred.signal_type %}
+                            <span style="font-family: var(--font-mono);">{{ pred.verification_window_days or '—' }}d</span>
+                            <span style="font-size: 0.625rem; color: var(--text-ghost); display: block;">{{ pred.signal_type }}</span>
+                            {% else %}—{% endif %}
                         </td>
                         <td style="font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-muted);">
                             {{ pred.prediction_date[:10] }}
@@ -187,6 +244,61 @@
     </div>
     {% endif %}
 
+    <!-- Weight Optimization (loaded via AJAX) -->
+    <div id="weight-optimization-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); flex-wrap: wrap; gap: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Weight Optimization</h3>
+                <p style="margin: 0; font-size: var(--text-sm);" id="weight-opt-subtitle">Suggested screener weight adjustments based on prediction accuracy</p>
+            </div>
+            <button id="apply-weights-btn" class="btn btn-primary" style="display: none;" onclick="applyWeights()">Apply Suggested Weights</button>
+        </div>
+
+        <div id="weight-opt-content"></div>
+        <div id="weight-opt-insufficient" style="display: none; text-align: center; padding: var(--space-6); color: var(--text-muted); font-size: 0.875rem;"></div>
+    </div>
+
+    <!-- Calibration Curve (loaded via AJAX) -->
+    <div id="calibration-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+        <div style="margin-bottom: var(--space-6);">
+            <h3 style="margin: 0 0 var(--space-1) 0;">Confidence Calibration</h3>
+            <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);">Do your confidence scores mean what they say?</p>
+        </div>
+
+        <div id="calibration-metrics" class="grid grid-3" style="margin-bottom: var(--space-6);"></div>
+
+        <div style="height: 280px; position: relative;">
+            <canvas id="calibration-chart"></canvas>
+        </div>
+
+        <div id="calibration-interpretation" style="margin-top: var(--space-4); padding: var(--space-4); background: var(--bg-secondary); border-left: 1px solid var(--text-primary); font-size: 0.875rem; color: var(--text-secondary);"></div>
+    </div>
+
+    <!-- Signal Decay (loaded via AJAX) -->
+    <div id="signal-decay-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+        <div style="margin-bottom: var(--space-6);">
+            <h3 style="margin: 0 0 var(--space-1) 0;">Signal Decay</h3>
+            <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);">How does signal accuracy change over time?</p>
+        </div>
+
+        <div id="signal-decay-metrics" class="grid grid-3" style="margin-bottom: var(--space-6);"></div>
+
+        <div style="height: 250px; position: relative;">
+            <canvas id="signal-decay-chart"></canvas>
+        </div>
+
+        <div id="signal-decay-interpretation" style="margin-top: var(--space-4); padding: var(--space-4); background: var(--bg-secondary); border-left: 1px solid var(--text-primary); font-size: 0.875rem; color: var(--text-secondary);"></div>
+    </div>
+
+    <!-- A/B Comparison: Quant Only vs Quant+AI (loaded via AJAX) -->
+    <div id="ab-comparison-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+        <div style="margin-bottom: var(--space-6);">
+            <h3 style="margin: 0 0 var(--space-1) 0;">Quant Only vs Quant + AI</h3>
+            <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);">Does the AI layer actually improve signal accuracy?</p>
+        </div>
+        <div id="ab-content"></div>
+    </div>
+
     <!-- System Info -->
     <div class="grid grid-3">
         <div class="card" style="margin-bottom: 0;">
@@ -199,11 +311,14 @@
         </div>
 
         <div class="card" style="margin-bottom: 0;">
-            <h3 style="margin: 0 0 var(--space-4) 0; font-size: 0.875rem;">Verification</h3>
-            <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; color: var(--text-primary); margin-bottom: var(--space-2); letter-spacing: -0.02em;">7</div>
-            <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: var(--space-3);">Days to Verify</div>
-            <p style="margin: 0; font-size: 0.75rem; color: var(--text-muted); line-height: 1.6;">
-                Continuous learning from historical data
+            <h3 style="margin: 0 0 var(--space-4) 0; font-size: 0.875rem;">Verification Windows</h3>
+            <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.8;">
+                <div><span style="font-family: var(--font-mono); font-weight: 500;">20d</span> — Momentum signals</div>
+                <div><span style="font-family: var(--font-mono); font-weight: 500;">60d</span> — Default signals</div>
+                <div><span style="font-family: var(--font-mono); font-weight: 500;">180d</span> — Value signals</div>
+            </div>
+            <p style="margin: var(--space-3) 0 0; font-size: 0.75rem; color: var(--text-muted); line-height: 1.6;">
+                Adaptive windows per signal type
             </p>
         </div>
 
@@ -217,4 +332,291 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Weight Optimization
+    fetch('/api/learning/weight-suggestions')
+        .then(r => r.json())
+        .then(data => {
+            const card = document.getElementById('weight-optimization-card');
+            card.style.display = '';
+
+            if (!data.sufficient_data) {
+                document.getElementById('weight-opt-insufficient').style.display = '';
+                document.getElementById('weight-opt-insufficient').textContent = data.message || 'Insufficient data for weight optimization';
+                return;
+            }
+
+            document.getElementById('apply-weights-btn').style.display = '';
+
+            const factors = ['valuation', 'technical', 'momentum', 'quality'];
+            let html = '<div style="overflow-x: auto;"><table><thead><tr>' +
+                '<th>Factor</th><th>Current</th><th>Suggested</th><th>Change</th><th>Factor Accuracy</th>' +
+                '</tr></thead><tbody>';
+
+            factors.forEach(f => {
+                const curr = (data.current_weights[f] * 100).toFixed(1);
+                const sugg = (data.suggested_weights[f] * 100).toFixed(1);
+                const change = (data.changes[f] * 100).toFixed(1);
+                const changeColor = data.changes[f] > 0 ? '#6bba7e' : data.changes[f] < 0 ? '#d47272' : 'var(--text-muted)';
+                const changePrefix = data.changes[f] > 0 ? '+' : '';
+
+                html += '<tr>' +
+                    '<td style="font-weight: 500; text-transform: capitalize;">' + f + '</td>' +
+                    '<td style="font-family: var(--font-mono);">' + curr + '%</td>' +
+                    '<td style="font-family: var(--font-mono); font-weight: 500;">' + sugg + '%</td>' +
+                    '<td style="font-family: var(--font-mono); color: ' + changeColor + ';">' + changePrefix + change + '%</td>' +
+                    '<td style="font-family: var(--font-mono); color: var(--text-muted);">—</td>' +
+                    '</tr>';
+            });
+            html += '</tbody></table></div>';
+
+            // Factor accuracy breakdown
+            if (data.factor_accuracy) {
+                html += '<div style="margin-top: var(--space-5); padding-top: var(--space-5); border-top: 1px solid var(--border-hairline);">';
+                html += '<div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-3);">Signal Type Performance</div>';
+                for (const [type, stats] of Object.entries(data.factor_accuracy)) {
+                    const acc = (stats.accuracy * 100).toFixed(1);
+                    const accColor = stats.accuracy >= 0.6 ? '#6bba7e' : stats.accuracy >= 0.45 ? '#d4a84b' : '#d47272';
+                    html += '<div style="display: flex; justify-content: space-between; padding: var(--space-2) 0; font-size: 0.8125rem;">' +
+                        '<span style="text-transform: capitalize; color: var(--text-secondary);">' + type + ' (' + stats.total + ' predictions)</span>' +
+                        '<span style="font-family: var(--font-mono); font-weight: 500; color: ' + accColor + ';">' + acc + '% accuracy</span>' +
+                        '</div>';
+                }
+                if (data.regime) {
+                    html += '<div style="margin-top: var(--space-3); font-size: 0.75rem; color: var(--text-muted);">Current regime: <span style="font-weight: 500; text-transform: uppercase;">' + data.regime + '</span> (factored into suggestion)</div>';
+                }
+                html += '</div>';
+            }
+
+            document.getElementById('weight-opt-content').innerHTML = html;
+        })
+        .catch(() => {});
+
+    // Calibration Curve
+    fetch('/api/calibration')
+        .then(r => r.json())
+        .then(data => {
+            const card = document.getElementById('calibration-card');
+            if (!data.sufficient_data) return;
+            card.style.display = '';
+
+            // Metrics
+            const metricsHtml = `
+                <div class="metric">
+                    <div class="metric-value">${data.brier_score.toFixed(3)}</div>
+                    <div class="metric-label">Brier Score (lower = better)</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">${data.calibration_error}%</div>
+                    <div class="metric-label">Avg Calibration Error</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">${data.total}</div>
+                    <div class="metric-label">Verified Predictions</div>
+                </div>`;
+            document.getElementById('calibration-metrics').innerHTML = metricsHtml;
+            document.getElementById('calibration-interpretation').innerHTML = `<span style="font-weight: 500;">${data.interpretation}</span>`;
+
+            // Per-bucket breakdown text
+            let breakdown = '';
+            data.buckets.forEach(b => {
+                const gapColor = b.gap > 5 ? '#6bba7e' : b.gap < -5 ? '#d47272' : 'var(--text-muted)';
+                breakdown += `<div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-2) 0; border-bottom: 1px solid var(--border-hairline); font-size: 0.8125rem;">
+                    <span style="font-family: var(--font-mono); min-width: 60px;">${b.range}%</span>
+                    <span style="color: var(--text-muted);">${b.count} predictions</span>
+                    <span style="font-family: var(--font-mono);">expected ${(b.predicted_accuracy * 100).toFixed(0)}%</span>
+                    <span style="font-family: var(--font-mono); font-weight: 500;">actual ${(b.actual_accuracy * 100).toFixed(0)}%</span>
+                    <span style="font-family: var(--font-mono); color: ${gapColor};">${b.gap > 0 ? '+' : ''}${b.gap}%</span>
+                </div>`;
+            });
+            document.getElementById('calibration-interpretation').innerHTML += `<div style="margin-top: var(--space-4);">${breakdown}</div>`;
+
+            // Chart
+            const ctx = document.getElementById('calibration-chart').getContext('2d');
+            const labels = data.buckets.map(b => b.range + '%');
+            const predicted = data.buckets.map(b => (b.predicted_accuracy * 100).toFixed(1));
+            const actual = data.buckets.map(b => (b.actual_accuracy * 100).toFixed(1));
+
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Expected Accuracy',
+                            data: predicted,
+                            backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                            borderColor: 'rgba(255, 255, 255, 0.3)',
+                            borderWidth: 1,
+                            borderDash: [5, 5],
+                            type: 'line',
+                            fill: false,
+                            tension: 0,
+                            pointRadius: 0,
+                            order: 1
+                        },
+                        {
+                            label: 'Actual Accuracy',
+                            data: actual,
+                            backgroundColor: data.buckets.map(b => b.gap >= 0 ? 'rgba(74, 222, 128, 0.6)' : 'rgba(248, 113, 113, 0.6)'),
+                            borderColor: data.buckets.map(b => b.gap >= 0 ? '#6bba7e' : '#d47272'),
+                            borderWidth: 1,
+                            order: 2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'var(--text-muted)' } },
+                        y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'var(--text-muted)', callback: v => v + '%' } }
+                    },
+                    plugins: {
+                        legend: { labels: { color: 'var(--text-secondary)', font: { size: 11 } } },
+                        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y + '%' } }
+                    }
+                }
+            });
+        })
+        .catch(() => {});
+
+    // Signal Decay
+    fetch('/api/signal-decay')
+        .then(r => r.json())
+        .then(data => {
+            const card = document.getElementById('signal-decay-card');
+            if (!data.sufficient_data) return;
+            card.style.display = '';
+
+            const patternColor = data.pattern === 'decaying' ? '#d47272' : data.pattern === 'improving' ? '#6bba7e' : '#d4a84b';
+            const patternLabel = data.pattern.charAt(0).toUpperCase() + data.pattern.slice(1);
+
+            document.getElementById('signal-decay-metrics').innerHTML = `
+                <div class="metric">
+                    <div class="metric-value">${data.peak_window}</div>
+                    <div class="metric-label">Peak Accuracy Window</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value">${data.peak_accuracy}%</div>
+                    <div class="metric-label">Peak Accuracy</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" style="color: ${patternColor};">${patternLabel}</div>
+                    <div class="metric-label">Pattern</div>
+                </div>`;
+            document.getElementById('signal-decay-interpretation').innerHTML = `<span style="font-weight: 500;">${data.interpretation}</span>`;
+
+            const ctx = document.getElementById('signal-decay-chart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.windows.map(w => w.label),
+                    datasets: [
+                        {
+                            label: 'Accuracy',
+                            data: data.windows.map(w => w.accuracy_pct),
+                            borderColor: '#e2e8f0',
+                            backgroundColor: 'rgba(226, 232, 240, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 5,
+                            pointBackgroundColor: data.windows.map(w => w.accuracy_pct >= 55 ? '#6bba7e' : w.accuracy_pct >= 45 ? '#d4a84b' : '#d47272'),
+                        },
+                        {
+                            label: 'Avg Return %',
+                            data: data.windows.map(w => w.avg_return),
+                            borderColor: 'rgba(99, 102, 241, 0.7)',
+                            borderWidth: 1,
+                            borderDash: [5, 5],
+                            fill: false,
+                            tension: 0.3,
+                            pointRadius: 3,
+                            yAxisID: 'y1',
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'var(--text-muted)' } },
+                        y: { min: 0, max: 100, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'var(--text-muted)', callback: v => v + '%' }, title: { display: true, text: 'Accuracy %', color: 'var(--text-muted)' } },
+                        y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: 'rgba(99,102,241,0.7)', callback: v => v + '%' }, title: { display: true, text: 'Avg Return %', color: 'rgba(99,102,241,0.7)' } },
+                    },
+                    plugins: {
+                        legend: { labels: { color: 'var(--text-secondary)', font: { size: 11 } } },
+                        tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '%' } }
+                    }
+                }
+            });
+        })
+        .catch(() => {});
+
+    // A/B Comparison
+    fetch('/api/ab-comparison')
+        .then(r => r.json())
+        .then(data => {
+            const card = document.getElementById('ab-comparison-card');
+            card.style.display = '';
+
+            if (!data.sufficient_data) {
+                document.getElementById('ab-content').innerHTML = `<div style="text-align: center; padding: var(--space-6); color: var(--text-muted); font-size: 0.875rem;">${data.message || 'Insufficient data for comparison'}</div>`;
+                return;
+            }
+
+            const qo = data.quant_only;
+            const qa = data.quant_ai;
+            const verdictColor = data.verdict === 'ai_adds_value' ? '#6bba7e' : data.verdict === 'ai_adds_noise' ? '#d47272' : '#d4a84b';
+
+            document.getElementById('ab-content').innerHTML = `
+                <div class="grid grid-2" style="margin-bottom: var(--space-6);">
+                    <div style="padding: var(--space-5); background: var(--bg-secondary); border-radius: 4px;">
+                        <div style="font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: var(--space-3);">Quant Only</div>
+                        <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 300; margin-bottom: var(--space-2);">${(qo.accuracy * 100).toFixed(1)}%</div>
+                        <div style="font-size: 0.8125rem; color: var(--text-muted);">${qo.count} predictions | ${qo.win_rate}% win rate</div>
+                    </div>
+                    <div style="padding: var(--space-5); background: var(--bg-secondary); border-radius: 4px;">
+                        <div style="font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); margin-bottom: var(--space-3);">Quant + AI</div>
+                        <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 300; margin-bottom: var(--space-2);">${(qa.accuracy * 100).toFixed(1)}%</div>
+                        <div style="font-size: 0.8125rem; color: var(--text-muted);">${qa.count} predictions | ${qa.win_rate}% win rate</div>
+                    </div>
+                </div>
+                <div style="padding: var(--space-4); background: var(--bg-secondary); border-left: 2px solid ${verdictColor}; font-size: 0.875rem;">
+                    <span style="font-weight: 500; color: ${verdictColor};">${data.verdict_text}</span>
+                </div>`;
+        })
+        .catch(() => {});
+
+    async function applyWeights() {
+        const btn = document.getElementById('apply-weights-btn');
+        btn.disabled = true;
+        btn.textContent = 'Applying...';
+        try {
+            const resp = await fetch('/api/learning/apply-weights', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ dry_run: false })
+            });
+            const data = await resp.json();
+            if (data.applied) {
+                btn.textContent = 'Applied!';
+                btn.classList.remove('btn-primary');
+                btn.classList.add('btn-success');
+                setTimeout(() => location.reload(), 1500);
+            } else {
+                btn.textContent = 'Failed';
+            }
+        } catch(e) {
+            btn.textContent = 'Error';
+        }
+    }
+</script>
 {% endblock %}

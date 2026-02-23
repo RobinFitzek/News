@@ -1,0 +1,1130 @@
+{% extends "base.html" %}
+{% block title %}{{ ticker }} — Stock Detail | Stockholm{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        <h1 class="page-title">
+            <span id="ticker-symbol" onclick="copyTicker()" title="Click to copy" style="cursor:pointer;">{{ ticker
+                }}</span>
+            {% if key_stats.available %}
+            <span class="tag-badge" style="font-size:0.7rem;vertical-align:middle;margin-left:0.5rem;">{{
+                key_stats.cap_label }}</span>
+            {% endif %}
+        </h1>
+        {% if key_stats.available %}
+        <div style="display:flex;gap:1.5rem;align-items:baseline;flex-wrap:wrap;">
+            <span class="metric-value" style="font-size:1.8rem;">
+                {% if key_stats.current_price %}${{ "%.2f"|format(key_stats.current_price) }}{% else %}—{% endif %}
+            </span>
+            {% if key_stats.pre_market_price %}
+            <span class="metric-label" style="font-size:0.85rem;">Pre: ${{ "%.2f"|format(key_stats.pre_market_price)
+                }}</span>
+            {% endif %}
+            {% if key_stats.post_market_price %}
+            <span class="metric-label" style="font-size:0.85rem;">Post: ${{ "%.2f"|format(key_stats.post_market_price)
+                }}</span>
+            {% endif %}
+        </div>
+        {% endif %}
+        <div style="margin-left:auto;display:flex;gap:0.5rem;flex-wrap:wrap;">
+            {% if not in_watchlist %}
+            <form method="post" action="/watchlist/add" style="display:inline;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="ticker" value="{{ ticker }}">
+                <input type="hidden" name="name" value="">
+                <button type="submit" class="btn btn-primary">+ Watchlist</button>
+            </form>
+            {% else %}
+            <span class="badge badge-success">✓ Watchlist</span>
+            {% endif %}
+            <a href="/analyze?ticker={{ ticker }}" class="btn btn-secondary">Analyze</a>
+            <a href="/stock/compare?tickers={{ ticker }}" class="btn btn-ghost" style="font-size:0.8rem;">Compare</a>
+            <button onclick="copyTicker()" class="btn btn-ghost" title="Copy ticker">📋 Copy</button>
+        </div>
+    </div>
+
+    {% if key_stats.available %}
+    <div style="display:flex;gap:2rem;flex-wrap:wrap;margin-top:0.75rem;">
+        {% if key_stats.pct_from_52w_high is not none %}
+        <span class="metric-label">
+            52W High: {{ "%+.1f"|format(key_stats.pct_from_52w_high) }}%
+            (${{ "%.2f"|format(key_stats.week52_high) }})
+        </span>
+        {% endif %}
+        {% if key_stats.pct_from_52w_low is not none %}
+        <span class="metric-label">
+            52W Low: {{ "%+.1f"|format(key_stats.pct_from_52w_low) }}%
+            (${{ "%.2f"|format(key_stats.week52_low) }})
+        </span>
+        {% endif %}
+        {% if key_stats.short_pct_float %}
+        <span class="metric-label">Short: {{ key_stats.short_pct_float }}% float</span>
+        {% endif %}
+        {% if key_stats.days_to_cover %}
+        <span class="metric-label">Days to Cover: {{ "%.1f"|format(key_stats.days_to_cover) }}</span>
+        {% endif %}
+        {% if key_stats.sector %}
+        <span class="metric-label">{{ key_stats.sector }}</span>
+        {% endif %}
+        {% if key_stats.market_cap_b %}
+        <span class="metric-label">Mkt Cap: ${{ "%.1f"|format(key_stats.market_cap_b) }}B</span>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Earnings Alert Banner -->
+{% if earnings_alert %}
+<div class="info-box" style="margin-bottom:1.5rem;border-left:3px solid var(--signal-caution);">
+    <p style="margin:0;">{{ earnings_alert }}</p>
+</div>
+{% endif %}
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+
+    <!-- Price Chart -->
+    <div class="card" style="grid-column:1/-1;">
+        <div class="card-header">
+            <h3 class="card-title">Price Chart</h3>
+        </div>
+        <div class="card-body">
+            <canvas id="priceChart" height="100"></canvas>
+        </div>
+    </div>
+
+    <!-- Multi-Timeframe Confluence (AJAX) -->
+    <div id="mtf-card" class="card" style="grid-column:1/-1;display:none;">
+        <div class="card-header">
+            <h3 class="card-title">Multi-Timeframe Confluence</h3>
+        </div>
+        <div class="card-body">
+            <div id="mtf-content" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;"></div>
+            <div id="mtf-summary" style="margin-top:1rem;padding:0.75rem;background:var(--bg-secondary);border-radius:var(--radius-md);font-size:0.875rem;color:var(--text-secondary);"></div>
+        </div>
+    </div>
+
+    <!-- Earnings Intelligence -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">📅 Earnings Intelligence</h3>
+        </div>
+        <div class="card-body">
+            {% if earnings_info %}
+            <div class="metric-grid" style="grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                <div>
+                    <div class="metric-label">Next Earnings</div>
+                    <div class="metric-value">{{ earnings_info.earnings_date }}</div>
+                    <div class="metric-label">{{ earnings_info.days_until }} days away</div>
+                </div>
+                {% if earnings_info.eps_estimate %}
+                <div>
+                    <div class="metric-label">EPS Estimate</div>
+                    <div class="metric-value">${{ "%.2f"|format(earnings_info.eps_estimate) }}</div>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="metric-label">No upcoming earnings date found.</p>
+            {% endif %}
+
+            {% if beat_history.available %}
+            <div style="border-top:1px solid var(--border-subtle);padding-top:1rem;">
+                <div style="display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+                    <div>
+                        <div class="metric-label">Beat Rate</div>
+                        <div
+                            class="metric-value {% if beat_history.beat_rate_pct >= 60 %}text-positive{% elif beat_history.beat_rate_pct < 40 %}text-negative{% endif %}">
+                            {{ beat_history.beat_rate_pct }}%
+                        </div>
+                        <div class="metric-label">last {{ beat_history.total_quarters }}Q</div>
+                    </div>
+                    <div>
+                        <div class="metric-label">Avg Surprise</div>
+                        <div
+                            class="metric-value {% if beat_history.avg_surprise_pct > 0 %}text-positive{% else %}text-negative{% endif %}">
+                            {{ "%+.1f"|format(beat_history.avg_surprise_pct) }}%
+                        </div>
+                    </div>
+                    {% if beat_history.current_beat_streak > 0 %}
+                    <div>
+                        <div class="metric-label">Beat Streak</div>
+                        <div class="metric-value text-positive">{{ beat_history.current_beat_streak }}Q 🔥</div>
+                    </div>
+                    {% endif %}
+                </div>
+                <!-- Beat History Mini Chart -->
+                <div style="display:flex;gap:4px;align-items:flex-end;height:48px;">
+                    {% for q in beat_history.quarters %}
+                    <div title="{{ q.date }}: {{ q.surprise_pct }}%" style="
+                        flex:1;
+                        background: {% if q.beat %}var(--signal-positive){% else %}var(--signal-negative){% endif %};
+                        opacity:0.8;
+                        border-radius:2px;
+                        min-height:8px;
+                        height: {{ [8, [(q.surprise_pct|abs * 3 + 8)|int, 48]|min]|max }}px;
+                    "></div>
+                    {% endfor %}
+                </div>
+                <div class="metric-label" style="text-align:center;margin-top:4px;">Beat/Miss per Quarter (oldest →
+                    newest)</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Key Metrics -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">📊 Key Metrics</h3>
+        </div>
+        <div class="card-body">
+            {% if key_stats.available %}
+            <div class="metric-grid" style="grid-template-columns:1fr 1fr;gap:0.75rem;">
+                {% if key_stats.pe_ratio %}
+                <div>
+                    <div class="metric-label">P/E (TTM)</div>
+                    <div class="metric-value">{{ "%.1f"|format(key_stats.pe_ratio) }}x</div>
+                </div>
+                {% endif %}
+                {% if key_stats.forward_pe %}
+                <div>
+                    <div class="metric-label">Forward P/E</div>
+                    <div class="metric-value">{{ "%.1f"|format(key_stats.forward_pe) }}x</div>
+                </div>
+                {% endif %}
+                {% if key_stats.sector %}
+                <div>
+                    <div class="metric-label">Sector</div>
+                    <div class="metric-value" style="font-size:0.9rem;">{{ key_stats.sector }}</div>
+                </div>
+                {% endif %}
+                {% if key_stats.industry %}
+                <div>
+                    <div class="metric-label">Industry</div>
+                    <div class="metric-value" style="font-size:0.85rem;">{{ key_stats.industry[:20] }}</div>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Dividend Info -->
+            {% if div_info %}
+            <div style="border-top:1px solid var(--border-subtle);padding-top:0.75rem;margin-top:0.75rem;">
+                <div class="metric-grid" style="grid-template-columns:1fr 1fr;gap:0.75rem;">
+                    {% if div_info.dividend_yield %}
+                    <div>
+                        <div class="metric-label">Dividend Yield</div>
+                        <div class="metric-value">{{ "%.2f"|format(div_info.dividend_yield) }}%</div>
+                    </div>
+                    {% endif %}
+                    {% if div_info.last_dividend %}
+                    <div>
+                        <div class="metric-label">Last Dividend</div>
+                        <div class="metric-value">${{ "%.4f"|format(div_info.last_dividend) }}</div>
+                    </div>
+                    {% endif %}
+                    {% if div_info.estimated_next_ex_date %}
+                    <div>
+                        <div class="metric-label">Est. Next Ex-Date</div>
+                        <div class="metric-value" style="font-size:0.85rem;">{{ div_info.estimated_next_ex_date }}</div>
+                    </div>
+                    {% endif %}
+                    {% if div_info.days_until_ex_date is not none %}
+                    <div>
+                        <div class="metric-label">Days Until Ex</div>
+                        <div class="metric-value {% if div_info.is_ex_date_soon %}text-negative{% endif %}">{{ div_info.days_until_ex_date }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% else %}
+            <p class="metric-label">Key stats unavailable.</p>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+
+<!-- Technical Indicators (AJAX) -->
+<div id="technicals-card" class="card" style="margin-bottom:1.5rem;display:none;">
+    <div class="card-header">
+        <h3 class="card-title">📉 Technical Indicators</h3>
+    </div>
+    <div class="card-body">
+        <div id="technicals-content" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;"></div>
+    </div>
+</div>
+
+<!-- Financial Trends -->
+{% if quarterly.available %}
+<div class="card" style="margin-bottom:1.5rem;">
+    <div class="card-header">
+        <h3 class="card-title">📈 Financial Statement Trends ({{ quarterly.labels|length }}Q)</h3>
+    </div>
+    <div class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
+            <div>
+                <h4 style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.5rem;">Revenue & Net Income
+                </h4>
+                <canvas id="revenueChart" height="140"></canvas>
+            </div>
+            <div>
+                <h4 style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:0.5rem;">Margins %</h4>
+                <canvas id="marginsChart" height="140"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- DCF Fair Value -->
+{% if dcf.available %}
+<div class="card" style="margin-bottom:1.5rem;">
+    <div class="card-header">
+        <h3 class="card-title">💡 DCF Fair Value Estimate</h3>
+        <span class="metric-label" style="font-size:0.8rem;">2-Stage Model — adjust assumptions below</span>
+    </div>
+    <div class="card-body">
+        <div style="display:flex;gap:2rem;flex-wrap:wrap;align-items:center;">
+            <div>
+                <div class="metric-label">Fair Value</div>
+                <div class="metric-value" style="font-size:2rem;">
+                    {% if dcf.fair_value %}${{ "%.2f"|format(dcf.fair_value) }}{% else %}—{% endif %}
+                </div>
+            </div>
+            {% if dcf.current_price %}
+            <div>
+                <div class="metric-label">Current Price</div>
+                <div class="metric-value">${{ "%.2f"|format(dcf.current_price) }}</div>
+            </div>
+            {% endif %}
+            {% if dcf.upside_pct is not none %}
+            <div>
+                <div class="metric-label">Upside / Downside</div>
+                <div class="metric-value {% if dcf.upside_pct > 0 %}text-positive{% else %}text-negative{% endif %}">
+                    {{ "%+.1f"|format(dcf.upside_pct) }}%
+                </div>
+            </div>
+            {% endif %}
+            {% if dcf.assumptions %}
+            <div class="metric-label" style="font-size:0.8rem;margin-left:auto;">
+                Growth {{ dcf.assumptions.growth_rate_pct }}% × {{ dcf.assumptions.growth_years }}yr,
+                Terminal {{ dcf.assumptions.terminal_rate_pct }}%,
+                Discount {{ dcf.assumptions.discount_rate_pct }}%
+            </div>
+            {% endif %}
+        </div>
+        <!-- DCF Sliders -->
+        <details style="margin-top:1rem;">
+            <summary style="cursor:pointer;color:var(--text-secondary);font-size:0.85rem;">Adjust Assumptions</summary>
+            <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.75rem;" id="dcf-controls">
+                <label style="font-size:0.85rem;">
+                    Growth Rate: <span id="gr-val">{{ dcf.assumptions.growth_rate_pct if dcf.assumptions else 10
+                        }}%</span>
+                    <input type="range" min="0" max="50"
+                        value="{{ dcf.assumptions.growth_rate_pct if dcf.assumptions else 10 }}" oninput="updateDCF()"
+                        id="gr-slider">
+                </label>
+                <label style="font-size:0.85rem;">
+                    Discount Rate: <span id="dr-val">{{ dcf.assumptions.discount_rate_pct if dcf.assumptions else 10
+                        }}%</span>
+                    <input type="range" min="5" max="20"
+                        value="{{ dcf.assumptions.discount_rate_pct if dcf.assumptions else 10 }}" oninput="updateDCF()"
+                        id="dr-slider">
+                </label>
+                <div id="dcf-result" class="metric-value" style="font-size:1.2rem;"></div>
+            </div>
+        </details>
+    </div>
+</div>
+{% endif %}
+
+<!-- Peer Comparison (AJAX) -->
+<div id="peers-card" class="card" style="margin-bottom:1.5rem;display:none;">
+    <div class="card-header">
+        <h3 class="card-title">🏢 Peer Comparison</h3>
+    </div>
+    <div class="card-body" style="padding:0;">
+        <div id="peers-content" style="overflow-x:auto;"></div>
+    </div>
+</div>
+
+<!-- Position Sizing (AJAX) -->
+<div id="position-card" class="card" style="margin-bottom:1.5rem;display:none;">
+    <div class="card-header">
+        <h3 class="card-title">📐 Position Sizing Recommendation</h3>
+    </div>
+    <div class="card-body">
+        <div id="position-content"></div>
+    </div>
+</div>
+
+<!-- Chart Patterns (AJAX) -->
+<div id="patterns-card" class="card" style="margin-bottom:1.5rem;display:none;">
+    <div class="card-header">
+        <h3 class="card-title">🔺 Chart Patterns</h3>
+    </div>
+    <div class="card-body">
+        <div id="patterns-content"></div>
+    </div>
+</div>
+
+<!-- Analyst Sentiment (AJAX) -->
+<div id="sentiment-card" class="card" style="margin-bottom:1.5rem;display:none;">
+    <div class="card-header">
+        <h3 class="card-title">💬 Analyst Sentiment</h3>
+    </div>
+    <div class="card-body">
+        <div id="sentiment-content"></div>
+    </div>
+</div>
+
+<!-- Options Flow (AJAX) -->
+<div id="options-card" class="card" style="margin-bottom:1.5rem;display:none;">
+    <div class="card-header">
+        <h3 class="card-title">⚡ Options Flow</h3>
+    </div>
+    <div class="card-body">
+        <div id="options-content"></div>
+    </div>
+</div>
+
+<!-- Short Interest (AJAX) -->
+<div id="short-card" class="card" style="margin-bottom:1.5rem;display:none;">
+    <div class="card-header">
+        <h3 class="card-title">📉 Short Interest</h3>
+    </div>
+    <div class="card-body">
+        <div id="short-content"></div>
+    </div>
+</div>
+
+<!-- Institutional Holdings (AJAX) -->
+<div id="institutional-card" class="card" style="margin-bottom:1.5rem;display:none;">
+    <div class="card-header">
+        <h3 class="card-title">🏦 Institutional Holdings</h3>
+    </div>
+    <div class="card-body" style="padding:0;">
+        <div id="institutional-content"></div>
+    </div>
+</div>
+
+<!-- Catalyst Timeline (AJAX) -->
+<div id="catalysts-card" class="card" style="margin-bottom:1.5rem;display:none;">
+    <div class="card-header">
+        <h3 class="card-title">📆 Catalyst Timeline</h3>
+    </div>
+    <div class="card-body">
+        <div id="catalysts-content"></div>
+    </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
+
+    <!-- Analysis History -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">🧠 Analysis History</h3>
+            <a href="/history?ticker={{ ticker }}" class="btn btn-ghost" style="font-size:0.8rem;">View All</a>
+        </div>
+        <div class="card-body" style="padding:0;">
+            {% if analysis_history %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Signal</th>
+                        <th>Confidence</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in analysis_history[:5] %}
+                    <tr>
+                        <td class="metric-label">{{ a.timestamp[:10] if a.timestamp else '—' }}</td>
+                        <td><span
+                                class="badge {% if 'BUY' in (a.signal or '') %}badge-success{% elif 'SELL' in (a.signal or '') %}badge-danger{% else %}badge-neutral{% endif %}">
+                                {{ a.signal or 'HOLD' }}
+                            </span></td>
+                        <td>{{ a.confidence or '—' }}%</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div style="padding:1.5rem;text-align:center;" class="metric-label">No analysis history yet.</div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Insider Activity -->
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">👤 Insider Activity</h3>
+            <a href="/insider-activity/{{ ticker }}" class="btn btn-ghost" style="font-size:0.8rem;">View Detail</a>
+        </div>
+        <div class="card-body" style="padding:0;">
+            {% if insider_data %}
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in insider_data[:5] %}
+                    <tr>
+                        <td style="font-size:0.8rem;">{{ (t.insider_name or 'Unknown')[:18] }}</td>
+                        <td>
+                            <span class="badge {% if 'P' in (t.transaction_code or '') or 'Buy' in (t.transaction_type or '') %}badge-success{% else %}badge-danger{% endif %}">
+                                {{ 'Buy' if ('P' in (t.transaction_code or '') or 'Buy' in (t.transaction_type or '')) else 'Sell' }}
+                            </span>
+                            {% if t.likely_planned %}
+                            <span title="Likely 10b5-1 pre-planned purchase" style="font-size:0.5625rem;padding:1px 5px;border:1px solid rgba(168,85,247,0.4);color:#a855f7;border-radius:3px;margin-left:4px;cursor:help;">Planned?</span>
+                            {% endif %}
+                        </td>
+                        <td class="metric-label">${{ "{:,.0f}".format(t.value or 0) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div style="padding:1.5rem;text-align:center;" class="metric-label">No insider transactions found.</div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+
+<!-- Discovery History -->
+{% if discovery_history %}
+<div class="card" style="margin-bottom:1.5rem;">
+    <div class="card-header">
+        <h3 class="card-title">🔍 Discovery History</h3>
+    </div>
+    <div class="card-body" style="padding:0;">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Strategy</th>
+                    <th>Signal</th>
+                    <th>Score</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in discovery_history %}
+                <tr>
+                    <td class="metric-label">{{ d.found_at[:10] if d.found_at else '—' }}</td>
+                    <td style="font-size:0.8rem;">{{ (d.strategy or d.signal_type or '—')|replace('_',' ')|title }}</td>
+                    <td><span style="font-size:0.75rem;padding:2px 6px;border:1px solid var(--border-light);border-radius:var(--radius-sm);">{{ (d.signal_type or '—')|replace('_',' ') }}</span></td>
+                    <td style="font-family:var(--font-mono);">{% if d.quant_score %}{{ d.quant_score|round(0)|int }}{% else %}—{% endif %}</td>
+                    <td>
+                        {% if d.status == 'promoted' %}<span class="badge badge-success" style="font-size:0.5625rem;">Promoted</span>
+                        {% elif d.status == 'dismissed' %}<span class="badge" style="background:rgba(255,255,255,0.05);color:var(--text-muted);border:1px solid var(--border-hairline);font-size:0.5625rem;">Dismissed</span>
+                        {% else %}<span class="badge" style="background:rgba(212,168,75,0.15);color:#d4a84b;border:1px solid rgba(212,168,75,0.3);font-size:0.5625rem;">{{ d.status|default('New')|title }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Notes -->
+<div class="card" style="margin-bottom:1.5rem;">
+    <div class="card-header">
+        <h3 class="card-title">📝 Notes</h3>
+    </div>
+    <div class="card-body">
+        <form method="post" action="/stock/{{ ticker }}/notes">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <textarea name="note_text" rows="3"
+                style="width:100%;background:var(--bg-secondary);border:1px solid var(--border-subtle);border-radius:8px;padding:0.75rem;color:var(--text-primary);font-family:inherit;resize:vertical;"
+                placeholder="Add notes about this stock... (e.g. 'Waiting for Q3 earnings before adding')">{{ stock_note or '' }}</textarea>
+            <div style="display:flex;justify-content:flex-end;margin-top:0.5rem;">
+                <button type="submit" class="btn btn-primary">Save Note</button>
+            </div>
+        </form>
+        {% if request.query_params.get('saved') %}
+        <p class="text-positive" style="margin-top:0.5rem;">✓ Note saved</p>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Copy ticker to clipboard
+    function copyTicker() {
+        navigator.clipboard.writeText('{{ ticker }}').then(() => {
+            const el = document.getElementById('ticker-symbol');
+            el.style.opacity = '0.5';
+            setTimeout(() => el.style.opacity = '1', 500);
+        });
+    }
+
+    // Price chart with SMA overlays
+    async function loadPriceChart() {
+        try {
+            const res = await fetch('/api/chart-data/{{ ticker }}');
+            if (!res.ok) return;
+            const d = await res.json();
+            if (!d.dates || !d.prices) return;
+
+            const datasets = [{
+                label: '{{ ticker }}',
+                data: d.prices,
+                borderColor: '#6366f1',
+                backgroundColor: 'rgba(99,102,241,0.1)',
+                borderWidth: 2,
+                pointRadius: 0,
+                fill: true,
+                tension: 0.3,
+            }];
+
+            // SMA overlays
+            if (d.sma20) datasets.push({ label: 'SMA20', data: d.sma20, borderColor: 'rgba(234,179,8,0.6)', borderWidth: 1, pointRadius: 0, fill: false, borderDash: [4,2] });
+            if (d.sma50) datasets.push({ label: 'SMA50', data: d.sma50, borderColor: 'rgba(16,185,129,0.6)', borderWidth: 1, pointRadius: 0, fill: false, borderDash: [4,2] });
+
+            // Signal markers
+            if (d.signals && d.signals.length > 0) {
+                const markerData = new Array(d.dates.length).fill(null);
+                const markerColors = [];
+                d.signals.forEach(s => {
+                    const idx = d.dates.indexOf(s.date);
+                    if (idx >= 0) {
+                        markerData[idx] = s.price;
+                        markerColors.push(s.signal.includes('BUY') ? '#6bba7e' : s.signal.includes('SELL') ? '#d47272' : '#d4a84b');
+                    }
+                });
+                datasets.push({
+                    label: 'Signals',
+                    data: markerData,
+                    borderColor: 'transparent',
+                    backgroundColor: markerColors.length ? markerColors : '#d4a84b',
+                    pointRadius: markerData.map(v => v !== null ? 6 : 0),
+                    pointStyle: 'triangle',
+                    showLine: false,
+                });
+            }
+
+            new Chart(document.getElementById('priceChart'), {
+                type: 'line',
+                data: { labels: d.dates, datasets },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { labels: { color: '#888', boxWidth: 12, font: { size: 10 } } } },
+                    scales: {
+                        x: { ticks: { maxTicksLimit: 6, color: '#888' }, grid: { color: '#222' } },
+                        y: { ticks: { color: '#888' }, grid: { color: '#222' } }
+                    }
+                }
+            });
+
+            // Populate technical indicators from chart data
+            loadTechnicals(d);
+        } catch (e) { console.warn('Price chart failed:', e); }
+    }
+
+    // Technical Indicators
+    function loadTechnicals(chartData) {
+        if (!chartData.prices || chartData.prices.length < 20) return;
+        const card = document.getElementById('technicals-card');
+        const content = document.getElementById('technicals-content');
+        const prices = chartData.prices.filter(p => p != null);
+        const n = prices.length;
+
+        // RSI calculation
+        let gains = 0, losses = 0;
+        for (let i = Math.max(1, n - 14); i < n; i++) {
+            const diff = prices[i] - prices[i-1];
+            if (diff > 0) gains += diff; else losses -= diff;
+        }
+        const rs = losses === 0 ? 100 : gains / losses;
+        const rsi = 100 - (100 / (1 + rs));
+
+        // MACD (12,26,9)
+        function ema(data, period) {
+            const k = 2 / (period + 1);
+            let result = [data[0]];
+            for (let i = 1; i < data.length; i++) result.push(data[i] * k + result[i-1] * (1 - k));
+            return result;
+        }
+        const ema12 = ema(prices, 12);
+        const ema26 = ema(prices, 26);
+        const macdLine = ema12[n-1] - ema26[n-1];
+        const macdHist = macdLine; // Simplified
+
+        // Current vs SMAs
+        const current = prices[n-1];
+        const sma20 = prices.slice(-20).reduce((a,b) => a+b, 0) / 20;
+        const sma50 = n >= 50 ? prices.slice(-50).reduce((a,b) => a+b, 0) / 50 : null;
+
+        // Bollinger Bands
+        const std20 = Math.sqrt(prices.slice(-20).map(p => (p - sma20) ** 2).reduce((a,b) => a+b, 0) / 20);
+        const bbUpper = sma20 + 2 * std20;
+        const bbLower = sma20 - 2 * std20;
+        const bbPos = std20 > 0 ? ((current - bbLower) / (bbUpper - bbLower) * 100).toFixed(0) : 50;
+
+        const rsiColor = rsi > 70 ? '#d47272' : rsi < 30 ? '#6bba7e' : 'var(--text-primary)';
+        const rsiLabel = rsi > 70 ? 'Overbought' : rsi < 30 ? 'Oversold' : 'Neutral';
+        const macdColor = macdHist >= 0 ? '#6bba7e' : '#d47272';
+
+        card.style.display = '';
+        content.innerHTML = `
+            <div style="text-align:center;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
+                <div class="metric-label">RSI (14)</div>
+                <div style="font-size:1.5rem;font-weight:300;color:${rsiColor};">${rsi.toFixed(1)}</div>
+                <div style="font-size:0.6875rem;color:var(--text-muted);">${rsiLabel}</div>
+                <div style="margin-top:0.5rem;height:4px;background:var(--bg-tertiary);border-radius:2px;overflow:hidden;">
+                    <div style="width:${rsi}%;height:100%;background:${rsiColor};border-radius:2px;"></div>
+                </div>
+            </div>
+            <div style="text-align:center;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
+                <div class="metric-label">MACD</div>
+                <div style="font-size:1.5rem;font-weight:300;color:${macdColor};">${macdHist >= 0 ? '+' : ''}${macdHist.toFixed(2)}</div>
+                <div style="font-size:0.6875rem;color:var(--text-muted);">${macdHist >= 0 ? 'Bullish' : 'Bearish'}</div>
+            </div>
+            <div style="text-align:center;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
+                <div class="metric-label">BB Position</div>
+                <div style="font-size:1.5rem;font-weight:300;color:var(--text-primary);">${bbPos}%</div>
+                <div style="font-size:0.6875rem;color:var(--text-muted);">${bbPos > 80 ? 'Near upper band' : bbPos < 20 ? 'Near lower band' : 'Mid-range'}</div>
+            </div>
+            <div style="text-align:center;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
+                <div class="metric-label">vs SMA20</div>
+                <div style="font-size:1.5rem;font-weight:300;color:${current > sma20 ? '#6bba7e' : '#d47272'};">${((current/sma20 - 1)*100).toFixed(1)}%</div>
+                <div style="font-size:0.6875rem;color:var(--text-muted);">${current > sma20 ? 'Above' : 'Below'} $${sma20.toFixed(2)}</div>
+            </div>
+        `;
+    }
+
+    // Multi-Timeframe Confluence
+    fetch('/api/multi-timeframe/{{ ticker }}')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || data.error || data.alignment === 'unknown') return;
+            const card = document.getElementById('mtf-card');
+            card.style.display = '';
+
+            const content = document.getElementById('mtf-content');
+            const trendIcon = t => t === 'bullish' ? '▲' : t === 'bearish' ? '▼' : '—';
+            const trendColor = t => t === 'bullish' ? '#6bba7e' : t === 'bearish' ? '#d47272' : 'var(--text-muted)';
+
+            function tfCard(label, tf) {
+                if (!tf) return `<div style="text-align:center;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius-md);"><div class="metric-label">${label}</div><div style="color:var(--text-muted);">—</div></div>`;
+                return `<div style="text-align:center;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
+                    <div class="metric-label">${label}</div>
+                    <div style="font-size:1.5rem;color:${trendColor(tf.trend)};">${trendIcon(tf.trend)} ${tf.trend}</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.25rem;">RSI: ${tf.rsi || '—'} | Str: ${tf.strength || 0}</div>
+                </div>`;
+            }
+
+            content.innerHTML = tfCard('Daily', data.daily) + tfCard('Weekly', data.weekly) + tfCard('Monthly', data.monthly);
+
+            const alignColors = {
+                'aligned_bullish': { bg: 'rgba(107,186,126,0.1)', border: 'rgba(107,186,126,0.3)', color: '#6bba7e' },
+                'aligned_bearish': { bg: 'rgba(212,114,114,0.1)', border: 'rgba(212,114,114,0.3)', color: '#d47272' },
+                'mostly_bullish': { bg: 'rgba(107,186,126,0.08)', border: 'rgba(107,186,126,0.2)', color: '#6bba7e' },
+                'mostly_bearish': { bg: 'rgba(212,114,114,0.08)', border: 'rgba(212,114,114,0.2)', color: '#d47272' },
+                'conflicting': { bg: 'rgba(212,168,75,0.1)', border: 'rgba(212,168,75,0.3)', color: '#d4a84b' },
+            };
+            const ac = alignColors[data.alignment] || { bg: 'var(--bg-secondary)', border: 'var(--border-hairline)', color: 'var(--text-muted)' };
+            document.getElementById('mtf-summary').innerHTML = `<span style="color:${ac.color};font-weight:500;">${data.alignment.replace(/_/g,' ').toUpperCase()}</span> — ${data.summary || ''} <span style="float:right;font-size:0.75rem;color:var(--text-muted);">Confidence modifier: ${data.confidence_modifier >= 0 ? '+' : ''}${data.confidence_modifier}</span>`;
+            document.getElementById('mtf-summary').style.borderLeft = `3px solid ${ac.color}`;
+        })
+        .catch(() => {});
+
+    // Peer Comparison
+    fetch('/api/peers/{{ ticker }}')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.peers || data.peers.length === 0) return;
+            const card = document.getElementById('peers-card');
+            card.style.display = '';
+            const content = document.getElementById('peers-content');
+
+            let html = '<table class="data-table" style="margin:0;"><thead><tr><th>Ticker</th><th>P/E</th><th>Fwd P/E</th><th>EV/EBITDA</th><th>Gross Margin</th><th>ROE</th><th>Mkt Cap</th></tr></thead><tbody>';
+            const allPeers = [data.target, ...data.peers].filter(Boolean);
+            allPeers.forEach((p, i) => {
+                const isTarget = i === 0;
+                const style = isTarget ? 'background:rgba(99,102,241,0.08);font-weight:500;' : '';
+                html += `<tr style="${style}">
+                    <td><a href="/stock/${p.ticker}" style="font-family:var(--font-mono);color:var(--text-primary);text-decoration:none;">${p.ticker}${isTarget ? ' ★' : ''}</a></td>
+                    <td style="font-family:var(--font-mono);">${p.pe_ratio ? p.pe_ratio.toFixed(1) + 'x' : '—'}</td>
+                    <td style="font-family:var(--font-mono);">${p.forward_pe ? p.forward_pe.toFixed(1) + 'x' : '—'}</td>
+                    <td style="font-family:var(--font-mono);">${p.ev_ebitda ? p.ev_ebitda.toFixed(1) + 'x' : '—'}</td>
+                    <td style="font-family:var(--font-mono);">${p.gross_margin != null ? (p.gross_margin * 100).toFixed(1) + '%' : '—'}</td>
+                    <td style="font-family:var(--font-mono);">${p.roe != null ? (p.roe * 100).toFixed(1) + '%' : '—'}</td>
+                    <td style="font-family:var(--font-mono);">${p.market_cap_b ? '$' + p.market_cap_b.toFixed(1) + 'B' : '—'}</td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            content.innerHTML = html;
+        })
+        .catch(() => {});
+
+    // Position Sizing
+    fetch('/api/position-size/{{ ticker }}?confidence=70&portfolio=100000')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || data.error) return;
+            const card = document.getElementById('position-card');
+            card.style.display = '';
+            const content = document.getElementById('position-content');
+
+            const riskColors = { low: '#6bba7e', medium: '#d4a84b', high: '#d47272' };
+            const rc = riskColors[data.risk_level] || 'var(--text-muted)';
+
+            content.innerHTML = `
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;">
+                    <div style="text-align:center;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
+                        <div class="metric-label">Recommended</div>
+                        <div style="font-size:1.75rem;font-weight:300;color:var(--text-primary);">${data.recommended_pct}%</div>
+                        <div style="font-size:0.6875rem;color:var(--text-muted);">of portfolio</div>
+                    </div>
+                    <div style="text-align:center;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
+                        <div class="metric-label">Position Value</div>
+                        <div style="font-size:1.75rem;font-weight:300;color:var(--text-primary);">$${data.position_value.toLocaleString()}</div>
+                        <div style="font-size:0.6875rem;color:var(--text-muted);">${data.shares} shares</div>
+                    </div>
+                    <div style="text-align:center;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
+                        <div class="metric-label">Risk Level</div>
+                        <div style="font-size:1.75rem;font-weight:300;color:${rc};">${data.risk_level.toUpperCase()}</div>
+                        <div style="font-size:0.6875rem;color:var(--text-muted);">Vol: ${data.inputs.annual_volatility}%</div>
+                    </div>
+                    <div style="text-align:center;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
+                        <div class="metric-label">Kelly Raw</div>
+                        <div style="font-size:1.75rem;font-weight:300;color:var(--text-primary);">${data.kelly_raw}%</div>
+                        <div style="font-size:0.6875rem;color:var(--text-muted);">×${data.limits.kelly_fraction} fraction</div>
+                    </div>
+                </div>
+                <div style="margin-top:1rem;padding:0.75rem;background:var(--bg-secondary);border-radius:var(--radius-md);font-size:0.8125rem;color:var(--text-muted);">
+                    Based on $100K portfolio at 70% confidence. Win rate: ${(data.inputs.win_rate * 100).toFixed(0)}%, Avg win: ${data.inputs.avg_win}%, Avg loss: ${data.inputs.avg_loss}%
+                </div>
+            `;
+        })
+        .catch(() => {});
+
+    {% if quarterly.available %}
+    // Revenue/NI chart
+    const qLabels = {{ quarterly.labels | tojson }};
+    const revenue = {{ quarterly.revenue | tojson }};
+    const netIncome = {{ quarterly.net_income | tojson }};
+    const grossMargin = {{ quarterly.gross_margin_pct | tojson }};
+    const opMargin = {{ quarterly.operating_margin_pct | tojson }};
+
+    // Scale to millions
+    const revM = revenue.map(v => v ? v / 1e6 : null);
+    const niM = netIncome.map(v => v ? v / 1e6 : null);
+
+    new Chart(document.getElementById('revenueChart'), {
+        type: 'bar',
+        data: {
+            labels: qLabels,
+            datasets: [
+                { label: 'Revenue ($M)', data: revM, backgroundColor: 'rgba(99,102,241,0.7)' },
+                { label: 'Net Income ($M)', data: niM, backgroundColor: 'rgba(16,185,129,0.7)' }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { labels: { color: '#888', boxWidth: 12 } } },
+            scales: {
+                x: { ticks: { color: '#888', maxRotation: 45 }, grid: { display: false } },
+                y: { ticks: { color: '#888' }, grid: { color: '#222' } }
+            }
+        }
+    });
+
+    new Chart(document.getElementById('marginsChart'), {
+        type: 'line',
+        data: {
+            labels: qLabels,
+            datasets: [
+                { label: 'Gross Margin %', data: grossMargin, borderColor: '#6366f1', pointRadius: 3, tension: 0.3 },
+                { label: 'Op Margin %', data: opMargin, borderColor: '#10b981', pointRadius: 3, tension: 0.3 }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { labels: { color: '#888', boxWidth: 12 } } },
+            scales: {
+                x: { ticks: { color: '#888', maxRotation: 45 }, grid: { display: false } },
+                y: { ticks: { color: '#888', callback: v => v + '%' }, grid: { color: '#222' } }
+            }
+        }
+    });
+    {% endif %}
+
+    // DCF interactive sliders
+    async function updateDCF() {
+        const growth = document.getElementById('gr-slider').value;
+        const discount = document.getElementById('dr-slider').value;
+        document.getElementById('gr-val').textContent = growth + '%';
+        document.getElementById('dr-val').textContent = discount + '%';
+        try {
+            const res = await fetch(`/api/dcf/{{ ticker }}?growth_rate=${growth / 100}&discount_rate=${discount / 100}`);
+            const d = await res.json();
+            if (d.fair_value) {
+                const upside = d.upside_pct;
+                document.getElementById('dcf-result').innerHTML =
+                    `Fair Value: <strong>$${d.fair_value.toFixed(2)}</strong> ` +
+                    `<span style="color:${upside > 0 ? 'var(--signal-positive)' : 'var(--signal-negative)'}">(${upside > 0 ? '+' : ''}${upside?.toFixed(1)}%)</span>`;
+            }
+        } catch (e) { }
+    }
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', e => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (e.key === 'a') window.location.href = '/analyze?ticker={{ ticker }}';
+        if (e.key === 'w') document.querySelector('form[action="/watchlist/add"]')?.submit();
+        if (e.key === 'c') copyTicker();
+    });
+
+    // Chart Patterns
+    fetch('/api/patterns/{{ ticker }}')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.patterns || data.patterns.length === 0) return;
+            const card = document.getElementById('patterns-card');
+            card.style.display = '';
+            const content = document.getElementById('patterns-content');
+            let html = '<div style="display:flex;flex-direction:column;gap:0.75rem;">';
+            data.patterns.forEach(p => {
+                const isBullish = p.direction === 'bullish';
+                const color = isBullish ? '#6bba7e' : '#d47272';
+                const badge = isBullish ? 'badge-success' : 'badge-danger';
+                html += `
+                    <div style="padding:1rem;background:var(--bg-secondary);border-radius:var(--radius-md);border-left:3px solid ${color};">
+                        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
+                            <span style="font-weight:500;color:var(--text-primary);">${p.name}</span>
+                            <span class="badge ${badge}" style="font-size:0.65rem;">${(p.direction || '').toUpperCase()}</span>
+                            <span style="margin-left:auto;font-size:0.75rem;color:var(--text-muted);">Confidence: ${p.confidence}%</span>
+                        </div>
+                        <div style="height:4px;background:var(--bg-tertiary);border-radius:2px;overflow:hidden;margin-bottom:0.5rem;">
+                            <div style="width:${p.confidence}%;height:100%;background:${color};border-radius:2px;"></div>
+                        </div>
+                        ${p.entry_price ? `<div style="display:flex;gap:1.5rem;font-size:0.8125rem;color:var(--text-muted);">
+                            <span>Entry: <strong style="color:var(--text-primary);">$${p.entry_price.toFixed(2)}</strong></span>
+                            ${p.target_price ? `<span>Target: <strong style="color:#6bba7e;">$${p.target_price.toFixed(2)}</strong></span>` : ''}
+                            ${p.stop_price ? `<span>Stop: <strong style="color:#d47272;">$${p.stop_price.toFixed(2)}</strong></span>` : ''}
+                        </div>` : ''}
+                        ${p.description ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.25rem;">${p.description}</div>` : ''}
+                    </div>`;
+            });
+            html += '</div>';
+            content.innerHTML = html;
+        })
+        .catch(() => {});
+
+    // Analyst Sentiment
+    fetch('/api/sentiment/{{ ticker }}')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || data.error) return;
+            const card = document.getElementById('sentiment-card');
+            card.style.display = '';
+            const content = document.getElementById('sentiment-content');
+            const score = data.overall_score ?? 50;
+            const sentiment = data.sentiment ?? 'neutral';
+            const sentColor = sentiment === 'bullish' ? '#6bba7e' : sentiment === 'bearish' ? '#d47272' : '#d4a84b';
+            const analyst = data.analyst || {};
+            const total = (analyst.bullish_count || 0) + (analyst.bearish_count || 0) + (analyst.neutral_count || 0);
+            const bullPct = total > 0 ? ((analyst.bullish_count || 0) / total * 100).toFixed(0) : 0;
+            const bearPct = total > 0 ? ((analyst.bearish_count || 0) / total * 100).toFixed(0) : 0;
+            const neutPct = total > 0 ? ((analyst.neutral_count || 0) / total * 100).toFixed(0) : 0;
+            const contrarian = data.contrarian || {};
+            const contrarianHtml = contrarian.signal ? `
+                <div style="margin-top:1rem;padding:0.75rem;border-radius:var(--radius-md);background:rgba(212,168,75,0.1);border:1px solid rgba(212,168,75,0.3);">
+                    <span style="color:#d4a84b;font-size:0.8125rem;font-weight:500;">⚠ Contrarian Signal: ${contrarian.signal.replace(/_/g,' ').toUpperCase()}</span>
+                    ${contrarian.reason ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.25rem;">${contrarian.reason}</div>` : ''}
+                </div>` : '';
+            content.innerHTML = `
+                <div style="display:grid;grid-template-columns:auto 1fr;gap:1.5rem;align-items:center;">
+                    <div style="text-align:center;">
+                        <div style="font-size:2.5rem;font-weight:200;color:${sentColor};">${score}</div>
+                        <div style="font-size:0.75rem;font-weight:500;color:${sentColor};">${sentiment.toUpperCase()}</div>
+                        <div style="font-size:0.6875rem;color:var(--text-muted);">Score / 100</div>
+                    </div>
+                    <div>
+                        ${total > 0 ? `
+                        <div style="margin-bottom:0.5rem;">
+                            <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-muted);margin-bottom:0.25rem;">
+                                <span>Buy (${bullPct}%)</span><span>Hold (${neutPct}%)</span><span>Sell (${bearPct}%)</span>
+                            </div>
+                            <div style="height:8px;border-radius:4px;overflow:hidden;display:flex;">
+                                <div style="width:${bullPct}%;background:#6bba7e;"></div>
+                                <div style="width:${neutPct}%;background:#d4a84b;"></div>
+                                <div style="width:${bearPct}%;background:#d47272;"></div>
+                            </div>
+                            <div style="font-size:0.6875rem;color:var(--text-muted);margin-top:0.25rem;">${total} analyst ratings · ${analyst.recent_changes || 0} changed recently</div>
+                        </div>` : '<div style="font-size:0.8125rem;color:var(--text-muted);">No analyst ratings available.</div>'}
+                    </div>
+                </div>
+                ${contrarianHtml}`;
+        })
+        .catch(() => {});
+
+    // Options Flow
+    fetch('/api/options-flow/{{ ticker }}')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || data.error || !data.summary) return;
+            const s = data.summary;
+            const card = document.getElementById('options-card');
+            card.style.display = '';
+            const content = document.getElementById('options-content');
+            const unusual = data.unusual_activity || {};
+            const unusualHtml = unusual.is_unusual ? `
+                <div style="margin-top:1rem;padding:0.75rem;border-radius:var(--radius-md);background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);">
+                    <span style="color:#6366f1;font-size:0.8125rem;font-weight:500;">⚡ Unusual Activity Detected</span>
+                    ${unusual.reason ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.25rem;">${unusual.reason}</div>` : ''}
+                </div>` : '';
+            const pcColor = s.put_call_ratio != null ? (s.put_call_ratio > 1.2 ? '#d47272' : s.put_call_ratio < 0.8 ? '#6bba7e' : '#d4a84b') : 'var(--text-primary)';
+            const ivColor = s.iv_rank != null ? (s.iv_rank > 60 ? '#d47272' : s.iv_rank < 30 ? '#6bba7e' : '#d4a84b') : 'var(--text-primary)';
+            content.innerHTML = `
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;">
+                    <div style="text-align:center;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
+                        <div class="metric-label">Put/Call Ratio</div>
+                        <div style="font-size:1.75rem;font-weight:300;color:${pcColor};">${s.put_call_ratio != null ? s.put_call_ratio.toFixed(2) : '—'}</div>
+                        <div style="font-size:0.6875rem;color:var(--text-muted);">${s.put_call_ratio != null ? (s.put_call_ratio > 1.2 ? 'Bearish tilt' : s.put_call_ratio < 0.8 ? 'Bullish tilt' : 'Neutral') : ''}</div>
+                    </div>
+                    <div style="text-align:center;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
+                        <div class="metric-label">IV Rank</div>
+                        <div style="font-size:1.75rem;font-weight:300;color:${ivColor};">${s.iv_rank != null ? s.iv_rank.toFixed(0) + '%' : '—'}</div>
+                        <div style="font-size:0.6875rem;color:var(--text-muted);">${s.iv_rank != null ? (s.iv_rank > 60 ? 'High vol' : s.iv_rank < 30 ? 'Low vol' : 'Normal') : ''}</div>
+                    </div>
+                    <div style="text-align:center;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
+                        <div class="metric-label">Net Sentiment</div>
+                        <div style="font-size:1.75rem;font-weight:300;color:${s.net_sentiment === 'bullish' ? '#6bba7e' : s.net_sentiment === 'bearish' ? '#d47272' : '#d4a84b'};">${s.net_sentiment ? s.net_sentiment.toUpperCase() : '—'}</div>
+                        <div style="font-size:0.6875rem;color:var(--text-muted);">${s.call_volume != null ? 'C:' + (s.call_volume/1000).toFixed(0) + 'K / P:' + (s.put_volume/1000).toFixed(0) + 'K' : ''}</div>
+                    </div>
+                </div>
+                ${unusualHtml}`;
+        })
+        .catch(() => {});
+
+    // Short Interest
+    fetch('/api/short-interest/{{ ticker }}')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || data.error || !data.current) return;
+            const c = data.current;
+            if (!c.short_pct_float) return;
+            const card = document.getElementById('short-card');
+            card.style.display = '';
+            const content = document.getElementById('short-content');
+            const squeeze = data.squeeze || {};
+            const pct = c.short_pct_float || 0;
+            const barColor = pct > 20 ? '#d47272' : pct > 10 ? '#d4a84b' : '#6bba7e';
+            const squeezeHtml = squeeze.is_squeeze_candidate ? `
+                <div style="margin-top:1rem;padding:0.75rem;border-radius:var(--radius-md);background:rgba(212,114,114,0.1);border:1px solid rgba(212,114,114,0.3);">
+                    <span style="color:#d47272;font-size:0.8125rem;font-weight:500;">🚨 Squeeze Candidate</span>
+                    ${squeeze.reason ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.25rem;">${squeeze.reason}</div>` : ''}
+                </div>` : '';
+            content.innerHTML = `
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;">
+                    <div style="text-align:center;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
+                        <div class="metric-label">Short % Float</div>
+                        <div style="font-size:1.75rem;font-weight:300;color:${barColor};">${pct.toFixed(1)}%</div>
+                        <div style="height:4px;background:var(--bg-tertiary);border-radius:2px;overflow:hidden;margin-top:0.5rem;">
+                            <div style="width:${Math.min(pct * 2, 100)}%;height:100%;background:${barColor};border-radius:2px;"></div>
+                        </div>
+                    </div>
+                    <div style="text-align:center;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
+                        <div class="metric-label">Days to Cover</div>
+                        <div style="font-size:1.75rem;font-weight:300;color:var(--text-primary);">${c.days_to_cover ? c.days_to_cover.toFixed(1) : '—'}</div>
+                        <div style="font-size:0.6875rem;color:var(--text-muted);">short ratio</div>
+                    </div>
+                    <div style="text-align:center;padding:1rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
+                        <div class="metric-label">Shares Short</div>
+                        <div style="font-size:1.75rem;font-weight:300;color:var(--text-primary);">${c.short_shares ? (c.short_shares/1e6).toFixed(1)+'M' : '—'}</div>
+                        <div style="font-size:0.6875rem;color:var(--text-muted);">of ${c.float_shares ? (c.float_shares/1e6).toFixed(0)+'M' : '—'} float</div>
+                    </div>
+                </div>
+                ${squeezeHtml}`;
+        })
+        .catch(() => {});
+
+    // Institutional Holdings
+    fetch('/api/institutional/{{ ticker }}')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || data.error || !data.holders || data.holders.length === 0) return;
+            const card = document.getElementById('institutional-card');
+            card.style.display = '';
+            const content = document.getElementById('institutional-content');
+            let html = '<table class="data-table" style="margin:0;"><thead><tr><th>Institution</th><th>Shares</th><th>% Held</th><th>Change</th></tr></thead><tbody>';
+            data.holders.slice(0, 8).forEach(h => {
+                const chg = h.change_pct;
+                const changeIcon = chg > 5 ? '▲' : chg < -5 ? '▼' : '—';
+                const changeColor = chg > 5 ? '#6bba7e' : chg < -5 ? '#d47272' : 'var(--text-muted)';
+                html += `<tr>
+                    <td style="font-size:0.8125rem;">${h.holder || '—'}${h.is_notable ? ' <span style="font-size:0.625rem;padding:1px 5px;background:rgba(212,168,75,0.2);border-radius:3px;color:#d4a84b;">Smart $</span>' : ''}</td>
+                    <td style="font-family:var(--font-mono);font-size:0.8125rem;">${h.shares ? (h.shares/1e6).toFixed(2)+'M' : '—'}</td>
+                    <td style="font-family:var(--font-mono);font-size:0.8125rem;">${h.pct_held ? h.pct_held.toFixed(2)+'%' : '—'}</td>
+                    <td style="color:${changeColor};font-family:var(--font-mono);font-size:0.8125rem;">${changeIcon} ${chg != null ? Math.abs(chg).toFixed(1)+'%' : '—'}</td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            const changes = data.changes || {};
+            if (changes.new_positions && changes.new_positions.length > 0) {
+                html += `<div style="padding:0.75rem 1rem;border-top:1px solid var(--border-subtle);font-size:0.8125rem;">
+                    <span style="color:#6bba7e;">New positions: ${changes.new_positions.join(', ')}</span>
+                </div>`;
+            }
+            content.innerHTML = html;
+        })
+        .catch(() => {});
+
+    // Catalyst Timeline
+    fetch('/api/catalysts/{{ ticker }}')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.catalysts || data.catalysts.length === 0) return;
+            const card = document.getElementById('catalysts-card');
+            card.style.display = '';
+            const content = document.getElementById('catalysts-content');
+            const typeConfig = {
+                earnings: { icon: '📅', color: '#6366f1' },
+                dividend: { icon: '💰', color: '#6bba7e' },
+                economic: { icon: '🏦', color: '#d4a84b' },
+                fda: { icon: '💊', color: '#d47272' },
+            };
+            let html = '<div style="display:flex;flex-direction:column;gap:0.75rem;">';
+            data.catalysts.forEach(c => {
+                const cfg = typeConfig[c.type] || { icon: '📌', color: 'var(--text-muted)' };
+                const today = new Date();
+                const eventDate = new Date(c.date);
+                const daysUntil = Math.ceil((eventDate - today) / (1000 * 60 * 60 * 24));
+                const daysLabel = daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : daysUntil > 0 ? `in ${daysUntil}d` : `${Math.abs(daysUntil)}d ago`;
+                html += `
+                    <div style="display:flex;align-items:center;gap:1rem;padding:0.75rem 1rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
+                        <div style="font-size:1.25rem;">${cfg.icon}</div>
+                        <div style="flex:1;">
+                            <div style="font-size:0.875rem;color:var(--text-primary);">${c.name}</div>
+                            ${c.detail ? `<div style="font-size:0.75rem;color:var(--text-muted);">${c.detail}</div>` : ''}
+                        </div>
+                        <div style="text-align:right;">
+                            <div style="font-size:0.875rem;font-family:var(--font-mono);color:var(--text-primary);">${c.date}</div>
+                            <div style="font-size:0.6875rem;padding:2px 6px;border-radius:var(--radius-sm);background:rgba(0,0,0,0.2);color:${cfg.color};">${daysLabel}</div>
+                        </div>
+                    </div>`;
+            });
+            html += '</div>';
+            content.innerHTML = html;
+        })
+        .catch(() => {});
+
+    loadPriceChart();
+</script>
+{% endblock %}

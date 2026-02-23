@@ -140,9 +140,28 @@ DEFAULT_SETTINGS = {
     "portfolio_stop_loss_pct": 15.0,
     "portfolio_max_sector_pct": 30.0,
     "portfolio_rebalance_drift_pct": 5.0,
+    "portfolio_risk_guard_enabled": True,
+    "portfolio_global_loss_limit_pct": 10.0,
+    "portfolio_risk_cooldown_hours": 24,
+    "portfolio_risk_guard_triggered_at": None,
+
+    # Authentication Safety
+    "auth_max_failed_attempts": 5,
+    "auth_attempt_window_minutes": 15,
+    "auth_lockout_minutes": 15,
 
     # Learning System
     "learning_verification_days": 90,
+
+    # Auto-Discovery
+    "discovery_enabled": True,
+    "discovery_daily_time": "06:00",
+    "discovery_weekly_day": "wed",
+    "discovery_weekly_time": "12:00",
+    "discovery_promotion_threshold": 55,
+    "discovery_max_promote_per_run": 5,
+    "discovery_max_watchlist_size": 50,
+    "discovery_strategies": ["volume_spike", "breakout", "oversold", "sector_rotation", "insider_buy", "value_screen"],
 }
 
 # Web Server
@@ -219,6 +238,49 @@ QUANT_SCREENER_CONFIG = {
     'opportunity_threshold': 70,
     'caution_threshold': 30,
     'benchmark_ticker': 'SPY',
+}
+
+# === Advanced Algorithm Configurations ===
+
+# Hierarchical Market Structure (DC turning points + trend regime)
+MARKET_STRUCTURE_CONFIG = {
+    'atr_period': 14,
+    'max_hierarchy_levels': 4,
+    'trend_lookback_bars': 20,
+}
+
+# XABCD Harmonic Pattern Recognition
+HARMONIC_CONFIG = {
+    'error_threshold': 0.5,       # Higher tolerance = better empirical results
+    'min_confidence': 40,
+    'sigma_levels': [0.01, 0.02, 0.03, 0.04],  # Multi-sigma DC scanning
+}
+
+# Meta-Labeling Random Forest (signal confidence filter)
+META_LABELER_CONFIG = {
+    'n_estimators': 500,
+    'max_depth': 3,               # Controls overfitting on financial noise
+    'min_training_samples': 50,
+    'confirm_threshold': 0.55,    # predict_proba >= 0.55 = confirmed
+    'filter_threshold': 0.45,     # predict_proba <= 0.45 = filtered
+    'score_blend_original': 0.70,
+    'score_blend_meta': 0.30,
+    'model_path': 'core/data/meta_label_rf.pkl',
+}
+
+# Visibility Graph Indicator (topological price analysis)
+VISIBILITY_GRAPH_CONFIG = {
+    'lookback_bars': 12,
+    'cache_minutes': 30,
+}
+
+# Monte Carlo Permutation Test (strategy validation)
+MCPT_CONFIG = {
+    'in_sample_permutations': 1000,
+    'walk_forward_permutations': 500,
+    'in_sample_p_threshold': 0.01,
+    'walk_forward_p_threshold': 0.05,
+    'min_signals_for_test': 30,
 }
 
 # Pipeline stage split ratios (how to distribute daily Gemini budget across stages)
