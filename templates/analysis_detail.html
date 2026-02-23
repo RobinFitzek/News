@@ -26,24 +26,34 @@
     <div class="card" style="margin-bottom: var(--space-8); position: relative; overflow: visible;">
         <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--text-primary);"></div>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
             <div style="display: flex; align-items: center; gap: var(--space-6);">
-                <span class="signal-text signal-{{ analysis.signal|lower }}" style="font-size: 1.25rem; padding: var(--space-3) var(--space-6);">
+                <span class="signal-text signal-{{ analysis.signal|lower }}"
+                    style="font-size: 1.25rem; padding: var(--space-3) var(--space-6);">
                     {{ analysis.signal }}
                 </span>
                 <div>
-                    <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: var(--space-1);">Signal Strength</div>
-                    <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; color: var(--text-primary); letter-spacing: -0.02em;">{{ analysis.confidence }}/100</div>
+                    <div
+                        style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: var(--space-1);">
+                        Signal Strength</div>
+                    <div
+                        style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; color: var(--text-primary); letter-spacing: -0.02em;">
+                        {{ analysis.confidence }}/100</div>
                 </div>
             </div>
             <div style="display: flex; align-items: center; gap: var(--space-4);">
-                <span id="regime-label" class="badge" style="display: none; font-size: 0.6875rem; padding: var(--space-2) var(--space-3);"></span>
+                <span id="regime-label" class="badge"
+                    style="display: none; font-size: 0.6875rem; padding: var(--space-2) var(--space-3);"></span>
                 <div class="progress" style="width: 200px;">
                     <div class="progress-bar" style="width: {{ analysis.confidence }}%;"></div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Portfolio Exposure Warnings -->
+    <div id="exposure-warnings" style="display: none; margin-bottom: var(--space-6);"></div>
 
     <!-- Price Chart -->
     <div class="card" style="margin-bottom: var(--space-6);">
@@ -54,17 +64,71 @@
         <div style="position: relative; height: 300px;">
             <canvas id="price-chart"></canvas>
         </div>
-        <div id="chart-loading" style="text-align: center; padding: var(--space-6); color: var(--text-muted); font-size: 0.875rem;">Loading chart data...</div>
+        <div id="chart-loading"
+            style="text-align: center; padding: var(--space-6); color: var(--text-muted); font-size: 0.875rem;">Loading
+            chart data...</div>
     </div>
 
-    <!-- Recommendation -->
+    <!-- Bull/Bear Cases -->
+    <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-6); margin-bottom: var(--space-6);">
+        <div class="card" style="border-left: 3px solid #6bba7e;">
+            <h3
+                style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3); color: #6bba7e;">
+                <span class="status-dot" style="background: #6bba7e;"></span>
+                Bull Case
+            </h3>
+            <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{
+                analysis.bull_case or 'No specific bull case extracted. See full recommendation below.' }}</div>
+        </div>
+
+        <div class="card" style="border-left: 3px solid #d47272;">
+            <h3
+                style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3); color: #d47272;">
+                <span class="status-dot" style="background: #d47272;"></span>
+                Bear Case
+            </h3>
+            <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{
+                analysis.bear_case or 'No specific bear case extracted. See full recommendation below.' }}</div>
+        </div>
+    </div>
+
+    <!-- Recommendation (Synthesis/Fallback) -->
     <div class="card" style="margin-bottom: var(--space-6);">
         <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
             <span class="status-dot" style="background: var(--text-muted);"></span>
-            Recommendation
+            Synthesis & Recommendation
         </h3>
-        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.recommendation or 'No recommendation available' }}</div>
+        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{
+            analysis.recommendation or 'No recommendation available' }}</div>
     </div>
+
+    <!-- Sources -->
+    {% if analysis.sources %}
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
+            <span class="status-dot" style="background: #d4a84b;"></span>
+            Sources & Citations
+        </h3>
+        <div class="sources-list"
+            style="white-space: pre-wrap; line-height: 1.7; font-size: 0.875rem; color: var(--highlight); background: rgba(0,0,0,0.2); padding: var(--space-4); border-radius: 4px; border: 1px solid var(--border);">
+            {{ analysis.sources }}</div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const sourcesDiv = document.querySelector('.sources-list');
+            if (sourcesDiv) {
+                let html = sourcesDiv.innerHTML;
+                const urlRegex = /(https?:\/\/[^\s<]+)/g;
+                html = html.replace(urlRegex, function (url) {
+                    return '<a href="' + url + '" target="_blank" style="color: #6bba7e; text-decoration: underline;">' + url + '</a>';
+                });
+                sourcesDiv.innerHTML = html;
+            }
+        });
+    </script>
+    {% endif %}
 
     <!-- News -->
     {% if analysis.news %}
@@ -73,7 +137,8 @@
             <span class="status-dot" style="background: var(--text-primary);"></span>
             News Analysis
         </h3>
-        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.news }}</div>
+        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{
+            analysis.news }}</div>
     </div>
     {% endif %}
 
@@ -84,7 +149,28 @@
             <span class="status-dot" style="background: var(--text-primary);"></span>
             Fundamental Analysis
         </h3>
-        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.fundamental }}</div>
+        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{
+            analysis.fundamental }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Follow The Money -->
+    {% if analysis.insider_sentiment %}
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
+            <span class="status-dot" style="background: var(--text-primary);"></span>
+            Follow The Money (Insider Activity)
+        </h3>
+        <div style="font-size: 0.9375rem; color: var(--text-secondary);">
+            <strong>Net Signal:</strong>
+            {% if 'BULL' in analysis.insider_sentiment %}
+            <span style="color: #6bba7e; font-weight: 500;">{{ analysis.insider_sentiment }}</span>
+            {% elif 'BEAR' in analysis.insider_sentiment %}
+            <span style="color: #d47272; font-weight: 500;">{{ analysis.insider_sentiment }}</span>
+            {% else %}
+            <span>{{ analysis.insider_sentiment }}</span>
+            {% endif %}
+        </div>
     </div>
     {% endif %}
 
@@ -95,7 +181,8 @@
             <span class="status-dot" style="background: var(--text-primary);"></span>
             Technical Analysis
         </h3>
-        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.technical }}</div>
+        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{
+            analysis.technical }}</div>
     </div>
     {% endif %}
 
@@ -115,9 +202,12 @@
         </h3>
 
         <!-- Summary metrics -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-4);">
+        <div
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-4);">
             <div>
-                <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em;">Trust Score</div>
+                <div
+                    style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em;">
+                    Trust Score</div>
                 <div style="font-family: var(--font-display); font-size: 1.5rem; color:
                     {% if crosscheck.trust_score and crosscheck.trust_score >= 0.8 %}#6bba7e
                     {% elif crosscheck.trust_score and crosscheck.trust_score >= 0.5 %}#d4a84b
@@ -126,13 +216,17 @@
                 </div>
             </div>
             <div>
-                <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em;">Accuracy</div>
+                <div
+                    style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em;">
+                    Accuracy</div>
                 <div style="font-family: var(--font-display); font-size: 1.5rem;">
                     {{ "%.0f"|format((crosscheck.accuracy or 0) * 100) }}%
                 </div>
             </div>
             <div>
-                <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em;">Claims Verified</div>
+                <div
+                    style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em;">
+                    Claims Verified</div>
                 <div style="font-family: var(--font-display); font-size: 1.5rem;">
                     {{ crosscheck.claims_verified or 0 }} / {{ crosscheck.claims_found or 0 }}
                 </div>
@@ -141,7 +235,8 @@
 
         <!-- Warning -->
         {% if crosscheck.warning %}
-        <div style="background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); border-radius: 6px; padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); font-size: 0.875rem; color: #d47272;">
+        <div
+            style="background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); border-radius: 6px; padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); font-size: 0.875rem; color: #d47272;">
             {{ crosscheck.warning }}
         </div>
         {% endif %}
@@ -151,10 +246,15 @@
         <table style="width: 100%; border-collapse: collapse; font-size: 0.8125rem;">
             <thead>
                 <tr style="border-bottom: 1px solid var(--border);">
-                    <th style="text-align: left; padding: var(--space-2); color: var(--text-muted); font-weight: 500;">Metric</th>
-                    <th style="text-align: right; padding: var(--space-2); color: var(--text-muted); font-weight: 500;">AI Value</th>
-                    <th style="text-align: right; padding: var(--space-2); color: var(--text-muted); font-weight: 500;">Actual</th>
-                    <th style="text-align: center; padding: var(--space-2); color: var(--text-muted); font-weight: 500;">Status</th>
+                    <th style="text-align: left; padding: var(--space-2); color: var(--text-muted); font-weight: 500;">
+                        Metric</th>
+                    <th style="text-align: right; padding: var(--space-2); color: var(--text-muted); font-weight: 500;">
+                        AI Value</th>
+                    <th style="text-align: right; padding: var(--space-2); color: var(--text-muted); font-weight: 500;">
+                        Actual</th>
+                    <th
+                        style="text-align: center; padding: var(--space-2); color: var(--text-muted); font-weight: 500;">
+                        Status</th>
                 </tr>
             </thead>
             <tbody>
@@ -196,7 +296,8 @@
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <h3 style="margin: 0 0 var(--space-1) 0;">AI Fact-Check</h3>
-                <p style="margin: 0; font-size: 0.8125rem; color: var(--text-muted);">Verify AI claims against live market data</p>
+                <p style="margin: 0; font-size: 0.8125rem; color: var(--text-muted);">Verify AI claims against live
+                    market data</p>
             </div>
             <button onclick="runCrosscheck({{ analysis.id }})" class="btn btn-ghost" id="cc-btn">
                 Run Cross-Check
@@ -205,22 +306,22 @@
         <div id="cc-result" style="display: none; margin-top: var(--space-4);"></div>
     </div>
     <script>
-    async function runCrosscheck(analysisId) {
-        const btn = document.getElementById('cc-btn');
-        btn.disabled = true;
-        btn.textContent = 'Checking...';
-        try {
-            const resp = await fetch('/api/crosscheck/' + analysisId, {method: 'POST'});
-            const data = await resp.json();
-            if (data.success) {
-                location.reload();
-            } else {
-                btn.textContent = data.error || 'Failed';
+        async function runCrosscheck(analysisId) {
+            const btn = document.getElementById('cc-btn');
+            btn.disabled = true;
+            btn.textContent = 'Checking...';
+            try {
+                const resp = await fetch('/api/crosscheck/' + analysisId, { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    location.reload();
+                } else {
+                    btn.textContent = data.error || 'Failed';
+                }
+            } catch (e) {
+                btn.textContent = 'Error';
             }
-        } catch(e) {
-            btn.textContent = 'Error';
         }
-    }
     </script>
     {% endif %}
 </div>
@@ -228,6 +329,27 @@
 
 {% block extra_scripts %}
 <script>
+    // Portfolio Exposure Check
+    fetch('/api/portfolio/exposure/{{ analysis.ticker }}')
+        .then(r => r.json())
+        .then(data => {
+            if (data && data.warnings && data.warnings.length > 0) {
+                const container = document.getElementById('exposure-warnings');
+                container.style.display = 'block';
+
+                let html = '<div style="background: rgba(212,114,114,0.1); border: 1px solid rgba(212,114,114,0.3); border-radius: 6px; padding: var(--space-4);">';
+                html += '<h3 style="margin: 0 0 var(--space-2) 0; color: #d47272; font-size: 0.9375rem; display: flex; align-items: center; gap: var(--space-2);"><span class="status-dot" style="background: #d47272;"></span> Portfolio Exposure Risk</h3>';
+                html += '<ul style="margin: 0; padding-left: var(--space-4); color: var(--text-secondary); font-size: 0.875rem; line-height: 1.6;">';
+                data.warnings.forEach(warning => {
+                    html += `<li style="margin-bottom: var(--space-1);">${warning}</li>`;
+                });
+                html += '</ul></div>';
+
+                container.innerHTML = html;
+            }
+        })
+        .catch(() => { });
+
     // Market Regime Label
     fetch('/api/market-regime')
         .then(r => r.json())
@@ -246,7 +368,7 @@
             label.style.color = c.color;
             label.style.border = '1px solid ' + c.border;
         })
-        .catch(() => {});
+        .catch(() => { });
 
     // Price Chart
     fetch('/api/chart-data/{{ analysis.ticker }}')

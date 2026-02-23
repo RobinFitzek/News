@@ -323,6 +323,47 @@ async def dashboard(request: Request, username: str = Depends(require_auth)):
         print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Dashboard error: {str(e)}")
 
+# ==================== SYSTEM HEALTH ====================
+
+@app.get("/api/health")
+async def api_health(username: str = Depends(require_auth)):
+    """System health monitor endpoint for the dashboard widget"""
+    from engine.health_monitor import health_monitor
+    try:
+        return health_monitor.get_full_health_report()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== SIGNAL ACCURACY ====================
+
+@app.get("/api/signal-accuracy")
+async def api_signal_accuracy(username: str = Depends(require_auth)):
+    """Provides accuracy and breakdown of predictive signals."""
+    from engine.signal_grader import signal_grader
+    try:
+        return {
+            "by_signal": signal_grader.get_accuracy_by_signal(),
+            "monthly_trend": signal_grader.get_accuracy_by_month(),
+            "weight_recommendations": signal_grader.get_weight_recommendations()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== AUTO PAPER TRADING ====================
+
+@app.get("/api/paper-trading/auto")
+async def api_auto_paper_trading(username: str = Depends(require_auth)):
+    """Provides automated paper trading tracking."""
+    from engine.auto_paper_trader import auto_paper_trader
+    try:
+        return {
+            "summary": auto_paper_trader.get_performance_summary(),
+            "open_positions": auto_paper_trader.get_open_positions(),
+            "should_trust": auto_paper_trader.should_trust_signals()
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ==================== TRUST OVERVIEW ====================
 
 @app.get("/trust", response_class=HTMLResponse)
@@ -2725,6 +2766,22 @@ async def api_portfolio_correlation(request: Request, username: str = Depends(re
         return {"error": str(e)}
 
 
+@app.get("/api/portfolio/exposure/{ticker}")
+async def api_portfolio_exposure(ticker: str, request: Request, username: str = Depends(require_auth)):
+    """Check how a specific ticker correlates with the user's existing portfolio."""
+    try:
+        from engine.portfolio_manager import portfolio_manager
+        portfolio_status = portfolio_manager.check_all_rules()
+        enriched_holdings = portfolio_status.get('holdings', [])
+        
+        from engine.correlation_analyzer import correlation_analyzer
+        exposure = correlation_analyzer.check_new_ticker_exposure(ticker.upper(), enriched_holdings)
+        return exposure
+    except Exception as e:
+        return {"error": str(e), "warnings": [], "max_correlation": 0}
+
+
+
 @app.get("/api/portfolio/rebalancing-plan")
 async def api_portfolio_rebalancing_plan(request: Request, username: str = Depends(require_auth)):
     """Generate concrete rebalancing execution plan with specific share counts."""
@@ -3193,6 +3250,16 @@ async def api_sector_screen(request: Request, username: str = Depends(require_au
         'contrarian': contrarian,
         'generated_at': datetime.now().isoformat(),
     }
+
+
+# ==================== DATA FRESHNESS ====================
+
+@app.get("/api/data-freshness")
+async def api_data_freshness(request: Request, username: str = Depends(require_auth)):
+    """Get data freshness summary — detects stale yfinance data."""
+    from engine.data_freshness import data_freshness
+    summary = data_freshness.get_freshness_summary()
+    return summary
 
 
 # Entry point

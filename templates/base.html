@@ -268,8 +268,7 @@
                             </svg>
                             Settings
                         </a>
-                        <a href="/logs"
-                            class="nav-dropdown-item {% if request.url.path == '/logs' %}active{% endif %}">
+                        <a href="/logs" class="nav-dropdown-item {% if request.url.path == '/logs' %}active{% endif %}">
                             <svg class="icon-svg" viewBox="0 0 24 24">
                                 <polyline points="4 17 10 11 4 5" />
                                 <line x1="12" y1="19" x2="20" y2="19" />
@@ -299,6 +298,81 @@
     <script src="/static/js/liquid-glass.js"></script>
     <script src="/static/js/dashboard.js"></script>
 
+    <!-- Copy to clipboard utility + toast -->
+    <style>
+        .copy-toast {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(100%);
+            background: var(--bg-tertiary, #1a1a1e);
+            color: var(--text-primary, #eee);
+            font-size: 0.75rem;
+            font-family: var(--font-mono, monospace);
+            padding: 6px 16px;
+            border: 1px solid var(--border-light, rgba(255, 255, 255, .18));
+            z-index: 10000;
+            pointer-events: none;
+            opacity: 0;
+            transition: transform .25s cubic-bezier(.34, 1.56, .64, 1), opacity .25s ease
+        }
+
+        .copy-toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1
+        }
+    </style>
+    <div class="copy-toast" id="copy-toast"></div>
+    <script>
+        (function () {
+            var toast = document.getElementById('copy-toast');
+            var hideTimer = null;
+
+            window.copyToClipboard = function (text, label) {
+                navigator.clipboard.writeText(text).then(function () {
+                    toast.textContent = (label || text) + ' copied';
+                    toast.classList.add('show');
+                    clearTimeout(hideTimer);
+                    hideTimer = setTimeout(function () { toast.classList.remove('show'); }, 1500);
+                }).catch(function () {
+                    // Fallback for older browsers
+                    var ta = document.createElement('textarea');
+                    ta.value = text;
+                    ta.style.position = 'fixed';
+                    ta.style.opacity = '0';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+                    toast.textContent = (label || text) + ' copied';
+                    toast.classList.add('show');
+                    clearTimeout(hideTimer);
+                    hideTimer = setTimeout(function () { toast.classList.remove('show'); }, 1500);
+                });
+            };
+
+            // data-copy attribute: click to copy
+            document.addEventListener('click', function (e) {
+                var el = e.target.closest('[data-copy]');
+                if (el) {
+                    e.preventDefault();
+                    copyToClipboard(el.getAttribute('data-copy'), el.getAttribute('data-copy'));
+                }
+            });
+
+            // Double-click on ticker-tag elements to copy
+            document.addEventListener('dblclick', function (e) {
+                var el = e.target.closest('.ticker-tag, [data-ticker]');
+                if (el) {
+                    var ticker = el.getAttribute('data-ticker') || el.textContent.trim().split(/\s/)[0];
+                    if (ticker && ticker.length <= 6) {
+                        copyToClipboard(ticker.toUpperCase());
+                    }
+                }
+            });
+        })();
+    </script>
+
     <!-- Nav status pill — live AJAX update -->
     <script>
         (function () {
@@ -312,18 +386,19 @@
                     .then(function (data) {
                         if (!data) return;
                         var s = data.scheduler || {};
+                        var marketLabel = s.is_market_open ? ' · Open' : ' · Closed';
                         if (s.is_scanning) {
                             dot.className = 'nav-status-dot scanning';
-                            txt.textContent = 'Scanning';
+                            txt.textContent = 'Scanning' + marketLabel;
                         } else if (s.is_running) {
                             dot.className = 'nav-status-dot running';
-                            txt.textContent = 'Running';
+                            txt.textContent = 'Running' + marketLabel;
                         } else {
                             dot.className = 'nav-status-dot stopped';
                             txt.textContent = 'Stopped';
                         }
                     })
-                    .catch(function () {});
+                    .catch(function () { });
             }
 
             updateNavStatus();
@@ -332,33 +407,148 @@
     </script>
 
     <!-- Global keyboard navigation -->
+    <style>
+        .kbd-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0, 0, 0, .7);
+            backdrop-filter: blur(8px)
+        }
+
+        .kbd-overlay.open {
+            display: flex
+        }
+
+        .kbd-panel {
+            background: var(--bg-primary, #111);
+            border: 1px solid rgba(255, 255, 255, .12);
+            padding: 2rem 2.5rem;
+            max-width: 460px;
+            width: 90%
+        }
+
+        .kbd-panel h3 {
+            margin: 0 0 1.25rem;
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--text-primary, #eee);
+            letter-spacing: .04em
+        }
+
+        .kbd-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: .4rem 0;
+            font-size: .8125rem;
+            color: var(--text-secondary, #aaa)
+        }
+
+        .kbd-row kbd {
+            display: inline-block;
+            padding: 2px 7px;
+            background: rgba(255, 255, 255, .08);
+            border: 1px solid rgba(255, 255, 255, .15);
+            border-radius: 3px;
+            font-family: var(--font-mono, monospace);
+            font-size: .75rem;
+            color: var(--text-primary, #eee);
+            min-width: 22px;
+            text-align: center
+        }
+
+        .kbd-row .kbd-sep {
+            margin: 0 2px;
+            color: var(--text-muted, #666)
+        }
+
+        .kbd-divider {
+            border: 0;
+            border-top: 1px solid rgba(255, 255, 255, .08);
+            margin: .6rem 0
+        }
+    </style>
+
+    <!-- Help overlay -->
+    <div class="kbd-overlay" id="kbd-overlay" onclick="if(event.target===this)this.classList.remove('open')">
+        <div class="kbd-panel">
+            <h3>Keyboard Shortcuts</h3>
+            <div class="kbd-row"><span>Dashboard</span><span><kbd>g</kbd><span
+                        class="kbd-sep">→</span><kbd>d</kbd></span></div>
+            <div class="kbd-row"><span>Watchlist</span><span><kbd>g</kbd><span
+                        class="kbd-sep">→</span><kbd>w</kbd></span></div>
+            <div class="kbd-row"><span>Portfolio</span><span><kbd>g</kbd><span
+                        class="kbd-sep">→</span><kbd>p</kbd></span></div>
+            <div class="kbd-row"><span>Settings</span><span><kbd>g</kbd><span
+                        class="kbd-sep">→</span><kbd>s</kbd></span></div>
+            <div class="kbd-row"><span>Journal</span><span><kbd>g</kbd><span class="kbd-sep">→</span><kbd>j</kbd></span>
+            </div>
+            <div class="kbd-row"><span>Learning</span><span><kbd>g</kbd><span
+                        class="kbd-sep">→</span><kbd>l</kbd></span></div>
+            <div class="kbd-row"><span>Compare</span><span><kbd>g</kbd><span class="kbd-sep">→</span><kbd>c</kbd></span>
+            </div>
+            <div class="kbd-row"><span>History</span><span><kbd>g</kbd><span class="kbd-sep">→</span><kbd>h</kbd></span>
+            </div>
+            <hr class="kbd-divider">
+            <div class="kbd-row"><span>Search / Analyze</span><span><kbd>/</kbd></span></div>
+            <div class="kbd-row"><span>Show shortcuts</span><span><kbd>?</kbd></span></div>
+            <div class="kbd-row"><span>Close overlay</span><span><kbd>Esc</kbd></span></div>
+        </div>
+    </div>
+
     <script>
-        document.addEventListener('keydown', function(e) {
-            var tag = e.target.tagName;
-            if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target.isContentEditable) return;
-            if (e.ctrlKey || e.metaKey || e.altKey) return;
-            switch (e.key) {
-                case '/':
+        (function () {
+            var gPending = false, gTimer = null;
+            var overlay = document.getElementById('kbd-overlay');
+            var NAV = { d: '/', w: '/watchlist', p: '/portfolio', s: '/settings', j: '/journal', l: '/learning', c: '/stock/compare', h: '/history' };
+
+            document.addEventListener('keydown', function (e) {
+                var tag = e.target.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+                if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+                // Escape — close overlay
+                if (e.key === 'Escape') {
+                    if (overlay) overlay.classList.remove('open');
+                    return;
+                }
+
+                // ? — toggle help
+                if (e.key === '?') {
                     e.preventDefault();
-                    window.location.href = '/analyze';
-                    break;
-                case 'd':
-                    window.location.href = '/';
-                    break;
-                case 'w':
-                    window.location.href = '/watchlist';
-                    break;
-                case 'p':
-                    window.location.href = '/portfolio';
-                    break;
-                case 'j':
-                    window.location.href = '/journal';
-                    break;
-                case 'h':
-                    window.location.href = '/history';
-                    break;
-            }
-        });
+                    if (overlay) overlay.classList.toggle('open');
+                    return;
+                }
+
+                // / — focus search input
+                if (e.key === '/') {
+                    e.preventDefault();
+                    var input = document.querySelector('input[name="ticker"]');
+                    if (input) { input.focus(); input.select(); }
+                    else window.location.href = '/analyze';
+                    return;
+                }
+
+                // g+key navigation
+                if (gPending) {
+                    gPending = false;
+                    clearTimeout(gTimer);
+                    var dest = NAV[e.key];
+                    if (dest) { e.preventDefault(); window.location.href = dest; }
+                    return;
+                }
+
+                if (e.key === 'g') {
+                    gPending = true;
+                    gTimer = setTimeout(function () { gPending = false; }, 500);
+                    return;
+                }
+            });
+        })();
     </script>
 
     {% block extra_scripts %}{% endblock %}

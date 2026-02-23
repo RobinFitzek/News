@@ -6610,3 +6610,4 @@ sqlite3.OperationalError: table earnings_calendar has no column named fetched_at
 2026-02-20 16:55:29 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
 2026-02-20 16:55:52 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
 2026-02-20 16:56:00 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
+2026-02-22 21:45:24 - root - INFO - Logging initialized

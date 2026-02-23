@@ -170,7 +170,31 @@ class DailyPipeline:
                     break
 
                 try:
+                    # Feature 7: Fetch Insider Activity (Follow The Money)
+                    try:
+                        from engine.insider_tracker import insider_tracker
+                        candidate['insider_activity'] = insider_tracker.get_insider_analysis(candidate['ticker'])
+                    except Exception as e:
+                        self.logger.warning(f"Could not fetch insider activity for {candidate['ticker']}: {e}")
+                        candidate['insider_activity'] = {}
+
                     final = swarm.stage3_synthesize(candidate, variant)
+
+                    # Feature 5: Risk Profiling
+                    try:
+                        from engine.risk_profiler import risk_profiler
+                        final['risk_profile'] = risk_profiler.calculate_risk_profile(final['ticker'])
+                    except Exception as e:
+                        self.logger.warning(f"Could not calculate risk profile for {final['ticker']}: {e}")
+                        final['risk_profile'] = "Unknown Risk"
+
+                    # Serialize Insider Sentiment for DB
+                    activity = final.get('insider_activity', {})
+                    if activity and activity.get('has_activity'):
+                        final['insider_sentiment'] = activity.get('summary', {}).get('net_signal', 'Unknown')
+                    else:
+                        final['insider_sentiment'] = "No Recent Activity"
+
                     final_reports.append(final)
 
                     try:

@@ -325,15 +325,26 @@ class QuantScreener:
         Returns (info_dict, from_cache) where from_cache=True means stale DB data was used.
         """
         import time as _time
+        try:
+            from engine.data_freshness import data_freshness as _freshness
+        except Exception:
+            _freshness = None
+
         for attempt in range(retries + 1):
             try:
                 info = yf.Ticker(ticker).info
                 if info and len(info) >= 3:
+                    if _freshness:
+                        _freshness.record_success(ticker)
                     return info, False
             except Exception as e:
                 logger.warning(f"yfinance info attempt {attempt+1} failed for {ticker}: {e}")
             if attempt < retries:
                 _time.sleep(delay)
+
+        # All retries exhausted — record failure
+        if _freshness:
+            _freshness.record_failure(ticker, 'All yfinance retries exhausted')
 
         # All retries failed — fall back to last DB snapshot
         try:
@@ -364,7 +375,8 @@ class QuantScreener:
         return {}, False
 
     def _get_stock_data(self, ticker: str) -> Optional[Dict]:
-        """Fetch and cache stock info + 1yr history. Uses retry wrapper with DB fallback."""
+        """Fetch and cache stock info + 1yr history. Uses retry wrapper with DB fallback,
+        then API fallback chain if all yfinance retries exhausted."""
         cache_key = ticker
         if cache_key in self._stock_cache:
             entry = self._stock_cache[cache_key]
@@ -373,8 +385,21 @@ class QuantScreener:
 
         try:
             info, from_cache = self._fetch_yfinance_info(ticker)
+
+            # If yfinance failed entirely, try fallback chain
+            if not info:
+                try:
+                    from engine.api_fallback import api_fallback
+                    info, source = api_fallback.get_stock_info(ticker, retries=1)
+                    if info:
+                        from_cache = True  # Fallback data is partial
+                        logger.info(f"Using API fallback ({source}) for {ticker}")
+                except Exception:
+                    pass
+
             if not info:
                 return None
+
             stock = yf.Ticker(ticker)
             hist = stock.history(period="1y")
             data = {'info': info, 'hist': hist, 'data_stale': from_cache}

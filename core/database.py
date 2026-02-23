@@ -135,9 +135,31 @@ class Database:
                 recommendation TEXT,
                 signal TEXT,
                 confidence INTEGER,
-                risk_score INTEGER DEFAULT 5
+                risk_score INTEGER DEFAULT 5,
+                bull_case TEXT,
+                bear_case TEXT,
+                sources TEXT,
+                risk_profile TEXT,
+                insider_sentiment TEXT
             )
         """)
+        
+        # Migrate analysis_history: add new columns if missing
+        cursor.execute("PRAGMA table_info(analysis_history)")
+        ah_cols = {row['name'] for row in cursor.fetchall()}
+        ah_migrations = [
+            ("bull_case", "TEXT"),
+            ("bear_case", "TEXT"),
+            ("sources", "TEXT"),
+            ("risk_profile", "TEXT"),
+            ("insider_sentiment", "TEXT"),
+        ]
+        for col_name, col_type in ah_migrations:
+            if col_name not in ah_cols:
+                try:
+                    cursor.execute(f"ALTER TABLE analysis_history ADD COLUMN {col_name} {col_type}")
+                except Exception:
+                    pass
         
         # Alerts sent
         cursor.execute("""
@@ -983,8 +1005,8 @@ class Database:
 
                 cursor.execute("""
                     INSERT INTO analysis_history
-                    (ticker, news, fundamental, technical, recommendation, signal, confidence, risk_score)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (ticker, news, fundamental, technical, recommendation, signal, confidence, risk_score, bull_case, bear_case, sources, risk_profile, insider_sentiment)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     ticker,
                     str(results.get('news', ''))[:10000],  # Limit length
@@ -993,7 +1015,12 @@ class Database:
                     str(results.get('recommendation', ''))[:10000],
                     signal,
                     confidence,
-                    results.get('risk_score', 5)
+                    results.get('risk_score', 5),
+                    str(results.get('bull_case', ''))[:5000],
+                    str(results.get('bear_case', ''))[:5000],
+                    str(results.get('sources', ''))[:5000],
+                    str(results.get('risk_profile', 'Unknown'))[:100],
+                    str(results.get('insider_sentiment', ''))[:1000]
                 ))
 
                 analysis_id = cursor.lastrowid

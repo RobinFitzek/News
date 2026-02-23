@@ -78,7 +78,8 @@
             <div class="sys-sep"></div>
             <div class="sys-status-item">
                 {% set pending = (discovery_stats.total_new|default(0)) + (discovery_stats.total_screened|default(0)) %}
-                <span class="sys-value" {% if pending > 0 %}style="color: var(--signal-warning);"{% endif %}>{{ pending }}</span>
+                <span class="sys-value" {% if pending> 0 %}style="color: var(--signal-warning);"{% endif %}>{{ pending
+                    }}</span>
                 <span class="sys-label">pending review</span>
             </div>
             {% endif %}
@@ -86,14 +87,24 @@
             {% if learning_stats.total_verified > 0 %}
             <div class="sys-sep"></div>
             <div class="sys-status-item">
-                <span class="sys-value"
-                    {% if learning_stats.hit_rate >= 60 %}style="color: var(--signal-positive);"
-                    {% elif learning_stats.hit_rate < 50 %}style="color: var(--signal-negative);"{% endif %}>
-                    {{ learning_stats.hit_rate }}%
+                <span class="sys-value" {% if learning_stats.hit_rate>= 60 %}style="color: var(--signal-positive);"
+                    {% elif learning_stats.hit_rate < 50 %}style="color: var(--signal-negative);" {% endif %}>
+                        {{ learning_stats.hit_rate }}%
                 </span>
                 <span class="sys-label">AI accuracy</span>
             </div>
             {% endif %}
+
+            <div class="sys-sep"></div>
+            <div class="sys-status-item" id="data-freshness-pill" style="display: none;">
+                <span id="data-freshness-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px;"></span>
+            </div>
+
+            <div class="sys-sep"></div>
+            <div class="sys-status-item" id="sys-health-pill" title="System Health"
+                style="cursor: help; display: none;">
+                <span id="sys-health-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px;"></span>
+            </div>
         </div>
 
         <div class="sys-status-actions">
@@ -117,7 +128,7 @@
                 <button type="button" class="btn btn-secondary sys-btn" disabled>Scanning…</button>
                 {% else %}
                 <button type="submit" class="btn btn-primary sys-btn">
-                    <svg class="icon-svg" viewBox="0 0 24 24">
+                    <svg class="icon-svg svg-animated" viewBox="0 0 24 24">
                         <circle cx="11" cy="11" r="8" />
                         <line x1="21" y1="21" x2="16.65" y2="16.65" />
                     </svg>
@@ -133,10 +144,12 @@
     <div class="dash-primary-row">
         <!-- Market Regime (AJAX) -->
         <div id="regime-card" class="card" style="display: none; margin-bottom: 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-3);">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-3);">
                 <div style="display: flex; align-items: center; gap: var(--space-3);">
                     <h3 style="margin: 0;">Market Regime</h3>
-                    <span id="regime-badge" class="badge" style="font-size: 0.75rem; padding: var(--space-2) var(--space-4);"></span>
+                    <span id="regime-badge" class="badge"
+                        style="font-size: 0.75rem; padding: var(--space-2) var(--space-4);"></span>
                 </div>
                 <div id="regime-updated" style="font-size: 0.6875rem; color: var(--text-muted);"></div>
             </div>
@@ -162,7 +175,8 @@
 
         <!-- Portfolio vs SPY (AJAX) -->
         <div id="benchmark-card" class="card" style="display: none; margin-bottom: 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4); flex-wrap: wrap; gap: var(--space-3);">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4); flex-wrap: wrap; gap: var(--space-3);">
                 <div>
                     <h3 style="margin: 0 0 var(--space-1) 0;">Portfolio vs SPY</h3>
                     <p style="margin: 0; font-size: var(--text-sm);" id="benchmark-subtitle">Beating the market?</p>
@@ -193,10 +207,9 @@
     <div class="dash-intel-strip">
         {% if learning_stats.total_verified > 0 %}
         <div class="intel-metric">
-            <div class="intel-value"
-                {% if learning_stats.hit_rate >= 60 %}style="color: var(--signal-positive);"
-                {% elif learning_stats.hit_rate < 50 %}style="color: var(--signal-negative);"{% endif %}>
-                {{ learning_stats.hit_rate }}%
+            <div class="intel-value" {% if learning_stats.hit_rate>= 60 %}style="color: var(--signal-positive);"
+                {% elif learning_stats.hit_rate < 50 %}style="color: var(--signal-negative);" {% endif %}>
+                    {{ learning_stats.hit_rate }}%
             </div>
             <div class="intel-label">AI Hit Rate</div>
         </div>
@@ -212,12 +225,14 @@
             <div class="intel-label">Discovered (7d)</div>
         </div>
         <div class="intel-metric">
-            <div class="intel-value" style="color: var(--signal-positive);">{{ discovery_stats.week_promoted|default(0) }}</div>
+            <div class="intel-value" style="color: var(--signal-positive);">{{ discovery_stats.week_promoted|default(0)
+                }}</div>
             <div class="intel-label">Promoted (7d)</div>
         </div>
         {% set pending = (discovery_stats.total_new|default(0)) + (discovery_stats.total_screened|default(0)) %}
         <div class="intel-metric">
-            <div class="intel-value" {% if pending > 0 %}style="color: var(--signal-warning);"{% endif %}>{{ pending }}</div>
+            <div class="intel-value" {% if pending> 0 %}style="color: var(--signal-warning);"{% endif %}>{{ pending }}
+            </div>
             <div class="intel-label">Pending Review</div>
         </div>
         {% endif %}
@@ -238,10 +253,12 @@
     <div class="dash-context-row">
         <!-- Sector Momentum (AJAX) -->
         <div id="sector-momentum-card" class="card" style="display: none; margin-bottom: 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-3);">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-3);">
                 <div>
                     <h3 style="margin: 0 0 var(--space-1) 0;">Sector Momentum</h3>
-                    <p style="margin: 0; font-size: var(--text-sm);" id="sector-momentum-subtitle">Which sectors are moving?</p>
+                    <p style="margin: 0; font-size: var(--text-sm);" id="sector-momentum-subtitle">Which sectors are
+                        moving?</p>
                 </div>
                 <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">
                     SPY: <span id="sector-spy-return" style="color: var(--text-primary);">—</span>
@@ -252,17 +269,21 @@
             </div>
             <div id="sector-rotation"
                 style="margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border-hairline); display: none;">
-                <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-2);">Rotation</div>
+                <div
+                    style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-2);">
+                    Rotation</div>
                 <div id="sector-rotation-content" style="font-size: 0.8125rem;"></div>
             </div>
         </div>
 
         <!-- Economic Calendar (AJAX) -->
         <div id="econ-calendar-card" class="card" style="display: none; margin-bottom: 0;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-3);">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-3);">
                 <div>
                     <h3 style="margin: 0 0 var(--space-1) 0;">Economic Calendar</h3>
-                    <p style="margin: 0; font-size: var(--text-sm);" id="econ-calendar-subtitle">Upcoming market-moving events</p>
+                    <p style="margin: 0; font-size: var(--text-sm);" id="econ-calendar-subtitle">Upcoming market-moving
+                        events</p>
                 </div>
                 <span id="econ-calendar-badge" class="badge" style="display: none;"></span>
             </div>
@@ -275,23 +296,27 @@
     {% if discovery_stats %}
     <div class="dash-section-label">Auto-Discovery</div>
     <div class="card" style="margin-bottom: var(--space-6);">
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-4);">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-4);">
             <div style="display: flex; align-items: center; gap: var(--space-3);">
                 <h3 style="margin: 0;">Auto-Discovery</h3>
                 {% if discovery_stats.enabled %}
                 <span class="badge badge-success">
-                    <span style="width: 5px; height: 5px; background: currentColor; border-radius: 50%; box-shadow: 0 0 6px currentColor;"></span>
+                    <span
+                        style="width: 5px; height: 5px; background: currentColor; border-radius: 50%; box-shadow: 0 0 6px currentColor;"></span>
                     Enabled
                 </span>
                 {% else %}
-                <span class="badge" style="background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid var(--border-hairline);">Disabled</span>
+                <span class="badge"
+                    style="background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid var(--border-hairline);">Disabled</span>
                 {% endif %}
             </div>
             <a href="/discoveries" class="btn btn-secondary">View All →</a>
         </div>
 
         {% if discovery_stats.last_run %}
-        <div style="padding: var(--space-3) var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); font-size: 0.75rem; color: var(--text-muted);">
+        <div
+            style="padding: var(--space-3) var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); font-size: 0.75rem; color: var(--text-muted);">
             <span>Last run:</span>
             <span style="color: var(--text-secondary); font-weight: 500;">{{ discovery_stats.last_run.run_type }}</span>
             <span style="margin: 0 var(--space-1);">at</span>
@@ -309,7 +334,8 @@
         </div>
         {% elif not discovery_stats.enabled %}
         <div style="font-size: 0.75rem; color: var(--text-muted);">
-            Enable auto-discovery in <a href="/settings" style="color: var(--text-secondary);">Settings</a> to automatically find new stock opportunities.
+            Enable auto-discovery in <a href="/settings" style="color: var(--text-secondary);">Settings</a> to
+            automatically find new stock opportunities.
         </div>
         {% endif %}
     </div>
@@ -319,7 +345,8 @@
 
     {% if top_picks_preview and top_picks_preview|length > 0 %}
     <div class="card" style="margin-bottom: var(--space-6);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
             <div>
                 <h3 style="margin: 0 0 var(--space-1) 0;">Top Picks</h3>
                 <p style="margin: 0; font-size: var(--text-sm);">Proven prediction accuracy</p>
@@ -329,21 +356,27 @@
         <div class="grid grid-3">
             {% for pick in top_picks_preview %}
             <div style="position: relative; padding: var(--space-6); background: var(--bg-secondary); border: 1px solid var(--border-hairline); text-align: center; transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);"
-                onmouseover="this.style.borderColor='rgba(255,255,255,0.15)';"
-                onmouseout="this.style.borderColor='';">
-                <div style="font-family: var(--font-mono); font-size: 1.125rem; font-weight: 500; color: var(--text-primary); margin-bottom: var(--space-3); letter-spacing: 0.04em;">
+                onmouseover="this.style.borderColor='rgba(255,255,255,0.15)';" onmouseout="this.style.borderColor='';">
+                <div
+                    style="font-family: var(--font-mono); font-size: 1.125rem; font-weight: 500; color: var(--text-primary); margin-bottom: var(--space-3); letter-spacing: 0.04em;">
                     {{ pick.ticker }}</div>
-                <div style="font-family: var(--font-body); font-size: 2.5rem; font-weight: 300; color: var(--text-primary); line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; margin-bottom: var(--space-1);">
+                <div
+                    style="font-family: var(--font-body); font-size: 2.5rem; font-weight: 300; color: var(--text-primary); line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; margin-bottom: var(--space-1);">
                     {{ pick.pick_score }}</div>
-                <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">Pick Score</div>
-                <div style="display: flex; justify-content: center; gap: var(--space-6); padding-top: var(--space-3); border-top: 1px solid var(--border-hairline);">
+                <div
+                    style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">
+                    Pick Score</div>
+                <div
+                    style="display: flex; justify-content: center; gap: var(--space-6); padding-top: var(--space-3); border-top: 1px solid var(--border-hairline);">
                     <div>
                         <div style="font-weight: 500; color: var(--text-primary);">{{ pick.accuracy }}%</div>
-                        <div style="font-size: 0.5625rem; color: var(--text-muted); letter-spacing: 0.06em;">Accuracy</div>
+                        <div style="font-size: 0.5625rem; color: var(--text-muted); letter-spacing: 0.06em;">Accuracy
+                        </div>
                     </div>
                     <div>
                         <div style="font-weight: 500; color: var(--text-primary);">{{ pick.total_predictions }}</div>
-                        <div style="font-size: 0.5625rem; color: var(--text-muted); letter-spacing: 0.06em;">Predictions</div>
+                        <div style="font-size: 0.5625rem; color: var(--text-muted); letter-spacing: 0.06em;">Predictions
+                        </div>
                     </div>
                 </div>
             </div>
@@ -355,39 +388,56 @@
     <!-- ─── PORTFOLIO ALERTS (AJAX) ──────────────────────── -->
 
     <div id="portfolio-alerts-container" class="card" style="margin-bottom: var(--space-6); display: none;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
             <div>
                 <h3 style="margin: 0 0 var(--space-1) 0;">Portfolio Alerts</h3>
                 <p style="margin: 0; font-size: var(--text-sm);" id="portfolio-alerts-subtitle"></p>
             </div>
             <a href="/portfolio" class="btn btn-secondary">View Portfolio</a>
         </div>
-        <div id="portfolio-benchmark" style="display: none; padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline); margin-bottom: var(--space-4);"></div>
+        <div id="portfolio-benchmark"
+            style="display: none; padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline); margin-bottom: var(--space-4);">
+        </div>
         <div id="portfolio-alerts-list"></div>
-        <div id="portfolio-rebalancing" style="display: none; margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border-hairline);"></div>
+        <div id="portfolio-rebalancing"
+            style="display: none; margin-top: var(--space-4); padding-top: var(--space-4); border-top: 1px solid var(--border-hairline);">
+        </div>
     </div>
 
     <!-- ─── ANALYTICS ROW (reality check + signal P&L) ─── -->
 
     <div class="dash-analytics-row">
         <!-- Reality Check (AJAX) -->
-        <div id="reality-check-card" class="card" style="display: none; margin-bottom: 0; border: 1px solid rgba(212,114,114,0.3);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-3);">
+        <div id="reality-check-card" class="card"
+            style="display: none; margin-bottom: 0; border: 1px solid rgba(212,114,114,0.3);">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-3);">
                 <div>
                     <h3 style="margin: 0 0 var(--space-1) 0;">Reality Check</h3>
-                    <p style="margin: 0; font-size: var(--text-sm);" id="reality-check-subtitle">Honest performance assessment</p>
+                    <p style="margin: 0; font-size: var(--text-sm);" id="reality-check-subtitle">Honest performance
+                        assessment</p>
                 </div>
                 <span id="reality-severity-badge" class="badge"></span>
             </div>
             <div class="grid grid-2" style="margin-bottom: var(--space-5);">
-                <div id="significance-box" style="padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
-                    <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-2);">Statistical Significance</div>
-                    <div id="significance-verdict" style="font-size: 0.9375rem; color: var(--text-primary); margin-bottom: var(--space-1);"></div>
+                <div id="significance-box"
+                    style="padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
+                    <div
+                        style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-2);">
+                        Statistical Significance</div>
+                    <div id="significance-verdict"
+                        style="font-size: 0.9375rem; color: var(--text-primary); margin-bottom: var(--space-1);"></div>
                     <div id="significance-details" style="font-size: 0.75rem; color: var(--text-muted);"></div>
                 </div>
-                <div id="drawdown-box" style="padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
-                    <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-2);">Max Drawdown</div>
-                    <div id="drawdown-value" style="font-family: var(--font-body); font-size: 1.75rem; font-weight: 300; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">—</div>
+                <div id="drawdown-box"
+                    style="padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
+                    <div
+                        style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-2);">
+                        Max Drawdown</div>
+                    <div id="drawdown-value"
+                        style="font-family: var(--font-body); font-size: 1.75rem; font-weight: 300; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;">
+                        —</div>
                     <div id="drawdown-details" style="font-size: 0.75rem; color: var(--text-muted);"></div>
                 </div>
             </div>
@@ -406,23 +456,62 @@
 
     <!-- Signal Expected Value (AJAX) -->
     <div id="signal-ev-card" class="card" style="margin-bottom: var(--space-6); display: none;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
             <div>
                 <h3 style="margin: 0 0 var(--space-1) 0;">Signal Expected Value</h3>
-                <p style="margin: 0; font-size: var(--text-sm);" id="signal-ev-subtitle">Would following signals make money?</p>
+                <p style="margin: 0; font-size: var(--text-sm);" id="signal-ev-subtitle">Would following signals make
+                    money?</p>
             </div>
             <span id="signal-ev-verdict" class="badge"></span>
         </div>
         <div class="grid grid-3" id="signal-ev-by-type" style="margin-bottom: var(--space-5);"></div>
-        <div id="signal-ev-best" style="padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline); font-size: 0.875rem; display: none;">
+        <div id="signal-ev-best"
+            style="padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline); font-size: 0.875rem; display: none;">
             <span style="color: var(--text-muted);">Best performing:</span>
             <span id="signal-ev-best-text" style="color: var(--text-primary); font-weight: 500;"></span>
         </div>
     </div>
 
+    <!-- Signal Accuracy / Win Rate (AJAX) -->
+    <div id="dash-signal-accuracy-card" class="card" style="margin-bottom: var(--space-6); display: none;">
+        <div style="margin-bottom: var(--space-4);">
+            <h3 style="margin: 0 0 var(--space-1) 0;">Signal Accuracy</h3>
+            <p style="margin: 0; font-size: var(--text-sm);">Win rate by signal type (30d returns)</p>
+        </div>
+        <div class="grid grid-4" id="dash-signal-accuracy-metrics"></div>
+    </div>
+
+    <!-- Auto Paper Trading (AJAX) -->
+    <div id="dash-auto-paper-card" class="card" style="margin-bottom: var(--space-6); display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Auto Paper Trading</h3>
+                <p style="margin: 0; font-size: var(--text-sm);">Simulated pipeline performance</p>
+            </div>
+            <span id="auto-paper-trust-badge" class="badge"></span>
+        </div>
+        <div class="grid grid-3" style="margin-bottom: var(--space-4);">
+            <div class="metric">
+                <div class="metric-value" id="auto-paper-pnl">--</div>
+                <div class="metric-label">Total Return</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="auto-paper-winrate">--</div>
+                <div class="metric-label">Win Rate</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="auto-paper-trades">--</div>
+                <div class="metric-label">Closed Trades</div>
+            </div>
+        </div>
+        <div id="auto-paper-open" style="font-size: 0.8125rem; color: var(--text-secondary);"></div>
+    </div>
+
     <!-- Confidence Calibration (AJAX) -->
     <div id="dash-calibration-card" class="card" style="margin-bottom: var(--space-6); display: none;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
             <div>
                 <h3 style="margin: 0 0 var(--space-1) 0;">Confidence Calibration</h3>
                 <p style="margin: 0; font-size: var(--text-sm);">Do confidence scores match reality?</p>
@@ -452,11 +541,13 @@
     {% if learning_stats.total_verified > 0 %}
     <div class="dash-section-label">System Performance</div>
     <div class="card" style="margin-bottom: var(--space-6);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
             <div>
                 <h3 style="margin: 0 0 var(--space-1) 0;">Learning Performance</h3>
                 <p style="margin: 0; font-size: var(--text-sm);">
-                    <span style="color: var(--text-primary); font-weight: 500;">{{ learning_stats.total_verified }}</span> predictions verified
+                    <span style="color: var(--text-primary); font-weight: 500;">{{ learning_stats.total_verified
+                        }}</span> predictions verified
                 </p>
             </div>
             <a href="/learning" class="btn btn-secondary">Details →</a>
@@ -480,16 +571,19 @@
             </div>
         </div>
         <div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2); font-size: 0.75rem;">
+            <div
+                style="display: flex; justify-content: space-between; margin-bottom: var(--space-2); font-size: 0.75rem;">
                 <span style="color: var(--text-muted);">Overall Accuracy</span>
-                <span style="color: var(--text-primary); font-weight: 500;">{{ (learning_stats.avg_accuracy * 100)|round(1) }}%</span>
+                <span style="color: var(--text-primary); font-weight: 500;">{{ (learning_stats.avg_accuracy *
+                    100)|round(1) }}%</span>
             </div>
             <div class="progress">
                 <div class="progress-bar" data-width="{{ (learning_stats.avg_accuracy * 100)|round(0) }}"></div>
             </div>
         </div>
         {% if learning_stats.health_warning %}
-        <div style="margin-top: var(--space-4); padding: var(--space-4); background: var(--signal-negative-bg); border: 1px solid var(--signal-negative); font-size: 0.8125rem; color: var(--text-secondary);">
+        <div
+            style="margin-top: var(--space-4); padding: var(--space-4); background: var(--signal-negative-bg); border: 1px solid var(--signal-negative); font-size: 0.8125rem; color: var(--text-secondary);">
             {{ learning_stats.health_warning }}
         </div>
         {% endif %}
@@ -504,7 +598,8 @@
         <div id="dividends-card" class="card" style="display: none; margin-bottom: 0;">
             <div style="margin-bottom: var(--space-4);">
                 <h3 style="margin: 0 0 var(--space-1) 0;">Upcoming Dividends</h3>
-                <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);" id="dividends-subtitle">Watchlist ex-dividend dates</p>
+                <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);" id="dividends-subtitle">
+                    Watchlist ex-dividend dates</p>
             </div>
             <div id="dividends-list"></div>
         </div>
@@ -513,12 +608,17 @@
         <div id="rs-ranking-card" class="card" style="display: none; margin-bottom: 0;">
             <div style="margin-bottom: var(--space-4);">
                 <h3 style="margin: 0 0 var(--space-1) 0;">Relative Strength</h3>
-                <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);" id="rs-subtitle">Watchlist ranked vs SPY</p>
+                <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);" id="rs-subtitle">Watchlist
+                    ranked vs SPY</p>
             </div>
             <div>
-                <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-2);">Leaders</div>
+                <div
+                    style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-2);">
+                    Leaders</div>
                 <div id="rs-top-list" style="margin-bottom: var(--space-4);"></div>
-                <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-2);">Laggards</div>
+                <div
+                    style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-2);">
+                    Laggards</div>
                 <div id="rs-bottom-list"></div>
             </div>
         </div>
@@ -527,7 +627,8 @@
         <div id="extended-hours-card" class="card" style="display: none; margin-bottom: 0;">
             <div style="margin-bottom: var(--space-4);">
                 <h3 style="margin: 0 0 var(--space-1) 0;">Extended Hours</h3>
-                <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);" id="extended-hours-subtitle">Pre/post-market moves</p>
+                <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);" id="extended-hours-subtitle">
+                    Pre/post-market moves</p>
             </div>
             <div id="extended-hours-list"></div>
         </div>
@@ -537,7 +638,8 @@
     <div id="week52-card" class="card" style="margin-bottom: var(--space-6); display: none;">
         <div style="margin-bottom: var(--space-4);">
             <h3 style="margin: 0 0 var(--space-1) 0;">52-Week Range</h3>
-            <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);">Proximity to 52-week highs and lows</p>
+            <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);">Proximity to 52-week highs and
+                lows</p>
         </div>
         <div id="week52-list" style="display: flex; flex-direction: column; gap: var(--space-3);"></div>
     </div>
@@ -555,10 +657,14 @@
             </div>
             {% if api_status.perplexity.is_configured %}
             <div style="text-align: center; margin-bottom: var(--space-3);">
-                <div style="font-size: 1.5rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;" id="perplexity-usage">
-                    {{ api_status.perplexity.used_today }}<span style="color: var(--text-muted); font-weight: 300;">/{{ api_status.perplexity.daily_limit }}</span>
+                <div style="font-size: 1.5rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;"
+                    id="perplexity-usage">
+                    {{ api_status.perplexity.used_today }}<span style="color: var(--text-muted); font-weight: 300;">/{{
+                        api_status.perplexity.daily_limit }}</span>
                 </div>
-                <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">Requests Today</div>
+                <div
+                    style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">
+                    Requests Today</div>
             </div>
             <div class="progress">
                 <div class="progress-bar" id="perplexity-progress"
@@ -579,10 +685,15 @@
             </div>
             {% if api_status.gemini.is_configured %}
             <div style="text-align: center; margin-bottom: var(--space-3);">
-                <div style="font-size: 1.5rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;" id="gemini-flash-usage">
-                    {{ api_status.gemini.flash.used_today }}<span style="color: var(--text-muted); font-weight: 300;">/{{ api_status.gemini.flash.daily_limit }}</span>
+                <div style="font-size: 1.5rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;"
+                    id="gemini-flash-usage">
+                    {{ api_status.gemini.flash.used_today }}<span
+                        style="color: var(--text-muted); font-weight: 300;">/{{ api_status.gemini.flash.daily_limit
+                        }}</span>
                 </div>
-                <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">Requests Today</div>
+                <div
+                    style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">
+                    Requests Today</div>
             </div>
             <div class="progress">
                 <div class="progress-bar" id="gemini-flash-progress"
@@ -602,10 +713,14 @@
             </div>
             {% if api_status.gemini.is_configured %}
             <div style="text-align: center; margin-bottom: var(--space-3);">
-                <div style="font-size: 1.5rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;" id="gemini-pro-usage">
-                    {{ api_status.gemini.pro.used_today }}<span style="color: var(--text-muted); font-weight: 300;">/{{ api_status.gemini.pro.daily_limit }}</span>
+                <div style="font-size: 1.5rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;"
+                    id="gemini-pro-usage">
+                    {{ api_status.gemini.pro.used_today }}<span style="color: var(--text-muted); font-weight: 300;">/{{
+                        api_status.gemini.pro.daily_limit }}</span>
                 </div>
-                <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">Requests Today</div>
+                <div
+                    style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">
+                    Requests Today</div>
             </div>
             <div class="progress">
                 <div class="progress-bar" id="gemini-pro-progress"
@@ -621,12 +736,18 @@
     <!-- Scheduled Jobs (if running) -->
     {% if scheduler_status.jobs %}
     <div class="card" style="margin-bottom: var(--space-6);">
-        <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">Scheduled Jobs</div>
+        <div
+            style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">
+            Scheduled Jobs</div>
         <div class="grid grid-3">
             {% for job in scheduler_status.jobs %}
-            <div style="padding: var(--space-3) var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
-                <div style="font-weight: 500; margin-bottom: var(--space-1); color: var(--text-primary); font-size: 0.875rem;">{{ job.name }}</div>
-                <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">{{ job.next_run }}</div>
+            <div
+                style="padding: var(--space-3) var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
+                <div
+                    style="font-weight: 500; margin-bottom: var(--space-1); color: var(--text-primary); font-size: 0.875rem;">
+                    {{ job.name }}</div>
+                <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">{{
+                    job.next_run }}</div>
             </div>
             {% endfor %}
         </div>
@@ -636,7 +757,8 @@
     <!-- ─── RECENT ANALYSES ───────────────────────────────── -->
 
     <div class="card" style="margin-bottom: var(--space-6);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
             <h3 style="margin: 0;">Recent Analyses</h3>
             <a href="/history" class="btn btn-secondary">View All</a>
         </div>
@@ -646,6 +768,7 @@
                 <thead>
                     <tr>
                         <th>Ticker</th>
+                        <th>Profile</th>
                         <th>Signal</th>
                         <th>Strength</th>
                         <th>Freshness</th>
@@ -662,28 +785,56 @@
                                 onmouseover="this.style.textDecoration='underline'"
                                 onmouseout="this.style.textDecoration='none'">{{ a.ticker }}</a>
                             {% if a.ticker in trusted_tickers %}
-                            <span style="display: inline-flex; align-items: center; margin-left: var(--space-2); padding: 2px 6px; background: rgba(255,255,255,0.06); color: var(--text-muted); font-size: 0.5625rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid var(--border-hairline);">Trusted</span>
+                            <span
+                                style="display: inline-flex; align-items: center; margin-left: var(--space-2); padding: 2px 6px; background: rgba(255,255,255,0.06); color: var(--text-muted); font-size: 0.5625rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid var(--border-hairline);">Trusted</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% set risk = a.risk_profile|default('Unknown') %}
+                            {% if risk == 'Blue Chip' or risk == 'High Growth' %}
+                            <span class="badge"
+                                style="background: rgba(107,186,126,0.15); color: #6bba7e; border: 1px solid rgba(107,186,126,0.3); font-size: 0.625rem;">{{
+                                risk }}</span>
+                            {% elif 'Value' in risk or risk == 'Moderate Risk' %}
+                            <span class="badge"
+                                style="background: rgba(212,168,75,0.15); color: #d4a84b; border: 1px solid rgba(212,168,75,0.3); font-size: 0.625rem;">{{
+                                risk }}</span>
+                            {% elif risk == 'Speculative' %}
+                            <span class="badge"
+                                style="background: rgba(212,114,114,0.15); color: #d47272; border: 1px solid rgba(212,114,114,0.3); font-size: 0.625rem;">{{
+                                risk }}</span>
+                            {% else %}
+                            <span class="badge"
+                                style="background: rgba(255,255,255,0.06); color: var(--text-muted); font-size: 0.625rem;">{{
+                                risk }}</span>
                             {% endif %}
                         </td>
                         <td><span class="signal-text signal-{{ a.signal|lower }}">{{ a.signal }}</span></td>
-                        <td><span style="font-family: var(--font-mono); font-weight: 500;">{{ a.confidence }}/100</span></td>
+                        <td><span style="font-family: var(--font-mono); font-weight: 500;">{{ a.confidence }}/100</span>
+                        </td>
                         <td>
                             {% set level = a.staleness_level|default('fresh') %}
                             {% if level == 'fresh' %}
                             <span class="badge badge-success" style="font-size: 0.5625rem;">Fresh</span>
                             {% elif level == 'recent' %}
-                            <span class="badge" style="background: rgba(107,186,126,0.1); color: #6bba7e; border: 1px solid rgba(107,186,126,0.25); font-size: 0.5625rem;">Recent</span>
+                            <span class="badge"
+                                style="background: rgba(107,186,126,0.1); color: #6bba7e; border: 1px solid rgba(107,186,126,0.25); font-size: 0.5625rem;">Recent</span>
                             {% elif level == 'aging' %}
-                            <span class="badge" style="background: rgba(212,168,75,0.1); color: #d4a84b; border: 1px solid rgba(212,168,75,0.25); font-size: 0.5625rem;">{{ a.age_days|default(0) }}d</span>
+                            <span class="badge"
+                                style="background: rgba(212,168,75,0.1); color: #d4a84b; border: 1px solid rgba(212,168,75,0.25); font-size: 0.5625rem;">{{
+                                a.age_days|default(0) }}d</span>
                             {% elif level == 'stale' %}
-                            <span class="badge badge-danger" style="font-size: 0.5625rem;">Stale ({{ a.age_days|default(0) }}d)</span>
+                            <span class="badge badge-danger" style="font-size: 0.5625rem;">Stale ({{
+                                a.age_days|default(0) }}d)</span>
                             {% else %}
-                            <span class="badge badge-danger" style="font-size: 0.5625rem;">Outdated ({{ a.age_days|default(0) }}d)</span>
+                            <span class="badge badge-danger" style="font-size: 0.5625rem;">Outdated ({{
+                                a.age_days|default(0) }}d)</span>
                             {% endif %}
                         </td>
                         <td style="color: var(--text-muted); font-size: var(--text-sm);">{{ a.timestamp }}</td>
                         <td>
-                            <a href="/analysis/{{ a.id }}" class="btn btn-ghost" style="padding: var(--space-2) var(--space-3); font-size: 0.6875rem;">Details</a>
+                            <a href="/analysis/{{ a.id }}" class="btn btn-ghost"
+                                style="padding: var(--space-2) var(--space-3); font-size: 0.6875rem;">Details</a>
                         </td>
                     </tr>
                     {% endfor %}
@@ -693,7 +844,7 @@
         {% else %}
         <div class="empty-state">
             <div style="display: flex; justify-content: center; margin-bottom: var(--space-4);">
-                <svg class="icon-svg" style="width: 40px; height: 40px; opacity: 0.3;" viewBox="0 0 24 24">
+                <svg class="icon-svg svg-animated" style="width: 40px; height: 40px; opacity: 0.3;" viewBox="0 0 24 24">
                     <circle cx="11" cy="11" r="8" />
                     <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
@@ -706,8 +857,10 @@
     <!-- ─── WATCHLIST OVERVIEW ───────────────────────────── -->
 
     <div class="card" style="margin-bottom: var(--space-6);">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
-            <h3 style="margin: 0;">Watchlist <span style="color: var(--text-muted); font-weight: 400;">({{ watchlist|length }})</span></h3>
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+            <h3 style="margin: 0;">Watchlist <span style="color: var(--text-muted); font-weight: 400;">({{
+                    watchlist|length }})</span></h3>
             <a href="/watchlist" class="btn btn-secondary">Manage</a>
         </div>
         {% if watchlist %}
@@ -718,7 +871,8 @@
                 onmouseover="this.style.opacity='.75'" onmouseout="this.style.opacity=''">
                 <span style="font-weight: 500;">{{ stock.ticker }}</span>
                 {% if stock.name %}
-                <span style="color: var(--text-muted); margin-left: var(--space-1); font-weight: 400;">{{ stock.name }}</span>
+                <span style="color: var(--text-muted); margin-left: var(--space-1); font-weight: 400;">{{ stock.name
+                    }}</span>
                 {% endif %}
                 <svg class="sparkline-svg" width="60" height="20" style="display:none;flex-shrink:0;"></svg>
             </a>
@@ -743,11 +897,14 @@
             <div class="qt-grid">
                 <!-- Analyze form -->
                 <div>
-                    <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--space-3);">Quick Analyze</div>
+                    <div
+                        style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--space-3);">
+                        Quick Analyze</div>
                     <form action="/analyze" method="GET" style="display: flex; gap: var(--space-2);">
                         <input type="text" name="ticker" placeholder="Ticker (e.g. AAPL)" required
                             style="flex: 1; padding: var(--space-2) var(--space-3); background: var(--bg-secondary); border: 1px solid var(--border-light); color: var(--text-primary); font-family: var(--font-mono); font-size: 0.8125rem; outline: none;">
-                        <button type="submit" class="btn btn-secondary" style="font-size: 0.75rem; white-space: nowrap;">Analyze →</button>
+                        <button type="submit" class="btn btn-secondary"
+                            style="font-size: 0.75rem; white-space: nowrap;">Analyze →</button>
                     </form>
                 </div>
 
@@ -846,10 +1003,10 @@
                 }).join('');
             }
         })
-        .catch(() => {});
+        .catch(() => { });
 
     // Watchlist sparklines — load 30-day price trend for each ticker
-    (function() {
+    (function () {
         const tags = document.querySelectorAll('[data-sparkline]');
         if (!tags.length) return;
         tags.forEach(tag => {
@@ -876,7 +1033,7 @@
                     svg.innerHTML = `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>`;
                     svg.style.display = '';
                 })
-                .catch(() => {});
+                .catch(() => { });
         });
     })();
 
@@ -917,6 +1074,134 @@
             html += '</div>';
             content.innerHTML = html;
         })
-        .catch(() => {});
+        .catch(() => { });
+
+    // Data freshness badge
+    fetch('/api/data-freshness', { credentials: 'same-origin' })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+            if (!data) return;
+            const pill = document.getElementById('data-freshness-pill');
+            const badge = document.getElementById('data-freshness-badge');
+            if (!pill || !badge) return;
+            pill.style.display = '';
+            if (data.healthy) {
+                badge.className = 'badge badge-success';
+                badge.style.fontSize = '0.5625rem';
+                badge.style.padding = '2px 8px';
+                badge.textContent = 'Data Fresh';
+            } else {
+                const staleCount = data.stale_count || 0;
+                const problems = data.problem_tickers || [];
+                if (problems.length > 0) {
+                    badge.className = 'badge badge-danger';
+                    badge.textContent = staleCount + ' stale';
+                    badge.title = 'Stale: ' + data.stale_tickers.join(', ');
+                } else {
+                    badge.style.background = 'rgba(212,168,75,0.15)';
+                    badge.style.color = '#d4a84b';
+                    badge.style.border = '1px solid rgba(212,168,75,0.3)';
+                    badge.textContent = staleCount + ' stale';
+                    badge.title = 'Stale: ' + data.stale_tickers.join(', ');
+                }
+            }
+        })
+        .catch(() => { });
+
+    // System Health badge
+    fetch('/api/health')
+        .then(r => r.json())
+        .then(data => {
+            if (!data) return;
+            const pill = document.getElementById('sys-health-pill');
+            const badge = document.getElementById('sys-health-badge');
+            if (!pill || !badge) return;
+            pill.style.display = '';
+
+            const dbSize = data.database ? data.database.size_mb : 0;
+            const diskPct = data.disk ? data.disk.percent : 0;
+            const diskGB = data.disk ? Math.round(data.disk.free_gb) : 0;
+
+            if (data.overall_status === 'ok') {
+                badge.className = 'badge badge-success';
+                badge.textContent = `DB: ${dbSize}MB | Free: ${diskGB}GB`;
+            } else if (data.overall_status === 'warning') {
+                badge.className = 'badge';
+                badge.style.background = 'rgba(212,168,75,0.15)';
+                badge.style.color = '#d4a84b';
+                badge.style.border = '1px solid rgba(212,168,75,0.3)';
+                badge.textContent = `Health Warn (DB: ${dbSize}MB)`;
+            } else {
+                badge.className = 'badge badge-danger';
+                badge.textContent = `Health Critical!`;
+            }
+        })
+        .catch(() => { });
+
+    // Signal Accuracy
+    fetch('/api/signal-accuracy')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.by_signal) return;
+            const signals = Object.keys(data.by_signal);
+            if (signals.length === 0) return;
+
+            document.getElementById('dash-signal-accuracy-card').style.display = '';
+            let html = '';
+            const order_map = { 'STRONG_BUY': 1, 'BUY': 2, 'HOLD': 3, 'SELL': 4, 'STRONG_SELL': 5 };
+            signals.sort((a, b) => (order_map[a] || 99) - (order_map[b] || 99)).forEach(sig => {
+                const sData = data.by_signal[sig];
+                const acc = sData.accuracy_pct;
+                let color = 'var(--text-primary)';
+                if (acc >= 60) color = 'var(--signal-positive)';
+                else if (acc < 40) color = 'var(--signal-negative)';
+
+                html += `<div style="padding: var(--space-3); background: var(--bg-secondary); border-radius: var(--radius-md); text-align: center;">
+                    <div style="font-size: 0.6875rem; color: var(--text-muted); margin-bottom: var(--space-2);">${sig.replace('_', ' ')}</div>
+                    <div style="font-size: 1.25rem; font-weight: 500; color: ${color};">${acc}%</div>
+                    <div style="font-size: 0.6875rem; color: var(--text-muted); margin-top: var(--space-1);">${sData.correct} correct / ${sData.total} overall</div>
+                </div>`;
+            });
+            document.getElementById('dash-signal-accuracy-metrics').innerHTML = html;
+        })
+        .catch(() => { });
+
+    // Auto Paper Trading
+    fetch('/api/paper-trading/auto')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.summary) return;
+            const s = data.summary;
+            if (s.total_closed === 0 && s.open_positions === 0) return;
+
+            document.getElementById('dash-auto-paper-card').style.display = '';
+
+            const pnlEl = document.getElementById('auto-paper-pnl');
+            pnlEl.textContent = (s.total_pnl_pct > 0 ? '+' : '') + s.total_pnl_pct.toFixed(2) + '%';
+            pnlEl.style.color = s.total_pnl_pct >= 0 ? 'var(--signal-positive)' : 'var(--signal-negative)';
+
+            document.getElementById('auto-paper-winrate').textContent = s.win_rate_pct.toFixed(1) + '%';
+            document.getElementById('auto-paper-trades').textContent = s.total_closed;
+
+            const badge = document.getElementById('auto-paper-trust-badge');
+            if (data.should_trust) {
+                badge.className = 'badge badge-success';
+                badge.textContent = 'High Trust';
+            } else {
+                badge.className = 'badge';
+                badge.style.background = 'rgba(212,168,75,0.15)';
+                badge.style.color = '#d4a84b';
+                badge.style.border = '1px solid rgba(212,168,75,0.3)';
+                badge.textContent = 'Building Trust...';
+            }
+
+            let openHtml = `<span style="color: var(--text-muted);">Open Positions:</span> <strong style="color: var(--text-primary);">${s.open_positions}</strong>`;
+            if (s.open_positions > 0 && data.open_positions) {
+                const openTickers = data.open_positions.slice(0, 5).map(t => `${t.direction === 'LONG' ? '🔼' : '🔽'} ${t.ticker}`).join(', ');
+                openHtml += ` <span style="margin-left: var(--space-2);">${openTickers}${s.open_positions > 5 ? '...' : ''}</span>`;
+            }
+            document.getElementById('auto-paper-open').innerHTML = openHtml;
+        })
+        .catch(() => { });
 </script>
 {% endblock %}
