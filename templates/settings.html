@@ -13,7 +13,8 @@
     </header>
 
     {% if request.query_params.get('saved') %}
-    <div style="background: var(--signal-positive-bg); border: 1px solid var(--border-default); color: var(--text-primary); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-6); font-weight: 500; display: flex; align-items: center; gap: var(--space-3);">
+    <div
+        style="background: var(--signal-positive-bg); border: 1px solid var(--border-default); color: var(--text-primary); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-6); font-weight: 500; display: flex; align-items: center; gap: var(--space-3);">
         <span>Settings saved successfully</span>
     </div>
     {% endif %}
@@ -44,26 +45,30 @@
             <div class="grid grid-2" style="margin-bottom: var(--space-5);">
                 <div>
                     <label>Perplexity API Key</label>
-                    <input type="password" name="perplexity_key" placeholder="{% if api_keys.perplexity %}••••••••••••{% else %}pplx-xxx...{% endif %}">
+                    <input type="password" name="perplexity_key"
+                        placeholder="{% if api_keys.perplexity %}••••••••••••{% else %}pplx-xxx...{% endif %}">
                     <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
                         {% if api_keys.perplexity %}
                         <span style="color: var(--text-primary);">Configured</span>
                         {% else %}
                         <span>Not configured</span>
                         {% endif %}
-                        · <a href="https://perplexity.ai/settings" target="_blank" style="color: var(--text-secondary);">Get API Key</a>
+                        · <a href="https://perplexity.ai/settings" target="_blank"
+                            style="color: var(--text-secondary);">Get API Key</a>
                     </div>
                 </div>
                 <div>
                     <label>Gemini API Key</label>
-                    <input type="password" name="gemini_key" placeholder="{% if api_keys.gemini %}••••••••••••{% else %}AIzaSy...{% endif %}">
+                    <input type="password" name="gemini_key"
+                        placeholder="{% if api_keys.gemini %}••••••••••••{% else %}AIzaSy...{% endif %}">
                     <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
                         {% if api_keys.gemini %}
                         <span style="color: var(--text-primary);">Configured</span>
                         {% else %}
                         <span>Not configured</span>
                         {% endif %}
-                        · <a href="https://ai.google.dev" target="_blank" style="color: var(--text-secondary);">Get Free API Key</a>
+                        · <a href="https://ai.google.dev" target="_blank" style="color: var(--text-secondary);">Get Free
+                            API Key</a>
                     </div>
                 </div>
             </div>
@@ -75,13 +80,65 @@
     <form action="/settings/save" method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
+        <!-- Account Settings -->
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <h3 style="margin: 0 0 var(--space-5) 0;">Account Settings</h3>
+            <p style="font-size: 0.8125rem; color: var(--text-muted); margin-bottom: var(--space-5);">
+                Change your username and password. You must provide your current password to save changes.
+            </p>
+
+            {% if request.query_params.get('error') == 'invalid_password' %}
+            <div
+                style="background: var(--signal-negative-bg); border: 1px solid var(--signal-negative); color: var(--text-primary); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-5); font-size: 0.8125rem;">
+                Incorrect current password. Changes were not saved.
+            </div>
+            {% elif request.query_params.get('error') == 'username_taken' %}
+            <div
+                style="background: var(--signal-negative-bg); border: 1px solid var(--signal-negative); color: var(--text-primary); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-5); font-size: 0.8125rem;">
+                That username is already taken. Please choose another.
+            </div>
+            {% elif request.query_params.get('saved') == 'account' %}
+            <div
+                style="background: var(--signal-positive-bg); border: 1px solid var(--signal-positive); color: var(--text-primary); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-5); font-size: 0.8125rem;">
+                Account settings updated successfully.
+            </div>
+            {% endif %}
+
+            <div class="grid grid-2" style="margin-bottom: var(--space-5);">
+                <div>
+                    <label>Current Username</label>
+                    <input type="text" value="admin" disabled
+                        style="background: var(--bg-secondary); color: var(--text-muted);">
+                </div>
+                <div>
+                    <label>Current Password <span style="color: var(--signal-negative);">*</span></label>
+                    <input type="password" form="account_form" name="current_password" required
+                        placeholder="Verify to make changes">
+                </div>
+            </div>
+            <div class="grid grid-2" style="margin-bottom: var(--space-5);">
+                <div>
+                    <label>New Username</label>
+                    <input type="text" form="account_form" name="new_username"
+                        placeholder="Leave blank to keep current">
+                </div>
+                <div>
+                    <label>New Password</label>
+                    <input type="password" form="account_form" name="new_password"
+                        placeholder="Min. 8 characters (optional)">
+                </div>
+            </div>
+            <button type="submit" form="account_form" class="btn btn-primary">Update Account</button>
+        </div>
+
         <!-- Scheduler Settings -->
         <div class="card" style="margin-bottom: var(--space-8);">
             <h3 style="margin: 0 0 var(--space-5) 0;">Scheduler</h3>
             <div class="grid grid-3">
                 <div>
                     <label>Scan Interval (Hours)</label>
-                    <input type="number" name="scan_interval_hours" value="{{ settings.scan_interval_hours }}" min="1" max="24">
+                    <input type="number" name="scan_interval_hours" value="{{ settings.scan_interval_hours }}" min="1"
+                        max="24">
                 </div>
                 <div>
                     <label>Active Time: Start</label>
@@ -96,10 +153,12 @@
 
         <!-- Email Settings -->
         <div class="card" style="margin-bottom: var(--space-8);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-hairline);">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-hairline);">
                 <h3 style="margin: 0;">Email Notifications</h3>
                 <label class="checkbox-wrapper">
-                    <input type="checkbox" id="email-toggle" name="email_enabled" {% if settings.email_enabled %}checked{% endif %} onchange="toggleEmailSettings()">
+                    <input type="checkbox" id="email-toggle" name="email_enabled" {% if settings.email_enabled
+                        %}checked{% endif %} onchange="toggleEmailSettings()">
                     <div class="checkbox-custom"></div>
                     <span class="checkbox-label">Enable Notifications</span>
                 </label>
@@ -109,11 +168,13 @@
                 <div class="grid grid-2" style="margin-bottom: var(--space-5);">
                     <div>
                         <label>Recipient Email</label>
-                        <input type="email" name="email_recipient" value="{{ settings.email_recipient }}" placeholder="your@email.com">
+                        <input type="email" name="email_recipient" value="{{ settings.email_recipient }}"
+                            placeholder="your@email.com">
                     </div>
                     <div style="display: flex; align-items: center; padding-top: var(--space-6);">
                         <label class="checkbox-wrapper">
-                            <input type="checkbox" name="notify_on_strong_signals" {% if settings.notify_on_strong_signals %}checked{% endif %}>
+                            <input type="checkbox" name="notify_on_strong_signals" {% if
+                                settings.notify_on_strong_signals %}checked{% endif %}>
                             <div class="checkbox-custom"></div>
                             <span class="checkbox-label">Only Strong BUY/SELL Signals</span>
                         </label>
@@ -123,7 +184,8 @@
                 <div class="grid grid-2" style="margin-bottom: var(--space-5);">
                     <div>
                         <label>SMTP Host</label>
-                        <input type="text" name="email_smtp_host" value="{{ settings.email_smtp_host }}" placeholder="smtp.gmail.com">
+                        <input type="text" name="email_smtp_host" value="{{ settings.email_smtp_host }}"
+                            placeholder="smtp.gmail.com">
                     </div>
                     <div>
                         <label>SMTP Port</label>
@@ -138,7 +200,8 @@
                     </div>
                     <div>
                         <label>SMTP Password</label>
-                        <input type="password" name="email_smtp_password" placeholder="{% if settings.email_smtp_password %}••••••••{% else %}App password{% endif %}">
+                        <input type="password" name="email_smtp_password"
+                            placeholder="{% if settings.email_smtp_password %}••••••••{% else %}App password{% endif %}">
                     </div>
                 </div>
 
@@ -146,7 +209,8 @@
                     <div class="grid grid-2">
                         <div style="display: flex; align-items: center;">
                             <label class="checkbox-wrapper">
-                                <input type="checkbox" name="daily_summary_enabled" {% if settings.daily_summary_enabled %}checked{% endif %}>
+                                <input type="checkbox" name="daily_summary_enabled" {% if settings.daily_summary_enabled
+                                    %}checked{% endif %}>
                                 <div class="checkbox-custom"></div>
                                 <span class="checkbox-label">Send Daily Summary</span>
                             </label>
@@ -171,7 +235,8 @@
                     <option value="conservative" {% if settings.analysis_variant=='conservative' %}selected{% endif %}>
                         Conservative — Watchlist focus, strict filters, low risk
                     </option>
-                    <option value="balanced" {% if settings.analysis_variant=='balanced' or not settings.analysis_variant %}selected{% endif %}>
+                    <option value="balanced" {% if settings.analysis_variant=='balanced' or not
+                        settings.analysis_variant %}selected{% endif %}>
                         Balanced — Standard distribution, mixed risk/reward
                     </option>
                     <option value="aggressive" {% if settings.analysis_variant=='aggressive' %}selected{% endif %}>
@@ -182,20 +247,26 @@
 
             <!-- Variant Cards -->
             <div class="grid grid-3" style="margin-bottom: var(--space-8);">
-                <div style="padding: var(--space-5); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
-                    <div style="font-weight: 500; margin-bottom: var(--space-2); color: var(--text-primary);">Conservative</div>
+                <div
+                    style="padding: var(--space-5); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
+                    <div style="font-weight: 500; margin-bottom: var(--space-2); color: var(--text-primary);">
+                        Conservative</div>
                     <p style="font-size: 0.75rem; margin: 0; color: var(--text-muted); line-height: 1.5;">
                         Very strict filtering on blue-chips and dividends. Only watchlist stocks are analyzed.
                     </p>
                 </div>
-                <div style="padding: var(--space-5); background: var(--bg-secondary); border: 1px solid var(--text-primary);">
-                    <div style="font-weight: 500; margin-bottom: var(--space-2); color: var(--text-primary);">Balanced</div>
+                <div
+                    style="padding: var(--space-5); background: var(--bg-secondary); border: 1px solid var(--text-primary);">
+                    <div style="font-weight: 500; margin-bottom: var(--space-2); color: var(--text-primary);">Balanced
+                    </div>
                     <p style="font-size: 0.75rem; margin: 0; color: var(--text-muted); line-height: 1.5;">
                         Default setting. Optimized for balanced request distribution. Solid analysis coverage.
                     </p>
                 </div>
-                <div style="padding: var(--space-5); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
-                    <div style="font-weight: 500; margin-bottom: var(--space-2); color: var(--text-primary);">Aggressive</div>
+                <div
+                    style="padding: var(--space-5); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
+                    <div style="font-weight: 500; margin-bottom: var(--space-2); color: var(--text-primary);">Aggressive
+                    </div>
                     <p style="font-size: 0.75rem; margin: 0; color: var(--text-muted); line-height: 1.5;">
                         Includes Market Discovery. Searches beyond watchlist for opportunities.
                     </p>
@@ -203,13 +274,16 @@
             </div>
 
             <!-- Monthly API Budget -->
-            <div style="padding: var(--space-6); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
+            <div
+                style="padding: var(--space-6); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
                 <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5);">
                     <h3 style="margin: 0; font-size: 1rem; font-family: var(--font-body);">Monthly API Budget</h3>
-                    <span style="background: var(--bg-inverse); color: var(--text-inverse); font-size: 0.5625rem; font-weight: 500; padding: 2px 8px; text-transform: uppercase; letter-spacing: 0.06em;">Adaptive</span>
+                    <span
+                        style="background: var(--bg-inverse); color: var(--text-inverse); font-size: 0.5625rem; font-weight: 500; padding: 2px 8px; text-transform: uppercase; letter-spacing: 0.06em;">Adaptive</span>
                 </div>
 
-                <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0 0 var(--space-5) 0; line-height: 1.5;">
+                <p
+                    style="font-size: 0.75rem; color: var(--text-muted); margin: 0 0 var(--space-5) 0; line-height: 1.5;">
                     Set your monthly spending limit per API. Daily request limits are calculated automatically
                     based on remaining budget and days left in the month.
                 </p>
@@ -220,10 +294,10 @@
                         <label>Perplexity Monthly Budget</label>
                         <div style="display: flex; align-items: center; gap: var(--space-2);">
                             <input type="number" name="perplexity_monthly_budget"
-                                   value="{{ settings.perplexity_monthly_budget|default(5.0) }}"
-                                   min="0" max="100" step="0.50"
-                                   style="flex: 1;">
-                            <span style="font-size: 0.8125rem; color: var(--text-secondary); font-weight: 500;">EUR</span>
+                                value="{{ settings.perplexity_monthly_budget|default(5.0) }}" min="0" max="100"
+                                step="0.50" style="flex: 1;">
+                            <span
+                                style="font-size: 0.8125rem; color: var(--text-secondary); font-weight: 500;">EUR</span>
                         </div>
                         <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
                             Sonar model: ~0.006 EUR/request
@@ -233,10 +307,10 @@
                         <label>Gemini Monthly Budget</label>
                         <div style="display: flex; align-items: center; gap: var(--space-2);">
                             <input type="number" name="gemini_monthly_budget"
-                                   value="{{ settings.gemini_monthly_budget|default(5.0) }}"
-                                   min="0" max="100" step="0.50"
-                                   style="flex: 1;">
-                            <span style="font-size: 0.8125rem; color: var(--text-secondary); font-weight: 500;">EUR</span>
+                                value="{{ settings.gemini_monthly_budget|default(5.0) }}" min="0" max="100" step="0.50"
+                                style="flex: 1;">
+                            <span
+                                style="font-size: 0.8125rem; color: var(--text-secondary); font-weight: 500;">EUR</span>
                         </div>
                         <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
                             Flash-Lite: ~0.0003 | Flash: ~0.0005 | 3-Flash: ~0.002 EUR/req
@@ -249,28 +323,47 @@
                 <div class="grid grid-2" style="gap: var(--space-4); margin-bottom: var(--space-4);">
                     {% for api_name, label in [('perplexity', 'Perplexity'), ('gemini', 'Gemini')] %}
                     {% set bs = budget_status.get(api_name, {}) %}
-                    <div style="padding: var(--space-4); background: var(--bg-card); border: 1px solid var(--border-hairline);">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
-                            <span style="font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary);">{{ label }}</span>
-                            <span style="font-size: 0.6875rem; color: var(--text-muted);">{{ bs.get('days_left', 0) }} days left</span>
+                    <div
+                        style="padding: var(--space-4); background: var(--bg-card); border: 1px solid var(--border-hairline);">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
+                            <span
+                                style="font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary);">{{
+                                label }}</span>
+                            <span style="font-size: 0.6875rem; color: var(--text-muted);">{{ bs.get('days_left', 0) }}
+                                days left</span>
                         </div>
                         <!-- Progress bar -->
                         <div style="height: 4px; background: var(--border-hairline); margin-bottom: var(--space-3);">
-                            <div style="height: 100%; width: {{ bs.get('percent_used', 0) }}%; background: {% if bs.get('percent_used', 0) > 80 %}var(--signal-negative){% elif bs.get('percent_used', 0) > 50 %}var(--signal-warning, #f59e0b){% else %}var(--signal-positive){% endif %}; transition: width 0.3s;"></div>
+                            {% set percent = bs.get('percent_used', 0) %}
+                            {% if percent > 80 %}
+                            {% set bg_color = 'var(--signal-negative)' %}
+                            {% elif percent > 50 %}
+                            {% set bg_color = 'var(--signal-warning, #f59e0b)' %}
+                            {% else %}
+                            {% set bg_color = 'var(--signal-positive)' %}
+                            {% endif %}
+                            <div
+                                style="height: 100%; width: {{ percent }}%; background: {{ bg_color }}; transition: width 0.3s;">
+                            </div>
                         </div>
                         <div style="display: flex; justify-content: space-between; font-size: 0.75rem;">
-                            <span style="color: var(--text-muted);">Spent: <span style="color: var(--text-primary);">{{ "%.2f"|format(bs.get('spent_eur', 0)) }} EUR</span></span>
-                            <span style="color: var(--text-muted);">Left: <span style="color: var(--text-primary);">{{ "%.2f"|format(bs.get('remaining_eur', 0)) }} EUR</span></span>
+                            <span style="color: var(--text-muted);">Spent: <span style="color: var(--text-primary);">{{
+                                    "%.2f"|format(bs.get('spent_eur', 0)) }} EUR</span></span>
+                            <span style="color: var(--text-muted);">Left: <span style="color: var(--text-primary);">{{
+                                    "%.2f"|format(bs.get('remaining_eur', 0)) }} EUR</span></span>
                         </div>
                         <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-ghost);">
-                            Today: {{ bs.get('today_requests', 0) }} requests · Limit: ~{{ bs.get('daily_request_limit', 0) }}/day
+                            Today: {{ bs.get('today_requests', 0) }} requests &middot; Limit: ~{{
+                            bs.get('daily_request_limit', 0) }}/day
                         </div>
                     </div>
                     {% endfor %}
                 </div>
 
                 {% if budget_status.pipeline %}
-                <div style="text-align: center; font-size: 0.75rem; color: var(--text-muted); padding-top: var(--space-3); border-top: 1px solid var(--border-hairline);">
+                <div
+                    style="text-align: center; font-size: 0.75rem; color: var(--text-muted); padding-top: var(--space-3); border-top: 1px solid var(--border-hairline);">
                     Pipeline capacity today:
                     <span style="font-weight: 500;">{{ budget_status.pipeline.stage1_max }}</span> scan &rarr;
                     <span style="font-weight: 500;">{{ budget_status.pipeline.stage2_max }}</span> analyze &rarr;
@@ -281,19 +374,22 @@
             </div>
 
             <!-- Analysis Toggles -->
-            <div class="grid grid-3" style="margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--border-hairline);">
+            <div class="grid grid-3"
+                style="margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--border-hairline);">
                 <label class="checkbox-wrapper">
                     <input type="checkbox" name="include_news" {% if settings.include_news %}checked{% endif %}>
                     <div class="checkbox-custom"></div>
                     <span class="checkbox-label">Include News</span>
                 </label>
                 <label class="checkbox-wrapper">
-                    <input type="checkbox" name="include_fundamental" {% if settings.include_fundamental %}checked{% endif %}>
+                    <input type="checkbox" name="include_fundamental" {% if settings.include_fundamental %}checked{%
+                        endif %}>
                     <div class="checkbox-custom"></div>
                     <span class="checkbox-label">Fundamental Analysis</span>
                 </label>
                 <label class="checkbox-wrapper">
-                    <input type="checkbox" name="include_technical" {% if settings.include_technical %}checked{% endif %}>
+                    <input type="checkbox" name="include_technical" {% if settings.include_technical %}checked{% endif
+                        %}>
                     <div class="checkbox-custom"></div>
                     <span class="checkbox-label">Technical Analysis</span>
                 </label>
@@ -311,8 +407,7 @@
                 <div>
                     <label>Max Position Size (%)</label>
                     <input type="number" name="portfolio_max_position_pct"
-                           value="{{ settings.portfolio_max_position_pct|default(10.0) }}"
-                           min="1" max="100" step="1">
+                        value="{{ settings.portfolio_max_position_pct|default(10.0) }}" min="1" max="100" step="1">
                     <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
                         Alert when any single position exceeds this % of portfolio
                     </div>
@@ -320,8 +415,7 @@
                 <div>
                     <label>Stop-Loss Threshold (%)</label>
                     <input type="number" name="portfolio_stop_loss_pct"
-                           value="{{ settings.portfolio_stop_loss_pct|default(15.0) }}"
-                           min="1" max="50" step="1">
+                        value="{{ settings.portfolio_stop_loss_pct|default(15.0) }}" min="1" max="50" step="1">
                     <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
                         Alert when a position drops this % from entry price
                     </div>
@@ -332,8 +426,7 @@
                 <div>
                     <label>Max Sector Concentration (%)</label>
                     <input type="number" name="portfolio_max_sector_pct"
-                           value="{{ settings.portfolio_max_sector_pct|default(30.0) }}"
-                           min="5" max="100" step="5">
+                        value="{{ settings.portfolio_max_sector_pct|default(30.0) }}" min="5" max="100" step="5">
                     <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
                         Alert when any sector exceeds this % of portfolio
                     </div>
@@ -341,8 +434,7 @@
                 <div>
                     <label>Rebalance Drift Threshold (%)</label>
                     <input type="number" name="portfolio_rebalance_drift_pct"
-                           value="{{ settings.portfolio_rebalance_drift_pct|default(5.0) }}"
-                           min="1" max="25" step="1">
+                        value="{{ settings.portfolio_rebalance_drift_pct|default(5.0) }}" min="1" max="25" step="1">
                     <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
                         Suggest rebalancing when allocation drifts beyond this %
                     </div>
@@ -357,10 +449,10 @@
                 <div>
                     <label>Verification Window (Days)</label>
                     <input type="number" name="learning_verification_days"
-                           value="{{ settings.learning_verification_days|default(90) }}"
-                           min="30" max="365" step="30">
+                        value="{{ settings.learning_verification_days|default(90) }}" min="30" max="365" step="30">
                     <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        How many days to wait before verifying a prediction (30-365). Longer = more meaningful but slower feedback.
+                        How many days to wait before verifying a prediction (30-365). Longer = more meaningful but
+                        slower feedback.
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; padding-top: var(--space-6);">
@@ -394,7 +486,7 @@
         }
     }
 
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         toggleEmailSettings();
     });
 </script>

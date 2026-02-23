@@ -1060,6 +1060,21 @@ class Database:
         conn.commit()
         conn.close()
 
+    def update_username(self, old_username: str, new_username: str) -> bool:
+        """Update username if the new username is not taken."""
+        try:
+            conn = self._get_conn()
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE users SET username = ? WHERE username = ?
+            """, (new_username, old_username))
+            conn.commit()
+            conn.close()
+            return True
+        except sqlite3.IntegrityError:
+            # Username already exists
+            return False
+
     def update_last_login(self, username: str):
         """Update last login timestamp"""
         conn = self._get_conn()

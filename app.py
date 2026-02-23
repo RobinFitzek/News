@@ -337,6 +337,60 @@ async def save_api_keys(request: Request, username: str = Depends(require_auth))
     
     return RedirectResponse(url="/settings?saved=1", status_code=303)
 
+@app.post("/settings/account")
+@limiter.limit("5/minute")
+async def save_account_settings(
+    request: Request,
+    current_password: str = Form(...),
+    new_username: str = Form(None),
+    new_password: str = Form(None),
+    csrf_token: str = Form(...),
+    username: str = Depends(require_auth)
+):
+    """Save account settings (username/password)"""
+    from core.config import ENABLE_HTTPS
+    csrf.verify_token(request, csrf_token)
+    
+    # Verify current password first
+    if not db.verify_user(username, current_password):
+        return RedirectResponse(url="/settings?error=invalid_password", status_code=303)
+        
+    changes_made = False
+    new_session_username = username
+        
+    # Update password if provided
+    if new_password and len(new_password) >= 8:
+        db.update_password(username, new_password)
+        changes_made = True
+        
+    # Update username if provided and different
+    if new_username and new_username != username:
+        if db.update_username(username, new_username):
+            new_session_username = new_username
+            changes_made = True
+        else:
+            return RedirectResponse(url="/settings?error=username_taken", status_code=303)
+            
+    if changes_made:
+        # Re-create session if username changed, or just to be safe
+        session_id = request.cookies.get("session_id")
+        if session_id:
+            auth_manager.destroy_session(session_id)
+            
+        new_session_id = auth_manager.create_session(new_session_username)
+        response = RedirectResponse(url="/settings?saved=account", status_code=303)
+        response.set_cookie(
+            key="session_id",
+            value=new_session_id,
+            httponly=True,
+            secure=ENABLE_HTTPS,
+            samesite="lax",
+            max_age=86400
+        )
+        return response
+        
+    return RedirectResponse(url="/settings", status_code=303)
+
 # ==================== HISTORY ====================
 
 @app.get("/history", response_class=HTMLResponse)

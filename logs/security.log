@@ -17,3 +17,5 @@
 {"timestamp": "2026-02-05T18:49:00.980744", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
 {"timestamp": "2026-02-05T19:44:23.422831", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
 {"timestamp": "2026-02-05T19:57:43.646450", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-23T19:48:20.120484", "event": "login_failed", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-23T19:48:29.974133", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
