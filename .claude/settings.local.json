@@ -22,7 +22,8 @@
       "Bash(xargs -I {} basename {})",
       "Bash(head:*)",
       "Bash(sort -k2)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(bash:*)"
     ]
   }
 }

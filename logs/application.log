@@ -62,8 +62,6 @@ Exception: Test exception
 2026-02-05 19:59:41 - apscheduler.scheduler - INFO - Added job "Daily Summary Email" to job store "default"
 2026-02-05 19:59:41 - apscheduler.scheduler - INFO - Scheduler started
 2026-02-05 19:59:42 - apscheduler.scheduler - INFO - Scheduler has been shut down
-<<<<<<< Updated upstream
-=======
 2026-02-06 13:44:28 - root - INFO - Logging initialized
 2026-02-06 13:44:29 - clients.gemini_client - INFO - Gemini client initialized successfully
 2026-02-06 13:44:29 - clients.gemini_client - INFO - Gemini client initialized successfully
@@ -6684,29 +6682,14 @@ sqlite3.OperationalError: table earnings_calendar has no column named fetched_at
 2026-02-23 13:57:58 - apscheduler.executors.default - INFO - Job "Price Alert Check (trigger: interval[0:15:00], next run at: 2026-02-23 14:12:58 CET)" executed successfully
 2026-02-23 14:12:58 - apscheduler.executors.default - INFO - Running job "Price Alert Check (trigger: interval[0:15:00], next run at: 2026-02-23 14:27:58 CET)" (scheduled at 2026-02-23 14:12:58.280599+01:00)
 2026-02-23 14:12:58 - apscheduler.executors.default - INFO - Job "Price Alert Check (trigger: interval[0:15:00], next run at: 2026-02-23 14:27:58 CET)" executed successfully
-2026-02-23 14:27:58 - apscheduler.executors.default - INFO - Running job "Price Alert Check (trigger: interval[0:15:00], next run at: 2026-02-23 14:42:58 CET)" (scheduled at 2026-02-23 14:27:58.280599+01:00)
-2026-02-23 14:27:58 - apscheduler.executors.default - INFO - Job "Price Alert Check (trigger: interval[0:15:00], next run at: 2026-02-23 14:42:58 CET)" executed successfully
->>>>>>> Stashed changes
-2026-02-23 15:28:51 - root - INFO - Logging initialized
-2026-02-23 15:28:51 - clients.gemini_client - INFO - Gemini client initialized successfully
-2026-02-23 15:28:51 - clients.gemini_client - INFO - Gemini client initialized successfully
-2026-02-23 15:29:15 - root - INFO - Logging initialized
-2026-02-23 15:29:15 - clients.gemini_client - INFO - Gemini client initialized successfully
-2026-02-23 15:29:15 - clients.gemini_client - INFO - Gemini client initialized successfully
-2026-02-23 19:48:03 - root - INFO - Logging initialized
-2026-02-23 19:48:04 - clients.gemini_client - INFO - Gemini client initialized successfully
-2026-02-23 19:48:04 - clients.gemini_client - INFO - Gemini client initialized successfully
-2026-02-23 19:50:40 - apscheduler.scheduler - INFO - Scheduler has been shut down
-2026-02-23 19:50:43 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-02-23 19:50:43 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-02-23 19:50:43 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-02-23 19:50:43 - apscheduler.scheduler - INFO - Adding job tentatively -- it will be properly scheduled when the scheduler starts
-2026-02-23 19:50:43 - apscheduler.scheduler - INFO - Added job "Daily Investment Scan" to job store "default"
-2026-02-23 19:50:43 - apscheduler.scheduler - INFO - Added job "Weekly Deep Analysis" to job store "default"
-2026-02-23 19:50:43 - apscheduler.scheduler - INFO - Added job "Monthly Portfolio Review" to job store "default"
-2026-02-23 19:50:43 - apscheduler.scheduler - INFO - Added job "Daily Summary Email" to job store "default"
-2026-02-23 19:50:43 - apscheduler.scheduler - INFO - Scheduler started
-2026-02-23 19:50:45 - apscheduler.scheduler - INFO - Scheduler has been shut down
-2026-02-23 19:53:03 - root - INFO - Logging initialized
-2026-02-23 19:53:04 - clients.gemini_client - INFO - Gemini client initialized successfully
-2026-02-23 19:53:04 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-23 20:11:29 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-02-23 20:12:03 - root - INFO - Logging initialized
+2026-02-23 20:12:03 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-23 20:12:03 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-23 20:12:12 - yfinance - ERROR - $AFX: possibly delisted; no price data found  (period=6mo)
+2026-02-23 20:12:13 - yfinance - ERROR - HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: FTSE ALL-WORLD USD (ACC)"}}}
+2026-02-23 20:12:14 - yfinance - ERROR - $FTSE ALL-WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 20:12:15 - yfinance - ERROR - HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: CORE MSCI WORLD USD (ACC)"}}}
+2026-02-23 20:12:16 - yfinance - ERROR - $CORE MSCI WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 20:12:16 - engine.visibility_graph - WARNING - ts2vg or networkx not installed. Visibility graph analysis disabled.
+2026-02-23 20:12:17 - yfinance - ERROR - $PAG911: possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
