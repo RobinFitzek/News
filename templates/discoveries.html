@@ -13,7 +13,7 @@
             <form action="/discovery/run-now" method="POST" style="display: inline;">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <button type="submit" class="btn btn-primary">
-                    <svg class="icon-svg" viewBox="0 0 24 24">
+                    <svg class="icon-svg svg-animated" viewBox="0 0 24 24">
                         <circle cx="11" cy="11" r="8" />
                         <line x1="21" y1="21" x2="16.65" y2="16.65" />
                     </svg>
@@ -98,7 +98,7 @@
         {% for filter_val, filter_label in [('all', 'All'), ('new', 'New'), ('screened', 'Screened'), ('promoted',
         'Promoted'), ('dismissed', 'Dismissed')] %}
         <a href="/discoveries?status={{ filter_val }}"
-            style="padding: var(--space-2) var(--space-4); font-size: 0.8125rem; text-decoration: none; border: 1px solid {{ 'var(--text-primary)' if status_filter == filter_val else 'var(--border-light)' }}; color: {{ 'var(--text-primary)' if status_filter == filter_val else 'var(--text-muted)' }}; background: {{ 'rgba(255,255,255,0.06)' if status_filter == filter_val else 'transparent' }}; border-radius: var(--radius-sm); transition: all 0.15s;">
+            class="filter-tab {{ 'active' if status_filter == filter_val else '' }}">
             {{ filter_label }}
         </a>
         {% endfor %}
@@ -131,7 +131,8 @@
         </div>
 
         {% if discoveries %}
-        <div class="table-wrapper" style="overflow-x: auto; margin: 0 calc(var(--space-8) * -1); padding: 0 var(--space-8);">
+        <div class="table-wrapper"
+            style="overflow-x: auto; margin: 0 calc(var(--space-8) * -1); padding: 0 var(--space-8);">
             <table id="discoveries-table" class="data-table">
                 <thead>
                     <tr>
@@ -161,8 +162,8 @@
                                     onmouseout="this.style.textDecoration='none'">
                                     {{ d.ticker }}
                                 </a>
-                                <svg class="sparkline-svg" data-sparkline="{{ d.ticker }}"
-                                    width="60" height="20" style="flex-shrink:0;overflow:visible;"></svg>
+                                <svg class="sparkline-svg" data-sparkline="{{ d.ticker }}" width="60" height="20"
+                                    style="flex-shrink:0;overflow:visible;"></svg>
                             </div>
                         </td>
                         <td>
@@ -261,16 +262,20 @@
 
     <!-- Strategy Performance — Hit Rates (loaded via AJAX) -->
     <div id="hit-rate-card" class="card" style="margin-bottom: var(--space-8); display: none;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
             <div>
                 <h3 style="margin: 0 0 var(--space-1) 0;">Strategy Performance</h3>
-                <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);" id="hit-rate-subtitle">Discovery hit rates at 30/60/90 days</p>
+                <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);" id="hit-rate-subtitle">
+                    Discovery hit rates at 30/60/90 days</p>
             </div>
             <div id="overall-hit-rate" style="font-family: var(--font-body); font-size: 2rem; font-weight: 300;"></div>
         </div>
         <div id="hit-rate-table" style="overflow-x: auto;"></div>
         <div id="hit-rate-recent" style="margin-top: var(--space-5); display: none;">
-            <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-3);">Recent Outcomes</div>
+            <div
+                style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-3);">
+                Recent Outcomes</div>
             <div id="hit-rate-recent-list"></div>
         </div>
     </div>
@@ -442,7 +447,7 @@
                 document.getElementById('hit-rate-recent-list').innerHTML = html;
             }
         })
-        .catch(() => {});
+        .catch(() => { });
 
     // Flash promoted/dismissed banner
     const params = new URLSearchParams(location.search);
@@ -462,14 +467,14 @@
     }
 
     // Sparklines for ticker column
-    (function() {
+    (function () {
         function renderSparkline(svg, prices) {
             if (!prices || prices.length < 2) return;
             var w = 60, h = 20, pad = 1;
             var min = Math.min.apply(null, prices);
             var max = Math.max.apply(null, prices);
             var range = max - min || 1;
-            var pts = prices.map(function(p, i) {
+            var pts = prices.map(function (p, i) {
                 var x = pad + (i / (prices.length - 1)) * (w - pad * 2);
                 var y = h - pad - ((p - min) / range) * (h - pad * 2);
                 return x.toFixed(1) + ',' + y.toFixed(1);
@@ -484,16 +489,16 @@
             svg.appendChild(poly);
         }
 
-        document.querySelectorAll('svg[data-sparkline]').forEach(function(svg) {
+        document.querySelectorAll('svg[data-sparkline]').forEach(function (svg) {
             var ticker = svg.getAttribute('data-sparkline');
             fetch('/api/chart-data/' + ticker, { credentials: 'same-origin' })
-                .then(function(r) { return r.ok ? r.json() : null; })
-                .then(function(data) {
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
                     if (!data || !data.prices) return;
                     var prices = data.prices.slice(-30);
                     renderSparkline(svg, prices);
                 })
-                .catch(function() {});
+                .catch(function () { });
         });
     })();
 </script>

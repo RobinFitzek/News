@@ -253,6 +253,64 @@ class CorrelationAnalyzer:
             logger.error(f"Error calculating diversification score: {e}")
             return None
 
+    def check_new_ticker_exposure(self, new_ticker: str, holdings: List[Dict], threshold: float = 0.70) -> Dict:
+        """Check how a new ticker correlates with existing portfolio holdings."""
+        if not holdings:
+            return {'warnings': [], 'max_correlation': 0, 'highly_correlated_with': []}
+            
+        tickers = [h['ticker'] for h in holdings]
+        if new_ticker in tickers:
+            # It's already owned, so exposure is already accounted for
+            return {'warnings': [], 'max_correlation': 0, 'highly_correlated_with': []}
+            
+        all_tickers = tickers + [new_ticker]
+        corr_matrix = self.get_correlation_matrix(all_tickers)
+        
+        if corr_matrix is None:
+            return {'warnings': [], 'max_correlation': 0, 'highly_correlated_with': []}
+            
+        warnings = []
+        highly_correlated = []
+        max_corr = 0.0
+        
+        for holding in holdings:
+            existing_ticker = holding['ticker']
+            try:
+                corr = float(corr_matrix.loc[new_ticker, existing_ticker])
+                abs_corr = abs(corr)
+                if abs_corr > max_corr:
+                    max_corr = abs_corr
+                
+                if abs_corr >= threshold:
+                    highly_correlated.append({
+                        'ticker': existing_ticker,
+                        'correlation': round(corr, 3),
+                        'position_pct': holding.get('position_pct', round(holding.get('current_value', 0) / 1000, 1)) # fallback
+                    })
+            except (KeyError, ValueError):
+                continue
+                
+        # Generate warnings
+        if highly_correlated:
+            highly_correlated.sort(key=lambda x: abs(x['correlation']), reverse=True)
+            for item in highly_correlated:
+                if item['correlation'] > 0:
+                    warnings.append(
+                        f"Highly correlated ({item['correlation']:.1%}!) with {item['ticker']} "
+                        f"which is already {item['position_pct']:.1f}% of your portfolio."
+                    )
+                else:
+                    warnings.append(
+                        f"Strong inverse correlation ({item['correlation']:.1%}) with {item['ticker']} "
+                        f"({item['position_pct']:.1f}% of portfolio)."
+                    )
+                    
+        return {
+            'warnings': warnings,
+            'max_correlation': round(max_corr, 2),
+            'highly_correlated_with': highly_correlated
+        }
+
 
 # Singleton
 correlation_analyzer = CorrelationAnalyzer()

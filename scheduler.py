@@ -42,15 +42,32 @@ class InvestmentScheduler:
             self.start()
     
     def _is_active_time(self) -> bool:
-        """Check if current time is within active hours"""
+        """Check if current time is within active hours and on a weekday"""
         try:
             tz = pytz.timezone(self.timezone)
-            now = datetime.now(tz).time()
+            now = datetime.now(tz)
+            # Skip weekends
+            if now.weekday() >= 5:
+                return False
+            current_time = now.time()
             start = time.fromisoformat(self.active_start)
             end = time.fromisoformat(self.active_end)
-            return start <= now <= end
+            return start <= current_time <= end
         except Exception:
             return True  # If error, assume always active
+
+    def is_market_open(self) -> bool:
+        """Check if US markets are currently open (Mon-Fri 9:30-16:00 ET)"""
+        try:
+            et = pytz.timezone('US/Eastern')
+            now = datetime.now(et)
+            if now.weekday() >= 5:
+                return False
+            market_open = time(9, 30)
+            market_close = time(16, 0)
+            return market_open <= now.time() <= market_close
+        except Exception:
+            return True
     
     def run_scan(self, force=False):
         """Run the Daily Analysis Pipeline"""
@@ -214,6 +231,42 @@ class InvestmentScheduler:
             replace_existing=True
         )
 
+        # Daily health check (run at 03:00)
+        self.scheduler.add_job(
+            self.run_health_check,
+            CronTrigger(hour=3, minute=0, timezone=self.timezone),
+            id='health_check',
+            name='System Health Check',
+            replace_existing=True
+        )
+
+        # Signal Grader (daily at 22:00)
+        self.scheduler.add_job(
+            self.grade_signals,
+            CronTrigger(hour=22, minute=0, timezone=self.timezone),
+            id='grade_signals',
+            name='Grade Signals',
+            replace_existing=True
+        )
+
+        # Auto Paper Trading Entry (Mon-Fri 09:35 AM NY time)
+        self.scheduler.add_job(
+            self.run_auto_paper_entry,
+            CronTrigger(day_of_week='mon-fri', hour=9, minute=35, timezone=self.timezone),
+            id='auto_paper_entry',
+            name='Auto Paper Entry',
+            replace_existing=True
+        )
+
+        # Auto Paper Trading Exit (Mon-Fri 15:50 PM NY time)
+        self.scheduler.add_job(
+            self.run_auto_paper_exit,
+            CronTrigger(day_of_week='mon-fri', hour=15, minute=50, timezone=self.timezone),
+            id='auto_paper_exit',
+            name='Auto Paper Exit',
+            replace_existing=True
+        )
+
         # Price alert check (every 15 min during market hours Mon–Fri)
         self.scheduler.add_job(
             self.check_price_alerts,
@@ -249,6 +302,7 @@ class InvestmentScheduler:
         return {
             "is_running": self.is_running,
             "is_scanning": self.is_scanning,
+            "is_market_open": self.is_market_open(),
             "interval_hours": self.interval_hours,
             "active_hours": f"{self.active_start} - {self.active_end}",
             "timezone": self.timezone,
@@ -286,7 +340,7 @@ class InvestmentScheduler:
             print(f"(Error) Weekly report failed: {e}")
 
     def check_hit_rates(self):
-        """Check discovery hit rates and log outcomes. Also flags stale fundamental data."""
+        """Check discovery hit rates and log outcomes. Also flags stale data."""
         try:
             from engine.discovery_hit_rate import discovery_hit_rate
             result = discovery_hit_rate.check_outcomes()
@@ -295,23 +349,13 @@ class InvestmentScheduler:
         except Exception as e:
             print(f"(Error) Hit rate check failed: {e}")
 
-        # Flag watchlist stocks with fundamental data > 48h stale
+        # Flag stale data using DataFreshnessTracker
         try:
-            stale_tickers = db.query("""
-                SELECT w.ticker
-                FROM watchlist w
-                LEFT JOIN (
-                    SELECT ticker, MAX(snapshot_date) as latest_snapshot
-                    FROM fundamental_snapshots
-                    GROUP BY ticker
-                ) fs ON w.ticker = fs.ticker
-                WHERE w.is_active = 1
-                  AND (fs.latest_snapshot IS NULL
-                       OR julianday('now') - julianday(fs.latest_snapshot) > 2)
-            """) or []
+            from engine.data_freshness import data_freshness
+            stale_tickers = data_freshness.get_stale_tickers()
             if stale_tickers:
                 tickers_str = ', '.join(t['ticker'] for t in stale_tickers)
-                msg = f"Stale fundamental data (>48h): {tickers_str}"
+                msg = f"Stale data ({len(stale_tickers)} tickers): {tickers_str}"
                 print(f"(!) {msg}")
                 try:
                     from engine.webhook_notifier import webhook_notifier
@@ -393,6 +437,86 @@ class InvestmentScheduler:
                 print(f"Price alerts: {triggered} triggered out of {len(alerts)} active")
         except Exception as e:
             print(f"(Error) Price alert check failed: {e}")
+
+    def run_health_check(self):
+        """Run daily health checks and weekly cleanups."""
+        try:
+            from engine.health_monitor import health_monitor
+            report = health_monitor.get_full_health_report()
+            
+            # Weekly cleanup on Sunday
+            try:
+                tz = pytz.timezone(self.timezone)
+                now = datetime.now(tz)
+                if now.weekday() == 6:  # Sunday
+                    health_monitor.cleanup_old_data()
+                    health_monitor.vacuum_database()
+            except Exception as e:
+                print(f"(Error) Health cleanup failed: {e}")
+                
+            # Alert on critical
+            if report.get('overall_status') == 'critical':
+                try:
+                    from engine.webhook_notifier import webhook_notifier
+                    msgs_critical = []
+                    if report.get('disk', {}).get('status') == 'critical':
+                        msgs_critical.append(f"Disk at {report['disk'].get('percent', 0)}%")
+                    if report.get('memory', {}).get('status') == 'critical':
+                        msgs_critical.append(f"Memory at {report['memory'].get('percent', 0)}%")
+                    if report.get('database', {}).get('status') == 'critical':
+                        msgs_critical.append(f"DB size {report['database'].get('size_mb', 0)}MB")
+                    if report.get('errors', {}).get('status') == 'critical':
+                        msgs_critical.append(f"Error rate {report['errors'].get('error_rate_pct', 0)}%")
+                    
+                    if msgs_critical:
+                        msg = "🔴 *CRITICAL SYSTEM HEALTH*\n" + "\n".join(msgs_critical)
+                        webhook_notifier.send_custom(msg)
+                except Exception as e:
+                    print(f"(Error) Health alert failed: {e}")
+                    
+            print(f"Health check completed. Status: {report.get('overall_status', 'unknown')}")
+        except Exception as e:
+            print(f"(Error) Health check overall failed: {e}")
+
+    def grade_signals(self):
+        """Grade past signals and auto-tune weights."""
+        try:
+            from engine.signal_grader import signal_grader
+            graded = signal_grader.grade_pending_signals()
+            print(f"Signal Grader: Graded {graded} pending signals.")
+            
+            # Auto-tune weights if enough data
+            try:
+                tune_result = signal_grader.auto_tune_weights()
+                if tune_result.get('tuned'):
+                    try:
+                        from engine.webhook_notifier import webhook_notifier
+                        webhook_notifier.send_custom(f"🤖 *Auto-Tuned Quant Weights*\n{tune_result.get('message')}")
+                    except Exception:
+                        pass
+            except Exception as e:
+                print(f"(Error) Auto tuning quant weights failed: {e}")
+                
+        except Exception as e:
+            print(f"(Error) Signal grading failed: {e}")
+
+    def run_auto_paper_entry(self):
+        """Enter automated paper trades based on recent strong signals."""
+        try:
+            from engine.auto_paper_trader import auto_paper_trader
+            entered = auto_paper_trader.process_new_signals()
+            print(f"Auto Paper Trader: Entered {entered} new positions.")
+        except Exception as e:
+            print(f"(Error) Auto paper entry failed: {e}")
+
+    def run_auto_paper_exit(self):
+        """Check open paper trades for exit conditions."""
+        try:
+            from engine.auto_paper_trader import auto_paper_trader
+            exited = auto_paper_trader.check_open_positions()
+            print(f"Auto Paper Trader: Exited {exited} positions.")
+        except Exception as e:
+            print(f"(Error) Auto paper exit failed: {e}")
 
     def trigger_manual_scan(self):
         """Trigger an immediate scan in background"""
