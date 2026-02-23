@@ -1,15 +1,7 @@
 # Database
 *.db
-*.sqlite
-*.sqlite3
 *.db-shm
 *.db-wal
-*.backup
-*.bak
-
-# Data Directory
-data/*
-!data/.gitkeep
 
 # Python
 __pycache__/
@@ -23,7 +15,6 @@ logs/*.log
 
 # Environment
 .env
-.encryption_key
 
 # IDE
 .vscode/

@@ -1,83 +1,104 @@
-# AI Investment Monitor
+# 🤖 AI Investment Monitor
 
-Ein vollautomatisches Investment-Analyse-System für den lokalen Betrieb auf einem Homeserver. 
+Vollautomatisches Investment-Analyse-System für deinen Homeserver.
 
-## Features
+## ✨ Features
 
-- Automatische Scans: Konfigurierbare Intervalle (z.B. alle 2 Stunden).
-- Multi-Agent Analyse: Integration von News, Fundamental- und technischer Analyse.
-- Email Alerts: Benachrichtigungen bei Strong Buy/Sell Signalen.
-- Web Dashboard: Verwaltung von Einstellungen, Watchlists und Einsicht in historische Daten.
-- Persistente Daten: Speicherung aller Einstellungen und Historien in einer lokalen SQLite Datenbank.
-- Systemd Service: Automatischer Start beim Booten.
+- **🔄 Automatische Scans** - Konfigurierbare Intervalle (z.B. alle 2 Stunden)
+- **📊 Multi-Agent Analyse** - 4 KI-Agenten für News, Fundamental, Technical, Synthesis
+- **📧 Email Alerts** - Benachrichtigung bei Strong Buy/Sell Signalen
+- **🌐 Web Dashboard** - Einstellungen, Watchlist, Historie
+- **💾 Persistente Daten** - SQLite Datenbank für alle Einstellungen
+- **⚙️ Systemd Service** - Auto-Start beim Booten
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
 ```bash
-# 1. Einmaliges Setup
+# 1. Setup (einmalig)
 ./setup.sh
 
-# 2. System starten
+# 2. Starten
 ./start.sh
 ```
 
-Das Dashboard ist anschließend unter **http://localhost:8080** erreichbar.
+Dashboard öffnen: **http://localhost:8080**
 
 ---
 
-## Projektstruktur
+## 📁 Projekt-Struktur
 
-```text
+```
 News/
 ├── main.py              # Hauptprogramm
+├── scheduler.py         # APScheduler für automatische Scans
+├── database.py          # SQLite Manager
+├── notifications.py     # Email Benachrichtigungen
+├── agents.py            # 4 AI-Agenten
 ├── app.py               # FastAPI Web Dashboard
-├── scheduler.py         # Automatisierungs-Logik
-├── core/                # Kernkomponenten (Datenbank, Konfiguration, Notifications)
-├── engine/              # Analyse-Engine (Algorithmen, Agenten)
-├── clients/             # API-Clients (Perplexity, Gemini API)
-├── templates/           # Web UI HTML-Templates
-├── static/              # Web UI Assets (CSS, JS, Fonts)
-├── data/                # Lokale SQLite Datenbank
+├── perplexity_client.py # Perplexity API
+├── gemini_client.py     # Gemini API (✨ modernisiert mit google.genai)
+├── config.py            # Konfiguration
+├── migrate_gemini.sh    # Migrations-Script für API-Update
+├── templates/           # HTML Templates (Dark Theme)
+├── data/                # SQLite Datenbank
 ├── logs/                # Log-Dateien
-└── systemd/             # Systemd Service-Konfiguration
+└── systemd/             # Service File
 ```
 
 ---
 
-## Konfiguration der API Keys
+## 🔑 API Keys
 
-Für die Analyse werden zwei externe Dienste benötigt:
-- **Perplexity**: Für News & Market Research.
-- **Gemini**: Für die Fundamental- und technische Analyse.
+### Benötigte Services
 
-Die Konfiguration erfolgt am sichersten über das Web Dashboard:
+| Service | Kosten | Zweck | Link |
+|---------|--------|-------|------|
+| **Perplexity** | ~$5/Monat | News & Market Research | [perplexity.ai/settings](https://perplexity.ai/settings) |
+| **Gemini** | Gratis | Fundamental & Technical Analysis | [ai.google.dev](https://ai.google.dev) |
 
-1. Dashboard öffnen (`http://localhost:8080`).
-2. In die Einstellungen navigieren.
-3. Die jeweiligen API Keys in die dafür vorgesehenen Felder eintragen.
-4. Speichern. Ein Status-Indikator zeigt den erfolgreichen Verbindungstest an.
+### API Keys konfigurieren
 
-Alle Keys werden lokal und verschlüsselt in der SQLite-Datenbank abgelegt. Es erfolgt keine Speicherung in Logdateien oder im Klartext.
+**Über das Web Dashboard (empfohlen):**
+
+1. **Dashboard öffnen:** `http://localhost:8080`
+2. **Zu Settings navigieren:** Klick auf "⚙️ Einstellungen"
+3. **API Keys eingeben:**
+   - Perplexity API Key: `pplx-xxxxx...`
+   - Gemini API Key: `AIzaSy...`
+4. **Speichern:** Button "🔑 API Keys speichern" klicken
+5. **Status prüfen:** ✅ zeigt erfolgreiche Konfiguration
+
+**Sicherheit:**
+- ✅ Keys werden verschlüsselt in lokaler SQLite-Datenbank gespeichert
+- ✅ Keine Keys in Logs oder Code-Dateien
+- ✅ Nur lokaler Zugriff auf die Datenbank
+- ✅ Password-Input-Felder verbergen Keys im Browser
+
+**Alternative: Manuelle Konfiguration (nicht empfohlen):**
+
+API Keys können auch direkt in der Datenbank gesetzt werden, aber die Dashboard-Methode ist sicherer und einfacher.
 
 ---
 
-## Systemeinstellungen
+## ⚙️ Einstellungen
 
-Das Verhalten des Monitors kann über das Web Dashboard angepasst werden:
+Alles konfigurierbar über das Web Dashboard:
 
-- Scan-Intervall: Frequenz der automatischen Scans (1-24 Stunden).
-- Aktive Zeit: Einschränkung der Scans auf bestimmte Uhrzeiten.
-- Email Alerts: Aktivierung der Benachrichtigungen für Handelssignale.
-- Tägliche Summary: Zusammenfassender Statusbericht per Email.
-- Analyse-Tiefe: Aktivierung/Deaktivierung spezifischer Analyse-Komponenten (News, Fundamental, Technical).
+| Einstellung | Beschreibung |
+|-------------|--------------|
+| **Scan-Intervall** | Wie oft scannen (1-24 Stunden) |
+| **Aktive Zeit** | Nur während bestimmter Uhrzeiten (z.B. 08:00-22:00) |
+| **Email Alerts** | Bei Strong Buy/Sell benachrichtigen |
+| **Tägliche Summary** | Zusammenfassung am Abend per Email |
+| **Analyse-Tiefe** | News, Fundamental, Technical ein/aus |
 
 ---
 
-## Systemd Auto-Start
+## 🖥️ Systemd Auto-Start
 
-Um das System beim Booten des Servers automatisch zu starten, kann der mitgelieferte Systemd-Service genutzt werden:
+Für automatischen Start beim Booten des Homeservers:
 
 ```bash
 # Service installieren
@@ -89,35 +110,80 @@ sudo systemctl start investment-monitor
 # Status prüfen
 sudo systemctl status investment-monitor
 
-# Logs einsehen
+# Logs anzeigen
 journalctl -u investment-monitor -f
 ```
 
 ---
 
-## Migration von google.generativeai zu google.genai
+## 📦 Dependencies
 
-Das Projekt verwendet das aktuelle `google-genai` Package. Die Unterstützung für `google-generativeai` wurde eingestellt. Falls bei einem Update aus einer älteren Version Warnungen diesbezüglich auftreten:
+```
+google-genai>=1.0.0      # Gemini API (neues Package)
+crewai>=0.70.1          # AI Agent Framework
+fastapi                  # Web Framework
+uvicorn                  # ASGI Server
+apscheduler              # Automatische Scans
+yfinance                 # Aktien-Daten
+python-dotenv            # Umgebungsvariablen
+aiosmtplib              # Email Versand
+aiosqlite               # Async SQLite
+```
 
-**Migrations-Script (empfohlen):**
+> ⚠️ **Wichtig**: Dieses Projekt verwendet das neue `google-genai` Package (v1.0+). 
+> Das alte `google-generativeai` ist deprecated und wird nicht mehr unterstützt.
+
+---
+
+## 🔄 Migration von google.generativeai → google.genai
+
+Falls du eine ältere Version dieses Projekts verwendest oder die Warnung siehst:
+
+```
+FutureWarning: All support for the `google.generativeai` package has ended.
+```
+
+**Option 1: Automatisches Migrations-Script (empfohlen)**
+
 ```bash
 ./migrate_gemini.sh
 ```
 
-**Oder manuelle Migration:**
+**Option 2: Manuelle Migration**
+
 ```bash
+# 1. Virtual Environment aktivieren
 source venv/bin/activate
+
+# 2. Altes Package entfernen
 pip uninstall google-generativeai -y
+
+# 3. Neues Package installieren
 pip install google-genai>=1.0.0
+
+# 4. Dependencies aktualisieren
 pip install -r requirements.txt --upgrade
+
+# 5. Neustart
 ./start.sh
 ```
 
+### Migration Details
+
+**Das neue Package hat folgende Änderungen:**
+
+| Alt (deprecated) | Neu (google.genai) |
+|------------------|-------------------|
+| `import google.generativeai as genai` | `from google import genai` |
+| `genai.configure(api_key=...)` | `client = genai.Client(api_key=...)` |
+| `genai.GenerativeModel(...)` | `client.models.generate_content(...)` |
+
+> ✅ Die Migration wurde bereits in `gemini_client.py` implementiert.
+> Die neue API ist stabiler und bietet bessere Error-Handling.
+
 ---
 
-## Manuelle Installation
-
-Falls das Setup-Skript nicht verwendet werden soll:
+## 🔧 Manuelle Installation
 
 ```bash
 # Virtual Environment erstellen
@@ -133,26 +199,58 @@ python main.py
 
 ---
 
-## Troubleshooting
+## � Troubleshooting
 
 ### Scheduler startet nicht
-- **Ursache:** API Keys fehlen oder sind invalide.
-- **Lösung:** Im Dashboard unter Einstellungen prüfen, ob beide Keys konfiguriert sind und der Status auf erfolgreich steht.
 
-### API Fehler (Gemini)
-- **Ursache:** Veraltetes Package oder Key ungültig.
-- **Lösung:** Sicherstellen, dass das neue Paket (`google-genai`) installiert ist (siehe Migration).
+**Problem:** "⚠️ Scheduler nicht gestartet - API Keys fehlen"
 
-### API Fehler (Perplexity)
-- **Ursache:** Rate Limit erreicht.
-- **Lösung:** Einige Sekunden warten. Ggf. das Scan-Intervall in den Einstellungen erhöhen oder das aufgebrauchte Kontingent prüfen.
+**Lösung:**
+1. Öffne Dashboard: `http://localhost:8080`
+2. Gehe zu Settings
+3. Prüfe ob beide API Keys konfiguriert sind (✅ Status)
+4. Falls ❌ angezeigt wird: Keys neu eingeben und speichern
 
-### Dashboard nicht erreichbar (Port 8080)
-- **Ursache:** Der Port ist belegt oder der Prozess ist nicht aktiv.
-- **Lösung:** Über `ps aux | grep "python main.py"` prüfen ob der Server läuft. Falls der Port belegt ist, kann `sudo lsof -i :8080` Details liefern. Neustart über `./start.sh` versuchen.
+### API Fehler
+
+**Gemini Fehler:**
+```
+⚠️ Gemini API nicht konfiguriert
+```
+
+**Lösung:**
+- Stelle sicher, dass der neue `google-genai` package installiert ist
+- Führe `./migrate_gemini.sh` aus
+- Prüfe API Key auf [ai.google.dev](https://ai.google.dev)
+
+**Perplexity Fehler:**
+```
+❌ Perplexity rate limit
+```
+
+**Lösung:**
+- Warte 60 Sekunden (Rate-Limit-Reset)
+- Prüfe dein Kontingent auf [perplexity.ai](https://perplexity.ai)
+- Erhöhe Scan-Intervall in Settings
+
+### Dashboard nicht erreichbar
+
+**Problem:** `ERR_CONNECTION_REFUSED` auf Port 8080
+
+**Lösung:**
+```bash
+# Prüfe ob Server läuft
+ps aux | grep "python main.py"
+
+# Neustart
+./start.sh
+
+# Falls Port belegt:
+sudo lsof -i :8080
+```
 
 ---
 
-## Lizenz
+## �📜 Lizenz
 
 Private Nutzung. Nicht für kommerzielle Zwecke.

@@ -10,6 +10,10 @@
             <h1>Analysis History</h1>
             <p>Browse all past analyses and predictions</p>
         </div>
+        <div style="display: flex; gap: var(--space-2);">
+            <a href="/api/export/analyses?format=csv" class="btn btn-ghost" style="font-size: 0.75rem;">Export CSV</a>
+            <a href="/api/export/analyses?format=json" class="btn btn-ghost" style="font-size: 0.75rem;">Export JSON</a>
+        </div>
     </header>
 
     <!-- Filter -->
@@ -37,13 +41,13 @@
         </h3>
 
         {% if analyses %}
-        <div style="overflow-x: auto; margin: 0 calc(var(--space-6) * -1); padding: 0 var(--space-6);">
-            <table>
+        <div class="table-wrapper" style="overflow-x: auto; margin: 0 calc(var(--space-6) * -1); padding: 0 var(--space-6);">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Ticker</th>
                         <th>Signal</th>
-                        <th>Confidence</th>
+                        <th>Strength</th>
                         <th>Timestamp</th>
                         <th style="width: 100px;"></th>
                     </tr>
@@ -58,7 +62,7 @@
                             <span class="signal-text signal-{{ a.signal|lower }}">{{ a.signal }}</span>
                         </td>
                         <td>
-                            <span style="font-family: var(--font-mono); font-weight: 500;">{{ a.confidence }}%</span>
+                            <span style="font-family: var(--font-mono); font-weight: 500;">{{ a.confidence }}/100</span>
                         </td>
                         <td style="font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-muted);">{{ a.timestamp }}</td>
                         <td>

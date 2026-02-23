@@ -1,0 +1,513 @@
+{% extends "base.html" %}
+
+{% block title %}Paper Trading — Stockholm{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+    <!-- Page Header -->
+    <header class="page-header">
+        <div>
+            <h1>Paper Trading</h1>
+            <p>Simulated portfolio to validate signal performance</p>
+        </div>
+        <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
+            <a href="/api/export/paper-trades?format=csv" class="btn btn-ghost" style="font-size: 0.75rem;">Export CSV</a>
+            <a href="/paper-trading/settings" class="btn btn-secondary">Settings</a>
+            <form action="/paper-trading/reset" method="POST" style="display: inline;"
+                onsubmit="return confirm('Reset entire paper trading portfolio? This cannot be undone.')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-danger">Reset</button>
+            </form>
+        </div>
+    </header>
+
+    <!-- Portfolio Summary -->
+    <div class="grid grid-4" style="margin-bottom: var(--space-8);">
+        <div class="card" style="margin-bottom: 0; position: relative; overflow: visible;">
+            <div
+                style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--space-3);">
+                Portfolio Value</div>
+            <div style="font-family: var(--font-body); font-size: 2rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.03em;"
+                id="total-value">
+                {% if summary.total_trades == 0 and summary.open_positions == 0 %}
+                —
+                {% else %}
+                ${{ "{:,.2f}".format(summary.total_value) }}
+                {% endif %}
+            </div>
+            <div style="margin-top: var(--space-2);">
+                {% if summary.total_trades == 0 and summary.open_positions == 0 %}
+                <span style="color: var(--text-muted); font-size: 0.75rem;">No trading activity yet</span>
+                {% else %}
+                <span
+                    style="font-family: var(--font-mono); font-size: 0.875rem; {% if summary.total_return >= 0 %}color: #6bba7e;{% else %}color: #d47272;{% endif %}">
+                    {{ "{:+.2f}".format(summary.total_return_pct) }}%
+                </span>
+                <span style="color: var(--text-muted); font-size: 0.75rem; margin-left: var(--space-2);">total
+                    return</span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 0;">
+            <div
+                style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--space-3);">
+                SPY Benchmark</div>
+            <div
+                style="font-family: var(--font-body); font-size: 2rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.03em;">
+                {{ "{:+.1f}".format(summary.spy_return_pct) }}%
+            </div>
+            <div style="margin-top: var(--space-2);">
+                <span
+                    style="font-family: var(--font-mono); font-size: 0.875rem; {% if summary.alpha >= 0 %}color: #6bba7e;{% else %}color: #d47272;{% endif %}">
+                    Alpha: {{ "{:+.2f}".format(summary.alpha) }}%
+                </span>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 0;">
+            <div
+                style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--space-3);">
+                Win Rate</div>
+            <div
+                style="font-family: var(--font-body); font-size: 2rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.03em;">
+                {{ summary.win_rate }}%
+            </div>
+            <div style="margin-top: var(--space-2);">
+                <span style="font-size: 0.75rem; color: var(--text-muted);">
+                    {{ summary.wins }}W / {{ summary.losses }}L
+                </span>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 0;">
+            <div
+                style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--space-3);">
+                Cash / Invested</div>
+            <div
+                style="font-family: var(--font-display); font-size: 1.75rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.03em;">
+                ${{ "{:,.0f}".format(summary.cash) }}
+            </div>
+            <div style="margin-top: var(--space-2);">
+                <span style="font-size: 0.75rem; color: var(--text-muted);">
+                    {{ summary.open_positions }} positions · ${{ "{:,.0f}".format(summary.positions_value) }} invested
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Equity Curve Chart -->
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); flex-wrap: wrap; gap: var(--space-4);">
+            <h3 style="margin: 0;">Performance vs SPY</h3>
+            <div style="display: flex; gap: var(--space-2);">
+                <button class="btn btn-ghost equity-range active" data-days="30">30D</button>
+                <button class="btn btn-ghost equity-range" data-days="90">90D</button>
+                <button class="btn btn-ghost equity-range" data-days="180">180D</button>
+            </div>
+        </div>
+        <div style="position: relative; height: 300px;">
+            <canvas id="equity-chart"></canvas>
+        </div>
+        <div id="equity-empty"
+            style="display: none; text-align: center; padding: var(--space-10); color: var(--text-muted);">
+            <p>No trading history yet. Signals will auto-execute when confidence exceeds threshold.</p>
+        </div>
+    </div>
+
+    <!-- Execution Costs Summary -->
+    {% if summary.total_costs > 0 %}
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <h3 style="margin: 0 0 var(--space-4) 0; font-size: 0.875rem;">Execution Costs</h3>
+        <div class="grid grid-3">
+            <div class="metric">
+                <div class="metric-value" style="color: #d47272;">${{ "{:,.2f}".format(summary.total_slippage) }}</div>
+                <div class="metric-label">Total Slippage</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" style="color: #d47272;">${{ "{:,.2f}".format(summary.total_commission) }}</div>
+                <div class="metric-label">Total Commission</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" style="color: #d47272;">${{ "{:,.2f}".format(summary.total_costs) }}</div>
+                <div class="metric-label">Total Costs</div>
+            </div>
+        </div>
+        {% if summary.starting_capital > 0 %}
+        <div style="margin-top: var(--space-3); font-size: 0.75rem; color: var(--text-muted);">
+            Costs reduced returns by {{ "{:.2f}".format(summary.total_costs / summary.starting_capital * 100) }}%
+            (slippage: {{ settings.slippage_pct if settings.slippage_pct is defined else '0.1' }}%, commission: ${{ settings.commission if settings.commission is defined else '0.00' }}/trade)
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Risk-Adjusted Metrics (loaded via AJAX) -->
+    <div id="risk-metrics-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+        <h3 style="margin: 0 0 var(--space-6) 0;">Risk-Adjusted Performance</h3>
+        <div id="risk-metrics-content"></div>
+    </div>
+
+    <!-- SPY Correlation (loaded via AJAX) -->
+    <div id="spy-correlation-card" class="card" style="margin-bottom: var(--space-8); display: none;">
+        <h3 style="margin: 0 0 var(--space-6) 0;">SPY Benchmark Correlation</h3>
+        <div id="spy-correlation-content"></div>
+    </div>
+
+    <!-- Open Positions -->
+    <div class="card" style="margin-bottom: var(--space-8);">
+        <h3 style="margin: 0 0 var(--space-6) 0;">Open Positions <span
+                style="color: var(--text-muted); font-weight: 400;">({{ summary.open_positions }})</span></h3>
+
+        {% if summary.positions %}
+        <div style="overflow-x: auto; margin: 0 calc(var(--space-8) * -1); padding: 0 var(--space-8);">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ticker</th>
+                        <th>Shares</th>
+                        <th>Entry</th>
+                        <th>Current</th>
+                        <th>Value</th>
+                        <th>P&L</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in summary.positions %}
+                    <tr>
+                        <td>
+                            <span style="font-family: var(--font-mono); font-weight: 500;">{{ p.ticker }}</span>
+                        </td>
+                        <td style="font-family: var(--font-mono);">{{ "%.4f"|format(p.shares) }}</td>
+                        <td style="font-family: var(--font-mono);">${{ "%.2f"|format(p.entry_price) }}</td>
+                        <td style="font-family: var(--font-mono);">${{ "%.2f"|format(p.current_price) }}</td>
+                        <td style="font-family: var(--font-mono);">${{ "{:,.2f}".format(p.current_value) }}</td>
+                        <td>
+                            <span
+                                style="font-family: var(--font-mono); font-weight: 500; {% if p.unrealized_pnl >= 0 %}color: #6bba7e;{% else %}color: #d47272;{% endif %}">
+                                {{ "{:+.2f}".format(p.unrealized_pnl) }} ({{ "{:+.1f}".format(p.unrealized_pnl_pct) }}%)
+                            </span>
+                        </td>
+                        <td style="font-size: 0.8125rem; color: var(--text-muted);">
+                            {{ p.entry_date[:10] if p.entry_date else '—' }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">—</div>
+            <p>No open positions</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Trade Log -->
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6);">
+            <h3 style="margin: 0;">Trade History</h3>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">{{ summary.total_trades }} total trades</span>
+        </div>
+
+        {% if trades %}
+        <div style="overflow-x: auto; margin: 0 calc(var(--space-8) * -1); padding: 0 var(--space-8);">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Ticker</th>
+                        <th>Direction</th>
+                        <th>Shares</th>
+                        <th>Entry</th>
+                        <th>Exit</th>
+                        <th>P&L</th>
+                        <th>Confidence</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in trades %}
+                    <tr>
+                        <td style="font-size: 0.8125rem; color: var(--text-muted);">{{ t.entry_date[:10] if t.entry_date
+                            else '—' }}</td>
+                        <td><span style="font-family: var(--font-mono); font-weight: 500;">{{ t.ticker }}</span></td>
+                        <td>
+                            {% if t.direction == 'BUY' %}
+                            <span class="badge badge-success">Buy</span>
+                            {% else %}
+                            <span class="badge badge-danger">Sell</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-family: var(--font-mono);">{{ "%.4f"|format(t.shares) }}</td>
+                        <td style="font-family: var(--font-mono);">${{ "%.2f"|format(t.entry_price) }}</td>
+                        <td style="font-family: var(--font-mono);">
+                            {% if t.exit_price %}${{ "%.2f"|format(t.exit_price) }}{% else %}—{% endif %}
+                        </td>
+                        <td>
+                            {% if t.pnl is not none %}
+                            <span
+                                style="font-family: var(--font-mono); font-weight: 500; {% if t.pnl >= 0 %}color: #6bba7e;{% else %}color: #d47272;{% endif %}">
+                                ${{ "{:+.2f}".format(t.pnl) }}
+                            </span>
+                            {% else %}
+                            <span style="color: var(--text-muted);">Open</span>
+                            {% endif %}
+                        </td>
+                        <td style="font-family: var(--font-mono); color: var(--text-muted);">
+                            {% if t.signal_confidence %}{{ t.signal_confidence }}%{% else %}—{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">—</div>
+            <p>No trades yet</p>
+            <p style="font-size: 0.8125rem; color: var(--text-muted);">Signals will auto-execute when confidence exceeds
+                {{ settings.min_confidence }}%</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let equityChart = null;
+
+    function loadEquityCurve(days) {
+        fetch(`/api/paper-trading/equity-curve?days=${days}`)
+            .then(r => r.json())
+            .then(data => {
+                const chartEl = document.getElementById('equity-chart');
+                const emptyEl = document.getElementById('equity-empty');
+
+                if (!data || data.length === 0) {
+                    chartEl.style.display = 'none';
+                    emptyEl.style.display = '';
+                    return;
+                }
+
+                chartEl.style.display = '';
+                emptyEl.style.display = 'none';
+
+                const labels = data.map(d => d.snapshot_date);
+                const portfolioData = data.map(d => d.portfolio_return_pct);
+                const spyData = data.map(d => d.spy_return_pct);
+
+                if (equityChart) {
+                    equityChart.destroy();
+                }
+
+                equityChart = new Chart(chartEl, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Portfolio',
+                                data: portfolioData,
+                                borderColor: '#ffffff',
+                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.3,
+                                pointRadius: 0,
+                                pointHoverRadius: 4,
+                            },
+                            {
+                                label: 'SPY',
+                                data: spyData,
+                                borderColor: 'rgba(255, 255, 255, 0.3)',
+                                borderWidth: 1,
+                                borderDash: [5, 5],
+                                fill: false,
+                                tension: 0.3,
+                                pointRadius: 0,
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            intersect: false,
+                            mode: 'index',
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top',
+                                labels: {
+                                    color: 'rgba(255, 255, 255, 0.6)',
+                                    font: { size: 11 },
+                                    padding: 20,
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                                titleColor: '#fff',
+                                bodyColor: 'rgba(255, 255, 255, 0.8)',
+                                borderColor: 'rgba(255, 255, 255, 0.1)',
+                                borderWidth: 1,
+                                callbacks: {
+                                    label: function (ctx) {
+                                        return ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + '%';
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                display: true,
+                                grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                                ticks: {
+                                    color: 'rgba(255, 255, 255, 0.4)',
+                                    maxTicksLimit: 8,
+                                    font: { size: 10 },
+                                }
+                            },
+                            y: {
+                                display: true,
+                                grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                                ticks: {
+                                    color: 'rgba(255, 255, 255, 0.4)',
+                                    font: { size: 10 },
+                                    callback: v => v.toFixed(1) + '%'
+                                }
+                            }
+                        }
+                    }
+                });
+            })
+            .catch(err => console.error('Equity curve error:', err));
+    }
+
+    // Range buttons
+    document.querySelectorAll('.equity-range').forEach(btn => {
+        btn.addEventListener('click', function () {
+            document.querySelectorAll('.equity-range').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            loadEquityCurve(this.dataset.days);
+        });
+    });
+
+    // Initial load
+    loadEquityCurve(30);
+
+    // Risk-Adjusted Metrics
+    fetch('/api/paper-trading/risk-metrics')
+        .then(r => r.json())
+        .then(data => {
+            const card = document.getElementById('risk-metrics-card');
+            if (!data.sufficient_data) return;
+            card.style.display = '';
+
+            const sharpeColor = data.sharpe_ratio >= 1.0 ? '#6bba7e' : data.sharpe_ratio >= 0.5 ? '#d4a84b' : '#d47272';
+            const sortinoColor = data.sortino_ratio >= 1.5 ? '#6bba7e' : data.sortino_ratio >= 0.7 ? '#d4a84b' : '#d47272';
+            const ddColor = Math.abs(data.max_drawdown_pct) <= 10 ? '#6bba7e' : Math.abs(data.max_drawdown_pct) <= 25 ? '#d4a84b' : '#d47272';
+            const calmarColor = data.calmar_ratio >= 1.0 ? '#6bba7e' : data.calmar_ratio >= 0.5 ? '#d4a84b' : '#d47272';
+
+            let html = `
+                <div class="grid grid-4" style="margin-bottom: var(--space-6);">
+                    <div class="metric">
+                        <div class="metric-value" style="color: ${sharpeColor};">${data.sharpe_ratio.toFixed(2)}</div>
+                        <div class="metric-label">Sharpe Ratio</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" style="color: ${sortinoColor};">${data.sortino_ratio.toFixed(2)}</div>
+                        <div class="metric-label">Sortino Ratio</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" style="color: ${ddColor};">${data.max_drawdown_pct.toFixed(1)}%</div>
+                        <div class="metric-label">Max Drawdown</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" style="color: ${calmarColor};">${data.calmar_ratio.toFixed(2)}</div>
+                        <div class="metric-label">Calmar Ratio</div>
+                    </div>
+                </div>
+                <div class="grid grid-3" style="margin-bottom: var(--space-4);">
+                    <div class="metric">
+                        <div class="metric-value">${data.win_rate}%</div>
+                        <div class="metric-label">Win Rate</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${data.payoff_ratio}x</div>
+                        <div class="metric-label">Payoff Ratio (W/L)</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${data.annualized_return.toFixed(1)}%</div>
+                        <div class="metric-label">Annualized Return</div>
+                    </div>
+                </div>`;
+
+            // Drawdown details
+            if (data.current_drawdown && data.current_drawdown.in_drawdown) {
+                html += `<div style="margin-top: var(--space-4); padding: var(--space-4); background: var(--bg-secondary); border-left: 2px solid #d47272; font-size: 0.875rem;">
+                    <span style="font-weight: 500; color: #d47272;">Currently in drawdown: ${data.current_drawdown.pct.toFixed(1)}% from peak</span>
+                </div>`;
+            }
+
+            if (data.reality_check) {
+                html += `<div style="margin-top: var(--space-4); padding: var(--space-4); background: var(--bg-secondary); border-left: 1px solid var(--text-primary); font-size: 0.8125rem; color: var(--text-secondary);">
+                    ${data.reality_check}
+                </div>`;
+            }
+
+            document.getElementById('risk-metrics-content').innerHTML = html;
+        })
+        .catch(() => {});
+
+    // SPY Correlation
+    fetch('/api/paper-trading/spy-correlation')
+        .then(r => r.json())
+        .then(data => {
+            if (data.insufficient_data) return;
+            const card = document.getElementById('spy-correlation-card');
+            card.style.display = '';
+
+            const betaColor = Math.abs(data.beta - 1.0) < 0.2 ? '#d4a84b' : data.beta < 0.8 ? '#6bba7e' : '#d47272';
+            const alphaColor = data.alpha_annualized > 2 ? '#6bba7e' : data.alpha_annualized < -2 ? '#d47272' : '#d4a84b';
+            const verdictColor = data.verdict === 'alpha_positive' ? '#6bba7e' : data.verdict === 'alpha_negative' ? '#d47272' : data.verdict === 'market_tracker' ? '#d4a84b' : 'var(--text-muted)';
+
+            let html = `
+                <div class="grid grid-4" style="margin-bottom: var(--space-6);">
+                    <div class="metric">
+                        <div class="metric-value" style="color: ${betaColor};">${data.beta.toFixed(2)}</div>
+                        <div class="metric-label">Beta vs SPY</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" style="color: ${alphaColor};">${data.alpha_annualized > 0 ? '+' : ''}${data.alpha_annualized}%</div>
+                        <div class="metric-label">Alpha (annualized)</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${data.correlation.toFixed(2)}</div>
+                        <div class="metric-label">Correlation</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value">${(data.r_squared * 100).toFixed(0)}%</div>
+                        <div class="metric-label">R-Squared</div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: var(--space-6); margin-bottom: var(--space-5); font-size: 0.8125rem;">
+                    <div><span style="color: var(--text-muted);">Portfolio Return:</span> <span style="font-family: var(--font-mono); font-weight: 500;">${data.annualized_portfolio_return}%</span></div>
+                    <div><span style="color: var(--text-muted);">SPY Return:</span> <span style="font-family: var(--font-mono); font-weight: 500;">${data.annualized_spy_return}%</span></div>
+                    <div><span style="color: var(--text-muted);">Data Points:</span> <span style="font-family: var(--font-mono);">${data.data_points}</span></div>
+                </div>
+
+                <div style="padding: var(--space-4); background: var(--bg-secondary); border-left: 2px solid ${verdictColor}; font-size: 0.875rem;">
+                    <span style="font-weight: 500; color: ${verdictColor};">${data.verdict_text}</span>
+                </div>`;
+
+            document.getElementById('spy-correlation-content').innerHTML = html;
+        })
+        .catch(() => {});
+</script>
+{% endblock %}

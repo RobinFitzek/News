@@ -11,6 +11,7 @@ from core.config import PIPELINE_STAGE_SPLIT
 from core.database import db
 from engine.strategy_engine import strategy_manager, risk_classifier, prompt_builder
 from engine.quant_screener import quant_screener
+from engine.ai_crosscheck import ai_crosscheck
 
 
 class CycleProcessor:
@@ -62,7 +63,7 @@ class CycleProcessor:
         elif cycle_type == 'monthly':
             return self.run_monthly_cycle()
         else:
-            print(f"⚠️ Unknown cycle type: {cycle_type}")
+            print(f"(!) Unknown cycle type: {cycle_type}")
             return {'error': f'Unknown cycle: {cycle_type}'}
     
     def run_daily_cycle(self) -> Dict:
@@ -73,7 +74,7 @@ class CycleProcessor:
         - Uses smart caching to reduce API calls
         """
         print(f"\n{'='*60}")
-        print(f"🌅 DAILY CYCLE (SELF-LEARNING) - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        print(f"DAILY CYCLE (SELF-LEARNING) - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
         print(f"{'='*60}")
         
         start_time = time.time()
@@ -86,13 +87,13 @@ class CycleProcessor:
         tickers = [item['ticker'] for item in watchlist]
         
         if not tickers:
-            print("⚠️ Watchlist leer - kein Scan möglich")
+            print("(!) Watchlist leer - kein Scan möglich")
             return {'status': 'empty_watchlist', 'tips': []}
         
         # 🧠 LEARNING: Optimize ticker order based on historical accuracy
         optimized_tickers = optimizer.optimize_daily_cycle(tickers)
-        print(f"📋 Strategie: {strategy['name']} | Watchlist: {len(tickers)} Ticker (optimiert)")
-        print(f"💰 Budget: Flash-8b:{budget.get('flash-8b',30)}, Flash-1.5:{budget.get('flash-1.5',15)}, Pro:{budget.get('pro',5)}")
+        print(f"[Strategy] {strategy['name']} | Watchlist: {len(tickers)} Ticker (optimiert)")
+        print(f"[Budget] Flash-8b:{budget.get('flash-8b',30)}, Flash-1.5:{budget.get('flash-1.5',15)}, Pro:{budget.get('pro',5)}")
         
         # LEARNING: Verify old predictions (uses configurable window, default 90 days)
         optimizer.feedback.verify_predictions()
@@ -116,9 +117,9 @@ class CycleProcessor:
                 )
                 result = self._quick_scan(ticker, prompt, cat_info)
                 scan_results.append(result)
-                print(f"  ✓ {ticker}: Score {result['score']} ({cat_info['category']})")
+                print(f"  [OK] {ticker}: Score {result['score']} ({cat_info['category']})")
             except Exception as e:
-                print(f"  ✗ {ticker}: {e}")
+                print(f"  [ERROR] {ticker}: {e}")
         
         # Sort by score
         scan_results.sort(key=lambda x: x['score'], reverse=True)
@@ -140,8 +141,21 @@ class CycleProcessor:
             final_tips.append(tip)
             
             # Save to DB
-            db.save_analysis(tip['ticker'], tip)
-        
+            analysis_id, _, _ = db.save_analysis(tip['ticker'], tip)
+
+            # Cross-check AI claims against market data
+            try:
+                text = ' '.join(filter(None, [
+                    tip.get('fundamental', ''),
+                    tip.get('recommendation', ''),
+                    tip.get('technical', ''),
+                ]))
+                if text.strip():
+                    cc = ai_crosscheck.check_analysis(tip['ticker'], text)
+                    db.save_crosscheck(tip['ticker'], analysis_id, cc)
+            except Exception:
+                pass
+
         duration = time.time() - start_time
         
         # Log cycle
@@ -155,8 +169,8 @@ class CycleProcessor:
         # Generate broker-style summary
         summary = self._generate_broker_summary(final_tips, 'daily')
         
-        print(f"\n✅ Daily Cycle Complete in {duration:.1f}s")
-        print(f"📊 {len(tickers)} gescannt → {len(analyzed)} analysiert → {len(final_tips)} Tipps")
+        print(f"\n[DONE] Daily Cycle Complete in {duration:.1f}s")
+        print(f"[Stats] {len(tickers)} gescannt → {len(analyzed)} analysiert → {len(final_tips)} Tipps")
         
         return {
             'status': 'completed',
@@ -174,7 +188,7 @@ class CycleProcessor:
         Budget: 30 Flash-8b, 30 Flash, 10 Pro
         """
         print(f"\n{'='*60}")
-        print(f"📅 WEEKLY CYCLE - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        print(f"WEEKLY CYCLE - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
         print(f"{'='*60}")
         
         start_time = time.time()
@@ -190,8 +204,8 @@ class CycleProcessor:
         discoveries = discovery_engine.discover_trending(limit=5)
         all_tickers = list(set(tickers + discoveries))
         
-        print(f"📋 Strategie: {strategy['name']}")
-        print(f"📊 Watchlist: {len(tickers)} + {len(discoveries)} Discovery = {len(all_tickers)} Ticker")
+        print(f"[Strategy] {strategy['name']}")
+        print(f"[Stats] Watchlist: {len(tickers)} + {len(discoveries)} Discovery = {len(all_tickers)} Ticker")
         
         # More thorough analysis with higher budget
         classified = self._classify_tickers(all_tickers)
@@ -206,7 +220,7 @@ class CycleProcessor:
         
         db.save_cycle_result('weekly', 1, json.dumps(all_tickers), json.dumps([t['ticker'] for t in final_tips]))
         
-        print(f"\n✅ Weekly Cycle Complete in {duration:.1f}s")
+        print(f"\n[DONE] Weekly Cycle Complete in {duration:.1f}s")
         
         return {
             'status': 'completed',
@@ -223,7 +237,7 @@ class CycleProcessor:
         Budget: 50 Flash-8b, 40 Flash, 20 Pro
         """
         print(f"\n{'='*60}")
-        print(f"📆 MONTHLY PORTFOLIO REVIEW - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        print(f"MONTHLY PORTFOLIO REVIEW - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
         print(f"{'='*60}")
         
         start_time = time.time()
@@ -255,7 +269,7 @@ class CycleProcessor:
         db.save_cycle_result('monthly', 1, json.dumps([item['ticker'] for item in watchlist]), 
                             json.dumps(rebalancing))
         
-        print(f"\n✅ Monthly Review Complete in {duration:.1f}s")
+        print(f"\n[DONE] Monthly Review Complete in {duration:.1f}s")
         
         return {
             'status': 'completed',
@@ -298,7 +312,7 @@ class CycleProcessor:
                 confidence=100 - confidence  # Lower risk = higher confidence
             )
         except Exception as e:
-            print(f"⚠️ Could not record prediction: {e}")
+            print(f"(!) Could not record prediction: {e}")
     
     def _quick_scan(self, ticker: str, prompt: str, category_info: Dict) -> Dict:
         """Quick scan using quantitative screener (zero API cost)"""
@@ -417,7 +431,19 @@ Beobachten: [Text]
         for c in candidates:
             tip = self._synthesize_tip(c, strategy)
             tips.append(tip)
-            db.save_analysis(tip['ticker'], tip)
+            analysis_id, _, _ = db.save_analysis(tip['ticker'], tip)
+            # Cross-check AI claims against market data
+            try:
+                text = ' '.join(filter(None, [
+                    tip.get('fundamental', ''),
+                    tip.get('recommendation', ''),
+                    tip.get('technical', ''),
+                ]))
+                if text.strip():
+                    cc = ai_crosscheck.check_analysis(tip['ticker'], text)
+                    db.save_crosscheck(tip['ticker'], analysis_id, cc)
+            except Exception:
+                pass
             # 🧠 LEARNING: Record prediction for later verification
             self._record_prediction(tip)
         return tips

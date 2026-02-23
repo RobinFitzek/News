@@ -141,6 +141,11 @@ class InvestmentSwarm:
         if not anomaly_text:
             anomaly_text = "  Keine Anomalien erkannt."
 
+        insider = analysis_result.get('insider_activity', {})
+        insider_text = ""
+        if insider and insider.get('has_activity'):
+            insider_text = f"\nInsider-Aktivitaet (Folge dem Geld):\n{insider.get('fact_summary', 'Insider-Aktivitaet vorhanden.')}\n"
+
         prompt = f"""Du bist ein Research-Analyst. Schreibe eine kurze Research-Notiz fuer {ticker}.
 
 Quantitative Daten:
@@ -150,31 +155,45 @@ Quantitative Daten:
 - Qualitaet: D/E: {qm.get('quality', {}).get('debt_to_equity', 'N/A')}, ROE: {qm.get('quality', {}).get('roe', 'N/A')}%, FCF Yield: {qm.get('quality', {}).get('fcf_yield', 'N/A')}%
 - Anomalien:
 {anomaly_text}
-- Quant Signal: {qm.get('signal', 'Neutral')} (Score: {qm.get('composite_score', 'N/A')}/100)
+- Quant Signal: {qm.get('signal', 'Neutral')} (Score: {qm.get('composite_score', 'N/A')}/100){insider_text}
 
 Aktuelle Nachrichten:
 {analysis_result.get('news', 'Keine Nachrichten verfuegbar')}
 
 Aufgabe:
-1. Fasse die wichtigsten Risiken zusammen (2-3 Saetze)
-2. Nenne potenzielle Katalysatoren (2-3 Saetze)
-3. Was sollte ein Investor beobachten? (1-2 Saetze)
+Erstelle eine strukturierte Analyse mit klaren Bull/Bear Argumenten, einer Risikobewertung und überprüfbaren Quellen aus den Nachrichten.
+Falls der Nachrichtentext URLs oder explizite Quellen enthält, MÜSSEN diese im Abschnitt "Quellen" aufgelistet werden.
 
 KEINE Kauf/Verkauf-Empfehlung. Nur Fakten und Kontext.
 
-Format:
+Zwingendes Format:
 Risk Score: [1-10]
-Risiken: [Text]
-Katalysatoren: [Text]
-Beobachten: [Text]
+Bull Case: [Argumente für die Aktie - 2-3 Sätze]
+Bear Case: [Die größten Risiken und Schwächen - 2-3 Sätze]
+Quellen: [Liste der URLs oder Publikationen]
+Zusammenfassung: [Kurzer Gesamteindruck]
 """
 
         response = self.gemini.generate(prompt, tier='flash')
         analysis_result['recommendation'] = response
 
-        # Parse Risk Score for DB
-        risk_match = re.search(r"Risk Score:\s*(\d+)", response)
+        # Parse sections for DB
+        risk_match = re.search(r"Risk Score:\s*(\d+)", response, re.IGNORECASE)
         analysis_result['risk_score'] = int(risk_match.group(1)) if risk_match else 5
+
+        def extract_section(text: str, header: str) -> str:
+            pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Bull Case|Bear Case|Quellen|Zusammenfassung):|$)"
+            match = re.search(pattern, text, flags=re.IGNORECASE | re.DOTALL)
+            return match.group(1).strip() if match else ""
+
+        analysis_result['bull_case'] = extract_section(response, "Bull Case")
+        analysis_result['bear_case'] = extract_section(response, "Bear Case")
+        analysis_result['sources'] = extract_section(response, "Quellen")
+
+        # Fallbacks in case prompt format wasn't strictly followed
+        if not analysis_result['bull_case'] and not analysis_result['bear_case']:
+             analysis_result['bull_case'] = "Konnte nicht aus der Antwort extrahiert werden."
+             analysis_result['bear_case'] = "Konnte nicht aus der Antwort extrahiert werden."
 
         # Signal comes from quant screener, not AI
         analysis_result['signal'] = qm.get('signal', 'Neutral')

@@ -135,9 +135,31 @@ class Database:
                 recommendation TEXT,
                 signal TEXT,
                 confidence INTEGER,
-                risk_score INTEGER DEFAULT 5
+                risk_score INTEGER DEFAULT 5,
+                bull_case TEXT,
+                bear_case TEXT,
+                sources TEXT,
+                risk_profile TEXT,
+                insider_sentiment TEXT
             )
         """)
+        
+        # Migrate analysis_history: add new columns if missing
+        cursor.execute("PRAGMA table_info(analysis_history)")
+        ah_cols = {row['name'] for row in cursor.fetchall()}
+        ah_migrations = [
+            ("bull_case", "TEXT"),
+            ("bear_case", "TEXT"),
+            ("sources", "TEXT"),
+            ("risk_profile", "TEXT"),
+            ("insider_sentiment", "TEXT"),
+        ]
+        for col_name, col_type in ah_migrations:
+            if col_name not in ah_cols:
+                try:
+                    cursor.execute(f"ALTER TABLE analysis_history ADD COLUMN {col_name} {col_type}")
+                except Exception:
+                    pass
         
         # Alerts sent
         cursor.execute("""
@@ -150,6 +172,24 @@ class Database:
                 sent_to TEXT
             )
         """)
+
+        # Ensure alerts table supports deduplication fields used by alert_manager
+        cursor.execute("PRAGMA table_info(alerts)")
+        alert_cols = {row['name'] for row in cursor.fetchall()}
+        alert_migrations = [
+            ("alert_hash", "TEXT"),
+            ("type", "TEXT"),
+            ("severity", "TEXT"),
+            ("timestamp", "TEXT DEFAULT CURRENT_TIMESTAMP"),
+            ("acknowledged", "INTEGER DEFAULT 0"),
+            ("metadata", "TEXT"),
+        ]
+        for col_name, col_type in alert_migrations:
+            if col_name not in alert_cols:
+                try:
+                    cursor.execute(f"ALTER TABLE alerts ADD COLUMN {col_name} {col_type}")
+                except Exception:
+                    pass
         
         # Scheduler runs log
         cursor.execute("""
@@ -211,11 +251,54 @@ class Database:
             CREATE TABLE IF NOT EXISTS discovered_stocks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ticker TEXT NOT NULL,
-                signal_type TEXT NOT NULL,  -- 'VOLUME_SPIKE', 'RSI_OVERSOLD', 'BREAKOUT'
+                signal_type TEXT NOT NULL,
                 confidence INTEGER,
                 price REAL,
                 found_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                status TEXT DEFAULT 'new'  -- 'new', 'analyzed', 'dismissed'
+                status TEXT DEFAULT 'new',
+                source TEXT DEFAULT 'auto',
+                strategy TEXT,
+                quant_score REAL,
+                sector TEXT,
+                market_cap REAL,
+                promoted_at TIMESTAMP,
+                dismissed_at TIMESTAMP,
+                dismiss_reason TEXT
+            )
+        """)
+
+        # Migrate discovered_stocks: add new columns if missing
+        cursor.execute("PRAGMA table_info(discovered_stocks)")
+        ds_cols = {row['name'] for row in cursor.fetchall()}
+        ds_migrations = [
+            ("source", "TEXT DEFAULT 'auto'"),
+            ("strategy", "TEXT"),
+            ("quant_score", "REAL"),
+            ("sector", "TEXT"),
+            ("market_cap", "REAL"),
+            ("promoted_at", "TIMESTAMP"),
+            ("dismissed_at", "TIMESTAMP"),
+            ("dismiss_reason", "TEXT"),
+        ]
+        for col_name, col_type in ds_migrations:
+            if col_name not in ds_cols:
+                try:
+                    cursor.execute(f"ALTER TABLE discovered_stocks ADD COLUMN {col_name} {col_type}")
+                except Exception:
+                    pass
+
+        # Discovery Log (tracks each auto-discovery run)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS discovery_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                run_type TEXT NOT NULL,
+                strategies_run TEXT,
+                tickers_scanned INTEGER DEFAULT 0,
+                discoveries_found INTEGER DEFAULT 0,
+                promoted_count INTEGER DEFAULT 0,
+                duration_seconds REAL,
+                errors TEXT
             )
         """)
         
@@ -297,6 +380,15 @@ class Database:
             )
         """)
 
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ticker_risk_overrides (
+                ticker TEXT PRIMARY KEY,
+                stop_loss_pct REAL,
+                max_position_pct REAL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # Users table for authentication
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
@@ -305,10 +397,20 @@ class Database:
                 password_hash TEXT NOT NULL,
                 email TEXT,
                 is_active BOOLEAN DEFAULT 1,
+                must_change_password BOOLEAN DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_login TIMESTAMP
             )
         """)
+
+        # Migration: add must_change_password for existing databases
+        cursor.execute("PRAGMA table_info(users)")
+        user_cols = {row['name'] for row in cursor.fetchall()}
+        if 'must_change_password' not in user_cols:
+            try:
+                cursor.execute("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN DEFAULT 1")
+            except Exception:
+                pass
 
         # Create default admin user if no users exist
         cursor.execute("SELECT COUNT(*) FROM users")
@@ -317,11 +419,47 @@ class Database:
             # This is the bcrypt hash of "changeme123"
             default_hash = "$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5OMx/c5w.H6K6"
             cursor.execute("""
-                INSERT INTO users (username, password_hash, email)
-                VALUES ('admin', ?, 'admin@localhost')
+                INSERT INTO users (username, password_hash, email, must_change_password)
+                VALUES ('admin', ?, 'admin@localhost', 1)
             """, (default_hash,))
             print("⚠️  Default admin user created - Password: changeme123")
             print("⚠️  CHANGE THIS IMMEDIATELY AFTER FIRST LOGIN!")
+
+        # Persistent user sessions
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_sessions (
+                session_id TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                last_activity TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                FOREIGN KEY (username) REFERENCES users(username)
+            )
+        """)
+
+        # Migration: optional metadata on sessions for device overview
+        cursor.execute("PRAGMA table_info(user_sessions)")
+        session_cols = {row['name'] for row in cursor.fetchall()}
+        if 'ip_address' not in session_cols:
+            try:
+                cursor.execute("ALTER TABLE user_sessions ADD COLUMN ip_address TEXT")
+            except Exception:
+                pass
+        if 'user_agent' not in session_cols:
+            try:
+                cursor.execute("ALTER TABLE user_sessions ADD COLUMN user_agent TEXT")
+            except Exception:
+                pass
+
+        # Login failure tracking (backoff/lockout)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS login_failures (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT,
+                ip_address TEXT,
+                attempted_at TEXT NOT NULL
+            )
+        """)
 
         # Insider transactions table
         cursor.execute("""
@@ -359,19 +497,325 @@ class Database:
             )
         """)
 
+        # Handle legacy backtest_results schema (old version had different columns)
+        cursor.execute("PRAGMA table_info(backtest_results)")
+        _bt_cols = [row['name'] for row in cursor.fetchall()]
+        if _bt_cols and 'run_id' not in _bt_cols:
+            cursor.execute("ALTER TABLE backtest_results RENAME TO backtest_results_legacy")
+
+        # Backtest Results (per-ticker per-date)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS backtest_results (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id INTEGER NOT NULL,
+                ticker TEXT NOT NULL,
+                test_date TEXT NOT NULL,
+                signal TEXT NOT NULL,
+                tech_score REAL,
+                momentum_score REAL,
+                composite_score REAL,
+                forward_5d_return REAL,
+                forward_20d_return REAL,
+                hit INTEGER DEFAULT 0,
+                benchmark_ticker TEXT,
+                benchmark_return REAL,
+                alpha REAL,
+                forward_10d_return REAL,
+                forward_40d_return REAL,
+                forward_60d_return REAL,
+                regime TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (run_id) REFERENCES backtest_runs(id)
+            )
+        """)
+
+        # Backtest Runs (summary per run)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS backtest_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                tickers_tested INTEGER DEFAULT 0,
+                months_tested INTEGER DEFAULT 0,
+                overall_accuracy REAL,
+                avg_return_buy REAL,
+                avg_return_sell REAL,
+                best_weights TEXT,
+                status TEXT DEFAULT 'running',
+                progress_pct REAL DEFAULT 0,
+                progress_msg TEXT DEFAULT '',
+                error TEXT,
+                sharpe_ratio REAL,
+                max_drawdown REAL,
+                profit_factor REAL,
+                volatility REAL,
+                win_loss_ratio REAL,
+                risk_metrics TEXT,
+                survivorship_warning TEXT,
+                coverage_warning TEXT,
+                model_alignment_pct REAL,
+                expected_value_per_trade REAL,
+                out_of_sample_accuracy REAL,
+                portfolio_total_return REAL,
+                portfolio_sharpe REAL,
+                walk_forward_windows TEXT,
+                weight_stability REAL
+            )
+        """)
+
+        # Migrate existing tables: add walk-forward columns if missing
+        for col, col_type in [('walk_forward_windows', 'TEXT'), ('weight_stability', 'REAL')]:
+            try:
+                cursor.execute(f"ALTER TABLE backtest_runs ADD COLUMN {col} {col_type}")
+            except Exception:
+                pass  # Column already exists
+
         # Indexes for better performance
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_backtest_results_run ON backtest_results(run_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_backtest_results_ticker ON backtest_results(ticker)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_ticker ON portfolio_trades(ticker)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_trades_date ON portfolio_trades(date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_alert_hash ON alerts(alert_hash)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(username)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_sessions_exp ON user_sessions(expires_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_login_fail_user_time ON login_failures(username, attempted_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_login_fail_ip_time ON login_failures(ip_address, attempted_at)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_perf_date ON performance_snapshots(date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_insider_ticker ON insider_transactions(ticker)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_insider_date ON insider_transactions(transaction_date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cost_api_month ON api_cost_log(api, month)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cost_api_date ON api_cost_log(api, date)")
-        
+
+        # AI Cross-Check Log
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ai_crosscheck_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                analysis_id INTEGER,
+                claims_found INTEGER DEFAULT 0,
+                claims_verified INTEGER DEFAULT 0,
+                accuracy REAL,
+                trust_score REAL,
+                details TEXT,
+                warning TEXT,
+                checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (analysis_id) REFERENCES analysis_history(id)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_crosscheck_ticker ON ai_crosscheck_log(ticker)")
+
+        # Portfolio Benchmarks (daily snapshots for portfolio vs SPY comparison)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS portfolio_benchmarks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                snapshot_date TEXT UNIQUE NOT NULL,
+                portfolio_value REAL,
+                portfolio_return_pct REAL,
+                spy_equivalent_value REAL,
+                spy_return_pct REAL,
+                alpha REAL,
+                cash_invested REAL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_benchmarks_date ON portfolio_benchmarks(snapshot_date)")
+
+        # Fundamental Snapshots (for 4-factor backtesting — Feature 5)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS fundamental_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                snapshot_date TEXT NOT NULL,
+                pe_ratio REAL,
+                pb_ratio REAL,
+                roe REAL,
+                debt_to_equity REAL,
+                current_ratio REAL,
+                fcf_yield REAL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(ticker, snapshot_date)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_fund_snap_ticker ON fundamental_snapshots(ticker)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_fund_snap_date ON fundamental_snapshots(snapshot_date)")
+
+        # Discovery indexes
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_discovered_ticker ON discovered_stocks(ticker)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_discovered_status ON discovered_stocks(status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_discovered_found ON discovered_stocks(found_at)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_discovery_log_type ON discovery_log(run_type)")
+
+        # Ticker Graveyard (survivorship bias tracking — Feature 7)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ticker_graveyard (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT UNIQUE NOT NULL,
+                last_seen TEXT,
+                reason TEXT,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_graveyard_ticker ON ticker_graveyard(ticker)")
+
+        # === NEW TABLES ===
+
+        # Financial statement cache (8-quarter trend data, DCF, key stats)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS financial_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                data_type TEXT NOT NULL,
+                data_json TEXT NOT NULL,
+                fetched_at TEXT NOT NULL,
+                UNIQUE(ticker, data_type)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_fin_cache_ticker ON financial_cache(ticker)")
+
+        # Discovery outcome tracking (performance at 30/60/90 days)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS discovery_outcomes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                discovery_id INTEGER UNIQUE,
+                ticker TEXT NOT NULL,
+                promoted_at TEXT,
+                promoted_price REAL,
+                price_30d REAL,
+                price_60d REAL,
+                price_90d REAL,
+                return_30d REAL,
+                return_60d REAL,
+                return_90d REAL,
+                strategy TEXT,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_disc_outcomes_ticker ON discovery_outcomes(ticker)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_disc_outcomes_strategy ON discovery_outcomes(strategy)")
+
+        # Per-stock notes (free text)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS stock_notes (
+                ticker TEXT PRIMARY KEY,
+                note_text TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Trade journal
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS trade_journal (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                entry_date TEXT,
+                exit_date TEXT,
+                entry_price REAL,
+                exit_price REAL,
+                shares REAL,
+                trade_type TEXT DEFAULT 'LONG',
+                system_signal TEXT,
+                user_action TEXT,
+                entry_reason TEXT,
+                exit_reason TEXT,
+                outcome_pct REAL,
+                notes TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_journal_ticker ON trade_journal(ticker)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_journal_date ON trade_journal(entry_date)")
+
+        # Watchlist tier column migration
+        cursor.execute("PRAGMA table_info(watchlist)")
+        wl_cols = {row['name'] for row in cursor.fetchall()}
+        if 'tier' not in wl_cols:
+            try:
+                cursor.execute("ALTER TABLE watchlist ADD COLUMN tier TEXT DEFAULT 'core'")
+            except Exception:
+                pass
+        if 'tags' not in wl_cols:
+            try:
+                cursor.execute("ALTER TABLE watchlist ADD COLUMN tags TEXT")
+            except Exception:
+                pass
+
+        # Price alerts table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS price_alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                alert_type TEXT NOT NULL,
+                threshold REAL,
+                direction TEXT,
+                active INTEGER DEFAULT 1,
+                triggered_at TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Webhook settings migration (ensure settings exist for new keys)
+        webhook_defaults = [
+            ('telegram_enabled', 'false'),
+            ('telegram_bot_token', '""'),
+            ('telegram_chat_id', '""'),
+            ('discord_enabled', 'false'),
+            ('discord_webhook_url', '""'),
+        ]
+        for wkey, wval in webhook_defaults:
+            cursor.execute(
+                "INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)",
+                (wkey, wval)
+            )
+
         conn.commit()
         conn.close()
     
     # === Settings ===
+    # === Helper Methods for New Modules ===
+    
+    def query(self, sql: str, params: tuple = ()) -> List[Dict]:
+        """Execute SELECT query and return list of dicts"""
+        try:
+            conn = self._get_conn()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(sql, params)
+                rows = cursor.fetchall()
+                return [dict(row) for row in rows]
+            finally:
+                conn.close()
+        except Exception as e:
+            self.logger.error(f"Query error: {e}", exc_info=True)
+            return []
+    
+    def query_one(self, sql: str, params: tuple = ()) -> Optional[Dict]:
+        """Execute SELECT query and return single dict or None"""
+        try:
+            conn = self._get_conn()
+            try:
+                cursor = conn.cursor()
+                cursor.execute(sql, params)
+                row = cursor.fetchone()
+                return dict(row) if row else None
+            finally:
+                conn.close()
+        except Exception as e:
+            self.logger.error(f"Query one error: {e}", exc_info=True)
+            return None
+    
+    def execute(self, sql: str, params: tuple = ()):
+        """Execute INSERT/UPDATE/DELETE query"""
+        try:
+            with self._get_transaction() as conn:
+                cursor = conn.cursor()
+                cursor.execute(sql, params)
+                return cursor
+        except Exception as e:
+            self.logger.error(f"Execute error: {e}", exc_info=True)
+            raise
+    
+    # === Settings ===
+    
     def get_setting(self, key: str) -> Any:
         """Get setting with error handling and default fallback"""
         if not key or not isinstance(key, str):
@@ -523,7 +967,6 @@ class Database:
 
         # Extract signal — use quant screener signal if available, fallback to old parsing
         signal = results.get('signal', 'NEUTRAL')
-        confidence = 50
 
         # Map new signal types to DB values
         signal_map = {
@@ -533,11 +976,8 @@ class Database:
         }
         signal = signal_map.get(signal, signal)
 
-        # Set confidence based on signal type
-        if signal == 'OPPORTUNITY':
-            confidence = 75
-        elif signal == 'CAUTION':
-            confidence = 75
+        # Use composite score as strength (honest metric), fallback to score, then 50
+        confidence = results.get('composite_score', results.get('score', 50))
 
         # Legacy fallback: parse old-style Buy/Sell from recommendation text
         rec = results.get('recommendation', '')
@@ -565,8 +1005,8 @@ class Database:
 
                 cursor.execute("""
                     INSERT INTO analysis_history
-                    (ticker, news, fundamental, technical, recommendation, signal, confidence, risk_score)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    (ticker, news, fundamental, technical, recommendation, signal, confidence, risk_score, bull_case, bear_case, sources, risk_profile, insider_sentiment)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     ticker,
                     str(results.get('news', ''))[:10000],  # Limit length
@@ -575,7 +1015,12 @@ class Database:
                     str(results.get('recommendation', ''))[:10000],
                     signal,
                     confidence,
-                    results.get('risk_score', 5)
+                    results.get('risk_score', 5),
+                    str(results.get('bull_case', ''))[:5000],
+                    str(results.get('bear_case', ''))[:5000],
+                    str(results.get('sources', ''))[:5000],
+                    str(results.get('risk_profile', 'Unknown'))[:100],
+                    str(results.get('insider_sentiment', ''))[:1000]
                 ))
 
                 analysis_id = cursor.lastrowid
@@ -884,6 +1329,68 @@ class Database:
             'holdings': holdings
         }
 
+    def get_ticker_risk_override(self, ticker: str) -> Optional[Dict[str, Any]]:
+        """Get risk override for a ticker, if configured."""
+        if not ticker:
+            return None
+
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT ticker, stop_loss_pct, max_position_pct, updated_at FROM ticker_risk_overrides WHERE ticker = ?",
+            (ticker.upper(),)
+        )
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def get_ticker_risk_overrides(self) -> List[Dict[str, Any]]:
+        """List all ticker risk overrides."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT ticker, stop_loss_pct, max_position_pct, updated_at FROM ticker_risk_overrides ORDER BY ticker"
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+
+    def set_ticker_risk_override(self, ticker: str,
+                                 stop_loss_pct: Optional[float] = None,
+                                 max_position_pct: Optional[float] = None):
+        """Create or update per-ticker risk override. Removes override if both values are None."""
+        if not ticker:
+            raise ValueError("Ticker is required")
+
+        ticker = ticker.upper().strip()
+
+        if stop_loss_pct is None and max_position_pct is None:
+            self.delete_ticker_risk_override(ticker)
+            return
+
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO ticker_risk_overrides (ticker, stop_loss_pct, max_position_pct, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(ticker) DO UPDATE SET
+                stop_loss_pct = excluded.stop_loss_pct,
+                max_position_pct = excluded.max_position_pct,
+                updated_at = excluded.updated_at
+        """, (ticker, stop_loss_pct, max_position_pct, datetime.now().isoformat()))
+        conn.commit()
+        conn.close()
+
+    def delete_ticker_risk_override(self, ticker: str):
+        """Delete per-ticker risk override."""
+        if not ticker:
+            return
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM ticker_risk_overrides WHERE ticker = ?", (ticker.upper().strip(),))
+        conn.commit()
+        conn.close()
+
     # === Top Picks / Performance Analytics ===
     def get_top_picks(self, min_predictions: int = 5, min_accuracy: float = 0.6, limit: int = 10) -> List[Dict]:
         """
@@ -1031,6 +1538,59 @@ class Database:
         picks = self.get_top_picks(min_predictions=3, min_accuracy=min_accuracy, limit=100)
         return [pick['ticker'] for pick in picks]
 
+    # === Signal P&L Summary ===
+    def get_signal_pnl_summary(self) -> Dict:
+        """Aggregate P&L stats from prediction_outcomes table."""
+        try:
+            conn = self._get_conn()
+            cursor = conn.cursor()
+
+            # Per-signal breakdown
+            cursor.execute("""
+                SELECT
+                    signal,
+                    COUNT(*) as total,
+                    SUM(CASE WHEN accuracy_score >= 0.5 THEN 1 ELSE 0 END) as correct,
+                    AVG((actual_price_after - actual_price_at_prediction)
+                        / actual_price_at_prediction * 100) as avg_return_pct
+                FROM prediction_outcomes
+                WHERE verified_at IS NOT NULL AND actual_price_at_prediction > 0
+                GROUP BY signal
+            """)
+            by_signal = [dict(row) for row in cursor.fetchall()]
+
+            # Overall stats
+            cursor.execute("""
+                SELECT
+                    COUNT(*) as total_verified,
+                    SUM(CASE WHEN accuracy_score >= 0.5 THEN 1 ELSE 0 END) as total_correct,
+                    AVG(CASE WHEN signal IN ('OPPORTUNITY', 'BUY', 'STRONG_BUY')
+                        THEN (actual_price_after - actual_price_at_prediction)
+                             / actual_price_at_prediction * 100 END) as avg_buy_return,
+                    AVG(CASE WHEN signal IN ('CAUTION', 'SELL', 'STRONG_SELL')
+                        THEN (actual_price_after - actual_price_at_prediction)
+                             / actual_price_at_prediction * 100 END) as avg_sell_return
+                FROM prediction_outcomes
+                WHERE verified_at IS NOT NULL AND actual_price_at_prediction > 0
+            """)
+            overall = dict(cursor.fetchone())
+            conn.close()
+
+            total = overall['total_verified'] or 0
+            correct = overall['total_correct'] or 0
+            hit_rate = round(correct / total * 100, 1) if total > 0 else 0
+
+            return {
+                'total_verified': total,
+                'hit_rate': hit_rate,
+                'avg_buy_return': round(overall['avg_buy_return'], 2) if overall['avg_buy_return'] else 0,
+                'avg_sell_return': round(overall['avg_sell_return'], 2) if overall['avg_sell_return'] else 0,
+                'by_signal': by_signal,
+            }
+        except Exception as e:
+            self.logger.error(f"Error getting signal P&L summary: {e}")
+            return {'total_verified': 0, 'hit_rate': 0, 'avg_buy_return': 0, 'avg_sell_return': 0, 'by_signal': []}
+
     # === User Management (Authentication) ===
     def get_user(self, username: str) -> Optional[Dict]:
         """Get user by username"""
@@ -1055,25 +1615,19 @@ class Database:
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("""
-            UPDATE users SET password_hash = ? WHERE username = ?
+            UPDATE users
+            SET password_hash = ?, must_change_password = 0
+            WHERE username = ?
         """, (auth_manager.hash_password(new_password), username))
         conn.commit()
         conn.close()
 
-    def update_username(self, old_username: str, new_username: str) -> bool:
-        """Update username if the new username is not taken."""
-        try:
-            conn = self._get_conn()
-            cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE users SET username = ? WHERE username = ?
-            """, (new_username, old_username))
-            conn.commit()
-            conn.close()
-            return True
-        except sqlite3.IntegrityError:
-            # Username already exists
+    def user_must_change_password(self, username: str) -> bool:
+        """Return whether user is required to change password."""
+        user = self.get_user(username)
+        if not user:
             return False
+        return bool(user.get('must_change_password', 0))
 
     def update_last_login(self, username: str):
         """Update last login timestamp"""
@@ -1084,6 +1638,276 @@ class Database:
         """, (datetime.now(), username))
         conn.commit()
         conn.close()
+
+    def create_user_session(self, session_id: str, username: str,
+                            created_at: str, last_activity: str, expires_at: str,
+                            ip_address: str = None, user_agent: str = None):
+        """Persist a user session."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO user_sessions
+            (session_id, username, created_at, last_activity, expires_at, ip_address, user_agent)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (session_id, username, created_at, last_activity, expires_at, ip_address, user_agent))
+        conn.commit()
+        conn.close()
+
+    def get_user_session(self, session_id: str) -> Optional[Dict]:
+        """Get a persisted user session by session id."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM user_sessions WHERE session_id = ?", (session_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def get_user_sessions(self, username: str) -> List[Dict[str, Any]]:
+        """List active sessions for user."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT session_id, username, created_at, last_activity, expires_at, ip_address, user_agent
+            FROM user_sessions
+            WHERE username = ?
+            ORDER BY last_activity DESC
+        """, (username,))
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+
+    def touch_user_session(self, session_id: str, last_activity: str, expires_at: str):
+        """Refresh session activity + expiry (sliding timeout)."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE user_sessions
+            SET last_activity = ?, expires_at = ?
+            WHERE session_id = ?
+        """, (last_activity, expires_at, session_id))
+        conn.commit()
+        conn.close()
+
+    def delete_user_session(self, session_id: str):
+        """Delete a session by id."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM user_sessions WHERE session_id = ?", (session_id,))
+        conn.commit()
+        conn.close()
+
+    def delete_other_user_sessions(self, username: str, keep_session_id: str):
+        """Delete all user sessions except current one."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            DELETE FROM user_sessions
+            WHERE username = ?
+              AND session_id != ?
+        """, (username, keep_session_id or ''))
+        conn.commit()
+        conn.close()
+
+    def delete_user_session_for_user(self, username: str, session_id: str):
+        """Delete a specific session belonging to a user."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            DELETE FROM user_sessions
+            WHERE username = ?
+              AND session_id = ?
+        """, (username, session_id))
+        conn.commit()
+        conn.close()
+
+    def cleanup_expired_sessions(self):
+        """Remove expired sessions."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM user_sessions WHERE expires_at <= ?", (datetime.now().isoformat(),))
+        conn.commit()
+        conn.close()
+
+    def record_login_failure(self, username: str, ip_address: str):
+        """Store failed login attempt for backoff policy."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO login_failures (username, ip_address, attempted_at)
+            VALUES (?, ?, ?)
+        """, ((username or '').strip().lower(), ip_address or '', datetime.now().isoformat()))
+        conn.commit()
+        conn.close()
+
+    def clear_login_failures(self, username: str):
+        """Clear failures after successful login."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM login_failures WHERE username = ?", ((username or '').strip().lower(),))
+        deleted = cursor.rowcount if hasattr(cursor, 'rowcount') else 0
+        conn.commit()
+        conn.close()
+        return deleted
+
+    def clear_login_failures_for_ip(self, ip_address: str):
+        """Clear failures for a specific IP address."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM login_failures WHERE ip_address = ?", ((ip_address or '').strip(),))
+        deleted = cursor.rowcount if hasattr(cursor, 'rowcount') else 0
+        conn.commit()
+        conn.close()
+        return deleted
+
+    def clear_recent_login_failures(self, hours: int = 24):
+        """Clear login failure records in a recent time window."""
+        cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM login_failures WHERE attempted_at >= ?", (cutoff,))
+        deleted = cursor.rowcount if hasattr(cursor, 'rowcount') else 0
+        conn.commit()
+        conn.close()
+        return deleted
+
+    def cleanup_old_login_failures(self, days: int = 30):
+        """Remove stale login failure records older than retention window."""
+        cutoff = (datetime.now() - timedelta(days=max(1, days))).isoformat()
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM login_failures WHERE attempted_at < ?", (cutoff,))
+        deleted = cursor.rowcount if hasattr(cursor, 'rowcount') else 0
+        conn.commit()
+        conn.close()
+        return deleted
+
+    def get_login_lockout_info(self, username: str, ip_address: str) -> Dict[str, Any]:
+        """Check if username/IP is currently lockout-blocked."""
+        max_attempts = int(self.get_setting('auth_max_failed_attempts') or 5)
+        window_minutes = int(self.get_setting('auth_attempt_window_minutes') or 15)
+        lockout_minutes = int(self.get_setting('auth_lockout_minutes') or 15)
+
+        now = datetime.now()
+        window_start = (now - timedelta(minutes=window_minutes)).isoformat()
+
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT COUNT(*) as failures, MAX(attempted_at) as last_attempt
+            FROM login_failures
+            WHERE attempted_at >= ?
+              AND (
+                   username = ?
+                   OR ip_address = ?
+              )
+        """, (window_start, (username or '').strip().lower(), ip_address or ''))
+        row = cursor.fetchone()
+        conn.close()
+
+        failures = int(row['failures'] or 0) if row else 0
+        last_attempt_raw = row['last_attempt'] if row else None
+
+        if failures < max_attempts or not last_attempt_raw:
+            return {
+                'locked': False,
+                'failures': failures,
+                'remaining_seconds': 0,
+                'max_attempts': max_attempts,
+            }
+
+        try:
+            last_attempt = datetime.fromisoformat(last_attempt_raw)
+        except Exception:
+            return {
+                'locked': False,
+                'failures': failures,
+                'remaining_seconds': 0,
+                'max_attempts': max_attempts,
+            }
+
+        unlock_at = last_attempt + timedelta(minutes=lockout_minutes)
+        if now >= unlock_at:
+            return {
+                'locked': False,
+                'failures': failures,
+                'remaining_seconds': 0,
+                'max_attempts': max_attempts,
+            }
+
+        return {
+            'locked': True,
+            'failures': failures,
+            'remaining_seconds': int((unlock_at - now).total_seconds()),
+            'max_attempts': max_attempts,
+        }
+
+    def get_login_failures_summary(self, hours: int = 24) -> Dict[str, Any]:
+        """Get aggregate login failure and lockout statistics for recent period."""
+        max_attempts = int(self.get_setting('auth_max_failed_attempts') or 5)
+        window_minutes = int(self.get_setting('auth_attempt_window_minutes') or 15)
+        cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
+
+        conn = self._get_conn()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT COUNT(*) as total
+            FROM login_failures
+            WHERE attempted_at >= ?
+        """, (cutoff,))
+        total_row = cursor.fetchone()
+        total_failures = int(total_row['total']) if total_row and total_row['total'] is not None else 0
+
+        cursor.execute("""
+            SELECT username, COUNT(*) as failures
+            FROM login_failures
+            WHERE attempted_at >= ?
+              AND username != ''
+            GROUP BY username
+            ORDER BY failures DESC
+            LIMIT 10
+        """, (cutoff,))
+        by_user = [dict(row) for row in cursor.fetchall()]
+
+        cursor.execute("""
+            SELECT ip_address, COUNT(*) as failures
+            FROM login_failures
+            WHERE attempted_at >= ?
+              AND ip_address != ''
+            GROUP BY ip_address
+            ORDER BY failures DESC
+            LIMIT 10
+        """, (cutoff,))
+        by_ip = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+
+        estimated_locked_users = sum(1 for row in by_user if int(row.get('failures', 0)) >= max_attempts)
+
+        return {
+            'window_hours': hours,
+            'window_minutes': window_minutes,
+            'max_attempts': max_attempts,
+            'total_failures': total_failures,
+            'estimated_locked_users': estimated_locked_users,
+            'by_user': by_user,
+            'by_ip': by_ip,
+        }
+
+    def get_recent_login_failures(self, limit: int = 50, hours: int = 24) -> List[Dict[str, Any]]:
+        """Get recent login failure events for audit display."""
+        cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT username, ip_address, attempted_at
+            FROM login_failures
+            WHERE attempted_at >= ?
+            ORDER BY attempted_at DESC
+            LIMIT ?
+        """, (cutoff, limit))
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
 
     # === Insider Transactions ===
     def save_insider_transaction(self, transaction: Dict):
@@ -1296,6 +2120,297 @@ class Database:
             self.logger.error(f"Error getting API request count: {e}")
             return 0
 
+    # === Backtest ===
+    def create_backtest_run(self, tickers_tested: int, months_tested: int) -> int:
+        """Create a new backtest run and return its ID."""
+        try:
+            with self._get_transaction() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO backtest_runs (tickers_tested, months_tested, status)
+                    VALUES (?, ?, 'running')
+                """, (tickers_tested, months_tested))
+                return cursor.lastrowid
+        except Exception as e:
+            self.logger.error(f"Error creating backtest run: {e}")
+            raise
+
+    def update_backtest_run(self, run_id: int, **kwargs):
+        """Update backtest run fields (progress_pct, progress_msg, status, etc.)."""
+        allowed = {'overall_accuracy', 'avg_return_buy', 'avg_return_sell',
+                    'best_weights', 'status', 'progress_pct', 'progress_msg', 'error',
+                    'sharpe_ratio', 'max_drawdown', 'profit_factor', 'volatility',
+                    'win_loss_ratio', 'risk_metrics', 'survivorship_warning',
+                    'coverage_warning', 'model_alignment_pct',
+                    'expected_value_per_trade', 'out_of_sample_accuracy',
+                    'portfolio_total_return', 'portfolio_sharpe',
+                    'walk_forward_windows', 'weight_stability'}
+        fields = {k: v for k, v in kwargs.items() if k in allowed}
+        if not fields:
+            return
+        set_clause = ", ".join(f"{k} = ?" for k in fields)
+        values = list(fields.values()) + [run_id]
+        try:
+            with self._get_transaction() as conn:
+                conn.execute(f"UPDATE backtest_runs SET {set_clause} WHERE id = ?", tuple(values))
+        except Exception as e:
+            self.logger.error(f"Error updating backtest run {run_id}: {e}")
+
+    def save_backtest_result(self, run_id: int, result: Dict):
+        """Save a single backtest result row."""
+        try:
+            with self._get_transaction() as conn:
+                conn.execute("""
+                    INSERT INTO backtest_results
+                    (run_id, ticker, test_date, signal, tech_score, momentum_score,
+                     composite_score, forward_5d_return, forward_20d_return, hit,
+                     benchmark_ticker, benchmark_return, alpha,
+                     forward_10d_return, forward_40d_return, forward_60d_return, regime)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    run_id,
+                    result['ticker'],
+                    result['test_date'],
+                    result['signal'],
+                    result.get('tech_score'),
+                    result.get('momentum_score'),
+                    result.get('composite_score'),
+                    result.get('forward_5d_return'),
+                    result.get('forward_20d_return'),
+                    result.get('hit', 0),
+                    result.get('benchmark_ticker'),
+                    result.get('benchmark_return'),
+                    result.get('alpha'),
+                    result.get('forward_10d_return'),
+                    result.get('forward_40d_return'),
+                    result.get('forward_60d_return'),
+                    result.get('regime'),
+                ))
+        except Exception as e:
+            self.logger.error(f"Error saving backtest result: {e}")
+
+    def get_backtest_runs(self, limit: int = 20) -> List[Dict]:
+        """Get recent backtest runs."""
+        return self.query(
+            "SELECT * FROM backtest_runs ORDER BY run_date DESC LIMIT ?", (limit,)
+        )
+
+    def get_backtest_run(self, run_id: int) -> Optional[Dict]:
+        """Get a single backtest run."""
+        return self.query_one("SELECT * FROM backtest_runs WHERE id = ?", (run_id,))
+
+    def get_backtest_results(self, run_id: int) -> List[Dict]:
+        """Get all results for a backtest run."""
+        return self.query(
+            "SELECT * FROM backtest_results WHERE run_id = ? ORDER BY ticker, test_date",
+            (run_id,)
+        )
+
+    # === AI Cross-Check ===
+    def save_crosscheck(self, ticker: str, analysis_id: int, result: Dict):
+        """Save AI cross-check result."""
+        try:
+            with self._get_transaction() as conn:
+                conn.execute("""
+                    INSERT INTO ai_crosscheck_log
+                    (ticker, analysis_id, claims_found, claims_verified,
+                     accuracy, trust_score, details, warning)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    ticker.upper(),
+                    analysis_id,
+                    result.get('claims_found', 0),
+                    result.get('claims_verified', 0),
+                    result.get('accuracy'),
+                    result.get('trust_score'),
+                    json.dumps(result.get('details')) if result.get('details') else None,
+                    result.get('warning'),
+                ))
+        except Exception as e:
+            self.logger.error(f"Error saving crosscheck for {ticker}: {e}")
+
+    def get_crosscheck_history(self, ticker: str = None, limit: int = 20) -> List[Dict]:
+        """Get cross-check history, optionally filtered by ticker."""
+        if ticker:
+            return self.query(
+                "SELECT * FROM ai_crosscheck_log WHERE ticker = ? ORDER BY checked_at DESC LIMIT ?",
+                (ticker.upper(), limit)
+            )
+        return self.query(
+            "SELECT * FROM ai_crosscheck_log ORDER BY checked_at DESC LIMIT ?",
+            (limit,)
+        )
+
+    # === Auto-Discovery ===
+
+    def save_discovery(self, ticker: str, signal_type: str, confidence: int,
+                       price: float, strategy: str, sector: str = None,
+                       market_cap: float = None, source: str = 'auto') -> Optional[int]:
+        """Save a discovered stock opportunity."""
+        try:
+            with self._get_transaction() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO discovered_stocks
+                    (ticker, signal_type, confidence, price, strategy, sector, market_cap, source)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, (ticker.upper(), signal_type, confidence, price, strategy, sector, market_cap, source))
+                return cursor.lastrowid
+        except Exception as e:
+            self.logger.error(f"Error saving discovery for {ticker}: {e}")
+            return None
+
+    def get_pending_discoveries(self, limit: int = 20) -> List[Dict]:
+        """Get discoveries not yet screened (quant_score is NULL)."""
+        return self.query("""
+            SELECT * FROM discovered_stocks
+            WHERE status = 'new' AND quant_score IS NULL
+            ORDER BY found_at DESC LIMIT ?
+        """, (limit,))
+
+    def promote_discovery(self, ticker: str):
+        """Mark a discovery as promoted and set promoted_at timestamp."""
+        try:
+            with self._get_transaction() as conn:
+                conn.execute("""
+                    UPDATE discovered_stocks
+                    SET status = 'promoted', promoted_at = ?
+                    WHERE ticker = ? AND status IN ('new', 'screened')
+                """, (datetime.now().isoformat(), ticker.upper()))
+        except Exception as e:
+            self.logger.error(f"Error promoting discovery {ticker}: {e}")
+
+    def dismiss_discovery(self, discovery_id: int, reason: str = ''):
+        """Mark a discovery as dismissed."""
+        try:
+            with self._get_transaction() as conn:
+                conn.execute("""
+                    UPDATE discovered_stocks
+                    SET status = 'dismissed', dismissed_at = ?, dismiss_reason = ?
+                    WHERE id = ?
+                """, (datetime.now().isoformat(), reason, discovery_id))
+        except Exception as e:
+            self.logger.error(f"Error dismissing discovery {discovery_id}: {e}")
+
+    def update_discovery_score(self, ticker: str, quant_score: float):
+        """Update quant score on a discovery and set status to screened."""
+        try:
+            with self._get_transaction() as conn:
+                conn.execute("""
+                    UPDATE discovered_stocks
+                    SET quant_score = ?, status = 'screened'
+                    WHERE ticker = ? AND status = 'new'
+                """, (quant_score, ticker.upper()))
+        except Exception as e:
+            self.logger.error(f"Error updating discovery score for {ticker}: {e}")
+
+    def get_discovery_stats(self) -> Dict:
+        """Get discovery statistics by status and strategy."""
+        try:
+            conn = self._get_conn()
+            cursor = conn.cursor()
+
+            # Counts by status
+            cursor.execute("""
+                SELECT status, COUNT(*) as cnt
+                FROM discovered_stocks
+                GROUP BY status
+            """)
+            by_status = {row['status']: row['cnt'] for row in cursor.fetchall()}
+
+            # Counts by strategy (last 7 days)
+            cursor.execute("""
+                SELECT strategy, COUNT(*) as cnt
+                FROM discovered_stocks
+                WHERE found_at >= datetime('now', '-7 days')
+                GROUP BY strategy
+            """)
+            by_strategy = {row['strategy']: row['cnt'] for row in cursor.fetchall()}
+
+            # Last 7 days total
+            cursor.execute("""
+                SELECT COUNT(*) as cnt FROM discovered_stocks
+                WHERE found_at >= datetime('now', '-7 days')
+            """)
+            week_total = cursor.fetchone()['cnt']
+
+            # Promoted last 7 days
+            cursor.execute("""
+                SELECT COUNT(*) as cnt FROM discovered_stocks
+                WHERE status = 'promoted' AND promoted_at >= datetime('now', '-7 days')
+            """)
+            week_promoted = cursor.fetchone()['cnt']
+
+            # Last run
+            cursor.execute("""
+                SELECT * FROM discovery_log ORDER BY run_at DESC LIMIT 1
+            """)
+            last_run_row = cursor.fetchone()
+            last_run = dict(last_run_row) if last_run_row else None
+
+            conn.close()
+
+            return {
+                'by_status': by_status,
+                'by_strategy': by_strategy,
+                'week_total': week_total,
+                'week_promoted': week_promoted,
+                'total_new': by_status.get('new', 0),
+                'total_screened': by_status.get('screened', 0),
+                'total_promoted': by_status.get('promoted', 0),
+                'total_dismissed': by_status.get('dismissed', 0),
+                'last_run': last_run,
+            }
+        except Exception as e:
+            self.logger.error(f"Error getting discovery stats: {e}")
+            return {
+                'by_status': {}, 'by_strategy': {}, 'week_total': 0,
+                'week_promoted': 0, 'total_new': 0, 'total_screened': 0,
+                'total_promoted': 0, 'total_dismissed': 0, 'last_run': None,
+            }
+
+    def log_discovery_run(self, run_type: str, strategies: str, scanned: int,
+                          found: int, promoted: int, duration: float, errors: str = ''):
+        """Log a discovery run to the discovery_log table."""
+        try:
+            with self._get_transaction() as conn:
+                conn.execute("""
+                    INSERT INTO discovery_log
+                    (run_type, strategies_run, tickers_scanned, discoveries_found,
+                     promoted_count, duration_seconds, errors)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (run_type, strategies, scanned, found, promoted, duration, errors))
+        except Exception as e:
+            self.logger.error(f"Error logging discovery run: {e}")
+
+    def get_recent_discoveries(self, days: int = 7, status: str = None) -> List[Dict]:
+        """Get recent discoveries, optionally filtered by status."""
+        if status:
+            return self.query("""
+                SELECT * FROM discovered_stocks
+                WHERE found_at >= datetime('now', '-' || ? || ' days') AND status = ?
+                ORDER BY found_at DESC
+            """, (days, status))
+        return self.query("""
+            SELECT * FROM discovered_stocks
+            WHERE found_at >= datetime('now', '-' || ? || ' days')
+            ORDER BY found_at DESC
+        """, (days,))
+
+    def is_recently_discovered(self, ticker: str, days: int = 30) -> bool:
+        """Check if a ticker was already discovered recently."""
+        result = self.query_one("""
+            SELECT COUNT(*) as cnt FROM discovered_stocks
+            WHERE ticker = ? AND found_at >= datetime('now', '-' || ? || ' days')
+        """, (ticker.upper(), days))
+        return result['cnt'] > 0 if result else False
+
+    def get_discovery_log(self, limit: int = 20) -> List[Dict]:
+        """Get recent discovery run logs."""
+        return self.query(
+            "SELECT * FROM discovery_log ORDER BY run_at DESC LIMIT ?", (limit,)
+        )
+
     def get_api_spending_breakdown(self, api: str, month: str) -> list:
         """Get spending breakdown by model for an API in a month."""
         try:
@@ -1316,6 +2431,110 @@ class Database:
         except Exception as e:
             self.logger.error(f"Error getting API spending breakdown: {e}")
             return []
+
+
+    # === Stock Notes ===
+    def get_stock_note(self, ticker: str) -> Optional[str]:
+        """Get free-text note for a ticker."""
+        row = self.query_one("SELECT note_text FROM stock_notes WHERE ticker = ?", (ticker.upper(),))
+        return row['note_text'] if row else None
+
+    def save_stock_note(self, ticker: str, note_text: str):
+        """Save or update free-text note for a ticker."""
+        self.execute("""
+            INSERT INTO stock_notes (ticker, note_text, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(ticker) DO UPDATE SET
+                note_text = excluded.note_text,
+                updated_at = excluded.updated_at
+        """, (ticker.upper(), note_text, datetime.now().isoformat()))
+
+    # === Watchlist Tier ===
+    def update_watchlist_tier(self, ticker: str, tier: str):
+        """Update the tier for a watchlist entry."""
+        self.execute(
+            "UPDATE watchlist SET tier = ? WHERE ticker = ?",
+            (tier, ticker.upper())
+        )
+
+    # === Trade Journal ===
+    def add_journal_entry(self, entry: dict):
+        """Add a new trade journal entry."""
+        self.execute("""
+            INSERT INTO trade_journal
+            (ticker, entry_date, exit_date, entry_price, exit_price, shares,
+             trade_type, system_signal, user_action, entry_reason, exit_reason,
+             outcome_pct, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            entry.get('ticker', '').upper(),
+            entry.get('entry_date'),
+            entry.get('exit_date'),
+            entry.get('entry_price'),
+            entry.get('exit_price'),
+            entry.get('shares'),
+            entry.get('trade_type', 'LONG'),
+            entry.get('system_signal'),
+            entry.get('user_action'),
+            entry.get('entry_reason'),
+            entry.get('exit_reason'),
+            entry.get('outcome_pct'),
+            entry.get('notes'),
+        ))
+
+    def get_journal_entries(self, ticker: str = None, limit: int = 50) -> List[Dict]:
+        """Get trade journal entries, optionally filtered by ticker."""
+        if ticker:
+            return self.query(
+                "SELECT * FROM trade_journal WHERE ticker = ? ORDER BY entry_date DESC LIMIT ?",
+                (ticker.upper(), limit)
+            )
+        return self.query(
+            "SELECT * FROM trade_journal ORDER BY entry_date DESC LIMIT ?", (limit,)
+        )
+
+    def update_journal_entry(self, entry_id: int, exit_price: float, exit_date: str,
+                             exit_reason: str = "", notes: str = ""):
+        """Close out a journal entry with exit data."""
+        entry = self.query_one(
+            "SELECT entry_price, shares FROM trade_journal WHERE id = ?", (entry_id,)
+        )
+        outcome_pct = None
+        if entry and entry.get('entry_price') and exit_price:
+            direction = 1 if (entry.get('trade_type', 'LONG') == 'LONG') else -1
+            outcome_pct = round(
+                ((exit_price - entry['entry_price']) / entry['entry_price']) * 100 * direction, 2
+            )
+        self.execute("""
+            UPDATE trade_journal SET
+                exit_date = ?, exit_price = ?, exit_reason = ?,
+                notes = COALESCE(NULLIF(?, ''), notes),
+                outcome_pct = ?
+            WHERE id = ?
+        """, (exit_date, exit_price, exit_reason, notes, outcome_pct, entry_id))
+
+    def delete_journal_entry(self, entry_id: int):
+        """Delete a trade journal entry."""
+        self.execute("DELETE FROM trade_journal WHERE id = ?", (entry_id,))
+
+    # === Discoveries Bulk Operations ===
+    def bulk_promote_discoveries(self, discovery_ids: List[int]):
+        """Promote a batch of discoveries to watchlist."""
+        for disc_id in discovery_ids:
+            self.execute("""
+                UPDATE discovered_stocks
+                SET status = 'promoted', promoted_at = ?
+                WHERE id = ? AND status IN ('new', 'screened')
+            """, (datetime.now().isoformat(), disc_id))
+
+    def bulk_dismiss_discoveries(self, discovery_ids: List[int], reason: str = "bulk_dismiss"):
+        """Dismiss a batch of discoveries."""
+        for disc_id in discovery_ids:
+            self.execute("""
+                UPDATE discovered_stocks
+                SET status = 'dismissed', dismissed_at = ?, dismiss_reason = ?
+                WHERE id = ? AND status IN ('new', 'screened')
+            """, (datetime.now().isoformat(), reason, disc_id))
 
 
 # Singleton

@@ -26,30 +26,148 @@
     <div class="card" style="margin-bottom: var(--space-8); position: relative; overflow: visible;">
         <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--text-primary);"></div>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
             <div style="display: flex; align-items: center; gap: var(--space-6);">
-                <span class="signal-text signal-{{ analysis.signal|lower }}" style="font-size: 1.25rem; padding: var(--space-3) var(--space-6);">
+                <span class="signal-text signal-{{ analysis.signal|lower }}"
+                    style="font-size: 1.25rem; padding: var(--space-3) var(--space-6);">
                     {{ analysis.signal }}
                 </span>
                 <div>
-                    <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: var(--space-1);">Confidence</div>
-                    <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; color: var(--text-primary); letter-spacing: -0.02em;">{{ analysis.confidence }}%</div>
+                    <div
+                        style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: var(--space-1);">
+                        Signal Strength</div>
+                    <div
+                        style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; color: var(--text-primary); letter-spacing: -0.02em;">
+                        {{ analysis.confidence }}/100</div>
                 </div>
             </div>
-            <div class="progress" style="width: 200px;">
-                <div class="progress-bar" style="width: {{ analysis.confidence }}%;"></div>
+            <div style="display: flex; align-items: center; gap: var(--space-4);">
+                <span id="regime-label" class="badge"
+                    style="display: none; font-size: 0.6875rem; padding: var(--space-2) var(--space-3);"></span>
+                <div class="progress" style="width: 200px;">
+                    <div class="progress-bar" style="width: {{ analysis.confidence }}%;"></div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Recommendation -->
+    <!-- Portfolio Exposure Warnings -->
+    <div id="exposure-warnings" style="display: none; margin-bottom: var(--space-6);"></div>
+
+    <!-- Price Chart -->
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
+            <span class="status-dot" style="background: var(--text-primary);"></span>
+            6-Month Price Chart
+        </h3>
+        <div style="position: relative; height: 300px;">
+            <canvas id="price-chart"></canvas>
+        </div>
+        <div id="chart-loading"
+            style="text-align: center; padding: var(--space-6); color: var(--text-muted); font-size: 0.875rem;">Loading
+            chart data...</div>
+    </div>
+
+    <!-- Algorithm Indicators (populated via AJAX from chart data) -->
+    <div id="algo-indicators" style="display: none; margin-bottom: var(--space-6);">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--space-4);">
+            <!-- Market Structure -->
+            <div class="card" id="algo-structure" style="display: none; padding: var(--space-4);">
+                <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: var(--space-2);">Market Structure</div>
+                <div id="structure-regime" style="font-size: 1.125rem; font-weight: 500;"></div>
+                <div style="display: flex; gap: var(--space-3); margin-top: var(--space-2); font-size: 0.75rem; color: var(--text-muted);">
+                    <span>S: <span id="structure-support" style="color: #6bba7e;">—</span></span>
+                    <span>R: <span id="structure-resist" style="color: #d47272;">—</span></span>
+                </div>
+            </div>
+            <!-- Harmonic Patterns -->
+            <div class="card" id="algo-harmonic" style="display: none; padding: var(--space-4);">
+                <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: var(--space-2);">Harmonic Pattern</div>
+                <div id="harmonic-name" style="font-size: 1.125rem; font-weight: 500;"></div>
+                <div id="harmonic-detail" style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-2);"></div>
+            </div>
+            <!-- Visibility Graph -->
+            <div class="card" id="algo-vg" style="display: none; padding: var(--space-4);">
+                <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: var(--space-2);">Visibility Graph</div>
+                <div id="vg-signal" style="font-size: 1.125rem; font-weight: 500;"></div>
+                <div id="vg-detail" style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-2);"></div>
+            </div>
+            <!-- Meta-Labeler -->
+            <div class="card" id="algo-meta" style="display: none; padding: var(--space-4);">
+                <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: var(--space-2);">RF Meta-Labeler</div>
+                <div id="meta-status" style="font-size: 1.125rem; font-weight: 500;"></div>
+                <div id="meta-detail" style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-2);"></div>
+            </div>
+            <!-- MCPT Validation -->
+            <div class="card" id="algo-mcpt" style="display: none; padding: var(--space-4);">
+                <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: var(--space-2);">Strategy Validation</div>
+                <div id="mcpt-status" style="font-size: 1.125rem; font-weight: 500;"></div>
+                <div id="mcpt-detail" style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-2);"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bull/Bear Cases -->
+    <div
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-6); margin-bottom: var(--space-6);">
+        <div class="card" style="border-left: 3px solid #6bba7e;">
+            <h3
+                style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3); color: #6bba7e;">
+                <span class="status-dot" style="background: #6bba7e;"></span>
+                Bull Case
+            </h3>
+            <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{
+                analysis.bull_case or 'No specific bull case extracted. See full recommendation below.' }}</div>
+        </div>
+
+        <div class="card" style="border-left: 3px solid #d47272;">
+            <h3
+                style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3); color: #d47272;">
+                <span class="status-dot" style="background: #d47272;"></span>
+                Bear Case
+            </h3>
+            <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{
+                analysis.bear_case or 'No specific bear case extracted. See full recommendation below.' }}</div>
+        </div>
+    </div>
+
+    <!-- Recommendation (Synthesis/Fallback) -->
     <div class="card" style="margin-bottom: var(--space-6);">
         <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
             <span class="status-dot" style="background: var(--text-muted);"></span>
-            Recommendation
+            Synthesis & Recommendation
         </h3>
-        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.recommendation or 'No recommendation available' }}</div>
+        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{
+            analysis.recommendation or 'No recommendation available' }}</div>
     </div>
+
+    <!-- Sources -->
+    {% if analysis.sources %}
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
+            <span class="status-dot" style="background: #d4a84b;"></span>
+            Sources & Citations
+        </h3>
+        <div class="sources-list"
+            style="white-space: pre-wrap; line-height: 1.7; font-size: 0.875rem; color: var(--highlight); background: rgba(0,0,0,0.2); padding: var(--space-4); border-radius: 4px; border: 1px solid var(--border);">
+            {{ analysis.sources }}</div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const sourcesDiv = document.querySelector('.sources-list');
+            if (sourcesDiv) {
+                let html = sourcesDiv.innerHTML;
+                const urlRegex = /(https?:\/\/[^\s<]+)/g;
+                html = html.replace(urlRegex, function (url) {
+                    return '<a href="' + url + '" target="_blank" style="color: #6bba7e; text-decoration: underline;">' + url + '</a>';
+                });
+                sourcesDiv.innerHTML = html;
+            }
+        });
+    </script>
+    {% endif %}
 
     <!-- News -->
     {% if analysis.news %}
@@ -58,7 +176,8 @@
             <span class="status-dot" style="background: var(--text-primary);"></span>
             News Analysis
         </h3>
-        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.news }}</div>
+        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{
+            analysis.news }}</div>
     </div>
     {% endif %}
 
@@ -69,19 +188,506 @@
             <span class="status-dot" style="background: var(--text-primary);"></span>
             Fundamental Analysis
         </h3>
-        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.fundamental }}</div>
+        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{
+            analysis.fundamental }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Follow The Money -->
+    {% if analysis.insider_sentiment %}
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
+            <span class="status-dot" style="background: var(--text-primary);"></span>
+            Follow The Money (Insider Activity)
+        </h3>
+        <div style="font-size: 0.9375rem; color: var(--text-secondary);">
+            <strong>Net Signal:</strong>
+            {% if 'BULL' in analysis.insider_sentiment %}
+            <span style="color: #6bba7e; font-weight: 500;">{{ analysis.insider_sentiment }}</span>
+            {% elif 'BEAR' in analysis.insider_sentiment %}
+            <span style="color: #d47272; font-weight: 500;">{{ analysis.insider_sentiment }}</span>
+            {% else %}
+            <span>{{ analysis.insider_sentiment }}</span>
+            {% endif %}
+        </div>
     </div>
     {% endif %}
 
     <!-- Technical -->
     {% if analysis.technical %}
-    <div class="card">
+    <div class="card" style="margin-bottom: var(--space-6);">
         <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
             <span class="status-dot" style="background: var(--text-primary);"></span>
             Technical Analysis
         </h3>
-        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.technical }}</div>
+        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{
+            analysis.technical }}</div>
     </div>
     {% endif %}
+
+    <!-- AI Cross-Check -->
+    {% if crosscheck %}
+    <div class="card" style="margin-bottom: var(--space-6); border-left: 3px solid
+        {% if crosscheck.trust_score and crosscheck.trust_score >= 0.8 %}#6bba7e
+        {% elif crosscheck.trust_score and crosscheck.trust_score >= 0.5 %}#d4a84b
+        {% else %}#d47272{% endif %};">
+
+        <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
+            <span class="status-dot" style="background:
+                {% if crosscheck.trust_score and crosscheck.trust_score >= 0.8 %}#6bba7e
+                {% elif crosscheck.trust_score and crosscheck.trust_score >= 0.5 %}#d4a84b
+                {% else %}#d47272{% endif %};"></span>
+            AI Fact-Check
+        </h3>
+
+        <!-- Summary metrics -->
+        <div
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-4);">
+            <div>
+                <div
+                    style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em;">
+                    Trust Score</div>
+                <div style="font-family: var(--font-display); font-size: 1.5rem; color:
+                    {% if crosscheck.trust_score and crosscheck.trust_score >= 0.8 %}#6bba7e
+                    {% elif crosscheck.trust_score and crosscheck.trust_score >= 0.5 %}#d4a84b
+                    {% else %}#d47272{% endif %};">
+                    {{ "%.0f"|format((crosscheck.trust_score or 0) * 100) }}%
+                </div>
+            </div>
+            <div>
+                <div
+                    style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em;">
+                    Accuracy</div>
+                <div style="font-family: var(--font-display); font-size: 1.5rem;">
+                    {{ "%.0f"|format((crosscheck.accuracy or 0) * 100) }}%
+                </div>
+            </div>
+            <div>
+                <div
+                    style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em;">
+                    Claims Verified</div>
+                <div style="font-family: var(--font-display); font-size: 1.5rem;">
+                    {{ crosscheck.claims_verified or 0 }} / {{ crosscheck.claims_found or 0 }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Warning -->
+        {% if crosscheck.warning %}
+        <div
+            style="background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); border-radius: 6px; padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); font-size: 0.875rem; color: #d47272;">
+            {{ crosscheck.warning }}
+        </div>
+        {% endif %}
+
+        <!-- Detail table -->
+        {% if crosscheck.details %}
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.8125rem;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <th style="text-align: left; padding: var(--space-2); color: var(--text-muted); font-weight: 500;">
+                        Metric</th>
+                    <th style="text-align: right; padding: var(--space-2); color: var(--text-muted); font-weight: 500;">
+                        AI Value</th>
+                    <th style="text-align: right; padding: var(--space-2); color: var(--text-muted); font-weight: 500;">
+                        Actual</th>
+                    <th
+                        style="text-align: center; padding: var(--space-2); color: var(--text-muted); font-weight: 500;">
+                        Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for d in crosscheck.details %}
+                <tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: var(--space-2);">{{ d.metric }}</td>
+                    <td style="padding: var(--space-2); text-align: right; font-family: var(--font-mono);">
+                        {% if d.ai_value >= 1000000000 %}${{ "%.1f"|format(d.ai_value / 1000000000) }}B
+                        {% elif d.ai_value >= 1000000 %}${{ "%.1f"|format(d.ai_value / 1000000) }}M
+                        {% else %}{{ "%.2f"|format(d.ai_value) }}{% endif %}
+                    </td>
+                    <td style="padding: var(--space-2); text-align: right; font-family: var(--font-mono);">
+                        {% if d.actual_value >= 1000000000 %}${{ "%.1f"|format(d.actual_value / 1000000000) }}B
+                        {% elif d.actual_value >= 1000000 %}${{ "%.1f"|format(d.actual_value / 1000000) }}M
+                        {% else %}{{ "%.2f"|format(d.actual_value) }}{% endif %}
+                    </td>
+                    <td style="padding: var(--space-2); text-align: center;">
+                        {% if d.status == 'accurate' %}
+                        <span style="color: #6bba7e; font-size: 0.75rem; font-weight: 600;">ACCURATE</span>
+                        {% elif d.status == 'approximate' %}
+                        <span style="color: #d4a84b; font-size: 0.75rem; font-weight: 600;">APPROX</span>
+                        {% else %}
+                        <span style="color: #d47272; font-size: 0.75rem; font-weight: 600;">INACCURATE</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        <div style="margin-top: var(--space-3); font-size: 0.75rem; color: var(--text-muted);">
+            Checked at {{ crosscheck.checked_at }} — compared against live yfinance data
+        </div>
+    </div>
+    {% else %}
+    <!-- Re-check button when no cross-check exists -->
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">AI Fact-Check</h3>
+                <p style="margin: 0; font-size: 0.8125rem; color: var(--text-muted);">Verify AI claims against live
+                    market data</p>
+            </div>
+            <button onclick="runCrosscheck({{ analysis.id }})" class="btn btn-ghost" id="cc-btn">
+                Run Cross-Check
+            </button>
+        </div>
+        <div id="cc-result" style="display: none; margin-top: var(--space-4);"></div>
+    </div>
+    <script>
+        async function runCrosscheck(analysisId) {
+            const btn = document.getElementById('cc-btn');
+            btn.disabled = true;
+            btn.textContent = 'Checking...';
+            try {
+                const resp = await fetch('/api/crosscheck/' + analysisId, { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    location.reload();
+                } else {
+                    btn.textContent = data.error || 'Failed';
+                }
+            } catch (e) {
+                btn.textContent = 'Error';
+            }
+        }
+    </script>
+    {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Portfolio Exposure Check
+    fetch('/api/portfolio/exposure/{{ analysis.ticker }}')
+        .then(r => r.json())
+        .then(data => {
+            if (data && data.warnings && data.warnings.length > 0) {
+                const container = document.getElementById('exposure-warnings');
+                container.style.display = 'block';
+
+                let html = '<div style="background: rgba(212,114,114,0.1); border: 1px solid rgba(212,114,114,0.3); border-radius: 6px; padding: var(--space-4);">';
+                html += '<h3 style="margin: 0 0 var(--space-2) 0; color: #d47272; font-size: 0.9375rem; display: flex; align-items: center; gap: var(--space-2);"><span class="status-dot" style="background: #d47272;"></span> Portfolio Exposure Risk</h3>';
+                html += '<ul style="margin: 0; padding-left: var(--space-4); color: var(--text-secondary); font-size: 0.875rem; line-height: 1.6;">';
+                data.warnings.forEach(warning => {
+                    html += `<li style="margin-bottom: var(--space-1);">${warning}</li>`;
+                });
+                html += '</ul></div>';
+
+                container.innerHTML = html;
+            }
+        })
+        .catch(() => { });
+
+    // Market Regime Label
+    fetch('/api/market-regime')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.regime) return;
+            const label = document.getElementById('regime-label');
+            label.style.display = '';
+            const colors = {
+                'bull': { bg: 'rgba(107,186,126,0.15)', color: '#6bba7e', border: 'rgba(107,186,126,0.3)' },
+                'bear': { bg: 'rgba(212,114,114,0.15)', color: '#d47272', border: 'rgba(212,114,114,0.3)' },
+                'choppy': { bg: 'rgba(212,168,75,0.15)', color: '#d4a84b', border: 'rgba(212,168,75,0.3)' },
+            };
+            const c = colors[data.regime] || colors['choppy'];
+            label.textContent = 'Generated during ' + data.regime.toUpperCase() + ' market';
+            label.style.background = c.bg;
+            label.style.color = c.color;
+            label.style.border = '1px solid ' + c.border;
+        })
+        .catch(() => { });
+
+    // Price Chart
+    fetch('/api/chart-data/{{ analysis.ticker }}')
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('chart-loading').style.display = 'none';
+            if (data.error) return;
+
+            const ctx = document.getElementById('price-chart').getContext('2d');
+            const datasets = [
+                {
+                    label: '{{ analysis.ticker }}',
+                    data: data.prices,
+                    borderColor: 'rgba(255, 255, 255, 0.9)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    borderWidth: 1.5,
+                    fill: true,
+                    tension: 0.1,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                },
+                {
+                    label: 'SMA 20',
+                    data: data.sma20,
+                    borderColor: '#6bba7e',
+                    borderWidth: 1,
+                    borderDash: [4, 2],
+                    pointRadius: 0,
+                    fill: false,
+                },
+                {
+                    label: 'SMA 50',
+                    data: data.sma50,
+                    borderColor: '#d4a84b',
+                    borderWidth: 1,
+                    borderDash: [4, 2],
+                    pointRadius: 0,
+                    fill: false,
+                },
+                {
+                    label: 'SMA 200',
+                    data: data.sma200,
+                    borderColor: '#d47272',
+                    borderWidth: 1,
+                    borderDash: [6, 3],
+                    pointRadius: 0,
+                    fill: false,
+                },
+            ];
+
+            // Signal markers
+            if (data.signals && data.signals.length > 0) {
+                const markerData = new Array(data.dates.length).fill(null);
+                const markerColors = [];
+                data.signals.forEach(s => {
+                    const idx = data.dates.indexOf(s.date);
+                    if (idx >= 0) {
+                        markerData[idx] = s.price;
+                        const isPositive = ['OPPORTUNITY', 'BUY', 'STRONG_BUY'].includes(s.signal);
+                        markerColors.push(isPositive ? '#6bba7e' : '#d47272');
+                    }
+                });
+                datasets.push({
+                    label: 'Signals',
+                    data: markerData,
+                    borderColor: markerColors,
+                    backgroundColor: markerColors,
+                    pointRadius: 6,
+                    pointStyle: 'star',
+                    showLine: false,
+                    pointHoverRadius: 8,
+                });
+            }
+
+            // DC Turning Points (market structure overlays)
+            if (data.turning_points && data.turning_points.length > 0) {
+                const highData = new Array(data.dates.length).fill(null);
+                const lowData = new Array(data.dates.length).fill(null);
+                data.turning_points.forEach(tp => {
+                    const idx = data.dates.indexOf(tp.date);
+                    if (idx >= 0) {
+                        if (tp.type === 'high') highData[idx] = tp.price;
+                        else lowData[idx] = tp.price;
+                    }
+                });
+                datasets.push({
+                    label: 'Swing Highs',
+                    data: highData,
+                    borderColor: '#d47272',
+                    backgroundColor: 'rgba(212,114,114,0.6)',
+                    pointRadius: 4,
+                    pointStyle: 'triangle',
+                    showLine: false,
+                    pointHoverRadius: 6,
+                });
+                datasets.push({
+                    label: 'Swing Lows',
+                    data: lowData,
+                    borderColor: '#6bba7e',
+                    backgroundColor: 'rgba(107,186,126,0.6)',
+                    pointRadius: 4,
+                    pointStyle: 'triangle',
+                    pointRotation: 180,
+                    showLine: false,
+                    pointHoverRadius: 6,
+                });
+            }
+
+            // Build annotation config for S/R lines and harmonic zones
+            const annotations = {};
+
+            // Support/Resistance horizontal lines
+            if (data.support_resistance) {
+                data.support_resistance.forEach((sr, i) => {
+                    annotations['sr' + i] = {
+                        type: 'line',
+                        yMin: sr.price, yMax: sr.price,
+                        borderColor: sr.type === 'support' ? 'rgba(107,186,126,0.4)' : 'rgba(212,114,114,0.4)',
+                        borderWidth: 1,
+                        borderDash: [8, 4],
+                        label: {
+                            display: true,
+                            content: sr.type === 'support' ? 'S: $' + sr.price : 'R: $' + sr.price,
+                            position: 'start',
+                            font: { size: 9 },
+                            color: 'rgba(255,255,255,0.5)',
+                            backgroundColor: 'transparent',
+                        }
+                    };
+                });
+            }
+
+            // Harmonic pattern annotations (entry zone, stop loss, targets)
+            if (data.harmonic_patterns && data.harmonic_patterns.length > 0) {
+                const hp = data.harmonic_patterns[0];
+                if (hp.entry_zone) {
+                    annotations['harmonic_entry'] = {
+                        type: 'box',
+                        yMin: hp.entry_zone[0], yMax: hp.entry_zone[1],
+                        backgroundColor: hp.direction === 'bullish' ? 'rgba(107,186,126,0.08)' : 'rgba(212,114,114,0.08)',
+                        borderColor: hp.direction === 'bullish' ? 'rgba(107,186,126,0.3)' : 'rgba(212,114,114,0.3)',
+                        borderWidth: 1,
+                        label: {
+                            display: true,
+                            content: hp.pattern_name.charAt(0).toUpperCase() + hp.pattern_name.slice(1) + ' ' + hp.direction,
+                            position: 'start',
+                            font: { size: 9 },
+                            color: 'rgba(255,255,255,0.5)',
+                        }
+                    };
+                }
+                if (hp.stop_loss) {
+                    annotations['harmonic_sl'] = {
+                        type: 'line',
+                        yMin: hp.stop_loss, yMax: hp.stop_loss,
+                        borderColor: 'rgba(212,114,114,0.3)',
+                        borderWidth: 1,
+                        borderDash: [3, 3],
+                    };
+                }
+                (hp.targets || []).forEach((t, i) => {
+                    annotations['harmonic_tp' + i] = {
+                        type: 'line',
+                        yMin: t, yMax: t,
+                        borderColor: 'rgba(107,186,126,0.25)',
+                        borderWidth: 1,
+                        borderDash: [3, 3],
+                    };
+                });
+            }
+
+            new Chart(ctx, {
+                type: 'line',
+                data: { labels: data.dates, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            labels: { color: 'rgba(255,255,255,0.6)', font: { size: 11 }, boxWidth: 12, padding: 15 }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.9)',
+                            titleColor: '#fff',
+                            bodyColor: 'rgba(255,255,255,0.8)',
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderWidth: 1,
+                        },
+                        annotation: {
+                            annotations: annotations
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: 'rgba(255,255,255,0.4)', maxTicksLimit: 12, font: { size: 10 } },
+                            grid: { color: 'rgba(255,255,255,0.04)' }
+                        },
+                        y: {
+                            ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 10 } },
+                            grid: { color: 'rgba(255,255,255,0.04)' }
+                        }
+                    }
+                }
+            });
+
+            // === Populate Algorithm Indicator Cards ===
+            const algoRow = document.getElementById('algo-indicators');
+            let hasAlgo = false;
+
+            // Market Structure
+            if (data.turning_points && data.turning_points.length > 0) {
+                hasAlgo = true;
+                document.getElementById('algo-structure').style.display = '';
+                const highs = data.turning_points.filter(t => t.type === 'high');
+                const lows = data.turning_points.filter(t => t.type === 'low');
+                document.getElementById('structure-regime').textContent = highs.length + ' swing highs, ' + lows.length + ' swing lows';
+                if (data.support_resistance) {
+                    data.support_resistance.forEach(sr => {
+                        if (sr.type === 'support') document.getElementById('structure-support').textContent = '$' + sr.price;
+                        if (sr.type === 'resistance') document.getElementById('structure-resist').textContent = '$' + sr.price;
+                    });
+                }
+            }
+
+            // Harmonic Patterns
+            if (data.harmonic_patterns && data.harmonic_patterns.length > 0) {
+                hasAlgo = true;
+                const hp = data.harmonic_patterns[0];
+                document.getElementById('algo-harmonic').style.display = '';
+                const color = hp.direction === 'bullish' ? '#6bba7e' : '#d47272';
+                document.getElementById('harmonic-name').innerHTML = '<span style="color:' + color + '">' +
+                    hp.pattern_name.charAt(0).toUpperCase() + hp.pattern_name.slice(1) +
+                    ' (' + hp.direction + ')</span>';
+                const detail = hp.entry_zone
+                    ? 'Confidence: ' + hp.confidence + '% | Entry: $' + hp.entry_zone[0] + ' - $' + hp.entry_zone[1]
+                    : 'Confidence: ' + hp.confidence + '%';
+                document.getElementById('harmonic-detail').textContent = detail;
+            }
+
+            // Visibility Graph
+            if (data.vg && data.vg.vg_signal) {
+                hasAlgo = true;
+                document.getElementById('algo-vg').style.display = '';
+                const color = data.vg.vg_signal === 'bullish' ? '#6bba7e' : '#d47272';
+                document.getElementById('vg-signal').innerHTML =
+                    '<span style="color:' + color + '">' + data.vg.vg_signal.toUpperCase() + '</span>' +
+                    ' <span style="font-size: 0.875rem; color: var(--text-muted);">' + data.vg.vg_score + '/100</span>';
+                document.getElementById('vg-detail').textContent =
+                    'ASPL ratio: ' + (data.vg.aspl_ratio || 'N/A') + ' (pos: ' + (data.vg.pos_aspl || 'N/A') + ', neg: ' + (data.vg.neg_aspl || 'N/A') + ')';
+            }
+
+            // Meta-Labeler
+            if (data.meta_labeler) {
+                hasAlgo = true;
+                document.getElementById('algo-meta').style.display = '';
+                const ml = data.meta_labeler;
+                if (ml.ready) {
+                    document.getElementById('meta-status').innerHTML = '<span style="color: #6bba7e;">Active</span> <span style="font-size: 0.875rem; color: var(--text-muted);">v' + ml.model_version + '</span>';
+                    document.getElementById('meta-detail').textContent = (ml.n_features || '?') + ' features | Trained: ' + (ml.last_trained || 'Unknown').slice(0, 10);
+                } else {
+                    document.getElementById('meta-status').innerHTML = '<span style="color: #d4a84b;">Cold Start</span>';
+                    document.getElementById('meta-detail').textContent = 'Needs 50+ graded signals to train';
+                }
+            }
+
+            // MCPT Validation
+            if (data.mcpt && data.mcpt.p_value !== undefined) {
+                hasAlgo = true;
+                document.getElementById('algo-mcpt').style.display = '';
+                const mc = data.mcpt;
+                const color = mc.significant ? '#6bba7e' : '#d47272';
+                document.getElementById('mcpt-status').innerHTML = '<span style="color:' + color + '">' + (mc.significant ? 'Significant' : 'Not Significant') + '</span>';
+                document.getElementById('mcpt-detail').textContent = 'p-value: ' + mc.p_value + ' | Profit Factor: ' + (mc.actual_metric || 'N/A');
+            }
+
+            if (hasAlgo) algoRow.style.display = '';
+        })
+        .catch(() => {
+            document.getElementById('chart-loading').textContent = 'Failed to load chart';
+        });
+</script>
 {% endblock %}

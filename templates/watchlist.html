@@ -15,7 +15,8 @@
     <!-- Add Stock -->
     <div class="card" style="margin-bottom: var(--space-8);">
         <h3 style="margin: 0 0 var(--space-5) 0;">Add Stock</h3>
-        <form action="/watchlist/add" method="POST" style="display: flex; gap: var(--space-4); align-items: flex-end; flex-wrap: wrap;">
+        <form action="/watchlist/add" method="POST"
+            style="display: flex; gap: var(--space-4); align-items: flex-end; flex-wrap: wrap;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div style="flex: 1; min-width: 150px;">
                 <label>Ticker Symbol</label>
@@ -25,68 +26,173 @@
                 <label>Name (Optional)</label>
                 <input type="text" name="name" placeholder="Apple Inc.">
             </div>
-            <button type="submit" class="btn btn-primary">Add to Watchlist</button>
+            <button type="submit" class="btn btn-primary">
+                <svg class="icon-svg svg-animated" viewBox="0 0 24 24">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Add to Watchlist
+            </button>
         </form>
     </div>
+
+    <!-- Tier Filter Tabs -->
+    {% if watchlist %}
+    <div style="display: flex; gap: var(--space-2); margin-bottom: var(--space-6); flex-wrap: wrap;">
+        {% set tier_filter = request.query_params.get('tier', 'all') %}
+        {% for val, label in [('all', 'All'), ('core', 'Core Holdings'), ('swing', 'Swing Trades'), ('research',
+        'Research'), ('earnings', 'Earnings Play')] %}
+        <a href="/watchlist{% if val != 'all' %}?tier={{ val }}{% endif %}"
+            class="filter-tab {{ 'active' if tier_filter == val else '' }}">
+            {{ label }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     <!-- Watchlist Table -->
     <div class="card">
         <h3 style="margin: 0 0 var(--space-6) 0;">Monitored Securities</h3>
 
         {% if watchlist %}
-        <div style="overflow-x: auto; margin: 0 calc(var(--space-6) * -1); padding: 0 var(--space-6);">
-            <table>
+        <div class="table-wrapper"
+            style="overflow-x: auto; margin: 0 calc(var(--space-6) * -1); padding: 0 var(--space-6);">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Ticker</th>
                         <th>Name</th>
+                        <th>Tier</th>
                         <th>Added</th>
                         <th>Status</th>
-                        <th style="width: 140px;"></th>
+                        <th style="width: 200px;"></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for stock in watchlist %}
+                    {% set tier_filter = request.query_params.get('tier', 'all') %}
+                    {% if tier_filter == 'all' or (stock.tier or 'core') == tier_filter %}
                     <tr>
                         <td>
-                            <span style="font-family: var(--font-mono); font-weight: 500; font-size: 0.9375rem;">{{ stock.ticker }}</span>
+                            <div style="display:flex;align-items:center;gap:var(--space-3);">
+                                <a href="/stock/{{ stock.ticker }}"
+                                    style="font-family: var(--font-mono); font-weight: 500; font-size: 0.9375rem; color: var(--text-primary); text-decoration: none;"
+                                    onmouseover="this.style.textDecoration='underline'"
+                                    onmouseout="this.style.textDecoration='none'">
+                                    {{ stock.ticker }}
+                                </a>
+                                <svg class="sparkline-svg" data-sparkline="{{ stock.ticker }}" width="60" height="20"
+                                    style="flex-shrink:0;overflow:visible;"></svg>
+                            </div>
                         </td>
                         <td style="color: var(--text-secondary);">{{ stock.name or '—' }}</td>
+                        <td>
+                            <form action="/watchlist/tier/{{ stock.ticker }}" method="POST" style="display: inline;"
+                                class="tier-form">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <select name="tier" onchange="this.form.submit()"
+                                    style="font-size: 0.75rem; padding: 2px 6px; min-width: 110px; background: var(--bg-secondary); border: 1px solid var(--border-hairline); color: var(--text-secondary); border-radius: var(--radius-sm);">
+                                    {% set current_tier = stock.tier or 'core' %}
+                                    <option value="core" {{ 'selected' if current_tier=='core' }}>Core Holdings</option>
+                                    <option value="swing" {{ 'selected' if current_tier=='swing' }}>Swing Trades
+                                    </option>
+                                    <option value="research" {{ 'selected' if current_tier=='research' }}>Research
+                                    </option>
+                                    <option value="earnings" {{ 'selected' if current_tier=='earnings' }}>Earnings Play
+                                    </option>
+                                </select>
+                            </form>
+                        </td>
                         <td style="font-size: 0.8125rem; color: var(--text-muted);">{{ stock.added_at }}</td>
                         <td>
                             {% if stock.is_active %}
                             <span class="badge badge-success">Active</span>
                             {% else %}
-                            <span class="badge" style="background: var(--bg-secondary); color: var(--text-muted); border: 1px solid var(--border-default);">Inactive</span>
+                            <span class="badge"
+                                style="background: var(--bg-secondary); color: var(--text-muted); border: 1px solid var(--border-default);">Inactive</span>
                             {% endif %}
                         </td>
                         <td>
-                            {% if stock.is_active %}
-                            <form action="/watchlist/remove/{{ stock.ticker }}" method="POST" style="display: inline;">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                <button type="submit" class="btn btn-danger" style="padding: var(--space-2) var(--space-4); font-size: 0.75rem;">Remove</button>
-                            </form>
-                            {% else %}
-                            <form action="/watchlist/add" method="POST" style="display: inline;">
-                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                <input type="hidden" name="ticker" value="{{ stock.ticker }}">
-                                <input type="hidden" name="name" value="{{ stock.name }}">
-                                <button type="submit" class="btn btn-primary" style="padding: var(--space-2) var(--space-4); font-size: 0.75rem;">Reactivate</button>
-                            </form>
-                            {% endif %}
+                            <div style="display:flex;gap:var(--space-2);">
+                                {% if stock.is_active %}
+                                <a href="/analyze?ticker={{ stock.ticker }}" class="btn btn-ghost"
+                                    style="padding: var(--space-2) var(--space-3); font-size: 0.75rem;">Analyze</a>
+                                <form action="/watchlist/remove/{{ stock.ticker }}" method="POST"
+                                    style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button type="submit" class="btn btn-danger"
+                                        style="padding: var(--space-2) var(--space-4); font-size: 0.75rem;">Remove</button>
+                                </form>
+                                {% else %}
+                                <form action="/watchlist/add" method="POST" style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="ticker" value="{{ stock.ticker }}">
+                                    <input type="hidden" name="name" value="{{ stock.name }}">
+                                    <button type="submit" class="btn btn-primary"
+                                        style="padding: var(--space-2) var(--space-4); font-size: 0.75rem;">Reactivate</button>
+                                </form>
+                                {% endif %}
+                            </div>
                         </td>
                     </tr>
+                    {% endif %}
                     {% endfor %}
                 </tbody>
             </table>
         </div>
         {% else %}
         <div class="empty-state">
-            <div class="empty-state-icon">—</div>
+            <div class="empty-state-icon animate-pulse"
+                style="display: flex; justify-content: center; margin-bottom: var(--space-4);">
+                <svg class="icon-svg svg-animated" style="width: 48px; height: 48px;" viewBox="0 0 24 24">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                    <line x1="3" y1="3" x2="21" y2="21" />
+                </svg>
+            </div>
             <p>No stocks in watchlist</p>
             <p style="color: var(--text-muted); font-size: 0.875rem;">Add some tickers above to start monitoring</p>
         </div>
         {% endif %}
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    (function () {
+        function renderSparkline(svg, prices) {
+            if (!prices || prices.length < 2) return;
+            var w = 60, h = 20, pad = 1;
+            var min = Math.min.apply(null, prices);
+            var max = Math.max.apply(null, prices);
+            var range = max - min || 1;
+            var pts = prices.map(function (p, i) {
+                var x = pad + (i / (prices.length - 1)) * (w - pad * 2);
+                var y = h - pad - ((p - min) / range) * (h - pad * 2);
+                return x.toFixed(1) + ',' + y.toFixed(1);
+            }).join(' ');
+            var color = prices[prices.length - 1] >= prices[0] ? '#6bba7e' : '#d47272';
+            var poly = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+            poly.setAttribute('points', pts);
+            poly.setAttribute('fill', 'none');
+            poly.setAttribute('stroke', color);
+            poly.setAttribute('stroke-width', '1.5');
+            poly.setAttribute('stroke-linejoin', 'round');
+            svg.appendChild(poly);
+        }
+
+        document.querySelectorAll('svg[data-sparkline]').forEach(function (svg) {
+            var ticker = svg.getAttribute('data-sparkline');
+            fetch('/api/chart-data/' + ticker, { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
+                    if (!data || !data.prices) return;
+                    var prices = data.prices.slice(-30);
+                    renderSparkline(svg, prices);
+                })
+                .catch(function () { });
+        });
+    })();
+</script>
 {% endblock %}

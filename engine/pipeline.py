@@ -11,6 +11,7 @@ from core.database import db
 from core.budget_tracker import budget_tracker
 from engine.agents import swarm
 from engine.learning_optimizer import learning_optimizer
+from engine.ai_crosscheck import ai_crosscheck
 import time
 import logging
 from typing import Dict, List
@@ -21,6 +22,32 @@ class DailyPipeline:
 
     def run_daily_cycle(self) -> Dict:
         """Run the full daily analysis cycle with adaptive budget limits"""
+        # Feature 6: Accuracy kill switch — pause if accuracy < 50% with 20+ verified
+        try:
+            kill_switch_paused = db.get_setting('system_paused_accuracy')
+            if kill_switch_paused:
+                msg = "Pipeline paused: accuracy kill switch active (sub-50% accuracy). Clear in Settings to resume."
+                self.logger.critical(msg)
+                print(f"  {msg}")
+                db.log_scheduler_run(tickers_scanned=0, alerts_sent=0, duration=0, errors=msg)
+                return []
+
+            accuracy_stats = learning_optimizer.get_learning_stats()
+            if (accuracy_stats.get('total_verified', 0) >= 20
+                    and accuracy_stats.get('avg_accuracy', 1.0) < 0.50):
+                db.set_setting('system_paused_accuracy', True)
+                msg = (
+                    f"KILL SWITCH TRIGGERED: System accuracy {accuracy_stats['avg_accuracy']:.0%} "
+                    f"over {accuracy_stats['total_verified']} predictions is below 50%. "
+                    f"Pipeline paused. Clear in Settings to resume."
+                )
+                self.logger.critical(msg)
+                print(f"  {msg}")
+                db.log_scheduler_run(tickers_scanned=0, alerts_sent=0, duration=0, errors=msg)
+                return []
+        except Exception as e:
+            self.logger.warning(f"Could not evaluate accuracy kill switch: {e}")
+
         # Calculate today's limits from budget
         limits = budget_tracker.get_pipeline_limits()
         self.logger.info(f"Pipeline limits: {limits}")
@@ -32,6 +59,28 @@ class DailyPipeline:
         errors = []
 
         try:
+            # Global risk gate: suspend new AI cycles if portfolio risk guard is active
+            try:
+                from engine.portfolio_manager import portfolio_manager
+                risk_gate = portfolio_manager.get_risk_gate_status()
+                if risk_gate.get('active'):
+                    msg = (
+                        f"Risk guard active: {risk_gate.get('reason', 'loss limit breached')} | "
+                        f"loss={risk_gate.get('loss_pct', 0):.2f}% "
+                        f"limit=-{risk_gate.get('threshold_pct', 10):.2f}%"
+                    )
+                    self.logger.warning(msg)
+                    print(f"  ⛔ {msg}")
+                    db.log_scheduler_run(
+                        tickers_scanned=0,
+                        alerts_sent=0,
+                        duration=0,
+                        errors=msg
+                    )
+                    return []
+            except Exception as e:
+                self.logger.warning(f"Could not evaluate risk guard gate: {e}")
+
             # 0. Get Configuration
             try:
                 settings = db.get_all_settings()
@@ -75,6 +124,39 @@ class DailyPipeline:
 
             # Filter for Stage 2 (adaptive limit) — higher threshold since scores are math-based
             stage2_candidates = [c for c in candidates if c.get('composite_score', c.get('score', 0)) >= 40][:limits['stage2_max']]
+
+            # === META-LABELING: Adjust signal confidence with Random Forest ===
+            try:
+                from engine.meta_labeler import meta_labeler
+                if meta_labeler.is_ready():
+                    for candidate in stage2_candidates:
+                        features = meta_labeler.extract_features(candidate)
+                        meta = meta_labeler.predict(features)
+                        candidate['meta_probability'] = meta['meta_probability']
+                        candidate['meta_signal'] = meta['meta_signal']
+                        # Blend: 70% original score + 30% RF confidence
+                        original = candidate.get('composite_score', 50)
+                        blended = int(original * 0.7 + meta['meta_probability'] * 100 * 0.3)
+                        candidate['composite_score'] = max(0, min(100, blended))
+                    # Re-sort by adjusted scores
+                    stage2_candidates.sort(key=lambda x: x.get('composite_score', 0), reverse=True)
+                    self.logger.info("Meta-labeling applied to Stage 2 candidates")
+            except Exception as e:
+                self.logger.debug(f"Meta-labeling skipped: {e}")
+
+            stage2_tickers = {c.get('ticker') for c in stage2_candidates}
+
+            # Record quant-only predictions for tickers NOT going to Stage 2 (A/B comparison)
+            for candidate in candidates:
+                ticker = candidate.get('ticker')
+                if ticker and ticker not in stage2_tickers:
+                    try:
+                        signal = candidate.get('signal', 'Neutral')
+                        confidence = candidate.get('composite_score', candidate.get('score', 50))
+                        learning_optimizer.record_and_learn(ticker, signal, confidence, has_ai=False)
+                    except Exception as e:
+                        self.logger.debug(f"Failed to record quant-only prediction for {ticker}: {e}")
+
             print(f"\n  Promoting {len(stage2_candidates)} candidates to Stage 2 (limit: {limits['stage2_max']})")
 
             full_results = []
@@ -108,21 +190,77 @@ class DailyPipeline:
                     break
 
                 try:
+                    # Feature 7: Fetch Insider Activity (Follow The Money)
+                    try:
+                        from engine.insider_tracker import insider_tracker
+                        candidate['insider_activity'] = insider_tracker.get_insider_analysis(candidate['ticker'])
+                    except Exception as e:
+                        self.logger.warning(f"Could not fetch insider activity for {candidate['ticker']}: {e}")
+                        candidate['insider_activity'] = {}
+
                     final = swarm.stage3_synthesize(candidate, variant)
+
+                    # Feature 5: Risk Profiling
+                    try:
+                        from engine.risk_profiler import risk_profiler
+                        final['risk_profile'] = risk_profiler.calculate_risk_profile(final['ticker'])
+                    except Exception as e:
+                        self.logger.warning(f"Could not calculate risk profile for {final['ticker']}: {e}")
+                        final['risk_profile'] = "Unknown Risk"
+
+                    # Serialize Insider Sentiment for DB
+                    activity = final.get('insider_activity', {})
+                    if activity and activity.get('has_activity'):
+                        final['insider_sentiment'] = activity.get('summary', {}).get('net_signal', 'Unknown')
+                    else:
+                        final['insider_sentiment'] = "No Recent Activity"
+
                     final_reports.append(final)
 
                     try:
-                        db.save_analysis(final['ticker'], final)
+                        analysis_id, _, _ = db.save_analysis(final['ticker'], final)
                     except Exception as e:
+                        analysis_id = None
                         self.logger.error(f"Failed to save analysis for {final['ticker']}: {e}")
                         errors.append(f"DB save error for {final['ticker']}: {str(e)}")
+
+                    # Cross-check AI claims against yfinance ground truth
+                    if analysis_id:
+                        try:
+                            text = ' '.join(filter(None, [
+                                final.get('fundamental', ''),
+                                final.get('recommendation', ''),
+                                final.get('technical', ''),
+                            ]))
+                            if text.strip():
+                                cc = ai_crosscheck.check_analysis(final['ticker'], text)
+                                db.save_crosscheck(final['ticker'], analysis_id, cc)
+                        except Exception as e:
+                            self.logger.warning(f"Cross-check failed for {final['ticker']}: {e}")
+
+                    # Feature 3: Earnings proximity check — cap confidence if near earnings
+                    try:
+                        from engine.earnings_tracker import earnings_tracker
+                        earnings_info = earnings_tracker.get_next_earnings(final['ticker'])
+                        if earnings_info and earnings_info.get('days_until') is not None:
+                            days_until = earnings_info['days_until']
+                            if 0 <= days_until <= 7:
+                                original_conf = final.get('confidence', final.get('quant_metrics', {}).get('composite_score', 50))
+                                capped = min(original_conf, 55)
+                                if 'quant_metrics' in final:
+                                    final['quant_metrics']['composite_score'] = capped
+                                final['confidence'] = capped
+                                final['earnings_warning'] = f"Earnings in {days_until} days — confidence capped at {capped}"
+                                self.logger.info(f"{final['ticker']}: Earnings in {days_until}d, confidence capped {original_conf}->{capped}")
+                    except Exception as e:
+                        self.logger.debug(f"Earnings check skipped for {final.get('ticker', '?')}: {e}")
 
                     # Record prediction for learning system verification
                     try:
                         signal = final.get('signal', 'Neutral')
                         qm = final.get('quant_metrics', {})
                         confidence = qm.get('composite_score', 50)
-                        learning_optimizer.record_and_learn(final['ticker'], signal, confidence)
+                        learning_optimizer.record_and_learn(final['ticker'], signal, confidence, has_ai=True)
                     except Exception as e:
                         self.logger.error(f"Failed to record prediction for {final['ticker']}: {e}")
 
@@ -130,6 +268,18 @@ class DailyPipeline:
                     ticker = candidate.get('ticker', 'Unknown')
                     self.logger.error(f"Stage 3 failed for {ticker}: {e}")
                     errors.append(f"Stage 3 error for {ticker}: {str(e)}")
+
+            # === POST-STAGE: Concentration Check ===
+            try:
+                from engine.concentration_checker import concentration_checker
+                conc = concentration_checker.check_concentration(final_reports)
+                if conc.get('warnings'):
+                    for report in final_reports:
+                        report['concentration_warnings'] = conc['warnings']
+                        report['diversification_score'] = conc['diversification_score']
+                    print(f"  Concentration check: score={conc['diversification_score']}, {len(conc['warnings'])} warnings")
+            except Exception as e:
+                self.logger.warning(f"Concentration check failed: {e}")
 
             duration = time.time() - start_time
             print(f"\n  Daily Cycle Complete in {duration:.1f}s")

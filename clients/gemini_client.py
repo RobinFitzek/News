@@ -65,29 +65,26 @@ class AdaptiveGeminiClient:
         return bool(self.api_key and len(self.api_key) > 10 and self.client)
 
     def get_usage(self) -> dict:
-        """Get usage stats from budget tracker (backward-compatible with dashboard template)"""
+        """Get usage stats from database (persistent across restarts)."""
         self._check_daily_reset()
         status = self.budget_tracker.get_budget_status().get('gemini', {})
         daily_limit = status.get('daily_request_limit', 100)
+        today = datetime.now().strftime('%Y-%m-%d')
+
+        # Query actual counts from database, not in-memory
+        flash_used = self._get_db_model_count(today, ['flash-8b', 'flash-1.5'])
+        pro_used = self._get_db_model_count(today, ['flash-2.5', 'pro'])
 
         usage = {}
-        flash_used = 0
-        pro_used = 0
-
         for tier, config in self.models.items():
             if tier == 'flash':
                 continue
-            day_count = len(self.requests[tier]['day'])
             usage[tier] = {
                 "model": config['model'],
-                "used_today": day_count,
+                "used_today": self._get_db_model_count(today, [tier]),
                 "cost_per_1m_input": config.get('cost_per_1m_input', 0),
                 "cost_per_1m_output": config.get('cost_per_1m_output', 0),
             }
-            if tier in ('flash-8b', 'flash-1.5'):
-                flash_used += day_count
-            elif tier in ('flash-2.5', 'pro'):
-                pro_used += day_count
 
         # Backward-compatible keys for dashboard template
         flash_limit = max(1, int(daily_limit * 0.7))
@@ -110,6 +107,30 @@ class AdaptiveGeminiClient:
         usage['daily_request_limit'] = daily_limit
         usage['today_requests'] = status.get('today_requests', 0)
         return usage
+
+    def _get_db_model_count(self, date_str: str, tiers: list) -> int:
+        """Get request count from api_cost_log for specific model tiers on a date."""
+        try:
+            from core.database import db
+            conn = db._get_conn()
+            cursor = conn.cursor()
+            # Match by tier key or by model name
+            model_names = []
+            for tier in tiers:
+                model_names.append(tier)
+                config = self.models.get(tier)
+                if config:
+                    model_names.append(config['model'])
+            placeholders = ','.join('?' * len(model_names))
+            cursor.execute(f"""
+                SELECT COUNT(*) as cnt FROM api_cost_log
+                WHERE api = 'gemini' AND date = ? AND model IN ({placeholders})
+            """, [date_str] + model_names)
+            row = cursor.fetchone()
+            conn.close()
+            return int(row['cnt']) if row else 0
+        except Exception:
+            return 0
 
     def _check_daily_reset(self):
         """Reset daily counters if new day"""
