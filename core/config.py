@@ -240,6 +240,49 @@ QUANT_SCREENER_CONFIG = {
     'benchmark_ticker': 'SPY',
 }
 
+# === Advanced Algorithm Configurations ===
+
+# Hierarchical Market Structure (DC turning points + trend regime)
+MARKET_STRUCTURE_CONFIG = {
+    'atr_period': 14,
+    'max_hierarchy_levels': 4,
+    'trend_lookback_bars': 20,
+}
+
+# XABCD Harmonic Pattern Recognition
+HARMONIC_CONFIG = {
+    'error_threshold': 0.5,       # Higher tolerance = better empirical results
+    'min_confidence': 40,
+    'sigma_levels': [0.01, 0.02, 0.03, 0.04],  # Multi-sigma DC scanning
+}
+
+# Meta-Labeling Random Forest (signal confidence filter)
+META_LABELER_CONFIG = {
+    'n_estimators': 500,
+    'max_depth': 3,               # Controls overfitting on financial noise
+    'min_training_samples': 50,
+    'confirm_threshold': 0.55,    # predict_proba >= 0.55 = confirmed
+    'filter_threshold': 0.45,     # predict_proba <= 0.45 = filtered
+    'score_blend_original': 0.70,
+    'score_blend_meta': 0.30,
+    'model_path': 'core/data/meta_label_rf.pkl',
+}
+
+# Visibility Graph Indicator (topological price analysis)
+VISIBILITY_GRAPH_CONFIG = {
+    'lookback_bars': 12,
+    'cache_minutes': 30,
+}
+
+# Monte Carlo Permutation Test (strategy validation)
+MCPT_CONFIG = {
+    'in_sample_permutations': 1000,
+    'walk_forward_permutations': 500,
+    'in_sample_p_threshold': 0.01,
+    'walk_forward_p_threshold': 0.05,
+    'min_signals_for_test': 30,
+}
+
 # Pipeline stage split ratios (how to distribute daily Gemini budget across stages)
 # Stage 1 is now free (quant screener), so budget goes to Stage 2 + 3
 PIPELINE_STAGE_SPLIT = {

@@ -194,9 +194,33 @@ class QuantScreener:
             logger.warning(f"Could not get volume metrics for {ticker}: {e}")
             volume_metrics = {}
 
+        # Market structure analysis (Hierarchical DC turning points)
+        try:
+            from engine.market_structure import market_structure_analyzer
+            market_structure = market_structure_analyzer.analyze(ticker, hist)
+        except Exception as e:
+            logger.debug(f"Market structure skipped for {ticker}: {e}")
+            market_structure = {}
+
+        # Harmonic pattern detection (XABCD Fibonacci patterns)
+        try:
+            from engine.harmonic_patterns import harmonic_detector
+            harmonic_patterns = harmonic_detector.detect(ticker, hist)
+        except Exception as e:
+            logger.debug(f"Harmonic patterns skipped for {ticker}: {e}")
+            harmonic_patterns = []
+
+        # Visibility graph analysis (topological price indicator)
+        try:
+            from engine.visibility_graph import vg_analyzer
+            vg_metrics = vg_analyzer.analyze(ticker, hist)
+        except Exception as e:
+            logger.debug(f"Visibility graph skipped for {ticker}: {e}")
+            vg_metrics = {}
+
         # Compute scores for each group (0-100)
         val_score = self._score_valuation(valuation, variant)
-        tech_score = self._score_technicals(technicals, volume_metrics)
+        tech_score = self._score_technicals(technicals, volume_metrics, market_structure, vg_metrics)
         mom_score = self._score_momentum(momentum)
         qual_score = self._score_quality(quality)
 
@@ -224,8 +248,8 @@ class QuantScreener:
         )
         composite = max(0, min(100, int(round(composite))))
 
-        # Anomaly detection (now includes volume anomalies)
-        anomalies = self._anomaly_detection(valuation, technicals, momentum, quality, volume_metrics)
+        # Anomaly detection (now includes volume, harmonic pattern anomalies)
+        anomalies = self._anomaly_detection(valuation, technicals, momentum, quality, volume_metrics, harmonic_patterns)
 
         # Signal determination
         signal = self._determine_signal(composite, anomalies, variant)
@@ -274,6 +298,9 @@ class QuantScreener:
             'quality': quality,
             'volume_metrics': volume_metrics,
             'volume_note': volume_note,
+            'market_structure': market_structure,
+            'harmonic_patterns': harmonic_patterns,
+            'vg_metrics': vg_metrics,
             'anomalies': anomalies,
             'data': {
                 'name': info.get('longName', info.get('shortName', ticker)),
@@ -654,8 +681,9 @@ class QuantScreener:
             return 50.0  # No data, neutral
         return sum(scores) / len(scores)
 
-    def _score_technicals(self, tech: Dict, volume_metrics: Dict = None) -> float:
-        """Score technical indicators. Volume > 2x boosts by 5-10 pts."""
+    def _score_technicals(self, tech: Dict, volume_metrics: Dict = None,
+                          market_structure: Dict = None, vg_metrics: Dict = None) -> float:
+        """Score technical indicators. Includes market structure and visibility graph."""
         scores = []
 
         # RSI scoring (30-70 is healthy)
@@ -707,6 +735,14 @@ class QuantScreener:
             scores.append(35)
         else:
             scores.append(15)  # Near upper band
+
+        # Market structure score (hierarchical trend regime)
+        if market_structure and market_structure.get('structure_score') is not None:
+            scores.append(market_structure['structure_score'])
+
+        # Visibility graph score (topological price structure)
+        if vg_metrics and vg_metrics.get('vg_score') is not None:
+            scores.append(vg_metrics['vg_score'])
 
         base = sum(scores) / len(scores) if scores else 50.0
 
@@ -825,9 +861,22 @@ class QuantScreener:
     # --- Anomaly Detection ---
 
     def _anomaly_detection(self, valuation: Dict, technicals: Dict,
-                           momentum: Dict, quality: Dict, volume_metrics: Dict = None) -> List[Dict]:
+                           momentum: Dict, quality: Dict, volume_metrics: Dict = None,
+                           harmonic_patterns: List = None) -> List[Dict]:
         """Flag metrics that are extreme outliers."""
         anomalies = []
+
+        # Harmonic pattern anomalies
+        if harmonic_patterns:
+            for pattern in harmonic_patterns[:2]:  # Top 2 patterns max
+                if pattern.get('confidence', 0) >= 60:
+                    direction = 'positive' if pattern['direction'] == 'bullish' else 'negative'
+                    anomalies.append({
+                        'metric': 'Harmonic Pattern',
+                        'value': pattern['pattern_name'],
+                        'direction': direction,
+                        'description': f"{pattern['pattern_name'].title()} {pattern['direction']} pattern (confidence: {pattern['confidence']}%)"
+                    })
         z_threshold = self.config['anomaly_z_threshold']
 
         # Volume anomalies (NEW)

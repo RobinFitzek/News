@@ -276,6 +276,24 @@ class InvestmentScheduler:
             replace_existing=True
         )
 
+        # Meta-Labeler Retrain (Sunday 22:30, after signal grading at 22:00)
+        self.scheduler.add_job(
+            self.retrain_meta_labeler,
+            CronTrigger(day_of_week='sun', hour=22, minute=30, timezone=self.timezone),
+            id='meta_labeler_retrain',
+            name='Meta-Labeler Retrain',
+            replace_existing=True
+        )
+
+        # MCPT Strategy Validation (Sunday 23:00)
+        self.scheduler.add_job(
+            self.run_mcpt_validation,
+            CronTrigger(day_of_week='sun', hour=23, minute=0, timezone=self.timezone),
+            id='mcpt_validation',
+            name='MCPT Strategy Validation',
+            replace_existing=True
+        )
+
         self.scheduler.start()
         self.is_running = True
         print(f"Scheduler started: Daily every {self.interval_hours}h, Weekly Sun 20:00, Monthly 28th 18:00")
@@ -517,6 +535,44 @@ class InvestmentScheduler:
             print(f"Auto Paper Trader: Exited {exited} positions.")
         except Exception as e:
             print(f"(Error) Auto paper exit failed: {e}")
+
+    def retrain_meta_labeler(self):
+        """Retrain the Random Forest meta-labeler on graded signal outcomes."""
+        try:
+            from engine.meta_labeler import meta_labeler
+            result = meta_labeler.train()
+            if result.get('trained'):
+                print(f"Meta-labeler retrained: v{result.get('model_version')}, "
+                      f"CV accuracy={result.get('cv_accuracy')}, "
+                      f"samples={result.get('training_samples')}")
+            else:
+                print(f"Meta-labeler not retrained: {result.get('reason', 'unknown')}")
+        except Exception as e:
+            print(f"(Error) Meta-labeler retrain failed: {e}")
+
+    def run_mcpt_validation(self):
+        """Run Monte Carlo Permutation Test to validate strategy significance."""
+        try:
+            from engine.mcpt_validator import mcpt_validator
+            result = mcpt_validator.run_validation()
+            if result.get('status') == 'completed':
+                print(f"MCPT Validation: p={result.get('p_value')}, "
+                      f"PF={result.get('actual_pf')}, "
+                      f"significant={result.get('significant')}")
+                if not result.get('significant', True):
+                    try:
+                        from engine.webhook_notifier import webhook_notifier
+                        webhook_notifier.send_custom(
+                            f"MCPT Warning: p-value={result['p_value']:.3f}, "
+                            f"strategy may not be statistically significant."
+                        )
+                    except Exception:
+                        pass
+            else:
+                print(f"MCPT Validation: {result.get('status', 'unknown')} "
+                      f"({result.get('n_signals', 0)}/{result.get('min_required', 30)} signals)")
+        except Exception as e:
+            print(f"(Error) MCPT validation failed: {e}")
 
     def trigger_manual_scan(self):
         """Trigger an immediate scan in background"""

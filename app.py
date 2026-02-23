@@ -259,10 +259,16 @@ async def dashboard(request: Request, username: str = Depends(require_auth)):
     """Main dashboard"""
     try:
         # Get top 3 picks for preview widget
-        top_picks_preview = db.get_top_picks(min_predictions=3, min_accuracy=0.65, limit=3)
+        try:
+            top_picks_preview = db.get_top_picks(min_predictions=3, min_accuracy=0.65, limit=3)
+        except Exception:
+            top_picks_preview = []
         
         # Get trusted tickers for badge display
-        trusted_tickers = set(db.get_trusted_tickers(min_accuracy=0.7))
+        try:
+            trusted_tickers = set(db.get_trusted_tickers(min_accuracy=0.7) or [])
+        except Exception:
+            trusted_tickers = set()
 
         # Enrich recent analyses with staleness metadata
         recent_analyses = db.get_analysis_history(limit=10)
@@ -363,6 +369,111 @@ async def api_auto_paper_trading(username: str = Depends(require_auth)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== TRUTH BANNER ====================
+
+_truth_banner_cache = {"data": None, "time": None}
+
+@app.get("/api/truth-banner")
+async def api_truth_banner(username: str = Depends(require_auth)):
+    """The single most important metric: system signals vs just buying SPY."""
+    import yfinance as yf
+    from datetime import datetime as dt, timedelta
+
+    # 30 min cache
+    if (_truth_banner_cache["data"] and _truth_banner_cache["time"]
+            and dt.now() - _truth_banner_cache["time"] < timedelta(minutes=30)):
+        return _truth_banner_cache["data"]
+
+    try:
+        # Get all closed paper trades
+        closed = db.query("""
+            SELECT ticker, direction, entry_date, entry_price, exit_price, pnl_pct, close_reason
+            FROM auto_paper_trades WHERE status = 'closed' AND pnl_pct IS NOT NULL
+            ORDER BY entry_date
+        """)
+
+        # Also count open trades
+        open_count = db.query_one("SELECT COUNT(*) as c FROM auto_paper_trades WHERE status = 'open'")
+        open_positions = open_count['c'] if open_count else 0
+
+        if not closed or len(closed) < 1:
+            result = {
+                "data_sufficient": False,
+                "total_trades": 0,
+                "open_positions": open_positions,
+                "message": "Collecting data — no closed trades yet"
+            }
+            _truth_banner_cache["data"] = result
+            _truth_banner_cache["time"] = dt.now()
+            return result
+
+        # System cumulative return: compound all trade returns
+        cumulative = 1.0
+        for t in closed:
+            cumulative *= (1.0 + (t['pnl_pct'] or 0))
+        system_return_pct = round((cumulative - 1.0) * 100, 2)
+
+        # Win rate
+        wins = sum(1 for t in closed if (t['pnl_pct'] or 0) > 0)
+        win_rate = round(wins / len(closed) * 100, 1)
+
+        # Find date range
+        first_date_str = closed[0]['entry_date'][:10]
+        try:
+            start_date = dt.strptime(first_date_str, '%Y-%m-%d')
+        except ValueError:
+            start_date = dt.fromisoformat(first_date_str)
+
+        # SPY return over the same period
+        spy_return_pct = 0.0
+        try:
+            spy = yf.Ticker("SPY")
+            spy_hist = spy.history(start=start_date.strftime('%Y-%m-%d'), end=dt.now().strftime('%Y-%m-%d'))
+            if spy_hist is not None and not spy_hist.empty and len(spy_hist) >= 2:
+                spy_start = float(spy_hist['Close'].iloc[0])
+                spy_end = float(spy_hist['Close'].iloc[-1])
+                if spy_start > 0:
+                    spy_return_pct = round((spy_end - spy_start) / spy_start * 100, 2)
+        except Exception:
+            pass
+
+        alpha = round(system_return_pct - spy_return_pct, 2)
+
+        # MCPT significance
+        mcpt_p = None
+        mcpt_sig = None
+        try:
+            from engine.mcpt_validator import mcpt_validator
+            mcpt_result = mcpt_validator.get_latest_result()
+            if mcpt_result:
+                mcpt_p = mcpt_result.get('p_value')
+                mcpt_sig = mcpt_result.get('significant')
+        except Exception:
+            pass
+
+        data_sufficient = len(closed) >= 5
+
+        result = {
+            "data_sufficient": data_sufficient,
+            "start_date": first_date_str,
+            "days_tracked": (dt.now() - start_date).days,
+            "system_return_pct": system_return_pct,
+            "spy_return_pct": spy_return_pct,
+            "alpha": alpha,
+            "total_trades": len(closed),
+            "open_positions": open_positions,
+            "win_rate_pct": win_rate,
+            "mcpt_p_value": mcpt_p,
+            "mcpt_significant": mcpt_sig,
+        }
+
+        _truth_banner_cache["data"] = result
+        _truth_banner_cache["time"] = dt.now()
+        return result
+
+    except Exception as e:
+        return {"data_sufficient": False, "total_trades": 0, "error": str(e)}
 
 # ==================== TRUST OVERVIEW ====================
 
@@ -2152,6 +2263,76 @@ async def api_chart_data(request: Request, ticker: str, username: str = Depends(
                     'confidence': s.get('confidence', 0),
                 })
 
+        # === Algorithm Visualization Data ===
+
+        # Market Structure: DC turning points + support/resistance
+        turning_points = []
+        support_resistance = []
+        try:
+            from engine.market_structure import market_structure_analyzer
+            structure = market_structure_analyzer.analyze(ticker, hist)
+            if structure:
+                tp_list = market_structure_analyzer.get_dc_turning_points(hist)
+                for p in tp_list:
+                    if 0 <= p.index < len(dates):
+                        turning_points.append({
+                            'date': dates[p.index],
+                            'price': round(p.price, 2),
+                            'type': p.type,
+                            'level': p.level,
+                        })
+                if structure.get('support'):
+                    support_resistance.append({'price': structure['support'], 'type': 'support'})
+                if structure.get('resistance'):
+                    support_resistance.append({'price': structure['resistance'], 'type': 'resistance'})
+        except Exception:
+            pass
+
+        # Harmonic Patterns: XABCD overlays
+        harmonic_overlays = []
+        try:
+            from engine.harmonic_patterns import harmonic_detector
+            h_patterns = harmonic_detector.detect(ticker, hist)
+            for p in h_patterns[:3]:
+                harmonic_overlays.append({
+                    'pattern_name': p['pattern_name'],
+                    'direction': p['direction'],
+                    'confidence': p['confidence'],
+                    'points': {
+                        'x': p['x_price'], 'a': p['a_price'], 'b': p['b_price'],
+                        'c': p['c_price'], 'd': p['d_price'],
+                    },
+                    'entry_zone': p.get('entry_zone'),
+                    'stop_loss': p.get('stop_loss'),
+                    'targets': p.get('targets', []),
+                })
+        except Exception:
+            pass
+
+        # Visibility Graph indicator
+        vg_data = {}
+        try:
+            from engine.visibility_graph import vg_analyzer
+            vg_data = vg_analyzer.analyze(ticker, hist)
+        except Exception:
+            pass
+
+        # Meta-labeler status
+        meta_label_data = {}
+        try:
+            from engine.meta_labeler import meta_labeler
+            meta_label_data = meta_labeler.get_status()
+        except Exception:
+            pass
+
+        # MCPT validation status
+        mcpt_data = {}
+        try:
+            from engine.mcpt_validator import mcpt_validator
+            mcpt_data = mcpt_validator.get_latest_result() or {}
+        except Exception:
+            pass
+
         return {
             'ticker': ticker,
             'dates': dates,
@@ -2161,9 +2342,33 @@ async def api_chart_data(request: Request, ticker: str, username: str = Depends(
             'sma200': safe_list(sma200),
             'volume': [int(v) for v in hist['Volume']],
             'signals': markers,
+            'turning_points': turning_points,
+            'support_resistance': support_resistance,
+            'harmonic_patterns': harmonic_overlays,
+            'vg': vg_data,
+            'meta_labeler': meta_label_data,
+            'mcpt': mcpt_data,
         }
     except Exception as e:
         return {"error": str(e)}
+
+# ==================== ALGORITHM STATUS ====================
+
+@app.get("/api/algo-status")
+async def api_algo_status(request: Request, username: str = Depends(require_auth)):
+    """Return algorithm module statuses for dashboard badges."""
+    result = {}
+    try:
+        from engine.meta_labeler import meta_labeler
+        result['meta_labeler'] = meta_labeler.get_status()
+    except Exception:
+        pass
+    try:
+        from engine.mcpt_validator import mcpt_validator
+        result['mcpt'] = mcpt_validator.get_latest_result() or {}
+    except Exception:
+        pass
+    return result
 
 # ==================== LEARNING WEIGHT OPTIMIZATION ====================
 
