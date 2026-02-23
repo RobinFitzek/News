@@ -6611,3 +6611,74 @@ sqlite3.OperationalError: table earnings_calendar has no column named fetched_at
 2026-02-20 16:55:52 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
 2026-02-20 16:56:00 - engine.drawdown_tracker - WARNING - Error getting paper trading drawdown: no such column: portfolio_value
 2026-02-22 21:45:24 - root - INFO - Logging initialized
+2026-02-23 13:17:27 - root - INFO - Logging initialized
+2026-02-23 13:22:25 - root - INFO - Logging initialized
+2026-02-23 13:22:25 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-23 13:22:25 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-23 13:28:40 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-02-23 13:28:48 - root - INFO - Logging initialized
+2026-02-23 13:28:48 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-23 13:28:48 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-23 13:38:11 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-02-23 13:38:31 - root - INFO - Logging initialized
+2026-02-23 13:40:18 - root - INFO - Logging initialized
+2026-02-23 13:40:18 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-23 13:40:18 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-23 13:40:53 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-02-23 13:40:55 - root - INFO - Logging initialized
+2026-02-23 13:40:56 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-23 13:40:56 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-23 13:42:48 - apscheduler.scheduler - INFO - Scheduler has been shut down
+2026-02-23 13:42:58 - root - INFO - Logging initialized
+2026-02-23 13:42:58 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-23 13:42:58 - clients.gemini_client - INFO - Gemini client initialized successfully
+2026-02-23 13:43:54 - yfinance - ERROR - $AFX: possibly delisted; no price data found  (period=6mo)
+2026-02-23 13:43:55 - yfinance - ERROR - HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: PAG911"}}}
+2026-02-23 13:43:55 - yfinance - ERROR - $PAG911: possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:43:56 - engine.visibility_graph - WARNING - ts2vg or networkx not installed. Visibility graph analysis disabled.
+2026-02-23 13:43:57 - yfinance - ERROR - HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: FTSE ALL-WORLD USD (ACC)"}}}
+2026-02-23 13:43:57 - yfinance - ERROR - $FTSE ALL-WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:43:58 - yfinance - ERROR - $CORE MSCI WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:45:34 - yfinance - ERROR - $FTSE ALL-WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:45:35 - yfinance - ERROR - $PAG911: possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:45:35 - yfinance - ERROR - $CORE MSCI WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:45:35 - yfinance - ERROR - $AFX: possibly delisted; no price data found  (period=6mo)
+2026-02-23 13:45:58 - yfinance - ERROR - $FTSE ALL-WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:45:59 - yfinance - ERROR - $PAG911: possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:45:59 - yfinance - ERROR - $AFX: possibly delisted; no price data found  (period=6mo)
+2026-02-23 13:46:00 - yfinance - ERROR - $CORE MSCI WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:46:08 - yfinance - ERROR - $AFX: possibly delisted; no price data found  (period=6mo)
+2026-02-23 13:46:09 - yfinance - ERROR - $CORE MSCI WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:46:09 - yfinance - ERROR - $FTSE ALL-WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:46:10 - yfinance - ERROR - $PAG911: possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:46:22 - yfinance - ERROR - $FTSE ALL-WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:46:23 - yfinance - ERROR - $CORE MSCI WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:46:23 - yfinance - ERROR - $AFX: possibly delisted; no price data found  (period=6mo)
+2026-02-23 13:46:24 - yfinance - ERROR - $PAG911: possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:49:10 - yfinance - ERROR - $CORE MSCI WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:49:10 - yfinance - ERROR - $AFX: possibly delisted; no price data found  (period=6mo)
+2026-02-23 13:49:11 - yfinance - ERROR - $FTSE ALL-WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:49:11 - yfinance - ERROR - $PAG911: possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:54:15 - yfinance - ERROR - $AFX: possibly delisted; no price data found  (period=6mo)
+2026-02-23 13:54:16 - yfinance - ERROR - $FTSE ALL-WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:54:16 - yfinance - ERROR - $CORE MSCI WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:54:17 - yfinance - ERROR - $AFX: possibly delisted; no price data found  (period=6mo)
+2026-02-23 13:54:17 - yfinance - ERROR - $FTSE ALL-WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:54:17 - yfinance - ERROR - $PAG911: possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:54:18 - yfinance - ERROR - $CORE MSCI WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:54:25 - yfinance - ERROR - $FTSE ALL-WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:54:25 - yfinance - ERROR - $PAG911: possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:54:26 - yfinance - ERROR - $AFX: possibly delisted; no price data found  (period=6mo)
+2026-02-23 13:54:26 - yfinance - ERROR - $CORE MSCI WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:54:35 - yfinance - ERROR - $AFX: possibly delisted; no price data found  (period=6mo)
+2026-02-23 13:54:36 - yfinance - ERROR - $CORE MSCI WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:54:36 - yfinance - ERROR - $FTSE ALL-WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:54:37 - yfinance - ERROR - $PAG911: possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:55:05 - yfinance - ERROR - $AFX: possibly delisted; no price data found  (period=6mo)
+2026-02-23 13:55:05 - yfinance - ERROR - $CORE MSCI WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:55:06 - yfinance - ERROR - $PAG911: possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:55:06 - yfinance - ERROR - $FTSE ALL-WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-23 13:57:58 - apscheduler.executors.default - INFO - Running job "Price Alert Check (trigger: interval[0:15:00], next run at: 2026-02-23 14:12:58 CET)" (scheduled at 2026-02-23 13:57:58.280599+01:00)
+2026-02-23 13:57:58 - apscheduler.executors.default - INFO - Job "Price Alert Check (trigger: interval[0:15:00], next run at: 2026-02-23 14:12:58 CET)" executed successfully
+2026-02-23 14:12:58 - apscheduler.executors.default - INFO - Running job "Price Alert Check (trigger: interval[0:15:00], next run at: 2026-02-23 14:27:58 CET)" (scheduled at 2026-02-23 14:12:58.280599+01:00)
+2026-02-23 14:12:58 - apscheduler.executors.default - INFO - Job "Price Alert Check (trigger: interval[0:15:00], next run at: 2026-02-23 14:27:58 CET)" executed successfully

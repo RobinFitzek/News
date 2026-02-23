@@ -37,6 +37,23 @@
     </div>
     {% endif %}
 
+    <!-- ─── TRUTH BANNER ────────────────────────────────── -->
+
+    <div id="truth-banner"
+        style="display: none; margin-bottom: var(--space-4); padding: var(--space-5) var(--space-6); border: 1px solid var(--border-hairline); background: var(--bg-secondary);">
+        <div
+            style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4);">
+            <div style="flex: 1; min-width: 280px;">
+                <div id="truth-headline"
+                    style="font-size: 1rem; color: var(--text-primary); line-height: 1.5; font-weight: 400;"></div>
+                <div id="truth-details"
+                    style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-2);"></div>
+            </div>
+            <div id="truth-metrics" style="display: flex; gap: var(--space-6); align-items: center; flex-shrink: 0;">
+            </div>
+        </div>
+    </div>
+
     <!-- ─── LAYER 1: SYSTEM STATUS BAR ─────────────────── -->
 
     <div class="sys-status-bar">
@@ -104,6 +121,16 @@
             <div class="sys-status-item" id="sys-health-pill" title="System Health"
                 style="cursor: help; display: none;">
                 <span id="sys-health-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px;"></span>
+            </div>
+
+            <!-- Algorithm Status Badges -->
+            <div class="sys-sep"></div>
+            <div class="sys-status-item" id="meta-labeler-pill" style="display: none;">
+                <span id="meta-labeler-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px;"></span>
+            </div>
+            <div class="sys-sep"></div>
+            <div class="sys-status-item" id="mcpt-pill" style="display: none;">
+                <span id="mcpt-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px;"></span>
             </div>
         </div>
 
@@ -790,7 +817,7 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% set risk = a.risk_profile|default('Unknown') %}
+                            {% set risk = a.risk_profile|default('Unknown', true) %}
                             {% if risk == 'Blue Chip' or risk == 'High Growth' %}
                             <span class="badge"
                                 style="background: rgba(107,186,126,0.15); color: #6bba7e; border: 1px solid rgba(107,186,126,0.3); font-size: 0.625rem;">{{
@@ -1201,6 +1228,121 @@
                 openHtml += ` <span style="margin-left: var(--space-2);">${openTickers}${s.open_positions > 5 ? '...' : ''}</span>`;
             }
             document.getElementById('auto-paper-open').innerHTML = openHtml;
+        })
+        .catch(() => { });
+
+    // Algorithm Status Badges (Meta-Labeler + MCPT)
+    fetch('/api/algo-status')
+        .then(r => r.json())
+        .then(data => {
+            if (!data) return;
+
+            // Meta-Labeler badge
+            if (data.meta_labeler) {
+                const pill = document.getElementById('meta-labeler-pill');
+                const badge = document.getElementById('meta-labeler-badge');
+                if (pill && badge) {
+                    pill.style.display = '';
+                    if (data.meta_labeler.ready) {
+                        badge.className = 'badge badge-success';
+                        badge.textContent = 'ML: Active v' + (data.meta_labeler.model_version || '?');
+                        badge.title = 'Meta-Labeler is trained and active';
+                    } else {
+                        badge.style.background = 'rgba(212,168,75,0.15)';
+                        badge.style.color = '#d4a84b';
+                        badge.style.border = '1px solid rgba(212,168,75,0.3)';
+                        badge.textContent = 'ML: Cold Start';
+                        badge.title = 'Meta-Labeler needs 50+ graded signals to train';
+                    }
+                }
+            }
+
+            // MCPT badge
+            if (data.mcpt && data.mcpt.p_value !== undefined) {
+                const pill = document.getElementById('mcpt-pill');
+                const badge = document.getElementById('mcpt-badge');
+                if (pill && badge) {
+                    pill.style.display = '';
+                    if (data.mcpt.significant) {
+                        badge.className = 'badge badge-success';
+                        badge.textContent = 'MCPT: p=' + data.mcpt.p_value;
+                        badge.title = 'Strategy is statistically significant';
+                    } else {
+                        badge.className = 'badge badge-danger';
+                        badge.textContent = 'MCPT: p=' + data.mcpt.p_value;
+                        badge.title = 'Strategy not yet statistically significant';
+                    }
+                }
+            }
+        })
+        .catch(() => { });
+
+    // Truth Banner — the single most important metric
+    fetch('/api/truth-banner', { credentials: 'same-origin' })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+            if (!data) return;
+            const banner = document.getElementById('truth-banner');
+            const headline = document.getElementById('truth-headline');
+            const details = document.getElementById('truth-details');
+            const metrics = document.getElementById('truth-metrics');
+            if (!banner || !headline) return;
+
+            banner.style.display = '';
+
+            if (!data.data_sufficient && data.total_trades === 0) {
+                // No data yet
+                banner.style.borderColor = 'rgba(255,255,255,0.08)';
+                headline.innerHTML = '<span style="color: var(--text-muted);">System is collecting data</span> — no closed paper trades yet.';
+                const open = data.open_positions || 0;
+                details.textContent = open > 0
+                    ? open + ' position' + (open !== 1 ? 's' : '') + ' currently open. Results will appear once trades close.'
+                    : 'Signals will be tracked automatically once the pipeline runs.';
+                metrics.innerHTML = '';
+                return;
+            }
+
+            if (!data.data_sufficient) {
+                // Some trades but < 5
+                banner.style.borderColor = 'rgba(212,168,75,0.3)';
+                headline.innerHTML = '<span style="color: #d4a84b;">Building track record</span> — '
+                    + data.total_trades + ' trade' + (data.total_trades !== 1 ? 's' : '') + ' closed so far. '
+                    + 'Need 5+ for a meaningful comparison.';
+                const sysColor = data.system_return_pct >= 0 ? 'var(--signal-positive)' : 'var(--signal-negative)';
+                details.textContent = 'Since ' + data.start_date + ' (' + data.days_tracked + ' days)';
+                metrics.innerHTML =
+                    '<div style="text-align: center;"><div style="font-family: var(--font-body); font-size: 1.25rem; font-weight: 500; color: ' + sysColor + ';">' + (data.system_return_pct >= 0 ? '+' : '') + data.system_return_pct + '%</div><div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">System</div></div>' +
+                    '<div style="text-align: center;"><div style="font-family: var(--font-body); font-size: 1.25rem; font-weight: 500; color: var(--text-primary);">' + (data.spy_return_pct >= 0 ? '+' : '') + data.spy_return_pct + '%</div><div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">SPY</div></div>';
+                return;
+            }
+
+            // Full truth banner
+            const beating = data.alpha >= 0;
+            const alphaColor = beating ? 'var(--signal-positive)' : 'var(--signal-negative)';
+            const sysColor = data.system_return_pct >= 0 ? 'var(--signal-positive)' : 'var(--signal-negative)';
+            banner.style.borderColor = beating ? 'rgba(107,186,126,0.3)' : 'rgba(212,114,114,0.3)';
+
+            headline.innerHTML = 'If you had followed every signal since <strong>' + data.start_date + '</strong>, you would have '
+                + '<span style="font-weight: 600; color: ' + sysColor + ';">' + (data.system_return_pct >= 0 ? '+' : '') + data.system_return_pct + '%</span>'
+                + ' vs SPY\'s <span style="font-weight: 600; color: var(--text-primary);">' + (data.spy_return_pct >= 0 ? '+' : '') + data.spy_return_pct + '%</span>'
+                + ' over ' + data.days_tracked + ' days.';
+
+            // Sub-details
+            let detailParts = [data.total_trades + ' trades', 'Win rate: ' + data.win_rate_pct + '%'];
+            if (data.open_positions > 0) detailParts.push(data.open_positions + ' open');
+            if (data.mcpt_p_value !== null && data.mcpt_p_value !== undefined) {
+                detailParts.push('MCPT p=' + data.mcpt_p_value + (data.mcpt_significant ? ' ✓' : ''));
+            }
+            details.textContent = detailParts.join('  ·  ');
+
+            // Metrics on the right
+            metrics.innerHTML =
+                '<div style="text-align: center;"><div style="font-family: var(--font-body); font-size: 1.75rem; font-weight: 300; letter-spacing: -0.02em; color: ' + alphaColor + '; font-variant-numeric: tabular-nums;">' + (data.alpha >= 0 ? '+' : '') + data.alpha + '%</div><div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">Alpha</div></div>';
+
+            // If not beating SPY, add subtle warning
+            if (!beating) {
+                details.innerHTML += ' <span style="color: var(--signal-negative); font-size: 0.6875rem; margin-left: var(--space-2);">— Not yet beating the index</span>';
+            }
         })
         .catch(() => { });
 </script>

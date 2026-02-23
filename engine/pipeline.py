@@ -124,6 +124,26 @@ class DailyPipeline:
 
             # Filter for Stage 2 (adaptive limit) — higher threshold since scores are math-based
             stage2_candidates = [c for c in candidates if c.get('composite_score', c.get('score', 0)) >= 40][:limits['stage2_max']]
+
+            # === META-LABELING: Adjust signal confidence with Random Forest ===
+            try:
+                from engine.meta_labeler import meta_labeler
+                if meta_labeler.is_ready():
+                    for candidate in stage2_candidates:
+                        features = meta_labeler.extract_features(candidate)
+                        meta = meta_labeler.predict(features)
+                        candidate['meta_probability'] = meta['meta_probability']
+                        candidate['meta_signal'] = meta['meta_signal']
+                        # Blend: 70% original score + 30% RF confidence
+                        original = candidate.get('composite_score', 50)
+                        blended = int(original * 0.7 + meta['meta_probability'] * 100 * 0.3)
+                        candidate['composite_score'] = max(0, min(100, blended))
+                    # Re-sort by adjusted scores
+                    stage2_candidates.sort(key=lambda x: x.get('composite_score', 0), reverse=True)
+                    self.logger.info("Meta-labeling applied to Stage 2 candidates")
+            except Exception as e:
+                self.logger.debug(f"Meta-labeling skipped: {e}")
+
             stage2_tickers = {c.get('ticker') for c in stage2_candidates}
 
             # Record quant-only predictions for tickers NOT going to Stage 2 (A/B comparison)

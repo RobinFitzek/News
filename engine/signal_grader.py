@@ -329,13 +329,34 @@ class SignalGrader:
                 worst_sig = returns[0]['return_30d']
                 best_sig = returns[-1]['return_30d']
                 
-        return {
+        report = {
             "month": current_month,
             "signals_graded": signals_graded,
             "accuracy_pct": round(acc, 1),
             "best_return_30d_pct": round(best_sig * 100, 2) if best_sig else None,
             "worst_return_30d_pct": round(worst_sig * 100, 2) if worst_sig else None
         }
+
+        # Include MCPT strategy validation status
+        try:
+            from engine.mcpt_validator import mcpt_validator
+            mcpt = mcpt_validator.get_latest_result()
+            if mcpt:
+                report['mcpt_p_value'] = mcpt.get('p_value')
+                report['mcpt_significant'] = mcpt.get('significant')
+        except Exception:
+            pass
+
+        # Include meta-labeler status
+        try:
+            from engine.meta_labeler import meta_labeler
+            report['meta_labeler_ready'] = meta_labeler.is_ready()
+            status = meta_labeler.get_status()
+            report['meta_labeler_version'] = status.get('model_version', 0)
+        except Exception:
+            pass
+
+        return report
 
 
 # Singleton

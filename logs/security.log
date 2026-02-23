@@ -48,3 +48,5 @@
 {"timestamp": "2026-02-20T15:02:19.856847", "event": "login_failed", "username": "admin", "ip": "127.0.0.1", "details": {}}
 {"timestamp": "2026-02-20T15:03:21.081820", "event": "login_failed", "username": "admin", "ip": "127.0.0.1", "details": {}}
 {"timestamp": "2026-02-20T15:07:08.473834", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-23T13:26:10.632238", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
+{"timestamp": "2026-02-23T13:45:58.397042", "event": "login_success", "username": "admin", "ip": "127.0.0.1", "details": {}}
