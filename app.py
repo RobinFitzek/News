@@ -22,12 +22,13 @@ from core.csrf import csrf
 from core.rate_limit import limiter
 from core.audit_log import audit_log
 from scheduler import scheduler
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from fastapi.responses import JSONResponse
 from engine.agents import swarm
 from clients.perplexity_client import pplx_client
 from clients.gemini_client import gemini_client
 from clients.custom_provider_client import custom_provider_client
+from clients.provider_registry import provider_registry, PROVIDER_SHORTCUTS, STAGE_INFO
 from core.budget_tracker import budget_tracker
 from engine.learning_optimizer import learning_optimizer
 from engine.staleness_tracker import staleness_tracker
@@ -44,7 +45,19 @@ templates = Jinja2Templates(env=jinja_env)
 
 # Configure rate limiter
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+async def _custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    """Redirect back with a friendly error instead of a raw JSON 429 page."""
+    referer = request.headers.get("referer", "/")
+    # Strip to path + query only (no external redirects)
+    from urllib.parse import urlparse, urlencode, parse_qs, urlunparse
+    parsed = urlparse(referer)
+    safe_back = parsed.path or "/"
+    msg = "Too+many+requests+%E2%80%94+please+wait+a+moment+before+trying+again"
+    sep = "&" if "?" in safe_back else "?"
+    return RedirectResponse(url=f"{safe_back}{sep}error={msg}", status_code=303)
+
+app.add_exception_handler(RateLimitExceeded, _custom_rate_limit_handler)
 
 # Mount static files directory
 from pathlib import Path
@@ -318,42 +331,14 @@ async def dashboard(request: Request, username: str = Depends(require_auth)):
             custom_provider_cards = []
 
         api_cards = []
-        pplx_usage = pplx_client.get_usage()
-        gemini_usage = gemini_client.get_usage()
-
-        api_cards.append({
-            "key": "perplexity",
-            "name": "Perplexity",
-            "is_configured": pplx_usage.get("is_configured", False),
-            "used_today": pplx_usage.get("used_today", 0),
-            "daily_limit": max(1, pplx_usage.get("daily_limit", 1)),
-            "hint": "Requests Today",
-        })
-        api_cards.append({
-            "key": "gemini-flash",
-            "name": "Gemini Flash",
-            "is_configured": gemini_usage.get("is_configured", False),
-            "used_today": gemini_usage.get("flash", {}).get("used_today", 0),
-            "daily_limit": max(1, gemini_usage.get("flash", {}).get("daily_limit", 1)),
-            "hint": "Requests Today",
-        })
-        api_cards.append({
-            "key": "gemini-pro",
-            "name": "Gemini Pro",
-            "is_configured": gemini_usage.get("is_configured", False),
-            "used_today": gemini_usage.get("pro", {}).get("used_today", 0),
-            "daily_limit": max(1, gemini_usage.get("pro", {}).get("daily_limit", 1)),
-            "hint": "Requests Today",
-        })
-
-        for provider in custom_provider_cards:
+        for provider in provider_registry.get_all_providers_with_status():
             api_cards.append({
                 "key": f"provider-{provider['id']}",
-                "name": provider.get("name", "Custom Provider"),
+                "name": provider.get("name", "Provider"),
                 "is_configured": provider.get("is_configured", False),
                 "used_today": provider.get("used_today", 0),
                 "daily_limit": max(1, provider.get("daily_limit", 1)),
-                "hint": provider.get("pipeline_role", "custom").replace('_', ' ').title() if provider.get("pipeline_role") else "Custom",
+                "hint": (provider.get("pipeline_role") or "manual").replace("_", " ").title(),
             })
 
         return templates.TemplateResponse("dashboard.html", {
@@ -362,10 +347,7 @@ async def dashboard(request: Request, username: str = Depends(require_auth)):
             "scheduler_status": scheduler.get_status(),
             "watchlist": db.get_watchlist(),
             "recent_analyses": recent_analyses,
-            "api_status": {
-                "perplexity": pplx_client.get_usage(),
-                "gemini": gemini_client.get_usage()
-            },
+            "api_status": {p["name"]: p for p in provider_registry.get_all_providers_with_status()},
             "learning_stats": learning_stats,
             "top_picks_preview": top_picks_preview,
             "trusted_tickers": trusted_tickers,
@@ -666,6 +648,10 @@ async def settings_page(request: Request, username: str = Depends(require_auth))
             "gemini": bool(db.get_api_key("gemini"))
         },
         "system_paused": system_paused,
+        "providers": db.get_api_providers(include_secrets=False),
+        "provider_shortcuts": provider_registry.get_shortcuts(),
+        "stage_info": provider_registry.get_stage_info(),
+        "stage_assignments": db.get_stage_assignments(),
     })
 
 @app.post("/settings/clear-kill-switch")
@@ -939,6 +925,7 @@ async def api_create_provider(request: Request, username: str = Depends(require_
     api_key = (payload.get('api_key') or '').strip()
     model = (payload.get('model') or '').strip()
     pipeline_role = (payload.get('pipeline_role') or '').strip() or None
+    adapter_type = (payload.get('adapter_type') or 'openai_compatible').strip()
     monthly_budget_raw = payload.get('monthly_budget_eur', 5.0)
     monthly_budget_eur = 5.0 if monthly_budget_raw is None else float(monthly_budget_raw)
 
@@ -953,6 +940,7 @@ async def api_create_provider(request: Request, username: str = Depends(require_
         model=model,
         pipeline_role=pipeline_role,
         monthly_budget_eur=monthly_budget_eur,
+        adapter_type=adapter_type,
     )
     if not provider_id:
         raise HTTPException(status_code=400, detail="Could not create provider (name may already exist)")
@@ -975,6 +963,7 @@ async def api_update_provider(provider_id: int, request: Request, username: str 
     api_key = (payload.get('api_key') or '').strip()
     model = (payload.get('model') or '').strip()
     pipeline_role = (payload.get('pipeline_role') or '').strip() or None
+    adapter_type = (payload.get('adapter_type') or 'openai_compatible').strip()
     monthly_budget_raw = payload.get('monthly_budget_eur', 5.0)
     monthly_budget_eur = 5.0 if monthly_budget_raw is None else float(monthly_budget_raw)
 
@@ -990,6 +979,7 @@ async def api_update_provider(provider_id: int, request: Request, username: str 
         pipeline_role=pipeline_role,
         monthly_budget_eur=monthly_budget_eur,
         api_key=api_key if api_key else None,
+        adapter_type=adapter_type,
     )
 
     if not ok:
@@ -1008,20 +998,22 @@ async def api_delete_provider(provider_id: int, request: Request, username: str 
 @app.post("/api/providers/{provider_id}/test")
 async def api_test_provider(provider_id: int, request: Request, username: str = Depends(require_auth)):
     """Test provider connectivity with a lightweight completion call."""
-    provider = db.get_api_provider(provider_id, include_secret=True)
-    if not provider:
+    result = provider_registry.test_provider(provider_id)
+    if result.get("status") == "error" and result.get("error") == "provider_not_found":
         raise HTTPException(status_code=404, detail="Provider not found")
-    result = custom_provider_client.test_connection(provider)
     return result
 
 # ==================== API KEY PEEK ====================
 
 @app.get("/api/api-key/peek/{service}")
 async def peek_api_key(service: str, request: Request, username: str = Depends(require_auth)):
-    """Return masked API key (first 4 + last 4 chars visible)"""
-    if service not in ('perplexity', 'gemini'):
-        raise HTTPException(status_code=400, detail="Invalid service")
-    key = db.get_api_key(service)
+    """Return masked API key (first 4 + last 4 chars visible) — looks up by provider name."""
+    # Try provider by name first (works for any provider)
+    provider = db.get_api_provider_by_name(service, include_secret=True)
+    key = provider.get("api_key") if provider else None
+    # Fallback: legacy api_keys table for perplexity/gemini
+    if not key and service in ('perplexity', 'gemini'):
+        key = db.get_api_key(service)
     if not key:
         return {"service": service, "masked": None, "configured": False}
     if len(key) <= 8:
@@ -1029,6 +1021,40 @@ async def peek_api_key(service: str, request: Request, username: str = Depends(r
     else:
         masked = key[:4] + '*' * (len(key) - 8) + key[-4:]
     return {"service": service, "masked": masked, "configured": True}
+
+# ==================== STAGE ASSIGNMENT API ====================
+
+@app.get("/api/stage-assignments")
+async def api_get_stage_assignments(request: Request, username: str = Depends(require_auth)):
+    """Get current pipeline stage → provider assignments."""
+    assignments_list = db.get_stage_assignments()
+    assignments = {a['stage_name']: a for a in assignments_list}
+    providers = db.get_api_providers(include_secrets=False)
+    return {"assignments": assignments, "providers": providers, "stage_info": STAGE_INFO}
+
+
+@app.post("/api/stage-assignments")
+async def api_set_stage_assignments(request: Request, username: str = Depends(require_auth)):
+    """Save pipeline stage → provider assignments."""
+    payload = await request.json()
+    mode = payload.get("mode", "per_stage")
+    if mode == "one_for_all":
+        provider_id = payload.get("provider_id")
+        fallback_id = payload.get("fallback_provider_id") or None
+        if provider_id:
+            db.set_all_stages_to_provider(int(provider_id), int(fallback_id) if fallback_id else None)
+    else:
+        for stage_name, data in payload.get("stages", {}).items():
+            pid = data.get("provider_id")
+            fid = data.get("fallback_provider_id")
+            db.set_stage_assignment(
+                stage_name,
+                int(pid) if pid else None,
+                int(fid) if fid else None,
+                bool(data.get("enabled", True)),
+            )
+    return {"status": "ok"}
+
 
 # ==================== SYSTEM ALERTS API ====================
 
@@ -1134,12 +1160,9 @@ async def run_scan_now(
         # Log the scan attempt
         audit_log.log("manual_scan_triggered", username=username, ip=request.client.host, details={"source": "web_dashboard"})
 
-        # Check if APIs are configured
-        pplx_key = db.get_api_key("perplexity")
-        gemini_key = db.get_api_key("gemini")
-
-        if not gemini_key:
-            return RedirectResponse(url="/?message=error&detail=Gemini+API+not+configured", status_code=303)
+        # Check if any AI provider is configured
+        if not provider_registry.get_all_providers_with_status():
+            return RedirectResponse(url="/?message=error&detail=No+AI+provider+configured.+Add+one+in+Settings.", status_code=303)
 
         # Check watchlist
         watchlist = db.get_watchlist(active_only=True)
@@ -1156,7 +1179,7 @@ async def run_scan_now(
     except Exception as e:
         # Log the error
         audit_log.log("manual_scan_failed", username=username, ip=request.client.host, details={"error": str(e)})
-        print(f"❌ Manual scan error: {e}")
+        print(f"[ERROR] Manual scan error: {e}")
 
         # Return with error message
         error_msg = str(e)[:100]  # Limit error message length
@@ -1270,6 +1293,8 @@ async def discoveries_page(request: Request, username: str = Depends(require_aut
         "stats": stats,
         "discovery_log": discovery_log,
         "status_filter": status_filter,
+        "message": request.query_params.get("message"),
+        "error": request.query_params.get("error"),
     })
 
 @app.post("/discoveries/{discovery_id}/promote")
@@ -1317,7 +1342,6 @@ async def api_discovery_stats(request: Request, username: str = Depends(require_
     return db.get_discovery_stats()
 
 @app.post("/discovery/run-now")
-@limiter.limit("2/hour")
 async def run_discovery_now(
     request: Request,
     csrf_token: str = Form(...),
@@ -1325,6 +1349,12 @@ async def run_discovery_now(
 ):
     """Manual trigger for discovery run"""
     csrf.verify_token(request, csrf_token)
+
+    if not db.get_setting("discovery_enabled"):
+        return RedirectResponse(
+            url="/discoveries?message=Discovery+is+disabled+in+settings",
+            status_code=303
+        )
 
     import threading
     from engine.auto_discovery import auto_discovery
@@ -2099,10 +2129,7 @@ async def api_status(request: Request, username: str = Depends(require_auth)):
 
     return {
         "scheduler": scheduler.get_status(),
-        "api_usage": {
-            "perplexity": pplx_client.get_usage(),
-            "gemini": gemini_client.get_usage()
-        },
+        "api_usage": {p["name"]: p for p in provider_registry.get_all_providers_with_status()},
         "providers": db.get_enabled_api_provider_cards(),
         "watchlist_count": len(db.get_watchlist()),
         "stale_analyses": stale_count,
@@ -2113,6 +2140,12 @@ async def api_scan_progress(request: Request, username: str = Depends(require_au
     """Real-time scan progress for dashboard status bar"""
     from engine.scan_progress import scan_progress
     return scan_progress.get_state()
+
+@app.get("/api/discovery-status")
+async def api_discovery_status(request: Request, username: str = Depends(require_auth)):
+    """Real-time discovery run status for discoveries page polling"""
+    from engine.auto_discovery import discovery_status
+    return discovery_status.get()
 
 @app.get("/api/budget")
 async def api_budget_status(request: Request, username: str = Depends(require_auth)):
@@ -2622,28 +2655,30 @@ async def health_check():
     except Exception as e:
         db_error = str(e)
     
-    # API connectivity
-    perplexity_configured = bool(db.get_api_key("perplexity"))
-    gemini_configured = bool(db.get_api_key("gemini"))
-    
+    # API connectivity — check any provider is configured
+    configured_providers = db.get_api_providers(include_secrets=False)
+    enabled_providers = [p for p in configured_providers if p.get("enabled")]
+    any_ai_configured = len(enabled_providers) > 0
+
     # Disk space
     disk = psutil.disk_usage('/')
     disk_warning = disk.percent > 80
-    
+
     # Learning system
     learning_stats = learning_optimizer.get_learning_stats()
-    
+
     status = {
-        "status": "healthy" if (db_healthy and perplexity_configured and gemini_configured and not disk_warning) else "degraded",
+        "status": "healthy" if (db_healthy and not disk_warning) else "degraded",
         "timestamp": datetime.now().isoformat(),
         "checks": {
             "database": {
                 "healthy": db_healthy,
                 "error": db_error if not db_healthy else None
             },
-            "api_keys": {
-                "perplexity": perplexity_configured,
-                "gemini": gemini_configured
+            "ai_providers": {
+                "count": len(enabled_providers),
+                "healthy": any_ai_configured,
+                "names": [p.get("name") for p in enabled_providers],
             },
             "scheduler": {
                 "running": scheduler.is_running,
@@ -3728,23 +3763,17 @@ async def api_data_freshness(request: Request, username: str = Depends(require_a
     return summary
 
 
-# Startup: check API keys and raise alerts for missing/broken ones
+# Startup: check API keys and raise alerts if no provider is configured
 def _check_api_keys_on_startup():
-    """Raise system alerts for missing API keys at startup."""
-    if not db.get_api_key('perplexity'):
+    """Raise system alert if no AI provider is configured at startup."""
+    configured = db.get_api_providers(include_secrets=False)
+    if not any(p.get("enabled") for p in configured):
         db.raise_system_alert(
-            'perplexity_auth',
-            'Perplexity API Key Missing',
-            'No Perplexity API key configured. News analysis will be unavailable.',
-            severity='warning', service='perplexity',
-            action_url='/settings', action_label='Add API Key')
-    if not db.get_api_key('gemini'):
-        db.raise_system_alert(
-            'gemini_auth',
-            'Gemini API Key Missing',
-            'No Gemini API key configured. AI analysis will not work.',
-            severity='error', service='gemini',
-            action_url='/settings', action_label='Add API Key')
+            'no_ai_provider',
+            'No AI Provider Configured',
+            'No AI provider configured. Add one in Settings → API Connections.',
+            severity='warning',
+            action_url='/settings', action_label='Add Provider')
 
 _check_api_keys_on_startup()
 
@@ -3756,11 +3785,11 @@ def run_server():
 
     if ENABLE_HTTPS:
         if not CERT_FILE.exists() or not KEY_FILE.exists():
-            print("❌ HTTPS enabled but certificates not found!")
+            print("[ERROR] HTTPS enabled but certificates not found!")
             print(f"   Expected: {CERT_FILE} and {KEY_FILE}")
             return
 
-        print(f"🔒 HTTPS server starting on https://{WEB_HOST}:{WEB_PORT}")
+        print(f"[HTTPS] Server starting on https://{WEB_HOST}:{WEB_PORT}")
         uvicorn.run(
             app,
             host=WEB_HOST,
@@ -3770,8 +3799,8 @@ def run_server():
             log_level="warning"
         )
     else:
-        print(f"⚠️  HTTP server starting on http://{WEB_HOST}:{WEB_PORT}")
-        print("⚠️  Enable HTTPS in .env for secure connections!")
+        print(f"[WARNING] HTTP server starting on http://{WEB_HOST}:{WEB_PORT}")
+        print("[WARNING] Enable HTTPS in .env for secure connections!")
         uvicorn.run(app, host=WEB_HOST, port=WEB_PORT, log_level="warning")
 
 if __name__ == "__main__":

@@ -22,6 +22,12 @@
     <div class="settings-layout">
         <!-- ─── SIDEBAR ─────────────────────────────────────── -->
         <nav class="settings-sidebar">
+            <!-- Intelligent Search -->
+            <div class="settings-search-wrap">
+                <svg class="settings-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="settings-search" class="settings-search-input" placeholder="Search settings…" autocomplete="off" oninput="onSettingsSearch(this.value)">
+                <button type="button" id="settings-search-clear" class="settings-search-clear" onclick="clearSettingsSearch()" style="display:none;" aria-label="Clear search">&#x2715;</button>
+            </div>
             <div class="settings-nav">
                 <div class="settings-nav-indicator" aria-hidden="true"></div>
                 <button type="button" class="settings-nav-item active" data-panel="panel-api" onclick="switchSettingsPanel('panel-api')">
@@ -85,97 +91,35 @@
         <!-- ─── CONTENT PANELS ──────────────────────────────── -->
         <div class="settings-content">
 
+            <!-- ═══ PANEL: SEARCH RESULTS ════════════════════ -->
+            <div id="panel-search" class="settings-panel">
+                <h3 style="margin: 0 0 var(--space-5) 0; font-size: 1rem;">Search Results</h3>
+                <div id="search-results-list" style="display: grid; gap: var(--space-3);"></div>
+                <div id="search-results-empty" style="display:none; color: var(--text-muted); font-size: 0.8125rem; padding: var(--space-6) 0;">No settings found for your search.</div>
+            </div>
+
             <!-- ═══ PANEL: API CONNECTIONS ═══════════════════ -->
             <div id="panel-api" class="settings-panel active">
-                <div class="card" style="margin-bottom: var(--space-6);">
-                    <h3 style="margin: 0 0 var(--space-5) 0;">API Keys</h3>
-                    <p style="font-size: 0.8125rem; color: var(--text-muted); margin-bottom: var(--space-5);">
-                        API keys are securely stored in the local database
-                    </p>
-                    <form action="/settings/api-keys" method="POST">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <div class="grid grid-2" style="margin-bottom: var(--space-5);">
-                            <div>
-                                <label>Perplexity API Key</label>
-                                <div style="position: relative;">
-                                    <input type="password" name="perplexity_key" id="perplexity-key-input"
-                                        placeholder="{% if api_keys.perplexity %}••••••••••••{% else %}pplx-xxx...{% endif %}"
-                                        style="padding-right: 44px;">
-                                    {% if api_keys.perplexity %}
-                                    <button type="button" class="api-key-peek" data-service="perplexity"
-                                        title="Peek at key" aria-label="Show API key">
-                                        <svg class="eye-icon eye-open" width="20" height="20" viewBox="0 0 24 24" fill="none"
-                                            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                            <circle cx="12" cy="12" r="3"/>
-                                        </svg>
-                                        <svg class="eye-icon eye-closed" width="20" height="20" viewBox="0 0 24 24" fill="none"
-                                            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
-                                            style="display:none;">
-                                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                                            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                                            <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
-                                            <line x1="1" y1="1" x2="23" y2="23"/>
-                                        </svg>
-                                    </button>
-                                    {% endif %}
-                                </div>
-                                <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                                    {% if api_keys.perplexity %}
-                                    <span style="color: var(--signal-positive);">Configured</span>
-                                    {% else %}
-                                    <span style="color: var(--signal-negative);">Not configured</span>
-                                    {% endif %}
-                                    · <a href="https://perplexity.ai/settings" target="_blank"
-                                        style="color: var(--text-secondary);">Get API Key</a>
-                                </div>
-                            </div>
-                            <div>
-                                <label>Gemini API Key</label>
-                                <div style="position: relative;">
-                                    <input type="password" name="gemini_key" id="gemini-key-input"
-                                        placeholder="{% if api_keys.gemini %}••••••••••••{% else %}AIzaSy...{% endif %}"
-                                        style="padding-right: 44px;">
-                                    {% if api_keys.gemini %}
-                                    <button type="button" class="api-key-peek" data-service="gemini"
-                                        title="Peek at key" aria-label="Show API key">
-                                        <svg class="eye-icon eye-open" width="20" height="20" viewBox="0 0 24 24" fill="none"
-                                            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                                            <circle cx="12" cy="12" r="3"/>
-                                        </svg>
-                                        <svg class="eye-icon eye-closed" width="20" height="20" viewBox="0 0 24 24" fill="none"
-                                            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
-                                            style="display:none;">
-                                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-                                            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-                                            <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
-                                            <line x1="1" y1="1" x2="23" y2="23"/>
-                                        </svg>
-                                    </button>
-                                    {% endif %}
-                                </div>
-                                <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                                    {% if api_keys.gemini %}
-                                    <span style="color: var(--signal-positive);">Configured</span>
-                                    {% else %}
-                                    <span style="color: var(--signal-negative);">Not configured</span>
-                                    {% endif %}
-                                    · <a href="https://ai.google.dev" target="_blank" style="color: var(--text-secondary);">Get Free
-                                        API Key</a>
-                                </div>
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-primary">Save API Keys</button>
-                    </form>
-                </div>
 
-                <!-- Dynamic Providers (populated by Phase 4) -->
-                <div id="dynamic-providers-section" class="card" style="margin-bottom: var(--space-6);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5);">
-                        <h3 style="margin: 0;">Custom API Providers</h3>
-                        <button type="button" class="btn btn-secondary" style="font-size: 0.75rem;" onclick="toggleProviderForm()">Add Provider</button>
+                <!-- AI Providers Card — unified open system -->
+                <div class="card" style="margin-bottom: var(--space-6);">
+                    <!-- Header: title + quick-add shortcuts -->
+                    <div style="display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; margin-bottom: var(--space-4);">
+                        <h3 style="margin: 0; flex: 1; min-width: 120px;">AI Providers</h3>
+                        <div style="display: flex; flex-wrap: wrap; gap: var(--space-2);">
+                            {% for key, sc in provider_shortcuts.items() %}
+                            <button type="button" class="btn btn-secondary" style="font-size: 0.6875rem; padding: 4px 10px;"
+                                onclick="quickAdd('{{ key }}')">+ {{ sc.name }}</button>
+                            {% endfor %}
+                            <button type="button" class="btn btn-ghost" style="font-size: 0.6875rem; padding: 4px 10px;"
+                                onclick="quickAdd(null)">+ Custom</button>
+                        </div>
                     </div>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
+                        Add any LLM or search API. Keys are stored encrypted. Click a shortcut to pre-fill the form.
+                    </p>
+
+                    <!-- Error Banner -->
                     <div id="api-error-banner" style="display:none; margin-bottom: var(--space-4); padding: var(--space-4) var(--space-5); background: var(--signal-negative-bg); border: 1px solid var(--signal-negative); color: var(--text-primary);">
                         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: var(--space-4); flex-wrap: wrap;">
                             <div style="min-width: 260px; flex: 1;">
@@ -183,20 +127,21 @@
                                 <div id="api-error-banner-message" style="font-size: 0.8125rem; color: var(--text-secondary); margin-top: var(--space-1);"></div>
                             </div>
                             <div style="display:flex; gap: var(--space-2); align-items:center;">
-                                <a href="/logs?enable_dev_mode=1" class="btn btn-danger" style="font-size: 0.75rem; white-space: nowrap;">Open Logs (Dev Mode)</a>
+                                <a href="/logs?enable_dev_mode=1" class="btn btn-danger" style="font-size: 0.75rem; white-space: nowrap;">Open Logs</a>
                                 <button type="button" class="btn btn-secondary" style="font-size: 0.75rem;" onclick="hideApiErrorBanner()">Dismiss</button>
                             </div>
                         </div>
                     </div>
-                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
-                        Connect any OpenAI-compatible API. Providers can be assigned to pipeline stages.
-                    </p>
-                    <!-- Add Provider Form (hidden by default) -->
+
+                    <!-- Add / Edit Provider Form (hidden by default, shown by shortcut buttons or "Add" click) -->
                     <div id="add-provider-form" style="display: none; margin-bottom: var(--space-5); padding: var(--space-5); background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: var(--radius-md);">
+                        <div style="font-weight: 500; font-size: 0.875rem; margin-bottom: var(--space-4);" id="prov-form-title">Add Provider</div>
+                        <!-- Hidden adapter type — set by quickAdd or editProvider -->
+                        <input type="hidden" id="prov-adapter-type" value="openai_compatible">
                         <div class="grid grid-2" style="gap: var(--space-4); margin-bottom: var(--space-4);">
                             <div>
                                 <label>Provider Name</label>
-                                <input type="text" id="prov-name" placeholder="e.g. OpenAI, Groq, Together">
+                                <input type="text" id="prov-name" placeholder="e.g. My Groq Setup">
                             </div>
                             <div>
                                 <label>Type</label>
@@ -216,19 +161,11 @@
                                 <input type="password" id="prov-key" placeholder="sk-...">
                             </div>
                         </div>
-                        <div class="grid grid-3" style="gap: var(--space-4); margin-bottom: var(--space-4);">
+                        <div class="grid grid-2" style="gap: var(--space-4); margin-bottom: var(--space-4);">
                             <div>
                                 <label>Model</label>
-                                <input type="text" id="prov-model" placeholder="gpt-4o-mini">
-                            </div>
-                            <div>
-                                <label>Pipeline Role</label>
-                                <select id="prov-role">
-                                    <option value="">None (manual only)</option>
-                                    <option value="stage2_news">Stage 2: News</option>
-                                    <option value="stage3_synthesis">Stage 3: Synthesis</option>
-                                    <option value="discovery">Discovery</option>
-                                </select>
+                                <input type="text" id="prov-model" placeholder="gpt-4o-mini" list="prov-model-list">
+                                <datalist id="prov-model-list"></datalist>
                             </div>
                             <div>
                                 <label>Monthly Budget (EUR)</label>
@@ -236,15 +173,52 @@
                             </div>
                         </div>
                         <div style="display: flex; gap: var(--space-3);">
-                            <button type="button" class="btn btn-primary" onclick="saveProvider()">Save Provider</button>
-                            <button type="button" class="btn btn-ghost" onclick="toggleProviderForm()">Cancel</button>
+                            <button type="button" class="btn btn-primary" onclick="saveProvider()" id="prov-save-btn">Save Provider</button>
+                            <button type="button" class="btn btn-ghost" onclick="cancelProviderForm()">Cancel</button>
                         </div>
                     </div>
+
                     <!-- Provider List -->
                     <div id="providers-list">
-                        <div style="font-size: 0.75rem; color: var(--text-muted);">Loading providers...</div>
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">Loading providers…</div>
                     </div>
                 </div>
+
+                <!-- Pipeline Stage Assignment Card -->
+                <div class="card" style="margin-bottom: var(--space-6);">
+                    <h3 style="margin: 0 0 var(--space-2) 0;">Pipeline Stage Assignment</h3>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
+                        Choose which AI handles each analysis stage. You can use one provider for everything or assign different providers per stage.
+                    </p>
+
+                    <!-- Mode Toggle -->
+                    <div style="display: flex; gap: var(--space-2); margin-bottom: var(--space-5);">
+                        <button id="stage-mode-btn-unified" type="button" class="btn btn-primary" onclick="setStageMode('unified')">One AI for All</button>
+                        <button id="stage-mode-btn-per-stage" type="button" class="btn btn-ghost" onclick="setStageMode('per_stage')">Per Stage</button>
+                    </div>
+
+                    <!-- Unified Mode -->
+                    <div id="stage-unified-panel">
+                        <div style="max-width: 320px;">
+                            <label>AI Provider (applied to all stages)</label>
+                            <select id="stage-unified-provider" style="margin-bottom: var(--space-4);">
+                                <option value="">— Select provider —</option>
+                            </select>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="saveStageAssignments()">Save</button>
+                    </div>
+
+                    <!-- Per-Stage Mode -->
+                    <div id="stage-per-stage-panel" style="display:none;">
+                        <div class="grid grid-2" style="gap: var(--space-4); margin-bottom: var(--space-4);" id="stage-selectors">
+                            <div style="color: var(--text-muted); font-size: 0.75rem;">Loading stage config…</div>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="saveStageAssignments()">Save Stage Assignments</button>
+                    </div>
+
+                    <div id="stage-save-feedback" style="display:none; margin-top: var(--space-3); font-size: 0.75rem; color: var(--signal-positive);">Saved.</div>
+                </div>
+
             </div>
 
             <!-- ═══ PANEL: ANALYSIS ═════════════════════════ -->
@@ -1005,29 +979,54 @@
     }
     loadAlerts();
 
-    // ─── Dynamic Providers (Phase 4) ───
+    // ─── Provider Shortcuts (injected from server) ───
+    var SHORTCUTS = {{ provider_shortcuts | tojson }};
+
+    // ─── Dynamic Providers ───
     var editingProviderId = null;
 
     function resetProviderForm() {
         editingProviderId = null;
+        document.getElementById('prov-adapter-type').value = 'openai_compatible';
         document.getElementById('prov-name').value = '';
         document.getElementById('prov-type').value = 'llm';
         document.getElementById('prov-url').value = '';
         document.getElementById('prov-key').value = '';
+        document.getElementById('prov-key').placeholder = 'sk-…';
         document.getElementById('prov-model').value = '';
-        document.getElementById('prov-role').value = '';
         document.getElementById('prov-budget').value = '5.0';
-        var saveBtn = document.querySelector('#add-provider-form .btn.btn-primary');
-        if (saveBtn) saveBtn.textContent = 'Save Provider';
+        document.getElementById('prov-form-title').textContent = 'Add Provider';
+        document.getElementById('prov-save-btn').textContent = 'Save Provider';
+        // clear model datalist
+        document.getElementById('prov-model-list').innerHTML = '';
     }
 
-    function toggleProviderForm() {
-        var form = document.getElementById('add-provider-form');
-        var shouldShow = form.style.display === 'none';
-        form.style.display = shouldShow ? '' : 'none';
-        if (!shouldShow) {
-            resetProviderForm();
+    function quickAdd(shortcutKey) {
+        resetProviderForm();
+        if (shortcutKey && SHORTCUTS[shortcutKey]) {
+            var sc = SHORTCUTS[shortcutKey];
+            document.getElementById('prov-adapter-type').value = sc.adapter_type || 'openai_compatible';
+            document.getElementById('prov-name').value = sc.name || '';
+            document.getElementById('prov-type').value = sc.provider_type || 'llm';
+            document.getElementById('prov-url').value = sc.base_url || '';
+            document.getElementById('prov-key').placeholder = sc.key_placeholder || 'API Key…';
+            document.getElementById('prov-model').value = sc.model || '';
+            document.getElementById('prov-form-title').textContent = 'Add ' + sc.name;
+            // populate model suggestions
+            var dl = document.getElementById('prov-model-list');
+            dl.innerHTML = '';
+            (sc.models || []).forEach(function(m) {
+                var opt = document.createElement('option'); opt.value = m; dl.appendChild(opt);
+            });
         }
+        var form = document.getElementById('add-provider-form');
+        form.style.display = '';
+        document.getElementById('prov-name').focus();
+    }
+
+    function cancelProviderForm() {
+        document.getElementById('add-provider-form').style.display = 'none';
+        resetProviderForm();
     }
 
     function editProvider(providerId) {
@@ -1035,87 +1034,76 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
             var provider = (data.providers || []).find(function(p) { return p.id === providerId; });
-            if (!provider) {
-                alert('Provider not found');
-                return;
-            }
-
+            if (!provider) { alert('Provider not found'); return; }
+            resetProviderForm();
             editingProviderId = provider.id;
+            document.getElementById('prov-adapter-type').value = provider.adapter_type || 'openai_compatible';
             document.getElementById('prov-name').value = provider.name || '';
             document.getElementById('prov-type').value = provider.provider_type || 'llm';
             document.getElementById('prov-url').value = provider.base_url || '';
             document.getElementById('prov-key').value = '';
             document.getElementById('prov-model').value = provider.model || '';
-            document.getElementById('prov-role').value = provider.pipeline_role || '';
+
             document.getElementById('prov-budget').value = provider.monthly_budget_eur || 5.0;
-
-            var saveBtn = document.querySelector('#add-provider-form .btn.btn-primary');
-            if (saveBtn) saveBtn.textContent = 'Update Provider';
-
+            document.getElementById('prov-form-title').textContent = 'Edit Provider';
+            document.getElementById('prov-save-btn').textContent = 'Update Provider';
             var form = document.getElementById('add-provider-form');
-            if (form.style.display === 'none') {
-                form.style.display = '';
-            }
+            if (form.style.display === 'none') form.style.display = '';
+            document.getElementById('prov-name').focus();
         })
-        .catch(function() {
-            alert('Could not load provider for editing');
-        });
+        .catch(function() { alert('Could not load provider for editing'); });
     }
 
     function saveProvider() {
         var budgetValue = parseFloat(document.getElementById('prov-budget').value);
         if (isNaN(budgetValue)) budgetValue = 5.0;
-
         var data = {
             name: document.getElementById('prov-name').value,
             provider_type: document.getElementById('prov-type').value,
             base_url: document.getElementById('prov-url').value,
             api_key: document.getElementById('prov-key').value,
             model: document.getElementById('prov-model').value,
-            pipeline_role: document.getElementById('prov-role').value,
-            monthly_budget_eur: budgetValue
+
+            monthly_budget_eur: budgetValue,
+            adapter_type: document.getElementById('prov-adapter-type').value,
         };
         if (!data.name || !data.base_url || !data.model) { alert('Name, Base URL, and Model are required.'); return; }
-
         var method = editingProviderId ? 'PUT' : 'POST';
         var url = editingProviderId ? ('/api/providers/' + editingProviderId) : '/api/providers';
-
         fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
             body: JSON.stringify(data) })
         .then(function(r) { return r.json(); })
         .then(function(resp) {
             if (resp.id) {
                 hideApiErrorBanner();
-                toggleProviderForm();
-                resetProviderForm();
+                cancelProviderForm();
                 loadProviders();
+                loadStageAssignments();
+            } else {
+                showApiErrorBanner(resp.detail || 'Could not save provider.');
             }
         })
-        .catch(function(e) {
-            showApiErrorBanner('Failed to save provider: ' + e);
-        });
+        .catch(function(e) { showApiErrorBanner('Failed to save provider: ' + e); });
     }
+
     function deleteProvider(id) {
         if (!confirm('Remove this provider?')) return;
         fetch('/api/providers/' + id, { method: 'DELETE', credentials: 'same-origin' })
-        .then(function() { loadProviders(); });
+        .then(function() { loadProviders(); loadStageAssignments(); });
     }
+
     function testProvider(id) {
         var btn = event.target;
-        btn.textContent = 'Testing...'; btn.disabled = true;
+        btn.textContent = 'Testing…'; btn.disabled = true;
         fetch('/api/providers/' + id + '/test', { method: 'POST', credentials: 'same-origin' })
         .then(function(r) { return r.json(); })
         .then(function(data) {
             btn.disabled = false;
             if (data.status === 'ok') {
-                hideApiErrorBanner();
-                btn.textContent = 'OK';
-                btn.style.color = 'var(--signal-positive)';
-            }
-            else {
-                btn.textContent = 'Failed';
-                btn.style.color = 'var(--signal-negative)';
-                var reason = data.message || data.error || 'Provider test failed. Check logs for details.';
+                hideApiErrorBanner(); btn.textContent = 'OK'; btn.style.color = 'var(--signal-positive)';
+            } else {
+                btn.textContent = 'Failed'; btn.style.color = 'var(--signal-negative)';
+                var reason = data.message || data.error || 'Provider test failed.';
                 if (data.details && Array.isArray(data.details.attempted_endpoints) && data.details.attempted_endpoints.length > 0) {
                     reason += ' Tried: ' + data.details.attempted_endpoints.join(' | ');
                 }
@@ -1124,24 +1112,22 @@
             setTimeout(function() { btn.textContent = 'Test'; btn.style.color = ''; }, 3000);
         })
         .catch(function() {
-            btn.disabled = false;
-            btn.textContent = 'Error';
-            showApiErrorBanner('Could not reach provider test endpoint. Check logs for details.');
+            btn.disabled = false; btn.textContent = 'Error';
+            showApiErrorBanner('Could not reach test endpoint. Check logs.');
             setTimeout(function() { btn.textContent = 'Test'; }, 2000);
         });
     }
+
     function showApiErrorBanner(message) {
         var banner = document.getElementById('api-error-banner');
         var msg = document.getElementById('api-error-banner-message');
         if (!banner || !msg) return;
-        msg.textContent = message || 'Provider test failed. Check logs for details.';
+        msg.textContent = message || 'Provider test failed.';
         banner.style.display = '';
     }
-
     function hideApiErrorBanner() {
         var banner = document.getElementById('api-error-banner');
-        if (!banner) return;
-        banner.style.display = 'none';
+        if (banner) banner.style.display = 'none';
     }
 
     function loadProviders() {
@@ -1150,17 +1136,21 @@
         .then(function(data) {
             var list = document.getElementById('providers-list');
             var providers = data.providers || [];
-            if (providers.length === 0) { list.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted);">No custom providers configured yet. Use the button above to add one.</div>'; return; }
-            var html = '<div style="display: grid; gap: var(--space-3);">';
+            if (providers.length === 0) {
+                list.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);">No providers yet. Use a shortcut above or + Custom to add one.</div>';
+                return;
+            }
+            var html = '<div style="display:grid;gap:var(--space-3);">';
             providers.forEach(function(p) {
+                var adapterBadge = p.adapter_type ? '<span style="font-family:var(--font-mono);font-size:0.625rem;padding:1px 5px;background:var(--bg-tertiary);border-radius:3px;">' + p.adapter_type.replace('_compatible','').replace('_',' ') + '</span>' : '';
                 html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-4);border:1px solid var(--border-light);border-radius:var(--radius-md);">';
-                html += '<div style="display:flex;align-items:center;gap:var(--space-3);">';
+                html += '<div style="display:flex;align-items:center;gap:var(--space-3);min-width:0;">';
                 html += '<div class="status-dot ' + (p.enabled ? 'active' : '') + '"></div>';
-                html += '<div>';
-                html += '<div style="font-weight:500;font-size:0.875rem;">' + p.name + '</div>';
-                html += '<div style="font-size:0.6875rem;color:var(--text-muted);">' + p.model + (p.pipeline_role ? ' · ' + p.pipeline_role.replace(/_/g, ' ') : '') + '</div>';
+                html += '<div style="min-width:0;">';
+                html += '<div style="font-weight:500;font-size:0.875rem;display:flex;align-items:center;gap:var(--space-2);">' + escHtml(p.name) + ' ' + adapterBadge + '</div>';
+                html += '<div style="font-size:0.6875rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(p.model) + (p.pipeline_role ? ' · ' + p.pipeline_role.replace(/_/g,' ') : '') + '</div>';
                 html += '</div></div>';
-                html += '<div style="display:flex;gap:var(--space-2);">';
+                html += '<div style="display:flex;gap:var(--space-2);flex-shrink:0;">';
                 html += '<button type="button" onclick="editProvider(' + p.id + ')" class="btn btn-ghost" style="font-size:0.6875rem;">Edit</button>';
                 html += '<button type="button" onclick="testProvider(' + p.id + ')" class="btn btn-ghost" style="font-size:0.6875rem;">Test</button>';
                 html += '<button type="button" onclick="deleteProvider(' + p.id + ')" class="btn btn-ghost" style="font-size:0.6875rem;color:var(--signal-negative);">Remove</button>';
@@ -1170,10 +1160,213 @@
             list.innerHTML = html;
         })
         .catch(function() {
-            document.getElementById('providers-list').innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted);">Could not load providers.</div>';
+            document.getElementById('providers-list').innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);">Could not load providers.</div>';
         });
     }
+    function escHtml(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    // ─── Stage Assignment ───
+    var stageMode = 'unified';
+    var stageData = null;
+
+    function setStageMode(mode) {
+        stageMode = mode;
+        document.getElementById('stage-unified-panel').style.display = mode === 'unified' ? '' : 'none';
+        document.getElementById('stage-per-stage-panel').style.display = mode === 'per_stage' ? '' : 'none';
+        document.getElementById('stage-mode-btn-unified').className = mode === 'unified' ? 'btn btn-primary' : 'btn btn-ghost';
+        document.getElementById('stage-mode-btn-per-stage').className = mode === 'per_stage' ? 'btn btn-primary' : 'btn btn-ghost';
+    }
+
+    function loadStageAssignments() {
+        fetch('/api/stage-assignments', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            stageData = data;
+            console.log('[StageAssign] assignments type:', Array.isArray(data.assignments) ? 'ARRAY=BUG' : 'object=OK', '| stage2_news pid:', data.assignments && data.assignments['stage2_news'] && data.assignments['stage2_news'].provider_id);
+            var providers = data.providers || [];
+            var assignments = data.assignments || {};
+            var stageInfo = data.stage_info || {};
+
+            // Build provider options HTML
+            function providerOptions(currentId) {
+                var html = '<option value="">— none —</option>';
+                providers.forEach(function(p) {
+                    html += '<option value="' + p.id + '"' + (p.id == currentId ? ' selected' : '') + '>' + escHtml(p.name) + '</option>';
+                });
+                return html;
+            }
+
+            // Populate unified dropdown
+            var uSel = document.getElementById('stage-unified-provider');
+            // detect if all stages share same provider
+            var ids = Object.values(assignments).map(function(a) { return a && a.provider_id; });
+            var unifiedId = (ids.length > 0 && ids.every(function(id) { return id === ids[0]; })) ? ids[0] : null;
+            uSel.innerHTML = providerOptions(unifiedId);
+
+            // Detect mode: if all stages same → unified, else per_stage
+            var detectedMode = unifiedId !== null ? 'unified' : 'per_stage';
+            setStageMode(detectedMode);
+
+            // Build per-stage selectors
+            var selHtml = '';
+            Object.keys(stageInfo).forEach(function(stageName) {
+                var meta = stageInfo[stageName];
+                var asgn = assignments[stageName] || {};
+                selHtml += '<div>';
+                selHtml += '<label style="font-size:0.75rem;">' + escHtml(meta.label) + '</label>';
+                selHtml += '<div style="font-size:0.625rem;color:var(--text-muted);margin-bottom:var(--space-1);">' + escHtml(meta.description) + '</div>';
+                selHtml += '<select id="stage-sel-' + stageName + '" data-stage="' + stageName + '">';
+                selHtml += providerOptions(asgn.provider_id);
+                selHtml += '</select>';
+                selHtml += '</div>';
+            });
+            document.getElementById('stage-selectors').innerHTML = selHtml || '<div style="color:var(--text-muted);font-size:0.75rem;">No providers added yet.</div>';
+        })
+        .catch(function(e) { console.error('[StageAssign] load failed:', e); });
+    }
+
+    function saveStageAssignments() {
+        var payload;
+        if (stageMode === 'unified') {
+            var pid = document.getElementById('stage-unified-provider').value;
+            payload = { mode: 'one_for_all', provider_id: pid || null };
+        } else {
+            var stages = {};
+            document.querySelectorAll('#stage-selectors select[data-stage]').forEach(function(sel) {
+                stages[sel.dataset.stage] = { provider_id: sel.value || null, enabled: true };
+            });
+            payload = { mode: 'per_stage', stages: stages };
+        }
+        fetch('/api/stage-assignments', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+            body: JSON.stringify(payload)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(resp) {
+            var fb = document.getElementById('stage-save-feedback');
+            fb.textContent = resp.status === 'ok' ? 'Saved.' : 'Error saving.';
+            fb.style.color = resp.status === 'ok' ? 'var(--signal-positive)' : 'var(--signal-negative)';
+            fb.style.display = '';
+            setTimeout(function() { fb.style.display = 'none'; }, 2500);
+        })
+        .catch(function() {
+            var fb = document.getElementById('stage-save-feedback');
+            fb.textContent = 'Error saving stage assignments.';
+            fb.style.color = 'var(--signal-negative)';
+            fb.style.display = '';
+        });
+    }
+
     loadProviders();
+    loadStageAssignments();
+
+    // ─── Settings Search ───
+    var SEARCH_INDEX = null;
+    var searchActive = false;
+
+    function buildSearchIndex() {
+        var index = [];
+        document.querySelectorAll('.settings-panel:not(#panel-search)').forEach(function(panel) {
+            var panelId = panel.id;
+            // find the matching nav label
+            var navBtn = document.querySelector('[data-panel="' + panelId + '"]');
+            var panelLabel = navBtn ? navBtn.textContent.trim() : panelId;
+            // collect all labels and their associated input IDs
+            panel.querySelectorAll('label').forEach(function(lbl) {
+                var text = lbl.textContent.trim();
+                var forId = lbl.htmlFor;
+                if (!text) return;
+                index.push({ text: text, panelId: panelId, panelLabel: panelLabel, forId: forId, lbl: lbl });
+            });
+            // also index h3/h4 headings
+            panel.querySelectorAll('h3, h4').forEach(function(h) {
+                var text = h.textContent.trim();
+                if (!text) return;
+                index.push({ text: text, panelId: panelId, panelLabel: panelLabel, forId: null, lbl: h, isHeading: true });
+            });
+        });
+        return index;
+    }
+
+    function onSettingsSearch(query) {
+        var clearBtn = document.getElementById('settings-search-clear');
+        if (clearBtn) clearBtn.style.display = query ? '' : 'none';
+
+        if (!query.trim()) {
+            clearSettingsSearch();
+            return;
+        }
+
+        if (!SEARCH_INDEX) SEARCH_INDEX = buildSearchIndex();
+
+        var q = query.toLowerCase();
+        var results = SEARCH_INDEX.filter(function(item) {
+            return item.text.toLowerCase().indexOf(q) !== -1;
+        });
+
+        // Show search panel
+        if (!searchActive) {
+            searchActive = true;
+            document.querySelectorAll('.settings-panel').forEach(function(p) { p.classList.remove('active'); });
+            document.querySelectorAll('.settings-nav-item').forEach(function(b) { b.classList.remove('active'); });
+            var sp = document.getElementById('panel-search');
+            if (sp) sp.classList.add('active');
+        }
+
+        var list = document.getElementById('search-results-list');
+        var empty = document.getElementById('search-results-empty');
+        if (results.length === 0) {
+            list.innerHTML = '';
+            if (empty) empty.style.display = '';
+        } else {
+            if (empty) empty.style.display = 'none';
+            var html = '';
+            results.forEach(function(item) {
+                html += '<div class="search-result-item" onclick="jumpToSetting(\'' + item.panelId + '\',\'' + (item.forId || '') + '\')" style="cursor:pointer;padding:var(--space-4);border:1px solid var(--border-light);border-radius:var(--radius-md);display:flex;align-items:flex-start;gap:var(--space-4);">';
+                html += '<div style="font-size:0.6875rem;color:var(--text-muted);white-space:nowrap;padding-top:1px;min-width:90px;">' + escHtml(item.panelLabel) + '</div>';
+                html += '<div>';
+                html += '<div style="font-size:0.875rem;font-weight:' + (item.isHeading ? '600' : '500') + ';">' + highlight(item.text, q) + '</div>';
+                html += '</div>';
+                html += '</div>';
+            });
+            list.innerHTML = html;
+        }
+    }
+
+    function highlight(text, q) {
+        var idx = text.toLowerCase().indexOf(q);
+        if (idx === -1) return escHtml(text);
+        return escHtml(text.slice(0, idx)) + '<mark style="background:rgba(255,255,100,0.25);color:inherit;border-radius:2px;">' + escHtml(text.slice(idx, idx + q.length)) + '</mark>' + escHtml(text.slice(idx + q.length));
+    }
+
+    function jumpToSetting(panelId, forId) {
+        clearSettingsSearch();
+        switchSettingsPanel(panelId);
+        if (forId) {
+            var el = document.getElementById(forId);
+            if (el) {
+                setTimeout(function() {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    el.focus();
+                    el.style.outline = '2px solid var(--signal-positive)';
+                    setTimeout(function() { el.style.outline = ''; }, 1800);
+                }, 80);
+            }
+        }
+    }
+
+    function clearSettingsSearch() {
+        var input = document.getElementById('settings-search');
+        if (input) input.value = '';
+        var clearBtn = document.getElementById('settings-search-clear');
+        if (clearBtn) clearBtn.style.display = 'none';
+        if (!searchActive) return;
+        searchActive = false;
+        document.getElementById('panel-search').classList.remove('active');
+        // restore previously active panel
+        var savedPanel = sessionStorage.getItem('settings-active-panel') || 'panel-api';
+        switchSettingsPanel(savedPanel);
+    }
 </script>
 
 <style>
@@ -1186,6 +1379,16 @@
     .variant-card-desc { font-size: 0.75rem; margin: 0; color: var(--text-muted); line-height: 1.5; }
     .variant-card-indicator { position: absolute; top: 0; right: 0; width: 0; height: 0; border-style: solid; border-width: 0 24px 24px 0; border-color: transparent var(--text-primary) transparent transparent; opacity: 0; transform: scale(0.5); transform-origin: top right; transition: all var(--duration-normal) var(--ease-spring); }
     .variant-card.active .variant-card-indicator { opacity: 1; transform: scale(1); }
+
+    /* Settings Search */
+    .settings-search-wrap { position: relative; margin-bottom: var(--space-4); }
+    .settings-search-input { width: 100%; padding: 8px 32px 8px 34px; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: var(--radius-md); font-size: 0.8125rem; color: var(--text-primary); outline: none; box-sizing: border-box; transition: border-color 0.15s; }
+    .settings-search-input:focus { border-color: var(--border-default); }
+    .settings-search-input::placeholder { color: var(--text-muted); }
+    .settings-search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text-muted); pointer-events: none; }
+    .settings-search-clear { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 0.75rem; padding: 2px 4px; line-height: 1; }
+    .settings-search-clear:hover { color: var(--text-primary); }
+    .search-result-item:hover { background: var(--bg-hover); }
 
     /* API Key Peek Button */
     .api-key-peek { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: background 0.15s; color: var(--text-muted); }

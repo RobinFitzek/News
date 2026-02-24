@@ -10,7 +10,7 @@
             <p>Automated stock opportunity scanner</p>
         </div>
         <div style="display: flex; gap: var(--space-3);">
-            <form action="/discovery/run-now" method="POST" style="display: inline;">
+            <form action="/discovery/run-now" method="POST" style="display: inline;" id="discoveryRunForm" onsubmit="return checkDiscoveryLimit(event)">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <button type="submit" class="btn btn-primary">
                     <svg class="icon-svg svg-animated" viewBox="0 0 24 24">
@@ -22,6 +22,23 @@
             </form>
         </div>
     </header>
+
+    <!-- Live discovery status bar (shown while run is in progress) -->
+    <div id="discovery-live-status" style="display:none; margin-bottom: var(--space-6); padding: var(--space-4) var(--space-5); background: var(--bg-secondary); border: 1px solid var(--border-default); border-radius: var(--radius-md); display: none; align-items: center; gap: var(--space-3);">
+        <span id="discovery-spinner" style="display:inline-block; animation: spin 1.2s linear infinite; font-size: 1.1em;">⟳</span>
+        <span id="discovery-live-msg" style="font-size: 0.875rem; color: var(--text-secondary);">Running discovery...</span>
+    </div>
+
+    {% if message %}
+    <div style="margin-bottom: var(--space-6); padding: var(--space-4) var(--space-5); background: var(--signal-positive-bg, #1a2e1a); border: 1px solid var(--signal-positive); color: var(--text-primary); border-radius: var(--radius-md, 6px);">
+        {{ message | replace('+', ' ') }}
+    </div>
+    {% endif %}
+    {% if error %}
+    <div style="margin-bottom: var(--space-6); padding: var(--space-4) var(--space-5); background: var(--signal-negative-bg); border: 1px solid var(--signal-negative); color: var(--text-primary); border-radius: var(--radius-md, 6px);">
+        {{ error | replace('+', ' ') }}
+    </div>
+    {% endif %}
 
     <!-- Stats Header -->
     {% if stats %}
@@ -349,7 +366,50 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<style>
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
 <script>
+    // ---- Discovery run rate-limit guard (client-side) ----
+    const DISCOVERY_LIMIT = 5;
+    const DISCOVERY_WINDOW_MS = 60 * 60 * 1000;
+    let _discoveryConfirmed = false;
+
+    function getDiscoveryTimestamps() {
+        try {
+            const raw = JSON.parse(sessionStorage.getItem('discoveryTimestamps') || '[]');
+            const cutoff = Date.now() - DISCOVERY_WINDOW_MS;
+            return raw.filter(t => t > cutoff);
+        } catch { return []; }
+    }
+
+    function recordDiscovery() {
+        const ts = getDiscoveryTimestamps();
+        ts.push(Date.now());
+        sessionStorage.setItem('discoveryTimestamps', JSON.stringify(ts));
+    }
+
+    function checkDiscoveryLimit(e) {
+        // If user already confirmed override, let form submit normally
+        if (_discoveryConfirmed) {
+            _discoveryConfirmed = false;
+            return true;
+        }
+        const count = getDiscoveryTimestamps().length;
+        if (count >= DISCOVERY_LIMIT) {
+            e.preventDefault();
+            if (confirm('You have already triggered ' + count + ' discovery run' + (count === 1 ? '' : 's') + ' in the last hour. Continue anyway?')) {
+                recordDiscovery();
+                _discoveryConfirmed = true;
+                document.getElementById('discoveryRunForm').requestSubmit();
+            }
+            return false;
+        }
+        recordDiscovery();
+        return true;
+    }
+    // -----------------------------------------------------------------------
+
     function getCheckedIds() {
         return Array.from(document.querySelectorAll('.row-check:checked')).map(cb => cb.dataset.id);
     }
@@ -465,6 +525,62 @@
         document.body.appendChild(banner);
         setTimeout(() => banner.remove(), 3500);
     }
+
+    // ---- Discovery live progress polling ----
+    (function () {
+        var statusBar = document.getElementById('discovery-live-status');
+        var msgEl = document.getElementById('discovery-live-msg');
+        var pollInterval = null;
+
+        function showBar(msg) {
+            statusBar.style.display = 'flex';
+            msgEl.textContent = msg || 'Running discovery...';
+        }
+
+        function hideBar() {
+            statusBar.style.display = 'none';
+        }
+
+        function startPolling() {
+            if (pollInterval) return;
+            pollInterval = setInterval(function () {
+                fetch('/api/discovery-status', { credentials: 'same-origin' })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (data) {
+                        if (!data) return;
+                        if (data.running) {
+                            showBar(data.message || 'Running discovery...');
+                        } else {
+                            clearInterval(pollInterval);
+                            pollInterval = null;
+                            hideBar();
+                            // Reload to show updated last-run stats and new discoveries
+                            window.location.href = '/discoveries';
+                        }
+                    })
+                    .catch(function () { });
+            }, 2000);
+        }
+
+        // Start polling if redirected here after triggering a run
+        var search = window.location.search;
+        if (search.includes('Discovery+started+in+background') || search.includes('message=Discovery')) {
+            showBar('Discovery started — fetching status...');
+            startPolling();
+        } else {
+            // Also check on plain page load in case a run is already in progress
+            fetch('/api/discovery-status', { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
+                    if (data && data.running) {
+                        showBar(data.message || 'Discovery in progress...');
+                        startPolling();
+                    }
+                })
+                .catch(function () { });
+        }
+    })();
+    // -----------------------------------------------------------------------
 
     // Sparklines for ticker column
     (function () {

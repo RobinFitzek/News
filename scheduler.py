@@ -309,17 +309,52 @@ class InvestmentScheduler:
         self.is_running = False
         print("Scheduler stopped")
     
+    @staticmethod
+    def _relative_time(dt) -> str:
+        """Return human-readable countdown like '2h 15m' or '45m'"""
+        from datetime import datetime, timezone
+        if dt is None:
+            return None
+        now = datetime.now(timezone.utc)
+        diff = (dt.astimezone(timezone.utc) - now).total_seconds()
+        if diff < 0:
+            return 'now'
+        days = int(diff // 86400)
+        hours = int((diff % 86400) // 3600)
+        minutes = int((diff % 3600) // 60)
+        if days > 0:
+            return f"{days}d {hours}h"
+        if hours > 0:
+            return f"{hours}h {minutes}m"
+        return f"{minutes}m"
+
     def get_status(self) -> dict:
         """Get scheduler status"""
+        from datetime import datetime, timezone
         jobs = []
         if self.is_running:
             for job in self.scheduler.get_jobs():
+                nrt = job.next_run_time
+                # compute seconds until next run for sorting and 'soon' flag
+                if nrt is not None:
+                    now = datetime.now(timezone.utc)
+                    secs = (nrt.astimezone(timezone.utc) - now).total_seconds()
+                else:
+                    secs = float('inf')
                 jobs.append({
                     "id": job.id,
                     "name": job.name,
-                    "next_run": str(job.next_run_time) if job.next_run_time else None
+                    "next_run": str(nrt) if nrt else None,
+                    "next_run_relative": self._relative_time(nrt),
+                    "next_run_formatted": nrt.strftime("%d.%m  %H:%M") if nrt else None,
+                    "soon": secs < 3600,
+                    "_secs": secs,
                 })
-        
+        # sort soonest first
+        jobs.sort(key=lambda j: j["_secs"])
+        for j in jobs:
+            del j["_secs"]
+
         return {
             "is_running": self.is_running,
             "is_scanning": self.is_scanning,

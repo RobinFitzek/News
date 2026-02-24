@@ -105,10 +105,10 @@
     <div id="rebalancing-plan-card" class="card" style="margin-bottom: var(--space-8); display: none;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); flex-wrap: wrap; gap: var(--space-4);">
             <div>
-                <h3 style="margin: 0 0 var(--space-1) 0;">⚖️ Rebalancing Execution Plan</h3>
+                <h3 style="margin: 0 0 var(--space-1) 0;">Rebalancing Execution Plan</h3>
                 <p style="margin: 0; font-size: var(--text-sm);">Specific actions to bring portfolio back to target allocation</p>
             </div>
-            <button onclick="copyRebalancingPlan()" class="btn btn-ghost" style="font-size: 0.8rem;">📋 Copy Plan</button>
+            <button onclick="copyRebalancingPlan()" class="btn btn-ghost" style="font-size: 0.8rem;">Copy Plan</button>
         </div>
         <div id="rebalancing-plan-content"></div>
     </div>
@@ -629,7 +629,7 @@
             data.plan.forEach((a, i) => {
                 const isSell = a.action === 'sell';
                 const color = isSell ? '#d47272' : '#6bba7e';
-                const icon = isSell ? '🔴' : '🟢';
+                const icon = isSell ? 'SELL' : 'BUY';
                 let actionText = '';
                 if (isSell) {
                     actionText = `Sell <strong>${a.shares} shares</strong> of <strong>${a.ticker}</strong> @ $${a.price?.toFixed(2)} = <strong>$${a.value?.toLocaleString()}</strong>`;
@@ -658,7 +658,7 @@
         });
         navigator.clipboard.writeText(lines.join('\n')).then(() => {
             const btn = document.querySelector('[onclick="copyRebalancingPlan()"]');
-            if (btn) { btn.textContent = '✓ Copied'; setTimeout(() => btn.textContent = '📋 Copy Plan', 2000); }
+            if (btn) { btn.textContent = '✓ Copied'; setTimeout(() => btn.textContent = 'Copy Plan', 2000); }
         });
     }
 </script>

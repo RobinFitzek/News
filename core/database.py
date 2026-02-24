@@ -509,10 +509,40 @@ class Database:
                 pipeline_role TEXT,
                 monthly_budget_eur REAL DEFAULT 5.0,
                 enabled INTEGER DEFAULT 1,
+                adapter_type TEXT NOT NULL DEFAULT 'openai_compatible',
+                extra_config TEXT DEFAULT '{}',
+                is_builtin INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # AI Stage Assignments (which provider handles which pipeline stage)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ai_stage_assignments (
+                stage_name TEXT PRIMARY KEY,
+                provider_id INTEGER,
+                fallback_provider_id INTEGER,
+                enabled INTEGER DEFAULT 1,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (provider_id) REFERENCES api_providers(id) ON DELETE SET NULL,
+                FOREIGN KEY (fallback_provider_id) REFERENCES api_providers(id) ON DELETE SET NULL
+            )
+        """)
+
+        # Migrate: add new columns to api_providers if missing
+        cursor.execute("PRAGMA table_info(api_providers)")
+        existing_cols = {row['name'] for row in cursor.fetchall()}
+        for col, col_type, default in [
+            ('adapter_type', 'TEXT', "'openai_compatible'"),
+            ('extra_config', 'TEXT', "'{}'"),
+            ('is_builtin', 'INTEGER', '0'),
+        ]:
+            if col not in existing_cols:
+                try:
+                    cursor.execute(f"ALTER TABLE api_providers ADD COLUMN {col} {col_type} DEFAULT {default}")
+                except Exception:
+                    pass
 
         # Handle legacy backtest_results schema (old version had different columns)
         cursor.execute("PRAGMA table_info(backtest_results)")
@@ -1035,7 +1065,8 @@ class Database:
     # === Custom API Providers ===
     def create_api_provider(self, name: str, provider_type: str, base_url: str,
                             api_key: str, model: str, pipeline_role: str = None,
-                            monthly_budget_eur: float = 5.0) -> Optional[int]:
+                            monthly_budget_eur: float = 5.0, adapter_type: str = 'openai_compatible',
+                            extra_config: str = '{}', is_builtin: int = 0) -> Optional[int]:
         """Create a custom API provider entry."""
         try:
             encrypted_key = encryption.encrypt(api_key) if api_key else None
@@ -1043,8 +1074,9 @@ class Database:
 
             cursor = self.execute("""
                 INSERT INTO api_providers
-                (name, provider_type, base_url, api_key, model, pipeline_role, monthly_budget_eur, enabled, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+                (name, provider_type, base_url, api_key, model, pipeline_role,
+                 monthly_budget_eur, enabled, adapter_type, extra_config, is_builtin, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
             """, (
                 (name or '').strip(),
                 (provider_type or 'llm').strip(),
@@ -1053,6 +1085,9 @@ class Database:
                 (model or '').strip(),
                 (pipeline_role or '').strip() or None,
                 normalized_budget,
+                (adapter_type or 'openai_compatible').strip(),
+                extra_config or '{}',
+                int(is_builtin),
                 datetime.now(),
             ))
             return cursor.lastrowid if cursor else None
@@ -1060,49 +1095,62 @@ class Database:
             self.logger.error(f"Failed to create API provider: {e}")
             return None
 
+    def _enrich_provider_row(self, row: dict, include_secret: bool = False) -> dict:
+        """Enrich a raw provider row with decrypted key and boolean fields."""
+        encrypted = row.get('api_key')
+        row['has_api_key'] = bool(encrypted)
+        if include_secret:
+            row['api_key'] = encryption.decrypt(encrypted) if encrypted else None
+        else:
+            row.pop('api_key', None)
+        row['enabled'] = bool(row.get('enabled'))
+        row['is_builtin'] = bool(row.get('is_builtin'))
+        row.setdefault('adapter_type', 'openai_compatible')
+        row.setdefault('extra_config', '{}')
+        return row
+
     def get_api_providers(self, include_secrets: bool = False) -> List[Dict]:
-        """Return all custom providers sorted by name."""
+        """Return all providers sorted by name."""
         rows = self.query("""
             SELECT id, name, provider_type, base_url, api_key, model, pipeline_role,
-                   monthly_budget_eur, enabled, created_at, updated_at
+                   monthly_budget_eur, enabled, adapter_type, extra_config, is_builtin,
+                   created_at, updated_at
             FROM api_providers
-            ORDER BY enabled DESC, name ASC
+            ORDER BY enabled DESC, is_builtin DESC, name ASC
         """)
-        providers = []
-        for row in rows:
-            item = dict(row)
-            encrypted = item.get('api_key')
-            item['has_api_key'] = bool(encrypted)
-            if include_secrets:
-                item['api_key'] = encryption.decrypt(encrypted) if encrypted else None
-            else:
-                item.pop('api_key', None)
-            item['enabled'] = bool(item.get('enabled'))
-            providers.append(item)
-        return providers
+        return [self._enrich_provider_row(dict(row), include_secret=include_secrets) for row in rows]
 
     def get_api_provider(self, provider_id: int, include_secret: bool = False) -> Optional[Dict]:
         """Get one provider by id."""
         row = self.query_one("""
             SELECT id, name, provider_type, base_url, api_key, model, pipeline_role,
-                   monthly_budget_eur, enabled, created_at, updated_at
+                   monthly_budget_eur, enabled, adapter_type, extra_config, is_builtin,
+                   created_at, updated_at
             FROM api_providers
             WHERE id = ?
         """, (provider_id,))
         if not row:
             return None
-        row['has_api_key'] = bool(row.get('api_key'))
-        if include_secret:
-            row['api_key'] = encryption.decrypt(row['api_key']) if row.get('api_key') else None
-        else:
-            row.pop('api_key', None)
-        row['enabled'] = bool(row.get('enabled'))
-        return row
+        return self._enrich_provider_row(dict(row), include_secret=include_secret)
+
+    def get_api_provider_by_name(self, name: str, include_secret: bool = False) -> Optional[Dict]:
+        """Get one provider by name."""
+        row = self.query_one("""
+            SELECT id, name, provider_type, base_url, api_key, model, pipeline_role,
+                   monthly_budget_eur, enabled, adapter_type, extra_config, is_builtin,
+                   created_at, updated_at
+            FROM api_providers
+            WHERE name = ?
+        """, (name,))
+        if not row:
+            return None
+        return self._enrich_provider_row(dict(row), include_secret=include_secret)
 
     def update_api_provider(self, provider_id: int, name: str, provider_type: str,
                             base_url: str, model: str, pipeline_role: str = None,
-                            monthly_budget_eur: float = 5.0, api_key: str = None) -> bool:
-        """Update a custom provider. If api_key is empty/None, keep existing key."""
+                            monthly_budget_eur: float = 5.0, api_key: str = None,
+                            adapter_type: str = None, extra_config: str = None) -> bool:
+        """Update a provider. If api_key is empty/None, keep existing key."""
         try:
             normalized_budget = 5.0 if monthly_budget_eur is None else float(monthly_budget_eur)
 
@@ -1116,24 +1164,26 @@ class Database:
                 datetime.now(),
             ]
 
+            set_clause = """name = ?, provider_type = ?, base_url = ?, model = ?,
+                        pipeline_role = ?, monthly_budget_eur = ?, updated_at = ?"""
+
+            if adapter_type is not None:
+                set_clause += ", adapter_type = ?"
+                params.append((adapter_type or 'openai_compatible').strip())
+
+            if extra_config is not None:
+                set_clause += ", extra_config = ?"
+                params.append(extra_config)
+
             if api_key is not None and str(api_key).strip() != '':
                 encrypted_key = encryption.encrypt(str(api_key).strip())
-                params.extend([encrypted_key, int(provider_id)])
-                self.execute("""
-                    UPDATE api_providers
-                    SET name = ?, provider_type = ?, base_url = ?, model = ?,
-                        pipeline_role = ?, monthly_budget_eur = ?, updated_at = ?,
-                        api_key = ?
-                    WHERE id = ?
-                """, tuple(params))
-            else:
-                params.append(int(provider_id))
-                self.execute("""
-                    UPDATE api_providers
-                    SET name = ?, provider_type = ?, base_url = ?, model = ?,
-                        pipeline_role = ?, monthly_budget_eur = ?, updated_at = ?
-                    WHERE id = ?
-                """, tuple(params))
+                set_clause += ", api_key = ?"
+                params.append(encrypted_key)
+
+            params.append(int(provider_id))
+            self.execute(f"""
+                UPDATE api_providers SET {set_clause} WHERE id = ?
+            """, tuple(params))
 
             return True
         except Exception as e:
@@ -1141,10 +1191,27 @@ class Database:
             return False
 
     def get_api_provider_for_role(self, pipeline_role: str) -> Optional[Dict]:
-        """Get first enabled provider assigned to a specific pipeline role."""
+        """Get provider for role: first check ai_stage_assignments, then fall back to pipeline_role column."""
+        # Check stage assignments table first
+        assignment = self.query_one("""
+            SELECT provider_id, fallback_provider_id FROM ai_stage_assignments
+            WHERE stage_name = ? AND enabled = 1
+        """, (pipeline_role,))
+        if assignment and assignment.get('provider_id'):
+            provider = self.get_api_provider(assignment['provider_id'], include_secret=True)
+            if provider and provider.get('enabled'):
+                return provider
+            # Try fallback
+            if assignment.get('fallback_provider_id'):
+                fallback = self.get_api_provider(assignment['fallback_provider_id'], include_secret=True)
+                if fallback and fallback.get('enabled'):
+                    return fallback
+
+        # Legacy: check pipeline_role column
         row = self.query_one("""
             SELECT id, name, provider_type, base_url, api_key, model, pipeline_role,
-                   monthly_budget_eur, enabled, created_at, updated_at
+                   monthly_budget_eur, enabled, adapter_type, extra_config, is_builtin,
+                   created_at, updated_at
             FROM api_providers
             WHERE enabled = 1 AND pipeline_role = ?
             ORDER BY updated_at DESC, id DESC
@@ -1152,10 +1219,67 @@ class Database:
         """, (pipeline_role,))
         if not row:
             return None
-        row['has_api_key'] = bool(row.get('api_key'))
-        row['api_key'] = encryption.decrypt(row['api_key']) if row.get('api_key') else None
-        row['enabled'] = bool(row.get('enabled'))
-        return row
+        return self._enrich_provider_row(dict(row), include_secret=True)
+
+    # === AI Stage Assignments ===
+    def get_stage_assignments(self) -> List[Dict]:
+        """Get all stage assignments with provider details."""
+        stages = [
+            'stage2_news', 'stage3_synthesis', 'discovery',
+            'insider_context', 'cycle_news', 'cycle_synthesis'
+        ]
+        result = []
+        for stage in stages:
+            row = self.query_one("""
+                SELECT stage_name, provider_id, fallback_provider_id, enabled
+                FROM ai_stage_assignments WHERE stage_name = ?
+            """, (stage,))
+            if row:
+                item = dict(row)
+            else:
+                item = {'stage_name': stage, 'provider_id': None, 'fallback_provider_id': None, 'enabled': 1}
+            # Attach provider names
+            if item.get('provider_id'):
+                p = self.get_api_provider(item['provider_id'])
+                item['provider_name'] = p['name'] if p else None
+            else:
+                item['provider_name'] = None
+            if item.get('fallback_provider_id'):
+                f = self.get_api_provider(item['fallback_provider_id'])
+                item['fallback_provider_name'] = f['name'] if f else None
+            else:
+                item['fallback_provider_name'] = None
+            result.append(item)
+        return result
+
+    def set_stage_assignment(self, stage_name: str, provider_id: int = None,
+                             fallback_provider_id: int = None, enabled: int = 1) -> bool:
+        """Set or update which provider handles a pipeline stage."""
+        try:
+            self.execute("""
+                INSERT INTO ai_stage_assignments (stage_name, provider_id, fallback_provider_id, enabled, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(stage_name) DO UPDATE SET
+                    provider_id = excluded.provider_id,
+                    fallback_provider_id = excluded.fallback_provider_id,
+                    enabled = excluded.enabled,
+                    updated_at = excluded.updated_at
+            """, (stage_name, provider_id, fallback_provider_id, enabled, datetime.now()))
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to set stage assignment for {stage_name}: {e}")
+            return False
+
+    def set_all_stages_to_provider(self, provider_id: int, fallback_provider_id: int = None) -> bool:
+        """Assign a single provider to ALL pipeline stages."""
+        stages = [
+            'stage2_news', 'stage3_synthesis', 'discovery',
+            'insider_context', 'cycle_news', 'cycle_synthesis'
+        ]
+        for stage in stages:
+            if not self.set_stage_assignment(stage, provider_id, fallback_provider_id):
+                return False
+        return True
 
     def delete_api_provider(self, provider_id: int):
         """Delete a custom provider."""

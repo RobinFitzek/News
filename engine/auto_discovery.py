@@ -8,11 +8,46 @@ import yfinance as yf
 import numpy as np
 import json
 import time
+import threading
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set
 
 logger = logging.getLogger(__name__)
+
+
+class DiscoveryStatus:
+    """Thread-safe singleton tracking the current discovery run state."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._state = {"running": False, "started_at": None, "message": "", "last_result": None}
+
+    def start(self, message="Starting discovery..."):
+        with self._lock:
+            self._state = {
+                "running": True,
+                "started_at": datetime.now().isoformat(),
+                "message": message,
+                "last_result": None,
+            }
+
+    def update(self, message):
+        with self._lock:
+            self._state["message"] = message
+
+    def finish(self, result):
+        with self._lock:
+            self._state["running"] = False
+            self._state["message"] = "Done"
+            self._state["last_result"] = result
+
+    def get(self):
+        with self._lock:
+            return dict(self._state)
+
+
+discovery_status = DiscoveryStatus()
 
 
 class AutoDiscovery:
@@ -64,6 +99,7 @@ class AutoDiscovery:
             logger.info("Auto-discovery is disabled in settings")
             return {'status': 'disabled'}
 
+        discovery_status.start("Starting daily discovery...")
         start_time = time.time()
         enabled_strategies = settings.get('discovery_strategies', [
             'volume_spike', 'breakout', 'oversold',
@@ -75,111 +111,121 @@ class AutoDiscovery:
         print(f"  AUTO-DISCOVERY — {datetime.now().strftime('%Y-%m-%d %H:%M')}")
         print(f"{'='*50}")
 
-        # 1. Build universe
-        universe = self._build_universe()
-        print(f"  Universe: {len(universe)} tickers")
+        try:
+            # 1. Build universe
+            discovery_status.update("Building universe...")
+            universe = self._build_universe()
+            print(f"  Universe: {len(universe)} tickers")
 
-        # 2. Get exclusion set
-        excluded = self._get_exclusion_set()
-        print(f"  Excluded: {len(excluded)} tickers (watchlist/graveyard/recent)")
+            # 2. Get exclusion set
+            excluded = self._get_exclusion_set()
+            print(f"  Excluded: {len(excluded)} tickers (watchlist/graveyard/recent)")
 
-        # 3. Run each strategy
-        all_candidates = []
-        strategies_run = []
-        errors = []
+            # 3. Run each strategy
+            all_candidates = []
+            strategies_run = []
+            errors = []
 
-        strategy_methods = {
-            'volume_spike': self._scan_volume_spikes,
-            'breakout': self._scan_breakouts,
-            'oversold': self._scan_oversold,
-            'sector_rotation': self._scan_sector_rotation,
-            'insider_buy': self._scan_insider_buying,
-            'value_screen': self._scan_value,
-            'mean_reversion': self._scan_mean_reversion,
-        }
+            strategy_methods = {
+                'volume_spike': self._scan_volume_spikes,
+                'breakout': self._scan_breakouts,
+                'oversold': self._scan_oversold,
+                'sector_rotation': self._scan_sector_rotation,
+                'insider_buy': self._scan_insider_buying,
+                'value_screen': self._scan_value,
+                'mean_reversion': self._scan_mean_reversion,
+            }
 
-        for strategy_name in enabled_strategies:
-            method = strategy_methods.get(strategy_name)
-            if not method:
-                continue
-            try:
-                if strategy_name == 'sector_rotation':
-                    candidates = method(excluded)
-                elif strategy_name == 'insider_buy':
-                    candidates = method(excluded)
-                else:
-                    candidates = method(universe, excluded)
-                all_candidates.extend(candidates)
-                strategies_run.append(strategy_name)
-                print(f"  [{strategy_name}] Found {len(candidates)} candidates")
-            except Exception as e:
-                error_msg = f"{strategy_name}: {str(e)}"
-                errors.append(error_msg)
-                logger.error(f"Strategy {strategy_name} failed: {e}", exc_info=True)
-                print(f"  [{strategy_name}] ERROR: {e}")
+            for i, strategy_name in enumerate(enabled_strategies):
+                method = strategy_methods.get(strategy_name)
+                if not method:
+                    continue
+                discovery_status.update(f"Running strategy {i+1}/{len(enabled_strategies)}: {strategy_name.replace('_', ' ')}...")
+                try:
+                    if strategy_name == 'sector_rotation':
+                        candidates = method(excluded)
+                    elif strategy_name == 'insider_buy':
+                        candidates = method(excluded)
+                    else:
+                        candidates = method(universe, excluded)
+                    all_candidates.extend(candidates)
+                    strategies_run.append(strategy_name)
+                    print(f"  [{strategy_name}] Found {len(candidates)} candidates")
+                except Exception as e:
+                    error_msg = f"{strategy_name}: {str(e)}"
+                    errors.append(error_msg)
+                    logger.error(f"Strategy {strategy_name} failed: {e}", exc_info=True)
+                    print(f"  [{strategy_name}] ERROR: {e}")
 
-        # 4. Deduplicate
-        seen = set()
-        unique_candidates = []
-        for c in all_candidates:
-            ticker = c['ticker']
-            if ticker not in seen:
-                seen.add(ticker)
-                unique_candidates.append(c)
+            # 4. Deduplicate
+            seen = set()
+            unique_candidates = []
+            for c in all_candidates:
+                ticker = c['ticker']
+                if ticker not in seen:
+                    seen.add(ticker)
+                    unique_candidates.append(c)
 
-        # Cap at max discoveries per run
-        unique_candidates = unique_candidates[:self.MAX_DISCOVERIES_PER_RUN]
+            # Cap at max discoveries per run
+            unique_candidates = unique_candidates[:self.MAX_DISCOVERIES_PER_RUN]
 
-        # 5. Save to database
-        saved_count = 0
-        for c in unique_candidates:
-            discovery_id = db.save_discovery(
-                ticker=c['ticker'],
-                signal_type=c['signal_type'],
-                confidence=c.get('confidence', 50),
-                price=c.get('price', 0),
-                strategy=c.get('strategy', ''),
-                sector=c.get('sector', ''),
-                market_cap=c.get('market_cap'),
-                source='auto'
+            # 5. Save to database
+            discovery_status.update(f"Saving {len(unique_candidates)} discoveries...")
+            saved_count = 0
+            for c in unique_candidates:
+                discovery_id = db.save_discovery(
+                    ticker=c['ticker'],
+                    signal_type=c['signal_type'],
+                    confidence=c.get('confidence', 50),
+                    price=c.get('price', 0),
+                    strategy=c.get('strategy', ''),
+                    sector=c.get('sector', ''),
+                    market_cap=c.get('market_cap'),
+                    source='auto'
+                )
+                if discovery_id:
+                    saved_count += 1
+
+            print(f"  Saved {saved_count} new discoveries")
+
+            # 6. Auto-screen and promote
+            discovery_status.update("Auto-promoting top candidates...")
+            promoted = self._auto_promote(unique_candidates, settings)
+            print(f"  Auto-promoted {len(promoted)} to watchlist")
+
+            # 7. Log the run
+            duration = time.time() - start_time
+            db.log_discovery_run(
+                run_type='daily_free',
+                strategies=json.dumps(strategies_run),
+                scanned=len(universe),
+                found=saved_count,
+                promoted=len(promoted),
+                duration=duration,
+                errors='; '.join(errors) if errors else ''
             )
-            if discovery_id:
-                saved_count += 1
 
-        print(f"  Saved {saved_count} new discoveries")
+            result = {
+                'status': 'completed',
+                'universe_size': len(universe),
+                'excluded': len(excluded),
+                'strategies_run': strategies_run,
+                'discoveries': saved_count,
+                'promoted': promoted,
+                'duration_seconds': round(duration, 1),
+                'errors': errors,
+            }
 
-        # 6. Auto-screen and promote
-        promoted = self._auto_promote(unique_candidates, settings)
-        print(f"  Auto-promoted {len(promoted)} to watchlist")
+            print(f"  Completed in {duration:.1f}s")
+            print(f"{'='*50}\n")
+            logger.info(f"Auto-discovery completed: {saved_count} found, {len(promoted)} promoted in {duration:.1f}s")
 
-        # 7. Log the run
-        duration = time.time() - start_time
-        db.log_discovery_run(
-            run_type='daily_free',
-            strategies=json.dumps(strategies_run),
-            scanned=len(universe),
-            found=saved_count,
-            promoted=len(promoted),
-            duration=duration,
-            errors='; '.join(errors) if errors else ''
-        )
+            discovery_status.finish(result)
+            return result
 
-        result = {
-            'status': 'completed',
-            'universe_size': len(universe),
-            'excluded': len(excluded),
-            'strategies_run': strategies_run,
-            'discoveries': saved_count,
-            'promoted': promoted,
-            'duration_seconds': round(duration, 1),
-            'errors': errors,
-        }
-
-        print(f"  Completed in {duration:.1f}s")
-        print(f"{'='*50}\n")
-        logger.info(f"Auto-discovery completed: {saved_count} found, {len(promoted)} promoted in {duration:.1f}s")
-
-        return result
+        except Exception as e:
+            discovery_status.finish({'status': 'error', 'error': str(e)})
+            raise
 
     def run_weekly_ai_discovery(self) -> Dict:
         """One Perplexity call per week for trending stocks."""
@@ -190,6 +236,7 @@ class AutoDiscovery:
         if not settings.get('discovery_enabled', True):
             return {'status': 'disabled'}
 
+        discovery_status.start("Starting weekly AI discovery...")
         start_time = time.time()
         logger.info("Starting weekly AI discovery")
 
@@ -197,6 +244,7 @@ class AutoDiscovery:
             discovery_provider = db.get_api_provider_for_role('discovery')
             if discovery_provider:
                 logger.info(f"Using custom discovery provider: {discovery_provider.get('name')}")
+                discovery_status.update("Calling AI provider for trending stocks...")
                 custom_text = custom_provider_client.generate(
                     discovery_provider,
                     system_prompt=(
@@ -224,6 +272,7 @@ class AutoDiscovery:
                         stocks = []
 
                 if stocks:
+                    discovery_status.update(f"Saving {len(stocks)} AI-discovered stocks...")
                     excluded = self._get_exclusion_set()
                     saved_count = 0
                     for stock in stocks:
@@ -253,25 +302,33 @@ class AutoDiscovery:
                         duration=duration
                     )
 
-                    return {
+                    result = {
                         'status': 'completed',
                         'discoveries': saved_count,
                         'duration_seconds': round(duration, 1),
                     }
+                    discovery_status.finish(result)
+                    return result
 
             from clients.perplexity_client import pplx_client
             if not pplx_client.is_configured():
                 logger.warning("Perplexity not configured, skipping AI discovery")
-                return {'status': 'skipped', 'reason': 'perplexity_not_configured'}
+                skipped = {'status': 'skipped', 'reason': 'perplexity_not_configured'}
+                discovery_status.finish(skipped)
+                return skipped
 
+            discovery_status.update("Calling Perplexity for trending stocks...")
             from engine.discovery_engine import discovery_engine
             result = discovery_engine.discover_with_perplexity(
                 sector=None, focus='balanced', limit=10
             )
 
             if not result.get('success'):
-                return {'status': 'error', 'error': result.get('error')}
+                err = {'status': 'error', 'error': result.get('error')}
+                discovery_status.finish(err)
+                return err
 
+            discovery_status.update("Saving Perplexity discoveries...")
             excluded = self._get_exclusion_set()
             saved_count = 0
 
@@ -304,11 +361,13 @@ class AutoDiscovery:
             )
 
             logger.info(f"Weekly AI discovery: {saved_count} stocks found")
-            return {
+            final = {
                 'status': 'completed',
                 'discoveries': saved_count,
                 'duration_seconds': round(duration, 1),
             }
+            discovery_status.finish(final)
+            return final
 
         except Exception as e:
             logger.error(f"Weekly AI discovery failed: {e}", exc_info=True)
@@ -320,7 +379,9 @@ class AutoDiscovery:
                 duration=duration,
                 errors=str(e)
             )
-            return {'status': 'error', 'error': str(e)}
+            err = {'status': 'error', 'error': str(e)}
+            discovery_status.finish(err)
+            return err
 
     # --- Individual Strategies ---
 

@@ -706,21 +706,25 @@
     <!-- Scheduled Jobs (if running) -->
     {% if scheduler_status.jobs %}
     <div class="card" style="margin-bottom: var(--space-6);">
-        <div
-            style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">
-            Scheduled Jobs</div>
-        <div class="grid grid-3">
-            {% for job in scheduler_status.jobs %}
-            <div
-                style="padding: var(--space-3) var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
-                <div
-                    style="font-weight: 500; margin-bottom: var(--space-1); color: var(--text-primary); font-size: 0.875rem;">
-                    {{ job.name }}</div>
-                <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">{{
-                    job.next_run }}</div>
-            </div>
-            {% endfor %}
-        </div>
+        <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">Scheduled Jobs</div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.8125rem;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border-hairline);">
+                    <th style="text-align: left; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em;">Job</th>
+                    <th style="text-align: right; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em;">In</th>
+                    <th style="text-align: right; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em;">Next Run</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in scheduler_status.jobs %}
+                <tr style="border-bottom: 1px solid var(--border-hairline); {% if job.soon %}background: rgba(16,185,129,0.04);{% endif %}">
+                    <td style="padding: var(--space-2) var(--space-3); color: var(--text-primary); font-weight: 500;">{{ job.name }}</td>
+                    <td style="padding: var(--space-2) var(--space-3); text-align: right; font-family: var(--font-mono); font-size: 0.75rem; {% if job.soon %}color: #10b981; font-weight: 600;{% else %}color: var(--text-muted);{% endif %}">{{ job.next_run_relative or '—' }}</td>
+                    <td style="padding: var(--space-2) var(--space-3); text-align: right; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">{{ job.next_run_formatted or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
     {% endif %}
 
@@ -1343,6 +1347,7 @@
     // ─── Scan Progress Polling ───
     (function() {
         let progressTimer = null;
+        let seenActiveScan = false;  // only show complete/error if scan was active this session
         function pollScanProgress() {
             fetch('/api/scan-progress', { credentials: 'same-origin' })
                 .then(r => r.ok ? r.json() : null)
@@ -1352,6 +1357,7 @@
                     if (!bar) return;
 
                     if (data.active) {
+                        seenActiveScan = true;
                         bar.style.display = '';
                         document.getElementById('scan-stage-label').textContent = data.stage_label || 'Scanning';
                         document.getElementById('scan-progress-pct').textContent = data.progress_pct + '%';
@@ -1360,14 +1366,14 @@
                         if (!progressTimer) {
                             progressTimer = setInterval(pollScanProgress, 3000);
                         }
-                    } else if (data.stage === 'complete' || data.stage === 'error') {
+                    } else if ((data.stage === 'complete' || data.stage === 'error') && seenActiveScan) {
                         bar.style.display = '';
                         document.getElementById('scan-stage-label').textContent = data.stage_label;
                         document.getElementById('scan-progress-pct').textContent = data.stage === 'complete' ? '100%' : '';
                         document.getElementById('scan-progress-fill').style.width = data.stage === 'complete' ? '100%' : '0%';
                         document.getElementById('scan-progress-message').textContent = data.message;
                         if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
-                        setTimeout(function() { bar.style.display = 'none'; }, 8000);
+                        setTimeout(function() { bar.style.display = 'none'; seenActiveScan = false; }, 8000);
                     } else {
                         bar.style.display = 'none';
                         if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
