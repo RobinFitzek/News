@@ -12,6 +12,7 @@ from core.budget_tracker import budget_tracker
 from engine.agents import swarm
 from engine.learning_optimizer import learning_optimizer
 from engine.ai_crosscheck import ai_crosscheck
+from engine.scan_progress import scan_progress
 import time
 import logging
 from typing import Dict, List
@@ -114,8 +115,10 @@ class DailyPipeline:
             print(f"  Variant: {variant} | Scanning: {len(scan_list)} tickers")
 
             # === STAGE 1: Quant Screening (zero API cost) ===
+            scan_progress.set_stage1(len(scan_list))
             try:
                 candidates = swarm.stage1_scan(scan_list, variant)
+                scan_progress.complete_stage1(len(candidates))
                 self.logger.info(f"Stage 1 (quant screen) complete: {len(candidates)} candidates")
             except Exception as e:
                 self.logger.error(f"Stage 1 failed: {e}", exc_info=True)
@@ -161,14 +164,27 @@ class DailyPipeline:
 
             full_results = []
 
+            stage2_provider_cfg = db.get_api_provider_for_role('stage2_news')
+            stage2_provider_label = (
+                stage2_provider_cfg.get('name') if stage2_provider_cfg else
+                ('Perplexity' if swarm.pplx.is_configured() else 'none')
+            )
+
             # === STAGE 2: Deep Dive (Flash) ===
-            for candidate in stage2_candidates:
+            scan_progress.set_stage2(len(stage2_candidates), provider_label=stage2_provider_label)
+            for i, candidate in enumerate(stage2_candidates):
                 # Check budget before each request
                 if not budget_tracker.can_afford_request('gemini'):
                     self.logger.warning("Gemini budget exhausted mid-stage2")
                     break
 
                 try:
+                    scan_progress.update_stage2(
+                        candidate.get('ticker', '?'),
+                        i + 1,
+                        len(stage2_candidates),
+                        provider_label=stage2_provider_label
+                    )
                     result = swarm.stage2_analyze(candidate, variant)
                     candidate.update(result)
                     full_results.append(candidate)
@@ -181,15 +197,24 @@ class DailyPipeline:
 
             # === STAGE 3: Final Synthesis ===
             stage3_candidates = full_results[:limits['stage3_max']]
+            stage3_provider_cfg = db.get_api_provider_for_role('stage3_synthesis')
+            stage3_provider_label = stage3_provider_cfg.get('name') if stage3_provider_cfg else 'Gemini'
+            scan_progress.set_stage3(len(stage3_candidates), provider_label=stage3_provider_label)
             print(f"\n  Promoting {len(stage3_candidates)} finalists to Stage 3 (limit: {limits['stage3_max']})")
 
             final_reports = []
-            for candidate in stage3_candidates:
+            for s3_idx, candidate in enumerate(stage3_candidates):
                 if not budget_tracker.can_afford_request('gemini'):
                     self.logger.warning("Gemini budget exhausted mid-stage3")
                     break
 
                 try:
+                    scan_progress.update_stage3(
+                        candidate.get('ticker', '?'),
+                        s3_idx + 1,
+                        len(stage3_candidates),
+                        provider_label=stage3_provider_label
+                    )
                     # Feature 7: Fetch Insider Activity (Follow The Money)
                     try:
                         from engine.insider_tracker import insider_tracker
@@ -282,6 +307,7 @@ class DailyPipeline:
                 self.logger.warning(f"Concentration check failed: {e}")
 
             duration = time.time() - start_time
+            scan_progress.complete(f"Done: {len(scan_list)} scanned, {len(stage2_candidates)} analyzed, {len(final_reports)} finalized ({duration:.0f}s)")
             print(f"\n  Daily Cycle Complete in {duration:.1f}s")
             print(f"  Processed: {len(scan_list)} -> {len(stage2_candidates)} -> {len(final_reports)}")
 
@@ -304,6 +330,7 @@ class DailyPipeline:
 
         except Exception as e:
             duration = time.time() - start_time
+            scan_progress.fail(str(e))
             self.logger.error(f"Daily cycle failed: {e}", exc_info=True)
 
             try:

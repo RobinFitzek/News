@@ -497,6 +497,23 @@ class Database:
             )
         """)
 
+        # Custom API providers (OpenAI-compatible endpoints)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS api_providers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE NOT NULL,
+                provider_type TEXT NOT NULL DEFAULT 'llm',
+                base_url TEXT NOT NULL,
+                api_key TEXT,
+                model TEXT NOT NULL,
+                pipeline_role TEXT,
+                monthly_budget_eur REAL DEFAULT 5.0,
+                enabled INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # Handle legacy backtest_results schema (old version had different columns)
         cursor.execute("PRAGMA table_info(backtest_results)")
         _bt_cols = [row['name'] for row in cursor.fetchall()]
@@ -584,6 +601,8 @@ class Database:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_insider_date ON insider_transactions(transaction_date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cost_api_month ON api_cost_log(api, month)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cost_api_date ON api_cost_log(api, date)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_api_providers_role ON api_providers(pipeline_role)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_api_providers_enabled ON api_providers(enabled)")
 
         # AI Cross-Check Log
         cursor.execute("""
@@ -750,6 +769,97 @@ class Database:
                 active INTEGER DEFAULT 1,
                 triggered_at TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # === Volume Metrics & Earnings Calendar migration ===
+        # The old migration created these tables with wrong schemas.
+        # Rebuild them with the correct schema if they have wrong unique constraints.
+
+        # Check if volume_metrics has the old UNIQUE(ticker, date) constraint
+        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='volume_metrics'")
+        vm_row = cursor.fetchone()
+        if vm_row and 'UNIQUE(ticker, date)' in (vm_row[0] or ''):
+            # Old schema - rebuild with correct UNIQUE(ticker)
+            cursor.execute("DROP TABLE IF EXISTS volume_metrics")
+            vm_row = None
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS volume_metrics (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT UNIQUE NOT NULL,
+                avg_volume_20d REAL,
+                current_volume REAL DEFAULT 0,
+                volume_ratio REAL,
+                vwap REAL,
+                vwap_deviation_pct REAL,
+                volume_trend TEXT,
+                accumulation_distribution TEXT,
+                high_volume_anomaly INTEGER DEFAULT 0,
+                calculated_at TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # Add any missing columns for tables that already exist with correct constraint
+        cursor.execute("PRAGMA table_info(volume_metrics)")
+        vm_cols = {row['name'] for row in cursor.fetchall()}
+        for col_name, col_type in [
+            ("volume_trend", "TEXT"),
+            ("accumulation_distribution", "TEXT"),
+            ("high_volume_anomaly", "INTEGER DEFAULT 0"),
+            ("calculated_at", "TEXT"),
+            ("current_volume", "REAL DEFAULT 0"),
+        ]:
+            if col_name not in vm_cols:
+                try:
+                    cursor.execute(f"ALTER TABLE volume_metrics ADD COLUMN {col_name} {col_type}")
+                except Exception:
+                    pass
+
+        # Check if earnings_calendar has wrong unique constraint
+        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='earnings_calendar'")
+        ec_row = cursor.fetchone()
+        if ec_row and 'UNIQUE(ticker, earnings_date)' in (ec_row[0] or ''):
+            # Old schema - rebuild with UNIQUE(ticker)
+            cursor.execute("DROP TABLE IF EXISTS earnings_calendar")
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS earnings_calendar (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT UNIQUE NOT NULL,
+                earnings_date TEXT NOT NULL DEFAULT '',
+                days_until INTEGER DEFAULT 0,
+                fetched_at TEXT,
+                estimate_eps REAL,
+                fiscal_quarter TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("PRAGMA table_info(earnings_calendar)")
+        ec_cols = {row['name'] for row in cursor.fetchall()}
+        for col_name, col_type in [
+            ("days_until", "INTEGER DEFAULT 0"),
+            ("fetched_at", "TEXT"),
+        ]:
+            if col_name not in ec_cols:
+                try:
+                    cursor.execute(f"ALTER TABLE earnings_calendar ADD COLUMN {col_name} {col_type}")
+                except Exception:
+                    pass
+
+        # System alerts table (service error banners)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS system_alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alert_key TEXT UNIQUE NOT NULL,
+                severity TEXT NOT NULL DEFAULT 'error',
+                title TEXT NOT NULL,
+                message TEXT NOT NULL,
+                service TEXT,
+                action_url TEXT,
+                action_label TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                dismissed_at TIMESTAMP
             )
         """)
 
@@ -921,7 +1031,242 @@ class Database:
         """, (service, encrypted_key, datetime.now()))
         conn.commit()
         conn.close()
+
+    # === Custom API Providers ===
+    def create_api_provider(self, name: str, provider_type: str, base_url: str,
+                            api_key: str, model: str, pipeline_role: str = None,
+                            monthly_budget_eur: float = 5.0) -> Optional[int]:
+        """Create a custom API provider entry."""
+        try:
+            encrypted_key = encryption.encrypt(api_key) if api_key else None
+            normalized_budget = 5.0 if monthly_budget_eur is None else float(monthly_budget_eur)
+
+            cursor = self.execute("""
+                INSERT INTO api_providers
+                (name, provider_type, base_url, api_key, model, pipeline_role, monthly_budget_eur, enabled, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+            """, (
+                (name or '').strip(),
+                (provider_type or 'llm').strip(),
+                (base_url or '').strip(),
+                encrypted_key,
+                (model or '').strip(),
+                (pipeline_role or '').strip() or None,
+                normalized_budget,
+                datetime.now(),
+            ))
+            return cursor.lastrowid if cursor else None
+        except Exception as e:
+            self.logger.error(f"Failed to create API provider: {e}")
+            return None
+
+    def get_api_providers(self, include_secrets: bool = False) -> List[Dict]:
+        """Return all custom providers sorted by name."""
+        rows = self.query("""
+            SELECT id, name, provider_type, base_url, api_key, model, pipeline_role,
+                   monthly_budget_eur, enabled, created_at, updated_at
+            FROM api_providers
+            ORDER BY enabled DESC, name ASC
+        """)
+        providers = []
+        for row in rows:
+            item = dict(row)
+            encrypted = item.get('api_key')
+            item['has_api_key'] = bool(encrypted)
+            if include_secrets:
+                item['api_key'] = encryption.decrypt(encrypted) if encrypted else None
+            else:
+                item.pop('api_key', None)
+            item['enabled'] = bool(item.get('enabled'))
+            providers.append(item)
+        return providers
+
+    def get_api_provider(self, provider_id: int, include_secret: bool = False) -> Optional[Dict]:
+        """Get one provider by id."""
+        row = self.query_one("""
+            SELECT id, name, provider_type, base_url, api_key, model, pipeline_role,
+                   monthly_budget_eur, enabled, created_at, updated_at
+            FROM api_providers
+            WHERE id = ?
+        """, (provider_id,))
+        if not row:
+            return None
+        row['has_api_key'] = bool(row.get('api_key'))
+        if include_secret:
+            row['api_key'] = encryption.decrypt(row['api_key']) if row.get('api_key') else None
+        else:
+            row.pop('api_key', None)
+        row['enabled'] = bool(row.get('enabled'))
+        return row
+
+    def update_api_provider(self, provider_id: int, name: str, provider_type: str,
+                            base_url: str, model: str, pipeline_role: str = None,
+                            monthly_budget_eur: float = 5.0, api_key: str = None) -> bool:
+        """Update a custom provider. If api_key is empty/None, keep existing key."""
+        try:
+            normalized_budget = 5.0 if monthly_budget_eur is None else float(monthly_budget_eur)
+
+            params = [
+                (name or '').strip(),
+                (provider_type or 'llm').strip(),
+                (base_url or '').strip(),
+                (model or '').strip(),
+                (pipeline_role or '').strip() or None,
+                normalized_budget,
+                datetime.now(),
+            ]
+
+            if api_key is not None and str(api_key).strip() != '':
+                encrypted_key = encryption.encrypt(str(api_key).strip())
+                params.extend([encrypted_key, int(provider_id)])
+                self.execute("""
+                    UPDATE api_providers
+                    SET name = ?, provider_type = ?, base_url = ?, model = ?,
+                        pipeline_role = ?, monthly_budget_eur = ?, updated_at = ?,
+                        api_key = ?
+                    WHERE id = ?
+                """, tuple(params))
+            else:
+                params.append(int(provider_id))
+                self.execute("""
+                    UPDATE api_providers
+                    SET name = ?, provider_type = ?, base_url = ?, model = ?,
+                        pipeline_role = ?, monthly_budget_eur = ?, updated_at = ?
+                    WHERE id = ?
+                """, tuple(params))
+
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to update API provider {provider_id}: {e}")
+            return False
+
+    def get_api_provider_for_role(self, pipeline_role: str) -> Optional[Dict]:
+        """Get first enabled provider assigned to a specific pipeline role."""
+        row = self.query_one("""
+            SELECT id, name, provider_type, base_url, api_key, model, pipeline_role,
+                   monthly_budget_eur, enabled, created_at, updated_at
+            FROM api_providers
+            WHERE enabled = 1 AND pipeline_role = ?
+            ORDER BY updated_at DESC, id DESC
+            LIMIT 1
+        """, (pipeline_role,))
+        if not row:
+            return None
+        row['has_api_key'] = bool(row.get('api_key'))
+        row['api_key'] = encryption.decrypt(row['api_key']) if row.get('api_key') else None
+        row['enabled'] = bool(row.get('enabled'))
+        return row
+
+    def delete_api_provider(self, provider_id: int):
+        """Delete a custom provider."""
+        self.execute("DELETE FROM api_providers WHERE id = ?", (provider_id,))
+
+    def log_provider_call(self, provider_id: int, model: str,
+                          input_tokens: int = 0, output_tokens: int = 0,
+                          estimated_cost: float = 0.0):
+        """Log provider call into shared api_cost_log."""
+        month = datetime.now().strftime('%Y-%m')
+        today = datetime.now().strftime('%Y-%m-%d')
+        self.log_api_cost(
+            api=f"provider:{provider_id}",
+            model=model or 'unknown',
+            input_tokens=int(input_tokens or 0),
+            output_tokens=int(output_tokens or 0),
+            estimated_cost=float(estimated_cost or 0.0),
+            month=month,
+            date=today
+        )
+
+    def get_api_provider_usage(self, provider_id: int, monthly_budget_eur: float = 5.0) -> Dict:
+        """Get lightweight usage numbers for custom provider dashboard/status cards."""
+        today = datetime.now().strftime('%Y-%m-%d')
+        month = datetime.now().strftime('%Y-%m')
+        api_key = f"provider:{provider_id}"
+
+        used_today = self.get_api_request_count(api_key, today)
+        spent_usd = self.get_api_spending(api_key, month)
+
+        monthly_budget_eur = 5.0 if monthly_budget_eur is None else float(monthly_budget_eur)
+
+        # Free/unlimited mode: explicit 0 budget means "do not enforce budget-based cap"
+        if monthly_budget_eur <= 0:
+            daily_limit = 999999
+        else:
+            daily_limit = max(1, int((monthly_budget_eur * 100) / 30))
+
+        return {
+            'used_today': used_today,
+            'daily_limit': daily_limit,
+            'remaining': max(0, daily_limit - used_today),
+            'spent_eur': round(spent_usd, 4),
+        }
+
+    def get_enabled_api_provider_cards(self) -> List[Dict]:
+        """Return enabled custom providers with usage for dashboard/API status."""
+        cards = []
+        for provider in self.get_api_providers(include_secrets=False):
+            if not provider.get('enabled'):
+                continue
+            usage = self.get_api_provider_usage(
+                provider['id'],
+                monthly_budget_eur=provider.get('monthly_budget_eur', 5.0)
+            )
+            cards.append({
+                'id': provider['id'],
+                'name': provider['name'],
+                'model': provider.get('model', ''),
+                'pipeline_role': provider.get('pipeline_role'),
+                'used_today': usage['used_today'],
+                'daily_limit': usage['daily_limit'],
+                'remaining': usage['remaining'],
+                'is_configured': provider.get('has_api_key', False),
+            })
+        return cards
     
+    # === System Alerts ===
+    def raise_system_alert(self, alert_key: str, title: str, message: str,
+                           severity: str = 'error', service: str = None,
+                           action_url: str = None, action_label: str = None):
+        """Register or update a system alert (shown as banner on dashboard)."""
+        try:
+            self.execute("""
+                INSERT INTO system_alerts (alert_key, severity, title, message, service, action_url, action_label, created_at, dismissed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)
+                ON CONFLICT(alert_key) DO UPDATE SET
+                    severity = excluded.severity,
+                    title = excluded.title,
+                    message = excluded.message,
+                    service = excluded.service,
+                    action_url = excluded.action_url,
+                    action_label = excluded.action_label,
+                    created_at = CURRENT_TIMESTAMP,
+                    dismissed_at = NULL
+            """, (alert_key, severity, title, message, service, action_url, action_label))
+        except Exception as e:
+            self.logger.error(f"Failed to raise system alert: {e}")
+
+    def clear_system_alert(self, alert_key: str):
+        """Clear a system alert (service recovered)."""
+        try:
+            self.execute("DELETE FROM system_alerts WHERE alert_key = ?", (alert_key,))
+        except Exception as e:
+            self.logger.error(f"Failed to clear system alert: {e}")
+
+    def dismiss_system_alert(self, alert_key: str):
+        """Dismiss an alert (hide banner but keep record)."""
+        try:
+            self.execute(
+                "UPDATE system_alerts SET dismissed_at = CURRENT_TIMESTAMP WHERE alert_key = ?",
+                (alert_key,))
+        except Exception as e:
+            self.logger.error(f"Failed to dismiss system alert: {e}")
+
+    def get_active_system_alerts(self) -> List[Dict]:
+        """Get all active (non-dismissed) system alerts."""
+        return self.query(
+            "SELECT * FROM system_alerts WHERE dismissed_at IS NULL ORDER BY severity, created_at DESC"
+        )
+
     # === Watchlist ===
     def get_watchlist(self, active_only: bool = True) -> List[Dict]:
         conn = self._get_conn()

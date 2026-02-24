@@ -52,7 +52,9 @@
                         {{ cc.checked_at[:16] if cc.checked_at else '---' }}
                     </td>
                     <td style="padding: var(--space-2) var(--space-3); text-align: center;">
-                        {% if cc.analysis_id %}
+                        {% if cc.analysis_id and cc.ticker %}
+                        <a href="/stock/{{ cc.ticker }}?analysis_id={{ cc.analysis_id }}" class="btn btn-ghost" style="font-size: 0.75rem; padding: 2px 8px;">View</a>
+                        {% elif cc.analysis_id %}
                         <a href="/analysis/{{ cc.analysis_id }}" class="btn btn-ghost" style="font-size: 0.75rem; padding: 2px 8px;">View</a>
                         {% else %}---{% endif %}
                     </td>

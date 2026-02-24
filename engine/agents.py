@@ -5,6 +5,7 @@ No buy/sell signals — facts and context only.
 """
 from clients.perplexity_client import pplx_client
 from clients.gemini_client import gemini_client
+from clients.custom_provider_client import custom_provider_client
 from engine.quant_screener import quant_screener
 import yfinance as yf
 from core.database import db
@@ -119,13 +120,42 @@ class InvestmentSwarm:
             f"vs SPY 1M: {mom.get('excess_1m', 'N/A')}% | 3M: {mom.get('excess_3m', 'N/A')}% | 6M: {mom.get('excess_6m', 'N/A')}%"
         )
 
-        # Market Insights & News (Perplexity) — the only API call in Stage 2
-        if self.pplx.is_configured():
+        # Market Insights & News
+        stage2_provider = custom_provider_client.get_provider_for_role('stage2_news')
+        if stage2_provider:
+            print(f"    Fetching stage2 news via {stage2_provider.get('name')}...")
+            provider_news = custom_provider_client.generate(
+                stage2_provider,
+                system_prompt=(
+                    "You are a financial news analyst. Return a concise, factual news brief "
+                    "with catalysts, risks, and cited sources when available."
+                ),
+                user_prompt=(
+                    f"Ticker: {ticker}. Provide latest relevant market/news context in 6-10 bullets. "
+                    "Include sentiment (bullish/neutral/bearish), key events, and source names/URLs if present."
+                ),
+                temperature=0.2,
+                max_tokens=700,
+            )
+            if provider_news:
+                results['news'] = provider_news
+                results['stage2_provider'] = stage2_provider.get('name')
+            else:
+                if self.pplx.is_configured():
+                    news_scan = self.pplx.quick_scan(ticker)
+                    results['news'] = news_scan['raw'] if news_scan and news_scan.get('raw') else "No recent news available"
+                    results['stage2_provider'] = 'Perplexity (fallback)'
+                else:
+                    results['news'] = "Custom stage2 provider failed - fallback unavailable"
+                    results['stage2_provider'] = stage2_provider.get('name')
+        elif self.pplx.is_configured():
             print(f"    Fetching real-time news for {ticker}...")
             news_scan = self.pplx.quick_scan(ticker)
             results['news'] = news_scan['raw'] if news_scan and news_scan.get('raw') else "No recent news available"
+            results['stage2_provider'] = 'Perplexity'
         else:
-            results['news'] = "Perplexity API not configured - news unavailable"
+            results['news'] = "No stage2 provider configured"
+            results['stage2_provider'] = 'none'
 
         return results
 
@@ -174,7 +204,27 @@ Quellen: [Liste der URLs oder Publikationen]
 Zusammenfassung: [Kurzer Gesamteindruck]
 """
 
-        response = self.gemini.generate(prompt, tier='flash')
+        stage3_provider = custom_provider_client.get_provider_for_role('stage3_synthesis')
+        if stage3_provider:
+            print(f"    Synthesizing via {stage3_provider.get('name')}...")
+            response = custom_provider_client.generate(
+                stage3_provider,
+                system_prompt="You are a precise financial research writer. Follow the required format exactly.",
+                user_prompt=prompt,
+                temperature=0.2,
+                max_tokens=1200,
+            )
+            if response:
+                analysis_result['stage3_provider'] = stage3_provider.get('name')
+            else:
+                response = self.gemini.generate(prompt, tier='flash')
+                analysis_result['stage3_provider'] = 'Gemini (fallback)'
+        else:
+            response = self.gemini.generate(prompt, tier='flash')
+            analysis_result['stage3_provider'] = 'Gemini'
+
+        if not response:
+            response = "Risk Score: 5\nBull Case: Not available\nBear Case: Not available\nQuellen: N/A\nZusammenfassung: Analysis provider unavailable."
         analysis_result['recommendation'] = response
 
         # Parse sections for DB

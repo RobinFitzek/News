@@ -66,7 +66,7 @@
                         </td>
                         <td style="font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-muted);">{{ a.timestamp }}</td>
                         <td>
-                            <a href="/analysis/{{ a.id }}" class="btn btn-ghost" style="padding: var(--space-2) var(--space-4); font-size: 0.75rem;">Details</a>
+                            <a href="/stock/{{ a.ticker }}?analysis_id={{ a.id }}" class="btn btn-ghost" style="padding: var(--space-2) var(--space-4); font-size: 0.75rem;">Details</a>
                         </td>
                     </tr>
                     {% endfor %}

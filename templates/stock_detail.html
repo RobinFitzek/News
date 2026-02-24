@@ -40,7 +40,7 @@
             {% endif %}
             <a href="/analyze?ticker={{ ticker }}" class="btn btn-secondary">Analyze</a>
             <a href="/stock/compare?tickers={{ ticker }}" class="btn btn-ghost" style="font-size:0.8rem;">Compare</a>
-            <button onclick="copyTicker()" class="btn btn-ghost" title="Copy ticker">📋 Copy</button>
+            <button onclick="copyTicker()" class="btn btn-ghost" title="Copy ticker">Copy</button>
         </div>
     </div>
 
@@ -81,15 +81,94 @@
 </div>
 {% endif %}
 
+<div class="card" style="margin-bottom:1.5rem;">
+    <div class="card-body" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+        <span class="metric-label" style="margin-right:0.5rem;">View:</span>
+        <button type="button" class="btn btn-ghost section-filter" data-target="overview">Overview</button>
+        <button type="button" class="btn btn-ghost section-filter" data-target="deep">Deep Dive</button>
+        <button type="button" class="btn btn-ghost section-filter" data-target="history">History & Notes</button>
+        <button type="button" class="btn btn-ghost section-filter" data-target="all">Show All</button>
+    </div>
+</div>
+
+{% if selected_analysis %}
+<div class="card" style="margin-bottom:1.5rem;">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
+        <h3 class="card-title">Latest Analysis Context</h3>
+        <div style="display:flex;gap:0.75rem;align-items:center;">
+            <span class="badge {% if 'BUY' in (selected_analysis.signal or '') %}badge-success{% elif 'SELL' in (selected_analysis.signal or '') %}badge-danger{% else %}badge-neutral{% endif %}">
+                {{ selected_analysis.signal or 'HOLD' }}
+            </span>
+            <span class="metric-label">{{ selected_analysis.confidence or '—' }}% confidence</span>
+            <span class="metric-label">{{ selected_analysis.timestamp }}</span>
+        </div>
+    </div>
+    <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <div>
+            <div class="metric-label" style="margin-bottom:0.35rem;">Bull Case</div>
+            <div style="font-size:0.875rem;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap;">{{ selected_analysis.bull_case or 'No specific bull case available.' }}</div>
+        </div>
+        <div>
+            <div class="metric-label" style="margin-bottom:0.35rem;">Bear Case</div>
+            <div style="font-size:0.875rem;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap;">{{ selected_analysis.bear_case or 'No specific bear case available.' }}</div>
+        </div>
+        <div style="grid-column:1/-1;">
+            <div class="metric-label" style="margin-bottom:0.35rem;">Synthesis & Recommendation</div>
+            <div style="font-size:0.875rem;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap;">{{ selected_analysis.recommendation or 'No recommendation available.' }}</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div data-section-group="overview">
+
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
 
     <!-- Price Chart -->
     <div class="card" style="grid-column:1/-1;">
         <div class="card-header">
-            <h3 class="card-title">Price Chart</h3>
+            <h3 class="card-title">6-Month Price Chart</h3>
+            <span id="regime-label" class="badge" style="display:none;"></span>
         </div>
         <div class="card-body">
-            <canvas id="priceChart" height="100"></canvas>
+            <div style="position:relative;height:300px;">
+                <canvas id="price-chart"></canvas>
+            </div>
+            <div id="chart-loading" class="metric-label" style="margin-top:0.75rem;">Loading chart data...</div>
+        </div>
+    </div>
+
+    <!-- Algorithm Indicators -->
+    <div id="algo-indicators" style="display:none;grid-column:1/-1;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:var(--space-4);">
+            <div class="card" id="algo-structure" style="display:none;padding:var(--space-4);">
+                <div class="metric-label" style="margin-bottom:var(--space-2);">Market Structure</div>
+                <div id="structure-regime" style="font-size:1.125rem;font-weight:500;"></div>
+                <div style="display:flex;gap:var(--space-3);margin-top:var(--space-2);font-size:0.75rem;color:var(--text-muted);">
+                    <span>S: <span id="structure-support" style="color:#6bba7e;">—</span></span>
+                    <span>R: <span id="structure-resist" style="color:#d47272;">—</span></span>
+                </div>
+            </div>
+            <div class="card" id="algo-harmonic" style="display:none;padding:var(--space-4);">
+                <div class="metric-label" style="margin-bottom:var(--space-2);">Harmonic Pattern</div>
+                <div id="harmonic-name" style="font-size:1.125rem;font-weight:500;"></div>
+                <div id="harmonic-detail" style="font-size:0.75rem;color:var(--text-muted);margin-top:var(--space-2);"></div>
+            </div>
+            <div class="card" id="algo-vg" style="display:none;padding:var(--space-4);">
+                <div class="metric-label" style="margin-bottom:var(--space-2);">Visibility Graph</div>
+                <div id="vg-signal" style="font-size:1.125rem;font-weight:500;"></div>
+                <div id="vg-detail" style="font-size:0.75rem;color:var(--text-muted);margin-top:var(--space-2);"></div>
+            </div>
+            <div class="card" id="algo-meta" style="display:none;padding:var(--space-4);">
+                <div class="metric-label" style="margin-bottom:var(--space-2);">RF Meta-Labeler</div>
+                <div id="meta-status" style="font-size:1.125rem;font-weight:500;"></div>
+                <div id="meta-detail" style="font-size:0.75rem;color:var(--text-muted);margin-top:var(--space-2);"></div>
+            </div>
+            <div class="card" id="algo-mcpt" style="display:none;padding:var(--space-4);">
+                <div class="metric-label" style="margin-bottom:var(--space-2);">Strategy Validation</div>
+                <div id="mcpt-status" style="font-size:1.125rem;font-weight:500;"></div>
+                <div id="mcpt-detail" style="font-size:0.75rem;color:var(--text-muted);margin-top:var(--space-2);"></div>
+            </div>
         </div>
     </div>
 
@@ -107,7 +186,7 @@
     <!-- Earnings Intelligence -->
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title">📅 Earnings Intelligence</h3>
+            <h3 class="card-title">Earnings Intelligence</h3>
         </div>
         <div class="card-body">
             {% if earnings_info %}
@@ -149,7 +228,7 @@
                     {% if beat_history.current_beat_streak > 0 %}
                     <div>
                         <div class="metric-label">Beat Streak</div>
-                        <div class="metric-value text-positive">{{ beat_history.current_beat_streak }}Q 🔥</div>
+                        <div class="metric-value text-positive">{{ beat_history.current_beat_streak }}Q</div>
                     </div>
                     {% endif %}
                 </div>
@@ -176,7 +255,7 @@
     <!-- Key Metrics -->
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title">📊 Key Metrics</h3>
+            <h3 class="card-title">Key Metrics</h3>
         </div>
         <div class="card-body">
             {% if key_stats.available %}
@@ -247,10 +326,13 @@
 
 </div>
 
+</div>
+
 <!-- Technical Indicators (AJAX) -->
+<div data-section-group="deep">
 <div id="technicals-card" class="card" style="margin-bottom:1.5rem;display:none;">
     <div class="card-header">
-        <h3 class="card-title">📉 Technical Indicators</h3>
+        <h3 class="card-title">Technical Indicators</h3>
     </div>
     <div class="card-body">
         <div id="technicals-content" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;"></div>
@@ -261,7 +343,7 @@
 {% if quarterly.available %}
 <div class="card" style="margin-bottom:1.5rem;">
     <div class="card-header">
-        <h3 class="card-title">📈 Financial Statement Trends ({{ quarterly.labels|length }}Q)</h3>
+        <h3 class="card-title">Financial Statement Trends ({{ quarterly.labels|length }}Q)</h3>
     </div>
     <div class="card-body">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;">
@@ -283,7 +365,7 @@
 {% if dcf.available %}
 <div class="card" style="margin-bottom:1.5rem;">
     <div class="card-header">
-        <h3 class="card-title">💡 DCF Fair Value Estimate</h3>
+        <h3 class="card-title">DCF Fair Value Estimate</h3>
         <span class="metric-label" style="font-size:0.8rem;">2-Stage Model — adjust assumptions below</span>
     </div>
     <div class="card-body">
@@ -344,7 +426,7 @@
 <!-- Peer Comparison (AJAX) -->
 <div id="peers-card" class="card" style="margin-bottom:1.5rem;display:none;">
     <div class="card-header">
-        <h3 class="card-title">🏢 Peer Comparison</h3>
+        <h3 class="card-title">Peer Comparison</h3>
     </div>
     <div class="card-body" style="padding:0;">
         <div id="peers-content" style="overflow-x:auto;"></div>
@@ -354,7 +436,7 @@
 <!-- Position Sizing (AJAX) -->
 <div id="position-card" class="card" style="margin-bottom:1.5rem;display:none;">
     <div class="card-header">
-        <h3 class="card-title">📐 Position Sizing Recommendation</h3>
+        <h3 class="card-title">Position Sizing Recommendation</h3>
     </div>
     <div class="card-body">
         <div id="position-content"></div>
@@ -364,7 +446,7 @@
 <!-- Chart Patterns (AJAX) -->
 <div id="patterns-card" class="card" style="margin-bottom:1.5rem;display:none;">
     <div class="card-header">
-        <h3 class="card-title">🔺 Chart Patterns</h3>
+        <h3 class="card-title">Chart Patterns</h3>
     </div>
     <div class="card-body">
         <div id="patterns-content"></div>
@@ -374,7 +456,7 @@
 <!-- Analyst Sentiment (AJAX) -->
 <div id="sentiment-card" class="card" style="margin-bottom:1.5rem;display:none;">
     <div class="card-header">
-        <h3 class="card-title">💬 Analyst Sentiment</h3>
+        <h3 class="card-title">Analyst Sentiment</h3>
     </div>
     <div class="card-body">
         <div id="sentiment-content"></div>
@@ -384,7 +466,7 @@
 <!-- Options Flow (AJAX) -->
 <div id="options-card" class="card" style="margin-bottom:1.5rem;display:none;">
     <div class="card-header">
-        <h3 class="card-title">⚡ Options Flow</h3>
+        <h3 class="card-title">Options Flow</h3>
     </div>
     <div class="card-body">
         <div id="options-content"></div>
@@ -394,7 +476,7 @@
 <!-- Short Interest (AJAX) -->
 <div id="short-card" class="card" style="margin-bottom:1.5rem;display:none;">
     <div class="card-header">
-        <h3 class="card-title">📉 Short Interest</h3>
+        <h3 class="card-title">Short Interest</h3>
     </div>
     <div class="card-body">
         <div id="short-content"></div>
@@ -404,7 +486,7 @@
 <!-- Institutional Holdings (AJAX) -->
 <div id="institutional-card" class="card" style="margin-bottom:1.5rem;display:none;">
     <div class="card-header">
-        <h3 class="card-title">🏦 Institutional Holdings</h3>
+        <h3 class="card-title">Institutional Holdings</h3>
     </div>
     <div class="card-body" style="padding:0;">
         <div id="institutional-content"></div>
@@ -414,19 +496,23 @@
 <!-- Catalyst Timeline (AJAX) -->
 <div id="catalysts-card" class="card" style="margin-bottom:1.5rem;display:none;">
     <div class="card-header">
-        <h3 class="card-title">📆 Catalyst Timeline</h3>
+        <h3 class="card-title">Catalyst Timeline</h3>
     </div>
     <div class="card-body">
         <div id="catalysts-content"></div>
     </div>
 </div>
 
+</div>
+
+<div data-section-group="history">
+
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
 
     <!-- Analysis History -->
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title">🧠 Analysis History</h3>
+            <h3 class="card-title">Analysis History</h3>
             <a href="/history?ticker={{ ticker }}" class="btn btn-ghost" style="font-size:0.8rem;">View All</a>
         </div>
         <div class="card-body" style="padding:0;">
@@ -453,7 +539,14 @@
                 </tbody>
             </table>
             {% else %}
-            <div style="padding:1.5rem;text-align:center;" class="metric-label">No analysis history yet.</div>
+            <div style="padding:1.5rem;text-align:center;" class="metric-label">
+                <div style="margin-bottom:0.75rem;">No analysis history yet.</div>
+                <form method="post" action="/analyze" style="display:inline-flex;gap:0.5rem;align-items:center;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="ticker" value="{{ ticker }}">
+                    <button type="submit" class="btn btn-primary" style="font-size:0.8rem;">Scan Now</button>
+                </form>
+            </div>
             {% endif %}
         </div>
     </div>
@@ -461,7 +554,7 @@
     <!-- Insider Activity -->
     <div class="card">
         <div class="card-header">
-            <h3 class="card-title">👤 Insider Activity</h3>
+            <h3 class="card-title">Insider Activity</h3>
             <a href="/insider-activity/{{ ticker }}" class="btn btn-ghost" style="font-size:0.8rem;">View Detail</a>
         </div>
         <div class="card-body" style="padding:0;">
@@ -503,7 +596,7 @@
 {% if discovery_history %}
 <div class="card" style="margin-bottom:1.5rem;">
     <div class="card-header">
-        <h3 class="card-title">🔍 Discovery History</h3>
+        <h3 class="card-title">Discovery History</h3>
     </div>
     <div class="card-body" style="padding:0;">
         <table class="data-table">
@@ -540,7 +633,7 @@
 <!-- Notes -->
 <div class="card" style="margin-bottom:1.5rem;">
     <div class="card-header">
-        <h3 class="card-title">📝 Notes</h3>
+        <h3 class="card-title">Notes</h3>
     </div>
     <div class="card-body">
         <form method="post" action="/stock/{{ ticker }}/notes">
@@ -558,10 +651,38 @@
     </div>
 </div>
 
+</div>
+
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+    // Section filter UX
+    (() => {
+        const groups = document.querySelectorAll('[data-section-group]');
+        const buttons = document.querySelectorAll('.section-filter');
+        function setActive(target) {
+            groups.forEach(g => {
+                if (target === 'all' || g.dataset.sectionGroup === target) {
+                    g.style.display = '';
+                } else {
+                    g.style.display = 'none';
+                }
+            });
+            buttons.forEach(b => {
+                if (b.dataset.target === target) {
+                    b.classList.add('btn-primary');
+                    b.classList.remove('btn-ghost');
+                } else {
+                    b.classList.remove('btn-primary');
+                    b.classList.add('btn-ghost');
+                }
+            });
+        }
+        buttons.forEach(btn => btn.addEventListener('click', () => setActive(btn.dataset.target)));
+        setActive('overview');
+    })();
+
     // Copy ticker to clipboard
     function copyTicker() {
         navigator.clipboard.writeText('{{ ticker }}').then(() => {
@@ -571,7 +692,7 @@
         });
     }
 
-    // Price chart with SMA overlays
+    // Analysis-style price chart with overlays
     async function loadPriceChart() {
         try {
             const res = await fetch('/api/chart-data/{{ ticker }}');
@@ -579,20 +700,46 @@
             const d = await res.json();
             if (!d.dates || !d.prices) return;
 
-            const datasets = [{
-                label: '{{ ticker }}',
-                data: d.prices,
-                borderColor: '#6366f1',
-                backgroundColor: 'rgba(99,102,241,0.1)',
-                borderWidth: 2,
-                pointRadius: 0,
-                fill: true,
-                tension: 0.3,
-            }];
-
-            // SMA overlays
-            if (d.sma20) datasets.push({ label: 'SMA20', data: d.sma20, borderColor: 'rgba(234,179,8,0.6)', borderWidth: 1, pointRadius: 0, fill: false, borderDash: [4,2] });
-            if (d.sma50) datasets.push({ label: 'SMA50', data: d.sma50, borderColor: 'rgba(16,185,129,0.6)', borderWidth: 1, pointRadius: 0, fill: false, borderDash: [4,2] });
+            const datasets = [
+                {
+                    label: '{{ ticker }}',
+                    data: d.prices,
+                    borderColor: 'rgba(255, 255, 255, 0.9)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                    borderWidth: 1.5,
+                    fill: true,
+                    tension: 0.1,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                },
+                {
+                    label: 'SMA 20',
+                    data: d.sma20,
+                    borderColor: '#6bba7e',
+                    borderWidth: 1,
+                    borderDash: [4, 2],
+                    pointRadius: 0,
+                    fill: false,
+                },
+                {
+                    label: 'SMA 50',
+                    data: d.sma50,
+                    borderColor: '#d4a84b',
+                    borderWidth: 1,
+                    borderDash: [4, 2],
+                    pointRadius: 0,
+                    fill: false,
+                },
+                {
+                    label: 'SMA 200',
+                    data: d.sma200,
+                    borderColor: '#d47272',
+                    borderWidth: 1,
+                    borderDash: [6, 3],
+                    pointRadius: 0,
+                    fill: false,
+                },
+            ];
 
             // Signal markers
             if (d.signals && d.signals.length > 0) {
@@ -602,19 +749,218 @@
                     const idx = d.dates.indexOf(s.date);
                     if (idx >= 0) {
                         markerData[idx] = s.price;
-                        markerColors.push(s.signal.includes('BUY') ? '#6bba7e' : s.signal.includes('SELL') ? '#d47272' : '#d4a84b');
+                        const isPositive = ['OPPORTUNITY', 'BUY', 'STRONG_BUY'].includes(s.signal);
+                        markerColors.push(isPositive ? '#6bba7e' : '#d47272');
                     }
                 });
                 datasets.push({
                     label: 'Signals',
                     data: markerData,
-                    borderColor: 'transparent',
-                    backgroundColor: markerColors.length ? markerColors : '#d4a84b',
-                    pointRadius: markerData.map(v => v !== null ? 6 : 0),
-                    pointStyle: 'triangle',
+                    borderColor: markerColors,
+                    backgroundColor: markerColors,
+                    pointRadius: 6,
+                    pointStyle: 'star',
                     showLine: false,
+                    pointHoverRadius: 8,
                 });
             }
+
+            if (d.turning_points && d.turning_points.length > 0) {
+                const highData = new Array(d.dates.length).fill(null);
+                const lowData = new Array(d.dates.length).fill(null);
+                d.turning_points.forEach(tp => {
+                    const idx = d.dates.indexOf(tp.date);
+                    if (idx >= 0) {
+                        if (tp.type === 'high') highData[idx] = tp.price;
+                        else lowData[idx] = tp.price;
+                    }
+                });
+                datasets.push({
+                    label: 'Swing Highs',
+                    data: highData,
+                    borderColor: '#d47272',
+                    backgroundColor: 'rgba(212,114,114,0.6)',
+                    pointRadius: 4,
+                    pointStyle: 'triangle',
+                    showLine: false,
+                    pointHoverRadius: 6,
+                });
+                datasets.push({
+                    label: 'Swing Lows',
+                    data: lowData,
+                    borderColor: '#6bba7e',
+                    backgroundColor: 'rgba(107,186,126,0.6)',
+                    pointRadius: 4,
+                    pointStyle: 'triangle',
+                    pointRotation: 180,
+                    showLine: false,
+                    pointHoverRadius: 6,
+                });
+            }
+
+            const annotations = {};
+            if (d.support_resistance) {
+                d.support_resistance.forEach((sr, i) => {
+                    annotations['sr' + i] = {
+                        type: 'line',
+                        yMin: sr.price,
+                        yMax: sr.price,
+                        borderColor: sr.type === 'support' ? 'rgba(107,186,126,0.4)' : 'rgba(212,114,114,0.4)',
+                        borderWidth: 1,
+                        borderDash: [8, 4],
+                        label: {
+                            display: true,
+                            content: sr.type === 'support' ? 'S: $' + sr.price : 'R: $' + sr.price,
+                            position: 'start',
+                            font: { size: 9 },
+                            color: 'rgba(255,255,255,0.5)',
+                            backgroundColor: 'transparent',
+                        }
+                    };
+                });
+            }
+
+            if (d.harmonic_patterns && d.harmonic_patterns.length > 0) {
+                const hp = d.harmonic_patterns[0];
+                if (hp.entry_zone) {
+                    annotations['harmonic_entry'] = {
+                        type: 'box',
+                        yMin: hp.entry_zone[0],
+                        yMax: hp.entry_zone[1],
+                        backgroundColor: hp.direction === 'bullish' ? 'rgba(107,186,126,0.08)' : 'rgba(212,114,114,0.08)',
+                        borderColor: hp.direction === 'bullish' ? 'rgba(107,186,126,0.3)' : 'rgba(212,114,114,0.3)',
+                        borderWidth: 1,
+                        label: {
+                            display: true,
+                            content: hp.pattern_name.charAt(0).toUpperCase() + hp.pattern_name.slice(1) + ' ' + hp.direction,
+                            position: 'start',
+                            font: { size: 9 },
+                            color: 'rgba(255,255,255,0.5)',
+                        }
+                    };
+                }
+            }
+
+            const loading = document.getElementById('chart-loading');
+            if (loading) loading.style.display = 'none';
+
+            new Chart(document.getElementById('price-chart'), {
+                type: 'line',
+                data: { labels: d.dates, datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { labels: { color: 'rgba(255,255,255,0.6)', font: { size: 11 }, boxWidth: 12, padding: 15 } },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.9)',
+                            titleColor: '#fff',
+                            bodyColor: 'rgba(255,255,255,0.8)',
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderWidth: 1,
+                        },
+                        annotation: { annotations }
+                    },
+                    scales: {
+                        x: { ticks: { color: 'rgba(255,255,255,0.4)', maxTicksLimit: 12, font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } },
+                        y: { ticks: { color: 'rgba(255,255,255,0.4)', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' } }
+                    }
+                }
+            });
+
+            const algoRow = document.getElementById('algo-indicators');
+            let hasAlgo = false;
+
+            if (d.turning_points && d.turning_points.length > 0) {
+                hasAlgo = true;
+                document.getElementById('algo-structure').style.display = '';
+                const highs = d.turning_points.filter(t => t.type === 'high');
+                const lows = d.turning_points.filter(t => t.type === 'low');
+                document.getElementById('structure-regime').textContent = highs.length + ' swing highs, ' + lows.length + ' swing lows';
+                if (d.support_resistance) {
+                    d.support_resistance.forEach(sr => {
+                        if (sr.type === 'support') document.getElementById('structure-support').textContent = '$' + sr.price;
+                        if (sr.type === 'resistance') document.getElementById('structure-resist').textContent = '$' + sr.price;
+                    });
+                }
+            }
+
+            if (d.harmonic_patterns && d.harmonic_patterns.length > 0) {
+                hasAlgo = true;
+                const hp = d.harmonic_patterns[0];
+                document.getElementById('algo-harmonic').style.display = '';
+                const color = hp.direction === 'bullish' ? '#6bba7e' : '#d47272';
+                document.getElementById('harmonic-name').innerHTML = '<span style="color:' + color + '">' +
+                    hp.pattern_name.charAt(0).toUpperCase() + hp.pattern_name.slice(1) +
+                    ' (' + hp.direction + ')</span>';
+                const detail = hp.entry_zone
+                    ? 'Confidence: ' + hp.confidence + '% | Entry: $' + hp.entry_zone[0] + ' - $' + hp.entry_zone[1]
+                    : 'Confidence: ' + hp.confidence + '%';
+                document.getElementById('harmonic-detail').textContent = detail;
+            }
+
+            if (d.vg && d.vg.vg_signal) {
+                hasAlgo = true;
+                document.getElementById('algo-vg').style.display = '';
+                const color = d.vg.vg_signal === 'bullish' ? '#6bba7e' : '#d47272';
+                document.getElementById('vg-signal').innerHTML =
+                    '<span style="color:' + color + '">' + d.vg.vg_signal.toUpperCase() + '</span>' +
+                    ' <span style="font-size: 0.875rem; color: var(--text-muted);">' + d.vg.vg_score + '/100</span>';
+                document.getElementById('vg-detail').textContent =
+                    'ASPL ratio: ' + (d.vg.aspl_ratio || 'N/A') + ' (pos: ' + (d.vg.pos_aspl || 'N/A') + ', neg: ' + (d.vg.neg_aspl || 'N/A') + ')';
+            }
+
+            if (d.meta_labeler) {
+                hasAlgo = true;
+                document.getElementById('algo-meta').style.display = '';
+                const ml = d.meta_labeler;
+                if (ml.ready) {
+                    document.getElementById('meta-status').innerHTML = '<span style="color: #6bba7e;">Active</span> <span style="font-size: 0.875rem; color: var(--text-muted);">v' + ml.model_version + '</span>';
+                    document.getElementById('meta-detail').textContent = (ml.n_features || '?') + ' features | Trained: ' + (ml.last_trained || 'Unknown').slice(0, 10);
+                } else {
+                    document.getElementById('meta-status').innerHTML = '<span style="color: #d4a84b;">Cold Start</span>';
+                    document.getElementById('meta-detail').textContent = 'Needs 50+ graded signals to train';
+                }
+            }
+
+            if (d.mcpt && d.mcpt.p_value !== undefined) {
+                hasAlgo = true;
+                document.getElementById('algo-mcpt').style.display = '';
+                const mc = d.mcpt;
+                const color = mc.significant ? '#6bba7e' : '#d47272';
+                document.getElementById('mcpt-status').innerHTML = '<span style="color:' + color + '">' + (mc.significant ? 'Significant' : 'Not Significant') + '</span>';
+                document.getElementById('mcpt-detail').textContent = 'p-value: ' + mc.p_value + ' | Profit Factor: ' + (mc.actual_metric || 'N/A');
+            }
+
+            if (hasAlgo && algoRow) algoRow.style.display = '';
+
+            loadTechnicals(d);
+        } catch (e) {
+            const loading = document.getElementById('chart-loading');
+            if (loading) loading.textContent = 'Failed to load chart';
+        }
+    }
+
+    fetch('/api/market-regime')
+        .then(r => r.json())
+        .then(data => {
+            if (!data || !data.regime) return;
+            const label = document.getElementById('regime-label');
+            if (!label) return;
+            label.style.display = '';
+            const colors = {
+                bull: { bg: 'rgba(107,186,126,0.15)', color: '#6bba7e', border: 'rgba(107,186,126,0.3)' },
+                bear: { bg: 'rgba(212,114,114,0.15)', color: '#d47272', border: 'rgba(212,114,114,0.3)' },
+                choppy: { bg: 'rgba(212,168,75,0.15)', color: '#d4a84b', border: 'rgba(212,168,75,0.3)' },
+            };
+            const c = colors[data.regime] || colors.choppy;
+            label.textContent = data.regime.toUpperCase() + ' market';
+            label.style.background = c.bg;
+            label.style.color = c.color;
+            label.style.border = '1px solid ' + c.border;
+        })
+        .catch(() => {});
 
             new Chart(document.getElementById('priceChart'), {
                 type: 'line',
@@ -757,7 +1103,7 @@
                 const isTarget = i === 0;
                 const style = isTarget ? 'background:rgba(99,102,241,0.08);font-weight:500;' : '';
                 html += `<tr style="${style}">
-                    <td><a href="/stock/${p.ticker}" style="font-family:var(--font-mono);color:var(--text-primary);text-decoration:none;">${p.ticker}${isTarget ? ' ★' : ''}</a></td>
+                    <td><a href="/stock/${p.ticker}" style="font-family:var(--font-mono);color:var(--text-primary);text-decoration:none;">${p.ticker}${isTarget ? ' (target)' : ''}</a></td>
                     <td style="font-family:var(--font-mono);">${p.pe_ratio ? p.pe_ratio.toFixed(1) + 'x' : '—'}</td>
                     <td style="font-family:var(--font-mono);">${p.forward_pe ? p.forward_pe.toFixed(1) + 'x' : '—'}</td>
                     <td style="font-family:var(--font-mono);">${p.ev_ebitda ? p.ev_ebitda.toFixed(1) + 'x' : '—'}</td>
@@ -945,7 +1291,7 @@
             const contrarian = data.contrarian || {};
             const contrarianHtml = contrarian.signal ? `
                 <div style="margin-top:1rem;padding:0.75rem;border-radius:var(--radius-md);background:rgba(212,168,75,0.1);border:1px solid rgba(212,168,75,0.3);">
-                    <span style="color:#d4a84b;font-size:0.8125rem;font-weight:500;">⚠ Contrarian Signal: ${contrarian.signal.replace(/_/g,' ').toUpperCase()}</span>
+                    <span style="color:#d4a84b;font-size:0.8125rem;font-weight:500;">Contrarian Signal: ${contrarian.signal.replace(/_/g,' ').toUpperCase()}</span>
                     ${contrarian.reason ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.25rem;">${contrarian.reason}</div>` : ''}
                 </div>` : '';
             content.innerHTML = `
@@ -986,7 +1332,7 @@
             const unusual = data.unusual_activity || {};
             const unusualHtml = unusual.is_unusual ? `
                 <div style="margin-top:1rem;padding:0.75rem;border-radius:var(--radius-md);background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.3);">
-                    <span style="color:#6366f1;font-size:0.8125rem;font-weight:500;">⚡ Unusual Activity Detected</span>
+                    <span style="color:#6366f1;font-size:0.8125rem;font-weight:500;">Unusual Activity Detected</span>
                     ${unusual.reason ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.25rem;">${unusual.reason}</div>` : ''}
                 </div>` : '';
             const pcColor = s.put_call_ratio != null ? (s.put_call_ratio > 1.2 ? '#d47272' : s.put_call_ratio < 0.8 ? '#6bba7e' : '#d4a84b') : 'var(--text-primary)';
@@ -1028,7 +1374,7 @@
             const barColor = pct > 20 ? '#d47272' : pct > 10 ? '#d4a84b' : '#6bba7e';
             const squeezeHtml = squeeze.is_squeeze_candidate ? `
                 <div style="margin-top:1rem;padding:0.75rem;border-radius:var(--radius-md);background:rgba(212,114,114,0.1);border:1px solid rgba(212,114,114,0.3);">
-                    <span style="color:#d47272;font-size:0.8125rem;font-weight:500;">🚨 Squeeze Candidate</span>
+                    <span style="color:#d47272;font-size:0.8125rem;font-weight:500;">Squeeze Candidate</span>
                     ${squeeze.reason ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.25rem;">${squeeze.reason}</div>` : ''}
                 </div>` : '';
             content.innerHTML = `
@@ -1095,14 +1441,14 @@
             card.style.display = '';
             const content = document.getElementById('catalysts-content');
             const typeConfig = {
-                earnings: { icon: '📅', color: '#6366f1' },
-                dividend: { icon: '💰', color: '#6bba7e' },
-                economic: { icon: '🏦', color: '#d4a84b' },
-                fda: { icon: '💊', color: '#d47272' },
+                earnings: { icon: 'E', color: '#6366f1' },
+                dividend: { icon: 'D', color: '#6bba7e' },
+                economic: { icon: 'M', color: '#d4a84b' },
+                fda: { icon: 'F', color: '#d47272' },
             };
             let html = '<div style="display:flex;flex-direction:column;gap:0.75rem;">';
             data.catalysts.forEach(c => {
-                const cfg = typeConfig[c.type] || { icon: '📌', color: 'var(--text-muted)' };
+                const cfg = typeConfig[c.type] || { icon: '•', color: 'var(--text-muted)' };
                 const today = new Date();
                 const eventDate = new Date(c.date);
                 const daysUntil = Math.ceil((eventDate - today) / (1000 * 60 * 60 * 24));

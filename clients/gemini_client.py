@@ -319,6 +319,12 @@ class AdaptiveGeminiClient:
                 self.logger.info(f"Gemini {tier} OK: ${cost:.5f} ({input_tokens}in/{output_tokens}out)")
                 print(f"  Gemini {tier}: req #{today_count} (${cost:.5f}, {model_name})")
 
+                # Clear any auth alert on success
+                try:
+                    db.clear_system_alert('gemini_auth')
+                except Exception:
+                    pass
+
                 return response_text
 
             except google_exceptions.ResourceExhausted:
@@ -337,6 +343,15 @@ class AdaptiveGeminiClient:
 
             except google_exceptions.PermissionDenied:
                 self.logger.error("Permission denied")
+                try:
+                    db.raise_system_alert(
+                        'gemini_auth',
+                        'Gemini API Key Invalid',
+                        'The Gemini API key was rejected (Permission Denied). AI analysis is disabled until you update the key.',
+                        severity='error', service='gemini',
+                        action_url='/settings', action_label='Update API Key')
+                except Exception:
+                    pass
                 return "  Zugriff verweigert. Bitte API Key prüfen."
 
             except google_exceptions.DeadlineExceeded:

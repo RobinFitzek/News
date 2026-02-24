@@ -27,6 +27,7 @@ from slowapi.errors import RateLimitExceeded
 from engine.agents import swarm
 from clients.perplexity_client import pplx_client
 from clients.gemini_client import gemini_client
+from clients.custom_provider_client import custom_provider_client
 from core.budget_tracker import budget_tracker
 from engine.learning_optimizer import learning_optimizer
 from engine.staleness_tracker import staleness_tracker
@@ -305,6 +306,56 @@ async def dashboard(request: Request, username: str = Depends(require_auth)):
         except Exception:
             discovery_stats = None
 
+        # Active system alerts (service errors)
+        try:
+            system_alerts = db.get_active_system_alerts()
+        except Exception:
+            system_alerts = []
+
+        try:
+            custom_provider_cards = db.get_enabled_api_provider_cards()
+        except Exception:
+            custom_provider_cards = []
+
+        api_cards = []
+        pplx_usage = pplx_client.get_usage()
+        gemini_usage = gemini_client.get_usage()
+
+        api_cards.append({
+            "key": "perplexity",
+            "name": "Perplexity",
+            "is_configured": pplx_usage.get("is_configured", False),
+            "used_today": pplx_usage.get("used_today", 0),
+            "daily_limit": max(1, pplx_usage.get("daily_limit", 1)),
+            "hint": "Requests Today",
+        })
+        api_cards.append({
+            "key": "gemini-flash",
+            "name": "Gemini Flash",
+            "is_configured": gemini_usage.get("is_configured", False),
+            "used_today": gemini_usage.get("flash", {}).get("used_today", 0),
+            "daily_limit": max(1, gemini_usage.get("flash", {}).get("daily_limit", 1)),
+            "hint": "Requests Today",
+        })
+        api_cards.append({
+            "key": "gemini-pro",
+            "name": "Gemini Pro",
+            "is_configured": gemini_usage.get("is_configured", False),
+            "used_today": gemini_usage.get("pro", {}).get("used_today", 0),
+            "daily_limit": max(1, gemini_usage.get("pro", {}).get("daily_limit", 1)),
+            "hint": "Requests Today",
+        })
+
+        for provider in custom_provider_cards:
+            api_cards.append({
+                "key": f"provider-{provider['id']}",
+                "name": provider.get("name", "Custom Provider"),
+                "is_configured": provider.get("is_configured", False),
+                "used_today": provider.get("used_today", 0),
+                "daily_limit": max(1, provider.get("daily_limit", 1)),
+                "hint": provider.get("pipeline_role", "custom").replace('_', ' ').title() if provider.get("pipeline_role") else "Custom",
+            })
+
         return templates.TemplateResponse("dashboard.html", {
             "request": request,
             "csrf_token": request.state.csrf_token,
@@ -322,6 +373,8 @@ async def dashboard(request: Request, username: str = Depends(require_auth)):
             "cold_start_reason": cold_start_reason,
             "system_paused": system_paused,
             "discovery_stats": discovery_stats,
+            "system_alerts": system_alerts,
+            "api_cards": api_cards,
         })
     except Exception as e:
         import traceback
@@ -625,126 +678,131 @@ async def clear_kill_switch(request: Request, username: str = Depends(require_au
 
 @app.post("/settings/save")
 async def save_settings(request: Request, username: str = Depends(require_auth)):
-    """Save settings"""
+    """Save settings - supports per-section saving via _section marker"""
     form = await request.form()
     csrf.verify_token(request, form.get("csrf_token"))
 
+    # Determine which section(s) are being saved
+    section = form.get("_section", "")
+    save_all = not section
+
     # Scheduler settings
-    db.set_setting("scan_interval_hours", int(form.get("scan_interval_hours", 2)))
-    db.set_setting("active_hours_start", form.get("active_hours_start", "08:00"))
-    db.set_setting("active_hours_end", form.get("active_hours_end", "22:00"))
-    
+    if save_all or section == "scheduler":
+        db.set_setting("scan_interval_hours", int(form.get("scan_interval_hours", 2)))
+        db.set_setting("active_hours_start", form.get("active_hours_start", "08:00"))
+        db.set_setting("active_hours_end", form.get("active_hours_end", "22:00"))
+
+        # Auto-Discovery settings
+        db.set_setting("discovery_enabled", form.get("discovery_enabled") == "on")
+        db.set_setting("discovery_daily_time", form.get("discovery_daily_time", "06:00"))
+        db.set_setting("discovery_weekly_day", form.get("discovery_weekly_day", "wed"))
+        db.set_setting("discovery_weekly_time", form.get("discovery_weekly_time", "12:00"))
+        try:
+            db.set_setting("discovery_promotion_threshold", int(form.get("discovery_promotion_threshold", 55)))
+        except (ValueError, TypeError):
+            pass
+        try:
+            db.set_setting("discovery_max_promote_per_run", int(form.get("discovery_max_promote_per_run", 5)))
+        except (ValueError, TypeError):
+            pass
+        try:
+            db.set_setting("discovery_max_watchlist_size", int(form.get("discovery_max_watchlist_size", 50)))
+        except (ValueError, TypeError):
+            pass
+        all_strategies = ['volume_spike', 'breakout', 'oversold', 'sector_rotation', 'insider_buy', 'value_screen']
+        enabled_strategies = [s for s in all_strategies if form.get(f"strategy_{s}") == "on"]
+        if enabled_strategies:
+            db.set_setting("discovery_strategies", enabled_strategies)
+
     # Email settings
-    db.set_setting("email_enabled", form.get("email_enabled") == "on")
-    db.set_setting("email_recipient", form.get("email_recipient", ""))
-    db.set_setting("email_smtp_host", form.get("email_smtp_host", "smtp.gmail.com"))
-    db.set_setting("email_smtp_port", int(form.get("email_smtp_port", 587)))
-    db.set_setting("email_smtp_user", form.get("email_smtp_user", ""))
-    if form.get("email_smtp_password"):
-        db.set_setting("email_smtp_password", form.get("email_smtp_password"))
-    
-    db.set_setting("notify_on_strong_signals", form.get("notify_on_strong_signals") == "on")
-    db.set_setting("daily_summary_enabled", form.get("daily_summary_enabled") == "on")
-    db.set_setting("daily_summary_time", form.get("daily_summary_time", "20:00"))
-    
+    if save_all or section == "notifications":
+        db.set_setting("email_enabled", form.get("email_enabled") == "on")
+        db.set_setting("email_recipient", form.get("email_recipient", ""))
+        db.set_setting("email_smtp_host", form.get("email_smtp_host", "smtp.gmail.com"))
+        db.set_setting("email_smtp_port", int(form.get("email_smtp_port", 587)))
+        db.set_setting("email_smtp_user", form.get("email_smtp_user", ""))
+        if form.get("email_smtp_password"):
+            db.set_setting("email_smtp_password", form.get("email_smtp_password"))
+        db.set_setting("notify_on_strong_signals", form.get("notify_on_strong_signals") == "on")
+        db.set_setting("daily_summary_enabled", form.get("daily_summary_enabled") == "on")
+        db.set_setting("daily_summary_time", form.get("daily_summary_time", "20:00"))
+
     # Analysis settings
-    db.set_setting("include_news", form.get("include_news") == "on")
-    db.set_setting("include_fundamental", form.get("include_fundamental") == "on")
-    db.set_setting("include_technical", form.get("include_technical") == "on")
-    db.set_setting("analysis_variant", form.get("analysis_variant", "balanced"))
+    if save_all or section == "analysis":
+        db.set_setting("include_news", form.get("include_news") == "on")
+        db.set_setting("include_fundamental", form.get("include_fundamental") == "on")
+        db.set_setting("include_technical", form.get("include_technical") == "on")
+        db.set_setting("analysis_variant", form.get("analysis_variant", "balanced"))
+
+        # Monthly API budgets (EUR)
+        try:
+            pplx_budget = float(form.get("perplexity_monthly_budget", 5.0))
+            db.set_setting("perplexity_monthly_budget", max(0, min(100, pplx_budget)))
+        except (ValueError, TypeError):
+            db.set_setting("perplexity_monthly_budget", 5.0)
+        try:
+            gemini_budget = float(form.get("gemini_monthly_budget", 5.0))
+            db.set_setting("gemini_monthly_budget", max(0, min(100, gemini_budget)))
+        except (ValueError, TypeError):
+            db.set_setting("gemini_monthly_budget", 5.0)
+
+        # Learning system settings
+        try:
+            db.set_setting("learning_verification_days", int(form.get("learning_verification_days", 90)))
+        except (ValueError, TypeError):
+            pass
 
     # Portfolio rule thresholds
-    try:
-        db.set_setting("portfolio_max_position_pct", float(form.get("portfolio_max_position_pct", 10.0)))
-    except (ValueError, TypeError):
-        pass
-    try:
-        db.set_setting("portfolio_stop_loss_pct", float(form.get("portfolio_stop_loss_pct", 15.0)))
-    except (ValueError, TypeError):
-        pass
-    try:
-        db.set_setting("portfolio_max_sector_pct", float(form.get("portfolio_max_sector_pct", 30.0)))
-    except (ValueError, TypeError):
-        pass
-    try:
-        db.set_setting("portfolio_rebalance_drift_pct", float(form.get("portfolio_rebalance_drift_pct", 5.0)))
-    except (ValueError, TypeError):
-        pass
-    try:
-        db.set_setting("portfolio_risk_guard_enabled", form.get("portfolio_risk_guard_enabled") == "on")
-    except (ValueError, TypeError):
-        pass
-    try:
-        global_loss_limit = float(form.get("portfolio_global_loss_limit_pct", 10.0))
-        db.set_setting("portfolio_global_loss_limit_pct", max(1.0, min(50.0, global_loss_limit)))
-    except (ValueError, TypeError):
-        pass
-    try:
-        cooldown_hours = float(form.get("portfolio_risk_cooldown_hours", 24.0))
-        db.set_setting("portfolio_risk_cooldown_hours", max(0.0, min(168.0, cooldown_hours)))
-    except (ValueError, TypeError):
-        pass
+    if save_all or section == "portfolio":
+        try:
+            db.set_setting("portfolio_max_position_pct", float(form.get("portfolio_max_position_pct", 10.0)))
+        except (ValueError, TypeError):
+            pass
+        try:
+            db.set_setting("portfolio_stop_loss_pct", float(form.get("portfolio_stop_loss_pct", 15.0)))
+        except (ValueError, TypeError):
+            pass
+        try:
+            db.set_setting("portfolio_max_sector_pct", float(form.get("portfolio_max_sector_pct", 30.0)))
+        except (ValueError, TypeError):
+            pass
+        try:
+            db.set_setting("portfolio_rebalance_drift_pct", float(form.get("portfolio_rebalance_drift_pct", 5.0)))
+        except (ValueError, TypeError):
+            pass
+        try:
+            db.set_setting("portfolio_risk_guard_enabled", form.get("portfolio_risk_guard_enabled") == "on")
+        except (ValueError, TypeError):
+            pass
+        try:
+            global_loss_limit = float(form.get("portfolio_global_loss_limit_pct", 10.0))
+            db.set_setting("portfolio_global_loss_limit_pct", max(1.0, min(50.0, global_loss_limit)))
+        except (ValueError, TypeError):
+            pass
+        try:
+            cooldown_hours = float(form.get("portfolio_risk_cooldown_hours", 24.0))
+            db.set_setting("portfolio_risk_cooldown_hours", max(0.0, min(168.0, cooldown_hours)))
+        except (ValueError, TypeError):
+            pass
 
     # Authentication lockout policy
-    try:
-        max_failed = int(form.get("auth_max_failed_attempts", 5))
-        db.set_setting("auth_max_failed_attempts", max(3, min(20, max_failed)))
-    except (ValueError, TypeError):
-        pass
-    try:
-        attempt_window = int(form.get("auth_attempt_window_minutes", 15))
-        db.set_setting("auth_attempt_window_minutes", max(5, min(120, attempt_window)))
-    except (ValueError, TypeError):
-        pass
-    try:
-        lockout_minutes = int(form.get("auth_lockout_minutes", 15))
-        db.set_setting("auth_lockout_minutes", max(1, min(240, lockout_minutes)))
-    except (ValueError, TypeError):
-        pass
+    if save_all or section == "security":
+        try:
+            max_failed = int(form.get("auth_max_failed_attempts", 5))
+            db.set_setting("auth_max_failed_attempts", max(3, min(20, max_failed)))
+        except (ValueError, TypeError):
+            pass
+        try:
+            attempt_window = int(form.get("auth_attempt_window_minutes", 15))
+            db.set_setting("auth_attempt_window_minutes", max(5, min(120, attempt_window)))
+        except (ValueError, TypeError):
+            pass
+        try:
+            lockout_minutes = int(form.get("auth_lockout_minutes", 15))
+            db.set_setting("auth_lockout_minutes", max(1, min(240, lockout_minutes)))
+        except (ValueError, TypeError):
+            pass
 
-    # Learning system settings
-    try:
-        db.set_setting("learning_verification_days", int(form.get("learning_verification_days", 90)))
-    except (ValueError, TypeError):
-        pass
-
-    # Auto-Discovery settings
-    db.set_setting("discovery_enabled", form.get("discovery_enabled") == "on")
-    db.set_setting("discovery_daily_time", form.get("discovery_daily_time", "06:00"))
-    db.set_setting("discovery_weekly_day", form.get("discovery_weekly_day", "wed"))
-    db.set_setting("discovery_weekly_time", form.get("discovery_weekly_time", "12:00"))
-    try:
-        db.set_setting("discovery_promotion_threshold", int(form.get("discovery_promotion_threshold", 55)))
-    except (ValueError, TypeError):
-        pass
-    try:
-        db.set_setting("discovery_max_promote_per_run", int(form.get("discovery_max_promote_per_run", 5)))
-    except (ValueError, TypeError):
-        pass
-    try:
-        db.set_setting("discovery_max_watchlist_size", int(form.get("discovery_max_watchlist_size", 50)))
-    except (ValueError, TypeError):
-        pass
-
-    # Strategy toggles
-    all_strategies = ['volume_spike', 'breakout', 'oversold', 'sector_rotation', 'insider_buy', 'value_screen']
-    enabled_strategies = [s for s in all_strategies if form.get(f"strategy_{s}") == "on"]
-    if enabled_strategies:
-        db.set_setting("discovery_strategies", enabled_strategies)
-
-    # Monthly API budgets (EUR)
-    try:
-        pplx_budget = float(form.get("perplexity_monthly_budget", 5.0))
-        db.set_setting("perplexity_monthly_budget", max(0, min(100, pplx_budget)))
-    except (ValueError, TypeError):
-        db.set_setting("perplexity_monthly_budget", 5.0)
-
-    try:
-        gemini_budget = float(form.get("gemini_monthly_budget", 5.0))
-        db.set_setting("gemini_monthly_budget", max(0, min(100, gemini_budget)))
-    except (ValueError, TypeError):
-        db.set_setting("gemini_monthly_budget", 5.0)
-    
     # Reload settings in services
     scheduler.reload_settings()
     notifications.reload_settings()
@@ -844,12 +902,173 @@ async def save_api_keys(request: Request, username: str = Depends(require_auth))
     if form.get("perplexity_key"):
         db.set_api_key("perplexity", form.get("perplexity_key"))
         pplx_client.api_key = form.get("perplexity_key")
-    
+        db.clear_system_alert('perplexity_auth')
+
     if form.get("gemini_key"):
         db.set_api_key("gemini", form.get("gemini_key"))
         gemini_client.reload_api_key(form.get("gemini_key"))
-    
+        db.clear_system_alert('gemini_auth')
+
     return RedirectResponse(url="/settings?saved=1", status_code=303)
+
+
+@app.get("/api/providers")
+async def api_get_providers(request: Request, username: str = Depends(require_auth)):
+    """List custom API providers and usage stats."""
+    providers = db.get_api_providers(include_secrets=False)
+    enriched = []
+    for provider in providers:
+        usage = db.get_api_provider_usage(
+            provider_id=provider['id'],
+            monthly_budget_eur=provider.get('monthly_budget_eur', 5.0),
+        )
+        item = dict(provider)
+        item.update(usage)
+        enriched.append(item)
+    return {"providers": enriched}
+
+
+@app.post("/api/providers")
+async def api_create_provider(request: Request, username: str = Depends(require_auth)):
+    """Create a custom OpenAI-compatible provider."""
+    payload = await request.json()
+
+    name = (payload.get('name') or '').strip()
+    provider_type = (payload.get('provider_type') or 'llm').strip()
+    base_url = (payload.get('base_url') or '').strip()
+    api_key = (payload.get('api_key') or '').strip()
+    model = (payload.get('model') or '').strip()
+    pipeline_role = (payload.get('pipeline_role') or '').strip() or None
+    monthly_budget_raw = payload.get('monthly_budget_eur', 5.0)
+    monthly_budget_eur = 5.0 if monthly_budget_raw is None else float(monthly_budget_raw)
+
+    if not name or not base_url or not model:
+        raise HTTPException(status_code=400, detail="name, base_url, model required")
+
+    provider_id = db.create_api_provider(
+        name=name,
+        provider_type=provider_type,
+        base_url=base_url,
+        api_key=api_key,
+        model=model,
+        pipeline_role=pipeline_role,
+        monthly_budget_eur=monthly_budget_eur,
+    )
+    if not provider_id:
+        raise HTTPException(status_code=400, detail="Could not create provider (name may already exist)")
+
+    return {"id": provider_id, "status": "ok"}
+
+
+@app.put("/api/providers/{provider_id}")
+async def api_update_provider(provider_id: int, request: Request, username: str = Depends(require_auth)):
+    """Update an existing custom OpenAI-compatible provider."""
+    payload = await request.json()
+
+    existing = db.get_api_provider(provider_id, include_secret=False)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    name = (payload.get('name') or '').strip()
+    provider_type = (payload.get('provider_type') or 'llm').strip()
+    base_url = (payload.get('base_url') or '').strip()
+    api_key = (payload.get('api_key') or '').strip()
+    model = (payload.get('model') or '').strip()
+    pipeline_role = (payload.get('pipeline_role') or '').strip() or None
+    monthly_budget_raw = payload.get('monthly_budget_eur', 5.0)
+    monthly_budget_eur = 5.0 if monthly_budget_raw is None else float(monthly_budget_raw)
+
+    if not name or not base_url or not model:
+        raise HTTPException(status_code=400, detail="name, base_url, model required")
+
+    ok = db.update_api_provider(
+        provider_id=provider_id,
+        name=name,
+        provider_type=provider_type,
+        base_url=base_url,
+        model=model,
+        pipeline_role=pipeline_role,
+        monthly_budget_eur=monthly_budget_eur,
+        api_key=api_key if api_key else None,
+    )
+
+    if not ok:
+        raise HTTPException(status_code=400, detail="Could not update provider")
+
+    return {"id": provider_id, "status": "ok"}
+
+
+@app.delete("/api/providers/{provider_id}")
+async def api_delete_provider(provider_id: int, request: Request, username: str = Depends(require_auth)):
+    """Delete a custom provider."""
+    db.delete_api_provider(provider_id)
+    return {"status": "ok"}
+
+
+@app.post("/api/providers/{provider_id}/test")
+async def api_test_provider(provider_id: int, request: Request, username: str = Depends(require_auth)):
+    """Test provider connectivity with a lightweight completion call."""
+    provider = db.get_api_provider(provider_id, include_secret=True)
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    result = custom_provider_client.test_connection(provider)
+    return result
+
+# ==================== API KEY PEEK ====================
+
+@app.get("/api/api-key/peek/{service}")
+async def peek_api_key(service: str, request: Request, username: str = Depends(require_auth)):
+    """Return masked API key (first 4 + last 4 chars visible)"""
+    if service not in ('perplexity', 'gemini'):
+        raise HTTPException(status_code=400, detail="Invalid service")
+    key = db.get_api_key(service)
+    if not key:
+        return {"service": service, "masked": None, "configured": False}
+    if len(key) <= 8:
+        masked = key[:2] + '*' * (len(key) - 2)
+    else:
+        masked = key[:4] + '*' * (len(key) - 8) + key[-4:]
+    return {"service": service, "masked": masked, "configured": True}
+
+# ==================== SYSTEM ALERTS API ====================
+
+@app.post("/api/system-alert/dismiss")
+async def dismiss_system_alert(request: Request, username: str = Depends(require_auth)):
+    """Dismiss a system alert banner"""
+    data = await request.json()
+    alert_key = data.get('alert_key')
+    if alert_key:
+        db.dismiss_system_alert(alert_key)
+    return {"ok": True}
+
+@app.post("/api/system-alert/raise")
+async def raise_system_alert(request: Request, username: str = Depends(require_auth)):
+    """Programmatic endpoint for services to raise alerts"""
+    data = await request.json()
+    alert_key = data.get('alert_key')
+    title = data.get('title')
+    message = data.get('message')
+    if not alert_key or not title or not message:
+        raise HTTPException(status_code=400, detail="alert_key, title, message required")
+    db.raise_system_alert(
+        alert_key=alert_key,
+        title=title,
+        message=message,
+        severity=data.get('severity', 'error'),
+        service=data.get('service'),
+        action_url=data.get('action_url'),
+        action_label=data.get('action_label'),
+    )
+    return {"ok": True}
+
+@app.post("/api/system-alert/clear")
+async def clear_system_alert(request: Request, username: str = Depends(require_auth)):
+    """Programmatic endpoint for services to clear resolved alerts"""
+    data = await request.json()
+    alert_key = data.get('alert_key')
+    if alert_key:
+        db.clear_system_alert(alert_key)
+    return {"ok": True}
 
 # ==================== HISTORY ====================
 
@@ -863,49 +1082,20 @@ async def history_page(request: Request, ticker: str = None, username: str = Dep
         "filter_ticker": ticker
     })
 
-@app.get("/analysis/{analysis_id}", response_class=HTMLResponse)
+@app.get("/analysis/{analysis_id}")
 async def analysis_detail(request: Request, analysis_id: int, username: str = Depends(require_auth)):
-    """Single analysis detail"""
-    # Get analysis by ID
+    """Redirect legacy analysis detail URL to unified stock detail page."""
     conn = db._get_conn()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM analysis_history WHERE id = ?", (analysis_id,))
+    cursor.execute("SELECT ticker FROM analysis_history WHERE id = ?", (analysis_id,))
     row = cursor.fetchone()
     conn.close()
-    
+
     if not row:
         raise HTTPException(status_code=404, detail="Analysis not found")
 
-    analysis = dict(row)
-
-    # Fetch cross-check result for this analysis
-    crosscheck = None
-    try:
-        conn2 = db._get_conn()
-        cur2 = conn2.cursor()
-        cur2.execute(
-            "SELECT * FROM ai_crosscheck_log WHERE analysis_id = ? ORDER BY checked_at DESC LIMIT 1",
-            (analysis_id,)
-        )
-        cc_row = cur2.fetchone()
-        conn2.close()
-        if cc_row:
-            import json as _json
-            crosscheck = dict(cc_row)
-            if crosscheck.get('details'):
-                try:
-                    crosscheck['details'] = _json.loads(crosscheck['details'])
-                except (ValueError, TypeError):
-                    crosscheck['details'] = []
-    except Exception:
-        pass
-
-    return templates.TemplateResponse("analysis_detail.html", {
-        "request": request,
-        "csrf_token": request.state.csrf_token,
-        "analysis": analysis,
-        "crosscheck": crosscheck
-    })
+    ticker = row[0]
+    return RedirectResponse(url=f"/stock/{ticker}?analysis_id={analysis_id}", status_code=303)
 
 # ==================== SCHEDULER CONTROL ====================
 
@@ -932,7 +1122,6 @@ async def stop_scheduler(
     return RedirectResponse(url="/", status_code=303)
 
 @app.post("/scheduler/run-now")
-@limiter.limit("3/hour")
 async def run_scan_now(
     request: Request,
     csrf_token: str = Form(...),
@@ -1236,6 +1425,17 @@ async def logs_page(request: Request, username: str = Depends(require_auth)):
     from engine.alert_manager import alert_manager
 
     dev_mode = db.get_setting('development_mode') or False
+    enable_dev_mode_param = (request.query_params.get('enable_dev_mode') or '').strip().lower()
+    if enable_dev_mode_param in ('1', 'true', 'yes', 'on') and not dev_mode:
+        db.set_setting('development_mode', True)
+        dev_mode = True
+        audit_log.log(
+            event_type="enable_dev_mode_via_logs_link",
+            username=username,
+            ip=request.client.host,
+            details={"source": "settings_api_error_banner"}
+        )
+
     alert_filter = (request.query_params.get('alert_filter') or 'active').lower()
     if alert_filter not in ('active', 'all'):
         alert_filter = 'active'
@@ -1903,9 +2103,16 @@ async def api_status(request: Request, username: str = Depends(require_auth)):
             "perplexity": pplx_client.get_usage(),
             "gemini": gemini_client.get_usage()
         },
+        "providers": db.get_enabled_api_provider_cards(),
         "watchlist_count": len(db.get_watchlist()),
         "stale_analyses": stale_count,
     }
+
+@app.get("/api/scan-progress")
+async def api_scan_progress(request: Request, username: str = Depends(require_auth)):
+    """Real-time scan progress for dashboard status bar"""
+    from engine.scan_progress import scan_progress
+    return scan_progress.get_state()
 
 @app.get("/api/budget")
 async def api_budget_status(request: Request, username: str = Depends(require_auth)):
@@ -2462,13 +2669,11 @@ async def health_check():
 # ==================== STOCK DETAIL PAGE ====================
 
 @app.get("/stock/{ticker}", response_class=HTMLResponse)
-async def stock_detail_page(request: Request, ticker: str, username: str = Depends(require_auth)):
+async def stock_detail_page(request: Request, ticker: str, analysis_id: int | None = None, username: str = Depends(require_auth)):
     """Unified stock detail page — all data about a ticker in one place."""
     from engine.earnings_tracker import earnings_tracker
     from engine.financial_statements import financial_statements
     from engine.insider_tracker import insider_tracker
-    from engine.multi_timeframe import multi_timeframe_analyzer
-    from engine.position_sizing import position_sizer
     from engine.dividend_tracker import dividend_tracker
 
     ticker = ticker.upper()
@@ -2514,6 +2719,60 @@ async def stock_detail_page(request: Request, ticker: str, username: str = Depen
     except Exception:
         analysis_history = []
 
+    selected_analysis = None
+    crosscheck = None
+
+    # Selected/latest analysis for merged stock+analysis view
+    try:
+        conn = db._get_conn()
+        cursor = conn.cursor()
+        if analysis_id is not None:
+            cursor.execute(
+                "SELECT * FROM analysis_history WHERE id = ? AND ticker = ?",
+                (analysis_id, ticker)
+            )
+            row = cursor.fetchone()
+            if not row:
+                cursor.execute(
+                    "SELECT * FROM analysis_history WHERE ticker = ? ORDER BY timestamp DESC LIMIT 1",
+                    (ticker,)
+                )
+                row = cursor.fetchone()
+        else:
+            cursor.execute(
+                "SELECT * FROM analysis_history WHERE ticker = ? ORDER BY timestamp DESC LIMIT 1",
+                (ticker,)
+            )
+            row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            selected_analysis = dict(row)
+
+            try:
+                conn2 = db._get_conn()
+                cur2 = conn2.cursor()
+                cur2.execute(
+                    "SELECT * FROM ai_crosscheck_log WHERE analysis_id = ? ORDER BY checked_at DESC LIMIT 1",
+                    (selected_analysis["id"],)
+                )
+                cc_row = cur2.fetchone()
+                conn2.close()
+
+                if cc_row:
+                    import json as _json
+                    crosscheck = dict(cc_row)
+                    if crosscheck.get("details"):
+                        try:
+                            crosscheck["details"] = _json.loads(crosscheck["details"])
+                        except (ValueError, TypeError):
+                            crosscheck["details"] = []
+            except Exception:
+                crosscheck = None
+    except Exception:
+        selected_analysis = None
+        crosscheck = None
+
     # Stock notes
     try:
         stock_note = db.get_stock_note(ticker)
@@ -2535,7 +2794,7 @@ async def stock_detail_page(request: Request, ticker: str, username: str = Depen
     # Discovery history for this ticker
     try:
         discovery_history = db.query("""
-            SELECT strategy, score, found_at, promoted
+            SELECT *
             FROM discovered_stocks
             WHERE ticker = ?
             ORDER BY found_at DESC LIMIT 10
@@ -2555,6 +2814,8 @@ async def stock_detail_page(request: Request, ticker: str, username: str = Depen
         "dcf": dcf,
         "insider_data": insider_data,
         "analysis_history": analysis_history,
+        "selected_analysis": selected_analysis,
+        "crosscheck": crosscheck,
         "stock_note": stock_note,
         "div_info": div_info,
         "in_watchlist": in_watchlist,
@@ -3465,6 +3726,27 @@ async def api_data_freshness(request: Request, username: str = Depends(require_a
     from engine.data_freshness import data_freshness
     summary = data_freshness.get_freshness_summary()
     return summary
+
+
+# Startup: check API keys and raise alerts for missing/broken ones
+def _check_api_keys_on_startup():
+    """Raise system alerts for missing API keys at startup."""
+    if not db.get_api_key('perplexity'):
+        db.raise_system_alert(
+            'perplexity_auth',
+            'Perplexity API Key Missing',
+            'No Perplexity API key configured. News analysis will be unavailable.',
+            severity='warning', service='perplexity',
+            action_url='/settings', action_label='Add API Key')
+    if not db.get_api_key('gemini'):
+        db.raise_system_alert(
+            'gemini_auth',
+            'Gemini API Key Missing',
+            'No Gemini API key configured. AI analysis will not work.',
+            severity='error', service='gemini',
+            action_url='/settings', action_label='Add API Key')
+
+_check_api_keys_on_startup()
 
 
 # Entry point

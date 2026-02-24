@@ -184,6 +184,7 @@ class AutoDiscovery:
     def run_weekly_ai_discovery(self) -> Dict:
         """One Perplexity call per week for trending stocks."""
         from core.database import db
+        from clients.custom_provider_client import custom_provider_client
 
         settings = db.get_all_settings()
         if not settings.get('discovery_enabled', True):
@@ -193,6 +194,71 @@ class AutoDiscovery:
         logger.info("Starting weekly AI discovery")
 
         try:
+            discovery_provider = db.get_api_provider_for_role('discovery')
+            if discovery_provider:
+                logger.info(f"Using custom discovery provider: {discovery_provider.get('name')}")
+                custom_text = custom_provider_client.generate(
+                    discovery_provider,
+                    system_prompt=(
+                        "You are a discovery engine for public stocks. Return only JSON array with objects: "
+                        "ticker, confidence (0-100), sector, note."
+                    ),
+                    user_prompt=(
+                        "Find up to 10 global large/mid-cap stocks with unusual momentum/catalyst potential this week. "
+                        "Output strict JSON array only."
+                    ),
+                    temperature=0.2,
+                    max_tokens=900,
+                )
+
+                stocks = []
+                if custom_text:
+                    raw = custom_text.strip()
+                    if '```' in raw:
+                        raw = raw.replace('```json', '').replace('```', '').strip()
+                    try:
+                        parsed = json.loads(raw)
+                        if isinstance(parsed, list):
+                            stocks = parsed
+                    except Exception:
+                        stocks = []
+
+                if stocks:
+                    excluded = self._get_exclusion_set()
+                    saved_count = 0
+                    for stock in stocks:
+                        ticker = (stock.get('ticker') or '').upper().strip()
+                        if not ticker or ticker in excluded:
+                            continue
+                        if db.is_recently_discovered(ticker, days=14):
+                            continue
+                        db.save_discovery(
+                            ticker=ticker,
+                            signal_type='AI_TRENDING',
+                            confidence=int(stock.get('confidence', 60) or 60),
+                            price=stock.get('price', 0) or 0,
+                            strategy='ai_custom_provider',
+                            sector=stock.get('sector', ''),
+                            source='ai'
+                        )
+                        saved_count += 1
+
+                    duration = time.time() - start_time
+                    db.log_discovery_run(
+                        run_type='weekly_ai',
+                        strategies=json.dumps(['ai_custom_provider']),
+                        scanned=0,
+                        found=saved_count,
+                        promoted=0,
+                        duration=duration
+                    )
+
+                    return {
+                        'status': 'completed',
+                        'discoveries': saved_count,
+                        'duration_seconds': round(duration, 1),
+                    }
+
             from clients.perplexity_client import pplx_client
             if not pplx_client.is_configured():
                 logger.warning("Perplexity not configured, skipping AI discovery")

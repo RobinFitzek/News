@@ -2,19 +2,26 @@
 *.db
 *.db-shm
 *.db-wal
+*.db.backup
+*.sqlite
+*.sqlite3
 
 # Python
 __pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
+*.pyd
 venv/
 .venv/
 
 # Logs
 logs/*.log
+*.log
 
 # Environment
 .env
+.env.*
 
 # IDE
 .vscode/
@@ -29,3 +36,6 @@ Thumbs.db
 
 # Certs
 certs/
+*.pem
+*.key
+*.crt

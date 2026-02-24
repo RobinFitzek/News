@@ -277,9 +277,17 @@
     <div class="card" style="margin-top: var(--space-8);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6);">
             <h3 style="margin: 0;">Full System Logs (DEBUG)</h3>
-            <button onclick="refreshDevLogs()" class="btn" style="font-size: 0.75rem; border-radius: 0;">
-                Refresh
-            </button>
+            <div style="display: flex; gap: var(--space-2);">
+                <button id="copyDevLogsBtn" onclick="copyAllDevLogs()" class="btn btn-ghost" style="font-size: 0.75rem; border-radius: 0;">
+                    Copy All
+                </button>
+                <button onclick="clearDevLogs()" class="btn btn-ghost" style="font-size: 0.75rem; border-radius: 0;">
+                    Clear
+                </button>
+                <button onclick="refreshDevLogs()" class="btn" style="font-size: 0.75rem; border-radius: 0;">
+                    Refresh
+                </button>
+            </div>
         </div>
         
         <div id="devLogsContainer" style="background: #000; color: #fff; padding: var(--space-4); border-radius: 4px; font-family: var(--font-mono); font-size: 0.75rem; max-height: 600px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">
@@ -378,42 +386,88 @@ async function ackAlert(alertId, alertHash) {
     }
 }
 
-devModeToggle.addEventListener('change', async function() {
-    const isEnabled = this.checked;
-    
-    try {
-        const response = await fetch('/toggle-dev-mode', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRF-Token': '{{ csrf_token }}'
-            },
-            body: JSON.stringify({ enabled: isEnabled })
-        });
-        
-        if (response.ok) {
-            // Reload page to show/hide dev logs section
-            window.location.reload();
-        } else {
-            alert('Failed to toggle dev mode');
+if (devModeToggle) {
+    devModeToggle.addEventListener('change', async function() {
+        const isEnabled = this.checked;
+
+        try {
+            const response = await fetch('/toggle-dev-mode', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ enabled: isEnabled })
+            });
+
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                alert('Failed to toggle dev mode');
+                this.checked = !isEnabled;
+            }
+        } catch (error) {
+            console.error('Error toggling dev mode:', error);
+            alert('Error toggling dev mode');
             this.checked = !isEnabled;
         }
-    } catch (error) {
-        console.error('Error toggling dev mode:', error);
-        alert('Error toggling dev mode');
-        this.checked = !isEnabled;
+    });
+}
+
+async function copyAllDevLogs() {
+    const container = document.getElementById('devLogsContainer');
+    const button = document.getElementById('copyDevLogsBtn');
+    if (!container || !button) return;
+
+    const text = container.textContent || '';
+    if (!text.trim()) {
+        button.textContent = 'Nothing to copy';
+        setTimeout(() => { button.textContent = 'Copy All'; }, 1500);
+        return;
     }
-});
+
+    try {
+        if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+        } else {
+            const temp = document.createElement('textarea');
+            temp.value = text;
+            temp.style.position = 'fixed';
+            temp.style.opacity = '0';
+            document.body.appendChild(temp);
+            temp.focus();
+            temp.select();
+            document.execCommand('copy');
+            temp.remove();
+        }
+
+        button.textContent = 'Copied';
+        setTimeout(() => { button.textContent = 'Copy All'; }, 1500);
+    } catch (error) {
+        console.error('Copy logs failed:', error);
+        button.textContent = 'Copy failed';
+        setTimeout(() => { button.textContent = 'Copy All'; }, 1500);
+    }
+}
+
+function clearDevLogs() {
+    const container = document.getElementById('devLogsContainer');
+    container.textContent = 'Logs cleared (display only)';
+}
 
 async function refreshDevLogs() {
     const container = document.getElementById('devLogsContainer');
-    container.textContent = 'Loading logs...';
-    
+    // Check if user is scrolled near the bottom before updating
+    const wasAtBottom = (container.scrollHeight - container.scrollTop - container.clientHeight) < 30;
+
     try {
         const response = await fetch('/dev-logs');
         const data = await response.json();
         container.textContent = data.logs || 'No logs available';
-        container.scrollTop = container.scrollHeight; // Scroll to bottom
+        // Only auto-scroll if user was already at the bottom
+        if (wasAtBottom) {
+            container.scrollTop = container.scrollHeight;
+        }
     } catch (error) {
         container.textContent = 'Error loading logs: ' + error.message;
     }

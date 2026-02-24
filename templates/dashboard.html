@@ -37,6 +37,46 @@
     </div>
     {% endif %}
 
+    <!-- ─── SERVICE ALERT BANNERS ─────────────────────────── -->
+
+    {% if system_alerts %}
+    {% for alert in system_alerts %}
+    <div class="system-alert-banner" data-alert-key="{{ alert.alert_key }}"
+        style="background: {% if alert.severity == 'error' %}rgba(161, 48, 48, 0.12){% else %}rgba(138, 106, 21, 0.1){% endif %};
+               border: 1px solid {% if alert.severity == 'error' %}rgba(161, 48, 48, 0.4){% else %}rgba(138, 106, 21, 0.35){% endif %};
+               padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4);
+               display: flex; justify-content: space-between; align-items: center; gap: var(--space-4);">
+        <div style="display: flex; align-items: center; gap: var(--space-4); flex: 1; min-width: 0;">
+            <!-- Animated eye icon -->
+            <svg class="alert-eye-icon" width="28" height="28" viewBox="0 0 24 24" fill="none"
+                stroke="{% if alert.severity == 'error' %}var(--signal-negative){% else %}var(--signal-warning){% endif %}"
+                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z">
+                    <animate attributeName="d"
+                        values="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z;M1 12s4-3 11-3 11 3 11 3-4 3-11 3-11-3-11-3z;M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+                        dur="3s" repeatCount="indefinite" />
+                </path>
+                <circle cx="12" cy="12" r="3">
+                    <animate attributeName="r" values="3;2;3" dur="3s" repeatCount="indefinite" />
+                </circle>
+            </svg>
+            <div>
+                <span style="font-weight: 600; color: {% if alert.severity == 'error' %}var(--signal-negative){% else %}var(--signal-warning){% endif %};">{{ alert.title }}</span>
+                <span style="margin-left: var(--space-3); font-size: 0.8125rem; color: var(--text-secondary);">{{ alert.message }}</span>
+            </div>
+        </div>
+        <div style="display: flex; gap: var(--space-3); flex-shrink: 0;">
+            {% if alert.action_url %}
+            <a href="{{ alert.action_url }}" class="btn {% if alert.severity == 'error' %}btn-danger{% else %}btn-primary{% endif %}"
+                style="white-space: nowrap; font-size: 0.8125rem;">{{ alert.action_label or 'Fix' }}</a>
+            {% endif %}
+            <button type="button" class="btn btn-secondary" style="font-size: 0.75rem; padding: var(--space-2) var(--space-3);"
+                onclick="dismissSystemAlert('{{ alert.alert_key }}', this)">Dismiss</button>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+
     <!-- ─── TRUTH BANNER ────────────────────────────────── -->
 
     <div id="truth-banner"
@@ -68,88 +108,29 @@
                 <span class="sys-value">Running</span>
                 {% else %}
                 <span class="sys-dot sys-dot-stopped"></span>
-                <span class="sys-value" style="color: var(--signal-negative);">Stopped</span>
-                {% endif %}
-            </div>
-
-            {% if discovery_stats and discovery_stats.last_run %}
-            <div class="sys-sep"></div>
-            <div class="sys-status-item">
-                <span class="sys-label">Last scan</span>
-                <span class="sys-value">{{ discovery_stats.last_run.run_at }}</span>
-                {% if discovery_stats.last_run.errors %}
-                <span class="badge badge-danger" style="font-size: 0.5rem; padding: 1px 5px;">Error</span>
-                {% endif %}
-            </div>
+                <span class="sys-value">Stopped</span>
             {% endif %}
+            </div>
 
-            {% if scheduler_status.jobs %}
-            <div class="sys-sep"></div>
+            <span class="sys-sep"></span>
+
             <div class="sys-status-item">
-                <span class="sys-value">{{ scheduler_status.jobs|length }}</span>
-                <span class="sys-label">scheduled jobs</span>
+                <span class="sys-label">WATCHLIST</span>
+                <span class="sys-value" id="sys-watchlist-count">{{ watchlist|length }}</span>
             </div>
-            {% endif %}
 
-            {% if discovery_stats %}
-            <div class="sys-sep"></div>
+            <span class="sys-sep"></span>
+
             <div class="sys-status-item">
-                {% set pending = (discovery_stats.total_new|default(0)) + (discovery_stats.total_screened|default(0)) %}
-                <span class="sys-value" {% if pending> 0 %}style="color: var(--signal-warning);"{% endif %}>{{ pending
-                    }}</span>
-                <span class="sys-label">pending review</span>
-            </div>
-            {% endif %}
-
-            {% if learning_stats.total_verified > 0 %}
-            <div class="sys-sep"></div>
-            <div class="sys-status-item">
-                <span class="sys-value" {% if learning_stats.hit_rate>= 60 %}style="color: var(--signal-positive);"
-                    {% elif learning_stats.hit_rate < 50 %}style="color: var(--signal-negative);" {% endif %}>
-                        {{ learning_stats.hit_rate }}%
-                </span>
-                <span class="sys-label">AI accuracy</span>
-            </div>
-            {% endif %}
-
-            <div class="sys-sep"></div>
-            <div class="sys-status-item" id="data-freshness-pill" style="display: none;">
-                <span id="data-freshness-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px;"></span>
-            </div>
-
-            <div class="sys-sep"></div>
-            <div class="sys-status-item" id="sys-health-pill" title="System Health"
-                style="cursor: help; display: none;">
-                <span id="sys-health-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px;"></span>
-            </div>
-
-            <!-- Algorithm Status Badges -->
-            <div class="sys-sep"></div>
-            <div class="sys-status-item" id="meta-labeler-pill" style="display: none;">
-                <span id="meta-labeler-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px;"></span>
-            </div>
-            <div class="sys-sep"></div>
-            <div class="sys-status-item" id="mcpt-pill" style="display: none;">
-                <span id="mcpt-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px;"></span>
+                <span class="sys-label">STALE</span>
+                <span class="sys-value" id="sys-stale-count">0</span>
             </div>
         </div>
 
         <div class="sys-status-actions">
-            <span id="current-time" class="sys-time"></span>
+            <span class="sys-time" id="sys-time">--:--</span>
 
-            {% if scheduler_status.is_running %}
-            <form action="/scheduler/stop" method="POST" style="display: inline;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="btn btn-danger sys-btn">Stop</button>
-            </form>
-            {% else %}
-            <form action="/scheduler/start" method="POST" style="display: inline;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="btn btn-success sys-btn">Start</button>
-            </form>
-            {% endif %}
-
-            <form action="/scheduler/run-now" method="POST" style="display: inline;">
+            <form action="/scheduler/run-now" method="POST" style="display: inline;" id="scanNowForm" onsubmit="return checkScanLimit(event)">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 {% if scheduler_status.is_scanning %}
                 <button type="button" class="btn btn-secondary sys-btn" disabled>Scanning…</button>
@@ -163,6 +144,23 @@
                 </button>
                 {% endif %}
             </form>
+        </div>
+    </div>
+
+    <!-- ─── SCAN PROGRESS BAR ─────────────────────────── -->
+    <div id="scan-progress-bar" style="display: none; margin-bottom: var(--space-4);">
+        <div style="padding: var(--space-4) var(--space-5); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
+                <div style="display: flex; align-items: center; gap: var(--space-3);">
+                    <span class="sys-dot sys-dot-scanning"></span>
+                    <span id="scan-stage-label" style="font-weight: 500; font-size: 0.875rem; color: var(--text-primary);"></span>
+                </div>
+                <span id="scan-progress-pct" style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);"></span>
+            </div>
+            <div class="progress" style="margin-bottom: var(--space-2);">
+                <div class="progress-bar" id="scan-progress-fill" style="width: 0%; transition: width 0.5s;"></div>
+            </div>
+            <div id="scan-progress-message" style="font-size: 0.75rem; color: var(--text-muted);"></div>
         </div>
     </div>
 
@@ -676,26 +674,25 @@
     <div class="dash-section-label">System</div>
 
     <div class="grid grid-3" style="margin-bottom: var(--space-6);">
-        <!-- Perplexity API -->
+        {% for card in api_cards %}
         <div class="card" style="margin-bottom: 0;">
             <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4);">
-                <div class="status-dot {% if api_status.perplexity.is_configured %}active{% endif %}"></div>
-                <h3 style="margin: 0; font-size: 0.875rem;">Perplexity</h3>
+                <div class="status-dot {% if card.is_configured %}active{% endif %}"></div>
+                <h3 style="margin: 0; font-size: 0.875rem;">{{ card.name }}</h3>
             </div>
-            {% if api_status.perplexity.is_configured %}
+            {% if card.is_configured %}
             <div style="text-align: center; margin-bottom: var(--space-3);">
                 <div style="font-size: 1.5rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;"
-                    id="perplexity-usage">
-                    {{ api_status.perplexity.used_today }}<span style="color: var(--text-muted); font-weight: 300;">/{{
-                        api_status.perplexity.daily_limit }}</span>
+                    id="api-usage-{{ card.key }}">
+                    {{ card.used_today }}<span style="color: var(--text-muted); font-weight: 300;">/{{ card.daily_limit }}</span>
                 </div>
-                <div
-                    style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">
-                    Requests Today</div>
+                <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">
+                    {{ card.hint }}
+                </div>
             </div>
             <div class="progress">
-                <div class="progress-bar" id="perplexity-progress"
-                    data-width="{{ (api_status.perplexity.used_today / api_status.perplexity.daily_limit * 100)|int }}">
+                <div class="progress-bar" id="api-progress-{{ card.key }}"
+                    data-width="{{ (card.used_today / (card.daily_limit if card.daily_limit > 0 else 1) * 100)|int }}">
                 </div>
             </div>
             {% else %}
@@ -703,61 +700,7 @@
             <a href="/settings" class="btn btn-secondary" style="width: 100%; font-size: 0.75rem;">Configure</a>
             {% endif %}
         </div>
-
-        <!-- Gemini Flash -->
-        <div class="card" style="margin-bottom: 0;">
-            <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4);">
-                <div class="status-dot {% if api_status.gemini.is_configured %}active{% endif %}"></div>
-                <h3 style="margin: 0; font-size: 0.875rem;">Gemini Flash</h3>
-            </div>
-            {% if api_status.gemini.is_configured %}
-            <div style="text-align: center; margin-bottom: var(--space-3);">
-                <div style="font-size: 1.5rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;"
-                    id="gemini-flash-usage">
-                    {{ api_status.gemini.flash.used_today }}<span
-                        style="color: var(--text-muted); font-weight: 300;">/{{ api_status.gemini.flash.daily_limit
-                        }}</span>
-                </div>
-                <div
-                    style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">
-                    Requests Today</div>
-            </div>
-            <div class="progress">
-                <div class="progress-bar" id="gemini-flash-progress"
-                    data-width="{{ (api_status.gemini.flash.used_today / api_status.gemini.flash.daily_limit * 100)|int }}">
-                </div>
-            </div>
-            {% else %}
-            <p style="color: var(--text-muted); font-size: 0.875rem;">Not configured</p>
-            {% endif %}
-        </div>
-
-        <!-- Gemini Pro -->
-        <div class="card" style="margin-bottom: 0;">
-            <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4);">
-                <div class="status-dot {% if api_status.gemini.is_configured %}active{% endif %}"></div>
-                <h3 style="margin: 0; font-size: 0.875rem;">Gemini Pro</h3>
-            </div>
-            {% if api_status.gemini.is_configured %}
-            <div style="text-align: center; margin-bottom: var(--space-3);">
-                <div style="font-size: 1.5rem; font-weight: 300; color: var(--text-primary); letter-spacing: -0.02em; font-variant-numeric: tabular-nums;"
-                    id="gemini-pro-usage">
-                    {{ api_status.gemini.pro.used_today }}<span style="color: var(--text-muted); font-weight: 300;">/{{
-                        api_status.gemini.pro.daily_limit }}</span>
-                </div>
-                <div
-                    style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em;">
-                    Requests Today</div>
-            </div>
-            <div class="progress">
-                <div class="progress-bar" id="gemini-pro-progress"
-                    data-width="{{ (api_status.gemini.pro.used_today / api_status.gemini.pro.daily_limit * 100)|int }}">
-                </div>
-            </div>
-            {% else %}
-            <p style="color: var(--text-muted); font-size: 0.875rem;">Not configured</p>
-            {% endif %}
-        </div>
+        {% endfor %}
     </div>
 
     <!-- Scheduled Jobs (if running) -->
@@ -860,7 +803,7 @@
                         </td>
                         <td style="color: var(--text-muted); font-size: var(--text-sm);">{{ a.timestamp }}</td>
                         <td>
-                            <a href="/analysis/{{ a.id }}" class="btn btn-ghost"
+                            <a href="/stock/{{ a.ticker }}?analysis_id={{ a.id }}" class="btn btn-ghost"
                                 style="padding: var(--space-2) var(--space-3); font-size: 0.6875rem;">Details</a>
                         </td>
                     </tr>
@@ -961,6 +904,58 @@
 
 {% block extra_scripts %}
 <script>
+    // Scan Now rate-limit warning (client-side, bypassable)
+    const SCAN_LIMIT = 3;
+    const SCAN_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+    function getScanTimestamps() {
+        try {
+            const raw = JSON.parse(sessionStorage.getItem('scanTimestamps') || '[]');
+            const cutoff = Date.now() - SCAN_WINDOW_MS;
+            return raw.filter(t => t > cutoff);
+        } catch { return []; }
+    }
+
+    function recordScan() {
+        const ts = getScanTimestamps();
+        ts.push(Date.now());
+        sessionStorage.setItem('scanTimestamps', JSON.stringify(ts));
+    }
+
+    function checkScanLimit(e) {
+        const count = getScanTimestamps().length;
+        if (count >= SCAN_LIMIT) {
+            e.preventDefault();
+            if (confirm('You have already triggered ' + count + ' scans in the last hour. Continue anyway?')) {
+                recordScan();
+                document.getElementById('scanNowForm').submit();
+            }
+            return false;
+        }
+        recordScan();
+        return true;
+    }
+
+    // Dismiss system alert banner
+    function dismissSystemAlert(alertKey, btn) {
+        fetch('/api/system-alert/dismiss', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({alert_key: alertKey})
+        }).then(() => {
+            const banner = btn.closest('.system-alert-banner');
+            if (banner) {
+                banner.style.transition = 'opacity 0.3s, max-height 0.3s';
+                banner.style.opacity = '0';
+                banner.style.maxHeight = '0';
+                banner.style.overflow = 'hidden';
+                banner.style.marginBottom = '0';
+                banner.style.padding = '0';
+                setTimeout(() => banner.remove(), 350);
+            }
+        });
+    }
+
     // Time display in status bar
     function updateTime() {
         const now = new Date();
@@ -1075,10 +1070,10 @@
             const regimeColor = data.regime === 'bull' ? '#6bba7e' : data.regime === 'bear' ? '#d47272' : '#d4a84b';
             const adj = data.adjustments || {};
             const factors = [
-                { key: 'valuation', label: 'Valuation', icon: '💵' },
-                { key: 'technical', label: 'Technical', icon: '📉' },
-                { key: 'momentum', label: 'Momentum', icon: '🚀' },
-                { key: 'quality', label: 'Quality', icon: '⭐' },
+                { key: 'valuation', label: 'Valuation' },
+                { key: 'technical', label: 'Technical' },
+                { key: 'momentum', label: 'Momentum' },
+                { key: 'quality', label: 'Quality' },
             ];
             let html = `<div style="margin-bottom:0.75rem;padding:0.5rem 0.75rem;background:rgba(0,0,0,0.2);border-radius:var(--radius-md);font-size:0.8125rem;color:${regimeColor};">
                 <strong>${data.regime.toUpperCase()} MARKET</strong> — ${data.description || ''}
@@ -1092,7 +1087,6 @@
                 const arrow = isBoost ? '▲' : isReduce ? '▼' : '—';
                 const pctChange = ((mult - 1) * 100).toFixed(0);
                 html += `<div style="text-align:center;padding:0.75rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
-                    <div style="font-size:1.25rem;">${f.icon}</div>
                     <div class="metric-label" style="margin:0.25rem 0;">${f.label}</div>
                     <div style="font-size:1rem;font-weight:500;color:${color};">${arrow} ${isBoost ? '+' : ''}${pctChange}%</div>
                     <div style="font-size:0.6875rem;color:var(--text-muted);">×${mult.toFixed(2)}</div>
@@ -1345,5 +1339,44 @@
             }
         })
         .catch(() => { });
+
+    // ─── Scan Progress Polling ───
+    (function() {
+        let progressTimer = null;
+        function pollScanProgress() {
+            fetch('/api/scan-progress', { credentials: 'same-origin' })
+                .then(r => r.ok ? r.json() : null)
+                .then(data => {
+                    if (!data) return;
+                    const bar = document.getElementById('scan-progress-bar');
+                    if (!bar) return;
+
+                    if (data.active) {
+                        bar.style.display = '';
+                        document.getElementById('scan-stage-label').textContent = data.stage_label || 'Scanning';
+                        document.getElementById('scan-progress-pct').textContent = data.progress_pct + '%';
+                        document.getElementById('scan-progress-fill').style.width = data.progress_pct + '%';
+                        document.getElementById('scan-progress-message').textContent = data.message || '';
+                        if (!progressTimer) {
+                            progressTimer = setInterval(pollScanProgress, 3000);
+                        }
+                    } else if (data.stage === 'complete' || data.stage === 'error') {
+                        bar.style.display = '';
+                        document.getElementById('scan-stage-label').textContent = data.stage_label;
+                        document.getElementById('scan-progress-pct').textContent = data.stage === 'complete' ? '100%' : '';
+                        document.getElementById('scan-progress-fill').style.width = data.stage === 'complete' ? '100%' : '0%';
+                        document.getElementById('scan-progress-message').textContent = data.message;
+                        if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
+                        setTimeout(function() { bar.style.display = 'none'; }, 8000);
+                    } else {
+                        bar.style.display = 'none';
+                        if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
+                    }
+                })
+                .catch(function() {});
+        }
+        pollScanProgress();
+        setInterval(pollScanProgress, 5000);
+    })();
 </script>
 {% endblock %}

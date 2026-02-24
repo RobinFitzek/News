@@ -97,17 +97,25 @@ def setup_logging(level=logging.INFO, dev_mode=None):
     error_handler.setFormatter(formatter)
     root_logger.addHandler(error_handler)
 
-    # Suppress noisy third-party loggers (unless in dev mode)
+    # Suppress noisy third-party loggers
     third_party_level = logging.DEBUG if dev_mode else logging.WARNING
     logging.getLogger('urllib3').setLevel(third_party_level)
     logging.getLogger('requests').setLevel(third_party_level)
     logging.getLogger('google').setLevel(third_party_level)
     logging.getLogger('httpx').setLevel(third_party_level)
     logging.getLogger('yfinance').setLevel(third_party_level)
+    logging.getLogger('peewee').setLevel(third_party_level)
     logging.getLogger('asyncio').setLevel(third_party_level)
     logging.getLogger('python_multipart').setLevel(third_party_level)
     logging.getLogger('uvicorn').setLevel(third_party_level)
     logging.getLogger('fastapi').setLevel(third_party_level)
+
+    # In development mode, keep app debug logs but suppress extremely chatty libraries
+    if dev_mode:
+        logging.getLogger('yfinance').setLevel(logging.WARNING)
+        logging.getLogger('peewee').setLevel(logging.WARNING)
+        logging.getLogger('urllib3').setLevel(logging.WARNING)
+        logging.getLogger('asyncio').setLevel(logging.INFO)
 
     if dev_mode:
         logging.info("Logging initialized in DEVELOPMENT MODE with DEBUG level")

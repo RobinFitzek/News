@@ -19,870 +19,935 @@
     </div>
     {% endif %}
 
-    <!-- Appearance -->
-    <div class="card" style="margin-bottom: var(--space-8);">
-        <h3 style="margin: 0 0 var(--space-4) 0;">Appearance</h3>
-        <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-6);">
-            <div style="font-size: 0.8125rem; color: var(--text-muted);">
-                Toggle between Stockholm Dark and Light modes
+    <div class="settings-layout">
+        <!-- ─── SIDEBAR ─────────────────────────────────────── -->
+        <nav class="settings-sidebar">
+            <div class="settings-nav">
+                <div class="settings-nav-indicator" aria-hidden="true"></div>
+                <button type="button" class="settings-nav-item active" data-panel="panel-api" onclick="switchSettingsPanel('panel-api')">
+                    <svg class="settings-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                    </svg>
+                    <span>API Connections</span>
+                </button>
+                <button type="button" class="settings-nav-item" data-panel="panel-analysis" onclick="switchSettingsPanel('panel-analysis')">
+                    <svg class="settings-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                    <span>Analysis</span>
+                </button>
+                <button type="button" class="settings-nav-item" data-panel="panel-scheduler" onclick="switchSettingsPanel('panel-scheduler')">
+                    <svg class="settings-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    <span>Scheduler</span>
+                </button>
+                <button type="button" class="settings-nav-item" data-panel="panel-notifications" onclick="switchSettingsPanel('panel-notifications')">
+                    <svg class="settings-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                    </svg>
+                    <span>Notifications</span>
+                </button>
+                <button type="button" class="settings-nav-item" data-panel="panel-portfolio" onclick="switchSettingsPanel('panel-portfolio')">
+                    <svg class="settings-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="20" x2="12" y2="10"/>
+                        <line x1="18" y1="20" x2="18" y2="4"/>
+                        <line x1="6" y1="20" x2="6" y2="16"/>
+                    </svg>
+                    <span>Portfolio</span>
+                </button>
+                <button type="button" class="settings-nav-item" data-panel="panel-security" onclick="switchSettingsPanel('panel-security')">
+                    <svg class="settings-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                    <span>Security</span>
+                </button>
+                <button type="button" class="settings-nav-item" data-panel="panel-appearance" onclick="switchSettingsPanel('panel-appearance')">
+                    <svg class="settings-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"/>
+                        <line x1="12" y1="1" x2="12" y2="3"/>
+                        <line x1="12" y1="21" x2="12" y2="23"/>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                        <line x1="1" y1="12" x2="3" y2="12"/>
+                        <line x1="21" y1="12" x2="23" y2="12"/>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                    <span>Appearance</span>
+                </button>
             </div>
-            <label class="checkbox-wrapper">
-                <input type="checkbox" id="theme-toggle" aria-label="Toggle light mode">
-                <div class="checkbox-custom"></div>
-                <span class="checkbox-label">Light mode</span>
-            </label>
-        </div>
-    </div>
+        </nav>
 
-    <!-- API Keys -->
-    <div class="card" style="margin-bottom: var(--space-8);">
-        <h3 style="margin: 0 0 var(--space-5) 0;">API Keys</h3>
-        <p style="font-size: 0.8125rem; color: var(--text-muted); margin-bottom: var(--space-5);">
-            API keys are securely stored in the local database
-        </p>
-        <form action="/settings/api-keys" method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <div class="grid grid-2" style="margin-bottom: var(--space-5);">
-                <div>
-                    <label>Perplexity API Key</label>
-                    <input type="password" name="perplexity_key"
-                        placeholder="{% if api_keys.perplexity %}••••••••••••{% else %}pplx-xxx...{% endif %}">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        {% if api_keys.perplexity %}
-                        <span style="color: var(--text-primary);">Configured</span>
-                        {% else %}
-                        <span>Not configured</span>
-                        {% endif %}
-                        · <a href="https://perplexity.ai/settings" target="_blank"
-                            style="color: var(--text-secondary);">Get API Key</a>
-                    </div>
-                </div>
-                <div>
-                    <label>Gemini API Key</label>
-                    <input type="password" name="gemini_key"
-                        placeholder="{% if api_keys.gemini %}••••••••••••{% else %}AIzaSy...{% endif %}">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        {% if api_keys.gemini %}
-                        <span style="color: var(--text-primary);">Configured</span>
-                        {% else %}
-                        <span>Not configured</span>
-                        {% endif %}
-                        · <a href="https://ai.google.dev" target="_blank" style="color: var(--text-secondary);">Get Free
-                            API Key</a>
-                    </div>
-                </div>
-            </div>
-            <button type="submit" class="btn btn-primary">Save API Keys</button>
-        </form>
-    </div>
+        <!-- ─── CONTENT PANELS ──────────────────────────────── -->
+        <div class="settings-content">
 
-    <!-- Main Settings Form -->
-    <form action="/settings/save" method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-
-        <!-- Scheduler Settings -->
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <h3 style="margin: 0 0 var(--space-5) 0;">Scheduler</h3>
-            <div class="grid grid-3">
-                <div>
-                    <label>Scan Interval (Hours)</label>
-                    <input type="number" name="scan_interval_hours" value="{{ settings.scan_interval_hours }}" min="1"
-                        max="24">
-                </div>
-                <div>
-                    <label>Active Time: Start</label>
-                    <input type="time" name="active_hours_start" value="{{ settings.active_hours_start }}">
-                </div>
-                <div>
-                    <label>Active Time: End</label>
-                    <input type="time" name="active_hours_end" value="{{ settings.active_hours_end }}">
-                </div>
-            </div>
-        </div>
-
-        <!-- Auto-Discovery Settings -->
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <div
-                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
-                <h3 style="margin: 0;">Auto-Discovery</h3>
-                <label class="checkbox-wrapper">
-                    <input type="checkbox" id="discovery-toggle" name="discovery_enabled" {% if
-                        settings.discovery_enabled %}checked{% endif %} onchange="toggleDiscoverySettings()">
-                    <div class="checkbox-custom"></div>
-                    <span class="checkbox-label">Enable Discovery</span>
-                </label>
-            </div>
-
-            <div id="discovery-settings-container">
-                <p
-                    style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
-                    Automatically scan for new stock opportunities using free data sources. Discovered stocks are
-                    screened and promoted to your watchlist if they pass quality checks.
-                </p>
-
-                <!-- Schedule -->
-                <div class="grid grid-3" style="gap: var(--space-5); margin-bottom: var(--space-6);">
-                    <div>
-                        <label>Daily Discovery Time</label>
-                        <input type="time" name="discovery_daily_time"
-                            value="{{ settings.discovery_daily_time|default('06:00') }}">
-                        <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                            Free strategies run daily at this time
-                        </div>
-                    </div>
-                    <div>
-                        <label>Weekly AI Day</label>
-                        <select name="discovery_weekly_day"
-                            style="width: 100%; padding: var(--space-3); background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: var(--radius-sm); color: var(--text-primary); font-size: 0.875rem;">
-                            {% for val, label in [('mon', 'Monday'), ('tue', 'Tuesday'), ('wed', 'Wednesday'), ('thu',
-                            'Thursday'), ('fri', 'Friday'), ('sat', 'Saturday'), ('sun', 'Sunday')] %}
-                            <option value="{{ val }}" {% if settings.discovery_weekly_day|default('wed')==val
-                                %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
-                        </select>
-                        <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                            Perplexity AI discovery day (~1 API call)
-                        </div>
-                    </div>
-                    <div>
-                        <label>Weekly AI Time</label>
-                        <input type="time" name="discovery_weekly_time"
-                            value="{{ settings.discovery_weekly_time|default('12:00') }}">
-                        <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                            Time for weekly AI-powered discovery
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Promotion Rules -->
-                <div
-                    style="padding-top: var(--space-5); border-top: 1px solid var(--border-light); margin-bottom: var(--space-6);">
-                    <div
-                        style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">
-                        Promotion Rules
-                    </div>
-                    <div class="grid grid-3" style="gap: var(--space-5);">
-                        <div>
-                            <label>Promotion Threshold</label>
-                            <input type="number" name="discovery_promotion_threshold"
-                                value="{{ settings.discovery_promotion_threshold|default(55) }}" min="30" max="90"
-                                step="5">
-                            <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                                Quant score needed to auto-promote (0-100)
-                            </div>
-                        </div>
-                        <div>
-                            <label>Max Promote Per Run</label>
-                            <input type="number" name="discovery_max_promote_per_run"
-                                value="{{ settings.discovery_max_promote_per_run|default(5) }}" min="1" max="20"
-                                step="1">
-                            <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                                Limit stocks auto-added to watchlist per run
-                            </div>
-                        </div>
-                        <div>
-                            <label>Max Watchlist Size</label>
-                            <input type="number" name="discovery_max_watchlist_size"
-                                value="{{ settings.discovery_max_watchlist_size|default(50) }}" min="10" max="200"
-                                step="5">
-                            <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                                Stop auto-promoting if watchlist exceeds this
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Strategy Toggles -->
-                <div style="padding-top: var(--space-5); border-top: 1px solid var(--border-light);">
-                    <div
-                        style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">
-                        Discovery Strategies
-                    </div>
-                    <div class="grid grid-3" style="gap: var(--space-3);">
-                        {% set active_strategies = settings.discovery_strategies|default(['volume_spike', 'breakout',
-                        'oversold', 'sector_rotation', 'insider_buy', 'value_screen']) %}
-                        {% for strategy_val, strategy_label, strategy_desc in [
-                        ('volume_spike', 'Volume Spikes', 'Unusual volume activity'),
-                        ('breakout', 'Breakouts', '52-week highs, golden cross'),
-                        ('oversold', 'RSI Oversold', 'Quality stocks with RSI < 30'),
-                            ('sector_rotation', 'Sector Rotation' , 'Hot sector momentum plays' ),
-                            ('insider_buy', 'Insider Buying' , 'Cluster insider purchases' ),
-                            ('value_screen', 'Value Screen' , 'Low P/E, high quality' ) ] %} <label
-                            class="checkbox-wrapper" style="align-items: flex-start;">
-                            <input type="checkbox" name="strategy_{{ strategy_val }}" {% if strategy_val in
-                                active_strategies %}checked{% endif %}>
-                            <div class="checkbox-custom" style="margin-top: 2px;"></div>
+            <!-- ═══ PANEL: API CONNECTIONS ═══════════════════ -->
+            <div id="panel-api" class="settings-panel active">
+                <div class="card" style="margin-bottom: var(--space-6);">
+                    <h3 style="margin: 0 0 var(--space-5) 0;">API Keys</h3>
+                    <p style="font-size: 0.8125rem; color: var(--text-muted); margin-bottom: var(--space-5);">
+                        API keys are securely stored in the local database
+                    </p>
+                    <form action="/settings/api-keys" method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <div class="grid grid-2" style="margin-bottom: var(--space-5);">
                             <div>
-                                <span class="checkbox-label">{{ strategy_label }}</span>
-                                <div style="font-size: 0.6875rem; color: var(--text-muted); margin-top: 2px;">{{
-                                    strategy_desc }}</div>
+                                <label>Perplexity API Key</label>
+                                <div style="position: relative;">
+                                    <input type="password" name="perplexity_key" id="perplexity-key-input"
+                                        placeholder="{% if api_keys.perplexity %}••••••••••••{% else %}pplx-xxx...{% endif %}"
+                                        style="padding-right: 44px;">
+                                    {% if api_keys.perplexity %}
+                                    <button type="button" class="api-key-peek" data-service="perplexity"
+                                        title="Peek at key" aria-label="Show API key">
+                                        <svg class="eye-icon eye-open" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                            <circle cx="12" cy="12" r="3"/>
+                                        </svg>
+                                        <svg class="eye-icon eye-closed" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                                            style="display:none;">
+                                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                                            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                                            <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                                            <line x1="1" y1="1" x2="23" y2="23"/>
+                                        </svg>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                                <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                                    {% if api_keys.perplexity %}
+                                    <span style="color: var(--signal-positive);">Configured</span>
+                                    {% else %}
+                                    <span style="color: var(--signal-negative);">Not configured</span>
+                                    {% endif %}
+                                    · <a href="https://perplexity.ai/settings" target="_blank"
+                                        style="color: var(--text-secondary);">Get API Key</a>
+                                </div>
                             </div>
-                            </label>
-                            {% endfor %}
+                            <div>
+                                <label>Gemini API Key</label>
+                                <div style="position: relative;">
+                                    <input type="password" name="gemini_key" id="gemini-key-input"
+                                        placeholder="{% if api_keys.gemini %}••••••••••••{% else %}AIzaSy...{% endif %}"
+                                        style="padding-right: 44px;">
+                                    {% if api_keys.gemini %}
+                                    <button type="button" class="api-key-peek" data-service="gemini"
+                                        title="Peek at key" aria-label="Show API key">
+                                        <svg class="eye-icon eye-open" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                            <circle cx="12" cy="12" r="3"/>
+                                        </svg>
+                                        <svg class="eye-icon eye-closed" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+                                            style="display:none;">
+                                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                                            <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                                            <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+                                            <line x1="1" y1="1" x2="23" y2="23"/>
+                                        </svg>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                                <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                                    {% if api_keys.gemini %}
+                                    <span style="color: var(--signal-positive);">Configured</span>
+                                    {% else %}
+                                    <span style="color: var(--signal-negative);">Not configured</span>
+                                    {% endif %}
+                                    · <a href="https://ai.google.dev" target="_blank" style="color: var(--text-secondary);">Get Free
+                                        API Key</a>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save API Keys</button>
+                    </form>
+                </div>
+
+                <!-- Dynamic Providers (populated by Phase 4) -->
+                <div id="dynamic-providers-section" class="card" style="margin-bottom: var(--space-6);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5);">
+                        <h3 style="margin: 0;">Custom API Providers</h3>
+                        <button type="button" class="btn btn-secondary" style="font-size: 0.75rem;" onclick="toggleProviderForm()">Add Provider</button>
+                    </div>
+                    <div id="api-error-banner" style="display:none; margin-bottom: var(--space-4); padding: var(--space-4) var(--space-5); background: var(--signal-negative-bg); border: 1px solid var(--signal-negative); color: var(--text-primary);">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: var(--space-4); flex-wrap: wrap;">
+                            <div style="min-width: 260px; flex: 1;">
+                                <div style="font-weight: 600; color: var(--signal-negative);">API connection failed</div>
+                                <div id="api-error-banner-message" style="font-size: 0.8125rem; color: var(--text-secondary); margin-top: var(--space-1);"></div>
+                            </div>
+                            <div style="display:flex; gap: var(--space-2); align-items:center;">
+                                <a href="/logs?enable_dev_mode=1" class="btn btn-danger" style="font-size: 0.75rem; white-space: nowrap;">Open Logs (Dev Mode)</a>
+                                <button type="button" class="btn btn-secondary" style="font-size: 0.75rem;" onclick="hideApiErrorBanner()">Dismiss</button>
+                            </div>
+                        </div>
+                    </div>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
+                        Connect any OpenAI-compatible API. Providers can be assigned to pipeline stages.
+                    </p>
+                    <!-- Add Provider Form (hidden by default) -->
+                    <div id="add-provider-form" style="display: none; margin-bottom: var(--space-5); padding: var(--space-5); background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: var(--radius-md);">
+                        <div class="grid grid-2" style="gap: var(--space-4); margin-bottom: var(--space-4);">
+                            <div>
+                                <label>Provider Name</label>
+                                <input type="text" id="prov-name" placeholder="e.g. OpenAI, Groq, Together">
+                            </div>
+                            <div>
+                                <label>Type</label>
+                                <select id="prov-type">
+                                    <option value="llm">LLM (Text Generation)</option>
+                                    <option value="search">Search (Web Intelligence)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-2" style="gap: var(--space-4); margin-bottom: var(--space-4);">
+                            <div>
+                                <label>Base URL</label>
+                                <input type="text" id="prov-url" placeholder="https://api.openai.com/v1">
+                            </div>
+                            <div>
+                                <label>API Key</label>
+                                <input type="password" id="prov-key" placeholder="sk-...">
+                            </div>
+                        </div>
+                        <div class="grid grid-3" style="gap: var(--space-4); margin-bottom: var(--space-4);">
+                            <div>
+                                <label>Model</label>
+                                <input type="text" id="prov-model" placeholder="gpt-4o-mini">
+                            </div>
+                            <div>
+                                <label>Pipeline Role</label>
+                                <select id="prov-role">
+                                    <option value="">None (manual only)</option>
+                                    <option value="stage2_news">Stage 2: News</option>
+                                    <option value="stage3_synthesis">Stage 3: Synthesis</option>
+                                    <option value="discovery">Discovery</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label>Monthly Budget (EUR)</label>
+                                <input type="number" id="prov-budget" value="5.0" min="0" max="100" step="0.50">
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: var(--space-3);">
+                            <button type="button" class="btn btn-primary" onclick="saveProvider()">Save Provider</button>
+                            <button type="button" class="btn btn-ghost" onclick="toggleProviderForm()">Cancel</button>
+                        </div>
+                    </div>
+                    <!-- Provider List -->
+                    <div id="providers-list">
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">Loading providers...</div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Email Settings -->
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <div
-                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
-                <h3 style="margin: 0;">Email Notifications</h3>
-                <label class="checkbox-wrapper">
-                    <input type="checkbox" id="email-toggle" name="email_enabled" {% if settings.email_enabled
-                        %}checked{% endif %} onchange="toggleEmailSettings()">
-                    <div class="checkbox-custom"></div>
-                    <span class="checkbox-label">Enable Notifications</span>
-                </label>
+            <!-- ═══ PANEL: ANALYSIS ═════════════════════════ -->
+            <div id="panel-analysis" class="settings-panel">
+                <form action="/settings/save" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="_section" value="analysis">
+
+                    <div class="card" style="margin-bottom: var(--space-6);">
+                        <h3 style="margin: 0 0 var(--space-6) 0;">Analysis Configuration</h3>
+
+                        <!-- Analysis Variant Clickable Tiles -->
+                        <div class="grid grid-3" style="margin-bottom: var(--space-8); gap: var(--space-4);">
+                            <label class="variant-card {% if settings.analysis_variant=='conservative' %}active{% endif %}">
+                                <input type="radio" name="analysis_variant" value="conservative" style="display: none;" {% if
+                                    settings.analysis_variant=='conservative' %}checked{% endif %}
+                                    onchange="updateVariantSelection(this)">
+                                <div class="variant-card-content">
+                                    <div class="variant-card-title">Conservative</div>
+                                    <p class="variant-card-desc">Very strict filtering on blue-chips and dividends. Only watchlist stocks are analyzed.</p>
+                                </div>
+                                <div class="variant-card-indicator"></div>
+                            </label>
+                            <label class="variant-card {% if settings.analysis_variant=='balanced' or not settings.analysis_variant %}active{% endif %}">
+                                <input type="radio" name="analysis_variant" value="balanced" style="display: none;" {% if
+                                    settings.analysis_variant=='balanced' or not settings.analysis_variant %}checked{% endif %}
+                                    onchange="updateVariantSelection(this)">
+                                <div class="variant-card-content">
+                                    <div class="variant-card-title">Balanced</div>
+                                    <p class="variant-card-desc">Default setting. Optimized for balanced request distribution. Solid analysis coverage.</p>
+                                </div>
+                                <div class="variant-card-indicator"></div>
+                            </label>
+                            <label class="variant-card {% if settings.analysis_variant=='aggressive' %}active{% endif %}">
+                                <input type="radio" name="analysis_variant" value="aggressive" style="display: none;" {% if
+                                    settings.analysis_variant=='aggressive' %}checked{% endif %}
+                                    onchange="updateVariantSelection(this)">
+                                <div class="variant-card-content">
+                                    <div class="variant-card-title">Aggressive</div>
+                                    <p class="variant-card-desc">Includes Market Discovery. Searches beyond watchlist for opportunities.</p>
+                                </div>
+                                <div class="variant-card-indicator"></div>
+                            </label>
+                        </div>
+
+                        <!-- Monthly API Budget -->
+                        <div style="padding: var(--space-6); background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: var(--radius-md); box-shadow: var(--shadow-sm);">
+                            <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5);">
+                                <h3 style="margin: 0; font-size: 1rem; font-family: var(--font-body);">Monthly API Budget</h3>
+                                <span style="background: var(--bg-inverse); color: var(--text-inverse); font-size: 0.5625rem; font-weight: 500; padding: 2px 8px; text-transform: uppercase; letter-spacing: 0.06em;">Adaptive</span>
+                            </div>
+                            <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0 0 var(--space-5) 0; line-height: 1.5;">
+                                Set your monthly spending limit per API. Daily request limits are calculated automatically based on remaining budget and days left in the month.
+                            </p>
+                            <div class="grid grid-2" style="gap: var(--space-5); margin-bottom: var(--space-6);">
+                                <div>
+                                    <label>Perplexity Monthly Budget</label>
+                                    <div style="display: flex; align-items: center; gap: var(--space-2);">
+                                        <input type="number" name="perplexity_monthly_budget"
+                                            value="{{ settings.perplexity_monthly_budget|default(5.0) }}" min="0" max="100"
+                                            step="0.50" style="flex: 1;">
+                                        <span style="font-size: 0.8125rem; color: var(--text-secondary); font-weight: 500;">EUR</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label>Gemini Monthly Budget</label>
+                                    <div style="display: flex; align-items: center; gap: var(--space-2);">
+                                        <input type="number" name="gemini_monthly_budget"
+                                            value="{{ settings.gemini_monthly_budget|default(5.0) }}" min="0" max="100" step="0.50"
+                                            style="flex: 1;">
+                                        <span style="font-size: 0.8125rem; color: var(--text-secondary); font-weight: 500;">EUR</span>
+                                    </div>
+                                </div>
+                            </div>
+                            {% if budget_status %}
+                            <div class="grid grid-2" style="gap: var(--space-4); margin-bottom: var(--space-4);">
+                                {% for api_name, label in [('perplexity', 'Perplexity'), ('gemini', 'Gemini')] %}
+                                {% set bs = budget_status.get(api_name, {}) %}
+                                <div style="padding: var(--space-4); background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-sm);">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
+                                        <span style="font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary);">{{ label }}</span>
+                                        <span style="font-size: 0.6875rem; color: var(--text-muted);">{{ bs.get('days_left', 0) }} days left</span>
+                                    </div>
+                                    <div style="height: 4px; background: var(--border-hairline); margin-bottom: var(--space-3);">
+                                        <div style="height: 100%; width: {{ bs.get('percent_used', 0) }}%; background: {% if bs.get('percent_used', 0) > 80 %}var(--signal-negative){% elif bs.get('percent_used', 0) > 50 %}var(--signal-warning, #f59e0b){% else %}var(--signal-positive){% endif %}; transition: width 0.3s;"></div>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem;">
+                                        <span style="color: var(--text-muted);">Spent: <span style="color: var(--text-primary);">{{ "%.2f"|format(bs.get('spent_eur', 0)) }} EUR</span></span>
+                                        <span style="color: var(--text-muted);">Left: <span style="color: var(--text-primary);">{{ "%.2f"|format(bs.get('remaining_eur', 0)) }} EUR</span></span>
+                                    </div>
+                                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-ghost);">
+                                        Today: {{ bs.get('today_requests', 0) }} requests · Limit: ~{{ bs.get('daily_request_limit', 0) }}/day
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% if budget_status.pipeline %}
+                            <div style="text-align: center; font-size: 0.75rem; color: var(--text-muted); padding-top: var(--space-3); border-top: 1px solid var(--border-hairline);">
+                                Pipeline capacity today:
+                                <span style="font-weight: 500;">{{ budget_status.pipeline.stage1_max }}</span> scan &rarr;
+                                <span style="font-weight: 500;">{{ budget_status.pipeline.stage2_max }}</span> analyze &rarr;
+                                <span style="font-weight: 500;">{{ budget_status.pipeline.stage3_max }}</span> synthesize
+                            </div>
+                            {% endif %}
+                            {% endif %}
+                        </div>
+
+                        <!-- Analysis Toggles -->
+                        <div class="grid grid-3" style="margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--border-light);">
+                            <label class="checkbox-wrapper">
+                                <input type="checkbox" name="include_news" {% if settings.include_news %}checked{% endif %}>
+                                <div class="checkbox-custom"></div>
+                                <span class="checkbox-label">Include News</span>
+                            </label>
+                            <label class="checkbox-wrapper">
+                                <input type="checkbox" name="include_fundamental" {% if settings.include_fundamental %}checked{% endif %}>
+                                <div class="checkbox-custom"></div>
+                                <span class="checkbox-label">Fundamental Analysis</span>
+                            </label>
+                            <label class="checkbox-wrapper">
+                                <input type="checkbox" name="include_technical" {% if settings.include_technical %}checked{% endif %}>
+                                <div class="checkbox-custom"></div>
+                                <span class="checkbox-label">Technical Analysis</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Learning System -->
+                    <div class="card" style="margin-bottom: var(--space-6);">
+                        <h3 style="margin: 0 0 var(--space-5) 0;">Learning System</h3>
+                        <div class="grid grid-2" style="gap: var(--space-5);">
+                            <div>
+                                <label>Verification Window (Days)</label>
+                                <input type="number" name="learning_verification_days"
+                                    value="{{ settings.learning_verification_days|default(90) }}" min="30" max="365" step="30">
+                                <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                                    How many days to wait before verifying a prediction (30-365).
+                                </div>
+                            </div>
+                            <div style="display: flex; align-items: center; padding-top: var(--space-6);">
+                                <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.6;">
+                                    Predictions are compared against actual price movement and SPY benchmark after this window.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel-save">
+                        <button type="submit" class="btn btn-primary">Save Analysis Settings</button>
+                    </div>
+                </form>
             </div>
 
-            <div id="email-settings-container">
-                <div class="grid grid-2" style="margin-bottom: var(--space-5);">
-                    <div>
-                        <label>Recipient Email</label>
-                        <input type="email" name="email_recipient" value="{{ settings.email_recipient }}"
-                            placeholder="your@email.com">
+            <!-- ═══ PANEL: SCHEDULER ════════════════════════ -->
+            <div id="panel-scheduler" class="settings-panel">
+                <form action="/settings/save" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="_section" value="scheduler">
+
+                    <div class="card" style="margin-bottom: var(--space-6);">
+                        <h3 style="margin: 0 0 var(--space-5) 0;">Scheduler</h3>
+                        <div class="grid grid-3">
+                            <div>
+                                <label>Scan Interval (Hours)</label>
+                                <input type="number" name="scan_interval_hours" value="{{ settings.scan_interval_hours }}" min="1" max="24">
+                            </div>
+                            <div>
+                                <label>Active Time: Start</label>
+                                <input type="time" name="active_hours_start" value="{{ settings.active_hours_start }}">
+                            </div>
+                            <div>
+                                <label>Active Time: End</label>
+                                <input type="time" name="active_hours_end" value="{{ settings.active_hours_end }}">
+                            </div>
+                        </div>
                     </div>
-                    <div style="display: flex; align-items: center; padding-top: var(--space-6);">
+
+                    <!-- Auto-Discovery -->
+                    <div class="card" style="margin-bottom: var(--space-6);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
+                            <h3 style="margin: 0;">Auto-Discovery</h3>
+                            <label class="checkbox-wrapper">
+                                <input type="checkbox" id="discovery-toggle" name="discovery_enabled" {% if settings.discovery_enabled %}checked{% endif %} onchange="toggleDiscoverySettings()">
+                                <div class="checkbox-custom"></div>
+                                <span class="checkbox-label">Enable Discovery</span>
+                            </label>
+                        </div>
+                        <div id="discovery-settings-container">
+                            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
+                                Automatically scan for new stock opportunities using free data sources.
+                            </p>
+                            <div class="grid grid-3" style="gap: var(--space-5); margin-bottom: var(--space-6);">
+                                <div>
+                                    <label>Daily Discovery Time</label>
+                                    <input type="time" name="discovery_daily_time" value="{{ settings.discovery_daily_time|default('06:00') }}">
+                                </div>
+                                <div>
+                                    <label>Weekly AI Day</label>
+                                    <select name="discovery_weekly_day" style="width: 100%; padding: var(--space-3); background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: var(--radius-sm); color: var(--text-primary); font-size: 0.875rem;">
+                                        {% for val, label in [('mon', 'Monday'), ('tue', 'Tuesday'), ('wed', 'Wednesday'), ('thu', 'Thursday'), ('fri', 'Friday'), ('sat', 'Saturday'), ('sun', 'Sunday')] %}
+                                        <option value="{{ val }}" {% if settings.discovery_weekly_day|default('wed')==val %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label>Weekly AI Time</label>
+                                    <input type="time" name="discovery_weekly_time" value="{{ settings.discovery_weekly_time|default('12:00') }}">
+                                </div>
+                            </div>
+                            <div style="padding-top: var(--space-5); border-top: 1px solid var(--border-light); margin-bottom: var(--space-6);">
+                                <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">Promotion Rules</div>
+                                <div class="grid grid-3" style="gap: var(--space-5);">
+                                    <div>
+                                        <label>Promotion Threshold</label>
+                                        <input type="number" name="discovery_promotion_threshold" value="{{ settings.discovery_promotion_threshold|default(55) }}" min="30" max="90" step="5">
+                                    </div>
+                                    <div>
+                                        <label>Max Promote Per Run</label>
+                                        <input type="number" name="discovery_max_promote_per_run" value="{{ settings.discovery_max_promote_per_run|default(5) }}" min="1" max="20" step="1">
+                                    </div>
+                                    <div>
+                                        <label>Max Watchlist Size</label>
+                                        <input type="number" name="discovery_max_watchlist_size" value="{{ settings.discovery_max_watchlist_size|default(50) }}" min="10" max="200" step="5">
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="padding-top: var(--space-5); border-top: 1px solid var(--border-light);">
+                                <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">Discovery Strategies</div>
+                                <div class="grid grid-3" style="gap: var(--space-3);">
+                                    {% set active_strategies = settings.discovery_strategies|default(['volume_spike', 'breakout', 'oversold', 'sector_rotation', 'insider_buy', 'value_screen']) %}
+                                    {% for strategy_val, strategy_label, strategy_desc in [
+                                    ('volume_spike', 'Volume Spikes', 'Unusual volume activity'),
+                                    ('breakout', 'Breakouts', '52-week highs, golden cross'),
+                                    ('oversold', 'RSI Oversold', 'Quality stocks with RSI < 30'),
+                                    ('sector_rotation', 'Sector Rotation', 'Hot sector momentum plays'),
+                                    ('insider_buy', 'Insider Buying', 'Cluster insider purchases'),
+                                    ('value_screen', 'Value Screen', 'Low P/E, high quality') ] %}
+                                    <label class="checkbox-wrapper" style="align-items: flex-start;">
+                                        <input type="checkbox" name="strategy_{{ strategy_val }}" {% if strategy_val in active_strategies %}checked{% endif %}>
+                                        <div class="checkbox-custom" style="margin-top: 2px;"></div>
+                                        <div>
+                                            <span class="checkbox-label">{{ strategy_label }}</span>
+                                            <div style="font-size: 0.6875rem; color: var(--text-muted); margin-top: 2px;">{{ strategy_desc }}</div>
+                                        </div>
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel-save">
+                        <button type="submit" class="btn btn-primary">Save Scheduler Settings</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- ═══ PANEL: NOTIFICATIONS ════════════════════ -->
+            <div id="panel-notifications" class="settings-panel">
+                <!-- Email (own save form) -->
+                <form action="/settings/save" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="_section" value="notifications">
+                    <div class="card" style="margin-bottom: var(--space-6);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
+                            <h3 style="margin: 0;">Email Notifications</h3>
+                            <label class="checkbox-wrapper">
+                                <input type="checkbox" id="email-toggle" name="email_enabled" {% if settings.email_enabled %}checked{% endif %} onchange="toggleEmailSettings()">
+                                <div class="checkbox-custom"></div>
+                                <span class="checkbox-label">Enable</span>
+                            </label>
+                        </div>
+                        <div id="email-settings-container">
+                            <div class="grid grid-2" style="margin-bottom: var(--space-5);">
+                                <div>
+                                    <label>Recipient Email</label>
+                                    <input type="email" name="email_recipient" value="{{ settings.email_recipient }}" placeholder="your@email.com">
+                                </div>
+                                <div style="display: flex; align-items: center; padding-top: var(--space-6);">
+                                    <label class="checkbox-wrapper">
+                                        <input type="checkbox" name="notify_on_strong_signals" {% if settings.notify_on_strong_signals %}checked{% endif %}>
+                                        <div class="checkbox-custom"></div>
+                                        <span class="checkbox-label">Only Strong BUY/SELL Signals</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="grid grid-2" style="margin-bottom: var(--space-5);">
+                                <div>
+                                    <label>SMTP Host</label>
+                                    <input type="text" name="email_smtp_host" value="{{ settings.email_smtp_host }}" placeholder="smtp.gmail.com">
+                                </div>
+                                <div>
+                                    <label>SMTP Port</label>
+                                    <input type="number" name="email_smtp_port" value="{{ settings.email_smtp_port }}">
+                                </div>
+                            </div>
+                            <div class="grid grid-2" style="margin-bottom: var(--space-5);">
+                                <div>
+                                    <label>SMTP User</label>
+                                    <input type="email" name="email_smtp_user" value="{{ settings.email_smtp_user }}">
+                                </div>
+                                <div>
+                                    <label>SMTP Password</label>
+                                    <input type="password" name="email_smtp_password"
+                                        placeholder="{% if settings.email_smtp_password %}••••••••{% else %}App password{% endif %}">
+                                </div>
+                            </div>
+                            <div style="padding-top: var(--space-5); border-top: 1px solid var(--border-light);">
+                                <div class="grid grid-2">
+                                    <div style="display: flex; align-items: center;">
+                                        <label class="checkbox-wrapper">
+                                            <input type="checkbox" name="daily_summary_enabled" {% if settings.daily_summary_enabled %}checked{% endif %}>
+                                            <div class="checkbox-custom"></div>
+                                            <span class="checkbox-label">Send Daily Summary</span>
+                                        </label>
+                                    </div>
+                                    <div>
+                                        <label>Summary Time</label>
+                                        <input type="time" name="daily_summary_time" value="{{ settings.daily_summary_time }}">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel-save">
+                            <button type="submit" class="btn btn-primary">Save Email Settings</button>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Telegram & Discord -->
+                <form action="/settings/save-webhooks" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="card" style="margin-bottom: var(--space-4);">
+                        <h3 style="margin: 0 0 var(--space-4) 0;">Telegram</h3>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-4); line-height: 1.5;">
+                            Get instant stock alerts on Telegram. Create a bot via <a href="https://t.me/BotFather" target="_blank" style="color:var(--text-secondary);">@BotFather</a>.</p>
+                        <div class="grid grid-3" style="gap:var(--space-4); margin-bottom:var(--space-4);">
+                            <label class="checkbox-wrapper" style="align-self:center;">
+                                <input type="checkbox" name="telegram_enabled" {% if settings.telegram_enabled %}checked{% endif %}>
+                                <div class="checkbox-custom"></div>
+                                <span class="checkbox-label">Enable Telegram</span>
+                            </label>
+                            <div>
+                                <label>Bot Token</label>
+                                <input type="password" name="telegram_bot_token"
+                                    placeholder="{% if settings.telegram_bot_token %}••••••••{% else %}123456789:ABC-...{% endif %}">
+                            </div>
+                            <div>
+                                <label>Chat ID</label>
+                                <input type="text" name="telegram_chat_id" value="{{ settings.telegram_chat_id|default('') }}" placeholder="-100...">
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:0.5rem;">
+                            <button type="submit" class="btn btn-primary">Save Telegram</button>
+                            <button type="submit" formaction="/settings/test-telegram" class="btn btn-secondary">Test</button>
+                        </div>
+                        {% if request.query_params.get('telegram_ok') %}
+                        <p style="color:var(--signal-positive);margin-top:0.5rem;">Telegram connected!</p>
+                        {% elif request.query_params.get('telegram_error') %}
+                        <p style="color:var(--signal-negative);margin-top:0.5rem;">Telegram error: {{ request.query_params.get('msg','') }}</p>
+                        {% endif %}
+                    </div>
+                    <div class="card" style="margin-bottom: var(--space-6);">
+                        <h3 style="margin: 0 0 var(--space-4) 0;">Discord</h3>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-4); line-height: 1.5;">
+                            Create a webhook in any Discord channel via Server Settings &rarr; Integrations &rarr; Webhooks.</p>
+                        <div class="grid grid-2" style="gap:var(--space-4); margin-bottom:var(--space-4);">
+                            <label class="checkbox-wrapper" style="align-self:center;">
+                                <input type="checkbox" name="discord_enabled" {% if settings.discord_enabled %}checked{% endif %}>
+                                <div class="checkbox-custom"></div>
+                                <span class="checkbox-label">Enable Discord</span>
+                            </label>
+                            <div>
+                                <label>Webhook URL</label>
+                                <input type="password" name="discord_webhook_url"
+                                    placeholder="{% if settings.discord_webhook_url %}••••••••{% else %}https://discord.com/api/webhooks/...{% endif %}">
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:0.5rem;">
+                            <button type="submit" class="btn btn-primary">Save Discord</button>
+                            <button type="submit" formaction="/settings/test-discord" class="btn btn-secondary">Test</button>
+                        </div>
+                        {% if request.query_params.get('discord_ok') %}
+                        <p style="color:var(--signal-positive);margin-top:0.5rem;">Discord connected!</p>
+                        {% elif request.query_params.get('discord_error') %}
+                        <p style="color:var(--signal-negative);margin-top:0.5rem;">Discord error: {{ request.query_params.get('msg','') }}</p>
+                        {% endif %}
+                    </div>
+                </form>
+
+                <!-- Weekly Report -->
+                <form action="/settings/save-report" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5);">
+                            <div>
+                                <h3 style="margin: 0 0 var(--space-1) 0;">Weekly Report</h3>
+                                <p style="margin: 0; font-size: var(--text-sm);">Portfolio, discoveries, earnings &amp; sector digest</p>
+                            </div>
+                            <div style="display: flex; gap: var(--space-2);">
+                                <a href="/api/report/preview" target="_blank" class="btn btn-ghost" style="font-size: 0.75rem;">Preview</a>
+                                <button type="button" onclick="sendReportNow()" class="btn btn-secondary" style="font-size: 0.75rem;" id="send-report-btn">Send Now</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-3" style="gap: var(--space-5); margin-bottom: var(--space-5);">
+                            <label class="checkbox-wrapper" style="align-self: center;">
+                                <input type="checkbox" name="weekly_report_auto_send" {% if settings.weekly_report_auto_send == '1' %}checked{% endif %}>
+                                <div class="checkbox-custom"></div>
+                                <span class="checkbox-label">Auto-send weekly</span>
+                            </label>
+                            <div>
+                                <label>Send On</label>
+                                <select name="weekly_report_day">
+                                    {% for day in ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] %}
+                                    <option value="{{ day }}" {% if settings.weekly_report_day == day %}selected{% endif %}>{{ day }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div>
+                                <label>Send At</label>
+                                <input type="time" name="weekly_report_time" value="{{ settings.weekly_report_time|default('08:00') }}">
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: var(--space-2); align-items: center;">
+                            <button type="submit" class="btn btn-primary">Save Report Settings</button>
+                            <span id="report-send-status" style="font-size: 0.75rem; color: var(--text-muted);"></span>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- ═══ PANEL: PORTFOLIO ════════════════════════ -->
+            <div id="panel-portfolio" class="settings-panel">
+                <form action="/settings/save" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="_section" value="portfolio">
+
+                    <div class="card" style="margin-bottom: var(--space-6);">
+                        <h3 style="margin: 0 0 var(--space-5) 0;">Portfolio Rules</h3>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
+                            Rule-based alerts for position sizing, stop-losses, and concentration risk.
+                        </p>
+                        <div class="grid grid-2" style="gap: var(--space-5); margin-bottom: var(--space-5);">
+                            <div>
+                                <label>Max Position Size (%)</label>
+                                <input type="number" name="portfolio_max_position_pct" value="{{ settings.portfolio_max_position_pct|default(10.0) }}" min="1" max="100" step="1">
+                            </div>
+                            <div>
+                                <label>Stop-Loss Threshold (%)</label>
+                                <input type="number" name="portfolio_stop_loss_pct" value="{{ settings.portfolio_stop_loss_pct|default(15.0) }}" min="1" max="50" step="1">
+                            </div>
+                        </div>
+                        <div class="grid grid-2" style="gap: var(--space-5);">
+                            <div>
+                                <label>Max Sector Concentration (%)</label>
+                                <input type="number" name="portfolio_max_sector_pct" value="{{ settings.portfolio_max_sector_pct|default(30.0) }}" min="5" max="100" step="5">
+                            </div>
+                            <div>
+                                <label>Rebalance Drift Threshold (%)</label>
+                                <input type="number" name="portfolio_rebalance_drift_pct" value="{{ settings.portfolio_rebalance_drift_pct|default(5.0) }}" min="1" max="25" step="1">
+                            </div>
+                        </div>
+                        <div class="grid grid-3" style="gap: var(--space-5); margin-top: var(--space-5);">
+                            <label class="checkbox-wrapper" style="padding-top: var(--space-6);">
+                                <input type="checkbox" name="portfolio_risk_guard_enabled" {% if settings.portfolio_risk_guard_enabled|default(true) %}checked{% endif %}>
+                                <div class="checkbox-custom"></div>
+                                <span class="checkbox-label">Enable Global Risk Guard</span>
+                            </label>
+                            <div>
+                                <label>Global Loss Limit (%)</label>
+                                <input type="number" name="portfolio_global_loss_limit_pct" value="{{ settings.portfolio_global_loss_limit_pct|default(10.0) }}" min="1" max="50" step="0.5">
+                            </div>
+                            <div>
+                                <label>Risk Cooldown (Hours)</label>
+                                <input type="number" name="portfolio_risk_cooldown_hours" value="{{ settings.portfolio_risk_cooldown_hours|default(24) }}" min="0" max="168" step="1">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ticker Risk Overrides -->
+                    <div class="card" style="margin-bottom: var(--space-6);">
+                        <h3 style="margin: 0 0 var(--space-5) 0;">Ticker Risk Overrides</h3>
+                        <div class="grid grid-3" style="gap: var(--space-4); margin-bottom: var(--space-5);">
+                            <div>
+                                <label>Ticker</label>
+                                <input type="text" name="ticker" placeholder="AAPL">
+                            </div>
+                            <div>
+                                <label>Stop-Loss Override (%)</label>
+                                <input type="number" name="stop_loss_pct" min="1" max="50" step="0.5" placeholder="e.g. 8">
+                            </div>
+                            <div>
+                                <label>Max Position Override (%)</label>
+                                <input type="number" name="max_position_pct" min="1" max="100" step="0.5" placeholder="e.g. 6">
+                            </div>
+                            <div style="grid-column: span 3; display: flex; justify-content: flex-end;">
+                                <button type="submit" formaction="/settings/risk-override" formmethod="post" class="btn btn-secondary">Save Override</button>
+                            </div>
+                        </div>
+                        {% if risk_overrides and risk_overrides|length > 0 %}
+                        <div style="display: grid; gap: var(--space-3);">
+                            {% for override in risk_overrides %}
+                            <div style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3); border: 1px solid var(--border-light); border-radius: var(--radius-md);">
+                                <div style="font-size: 0.8125rem; color: var(--text-secondary);">
+                                    <strong style="color: var(--text-primary);">{{ override.ticker }}</strong>
+                                    · Stop-Loss: {{ override.stop_loss_pct if override.stop_loss_pct is not none else '-' }}%
+                                    · Max Position: {{ override.max_position_pct if override.max_position_pct is not none else '-' }}%
+                                </div>
+                                <button type="submit" formaction="/settings/risk-override/delete/{{ override.ticker }}" formmethod="post" class="btn btn-ghost" style="font-size: 0.75rem;">Remove</button>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">No overrides configured.</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Price Alerts -->
+                    <div class="card" style="margin-bottom: var(--space-6);">
+                        <h3 style="margin: 0 0 var(--space-5) 0;">Price Alerts</h3>
+                        <div class="grid grid-4" style="gap: var(--space-4); margin-bottom: var(--space-5);">
+                            <div>
+                                <label>Ticker</label>
+                                <input type="text" id="alert-ticker" placeholder="AAPL" style="text-transform: uppercase;">
+                            </div>
+                            <div>
+                                <label>Alert Type</label>
+                                <select id="alert-type">
+                                    <option value="target_price">Target Price</option>
+                                    <option value="support_break">Support Break</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label>Price</label>
+                                <input type="number" id="alert-threshold" step="0.01" placeholder="150.00">
+                            </div>
+                            <div>
+                                <label>Direction</label>
+                                <select id="alert-direction">
+                                    <option value="above">Above</option>
+                                    <option value="below">Below</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-secondary" onclick="createAlert()" style="margin-bottom: var(--space-5);">Add Price Alert</button>
+                        <div id="active-alerts"></div>
+                    </div>
+
+                    <div class="panel-save">
+                        <button type="submit" class="btn btn-primary">Save Portfolio Settings</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- ═══ PANEL: SECURITY ═════════════════════════ -->
+            <div id="panel-security" class="settings-panel">
+                <form action="/settings/save" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="_section" value="security">
+
+                    <!-- Session Management -->
+                    <div class="card" style="margin-bottom: var(--space-6);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); gap: var(--space-3); flex-wrap: wrap;">
+                            <div>
+                                <h3 style="margin: 0 0 var(--space-1) 0;">Active Sessions</h3>
+                                <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0;">Review active devices and end all other sessions.</p>
+                            </div>
+                            <button type="submit" formaction="/settings/sessions/logout-others" formmethod="post" class="btn btn-secondary" style="font-size: 0.75rem;">Logout Other Sessions</button>
+                        </div>
+                        {% if sessions and sessions|length > 0 %}
+                        <div style="display: grid; gap: var(--space-3);">
+                            {% for s in sessions %}
+                            <div style="padding: var(--space-3); border: 1px solid var(--border-light); border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);">
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.5;">
+                                    <div style="font-weight: 500; color: var(--text-primary); font-family: var(--font-mono);">
+                                        {% if s.session_id == current_session_id %}Current Session{% else %}Session{% endif %}
+                                    </div>
+                                    <div>Last Activity: {{ s.last_activity }}</div>
+                                    <div>Expires: {{ s.expires_at }}</div>
+                                    <div>IP: {{ s.ip_address if s.ip_address else 'unknown' }}</div>
+                                </div>
+                                <div>
+                                    {% if s.session_id == current_session_id %}
+                                    <span class="badge badge-success">Current</span>
+                                    {% else %}
+                                    <div style="display: flex; align-items: center; gap: var(--space-2);">
+                                        <span class="badge badge-secondary">Other</span>
+                                        <button type="submit" formaction="/settings/sessions/logout/{{ s.session_id }}" formmethod="post" class="btn btn-ghost" style="font-size: 0.6875rem;">Logout</button>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div style="font-size: 0.75rem; color: var(--text-muted);">No active sessions found.</div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Authentication Security -->
+                    <div class="card" style="margin-bottom: var(--space-6);">
+                        <h3 style="margin: 0 0 var(--space-5) 0;">Authentication Security</h3>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
+                            Configure login backoff/lockout behavior to reduce brute-force risk.
+                        </p>
+                        <div class="grid grid-3" style="gap: var(--space-5);">
+                            <div>
+                                <label>Max Failed Attempts</label>
+                                <input type="number" name="auth_max_failed_attempts" value="{{ settings.auth_max_failed_attempts|default(5) }}" min="3" max="20" step="1">
+                            </div>
+                            <div>
+                                <label>Attempt Window (Minutes)</label>
+                                <input type="number" name="auth_attempt_window_minutes" value="{{ settings.auth_attempt_window_minutes|default(15) }}" min="5" max="120" step="1">
+                            </div>
+                            <div>
+                                <label>Lockout Duration (Minutes)</label>
+                                <input type="number" name="auth_lockout_minutes" value="{{ settings.auth_lockout_minutes|default(15) }}" min="1" max="240" step="1">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel-save">
+                        <button type="submit" class="btn btn-primary">Save Security Settings</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- ═══ PANEL: APPEARANCE ═══════════════════════ -->
+            <div id="panel-appearance" class="settings-panel">
+                <div class="card">
+                    <h3 style="margin: 0 0 var(--space-4) 0;">Appearance</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-6);">
+                        <div style="font-size: 0.8125rem; color: var(--text-muted);">
+                            Toggle between Stockholm Dark and Light modes
+                        </div>
                         <label class="checkbox-wrapper">
-                            <input type="checkbox" name="notify_on_strong_signals" {% if
-                                settings.notify_on_strong_signals %}checked{% endif %}>
+                            <input type="checkbox" id="theme-toggle" aria-label="Toggle light mode">
                             <div class="checkbox-custom"></div>
-                            <span class="checkbox-label">Only Strong BUY/SELL Signals</span>
+                            <span class="checkbox-label">Light mode</span>
                         </label>
                     </div>
                 </div>
-
-                <div class="grid grid-2" style="margin-bottom: var(--space-5);">
-                    <div>
-                        <label>SMTP Host</label>
-                        <input type="text" name="email_smtp_host" value="{{ settings.email_smtp_host }}"
-                            placeholder="smtp.gmail.com">
-                    </div>
-                    <div>
-                        <label>SMTP Port</label>
-                        <input type="number" name="email_smtp_port" value="{{ settings.email_smtp_port }}">
-                    </div>
-                </div>
-
-                <div class="grid grid-2" style="margin-bottom: var(--space-5);">
-                    <div>
-                        <label>SMTP User</label>
-                        <input type="email" name="email_smtp_user" value="{{ settings.email_smtp_user }}">
-                    </div>
-                    <div>
-                        <label>SMTP Password</label>
-                        <input type="password" name="email_smtp_password"
-                            placeholder="{% if settings.email_smtp_password %}••••••••{% else %}App password{% endif %}">
-                    </div>
-                </div>
-
-                <div style="padding-top: var(--space-5); border-top: 1px solid var(--border-light);">
-                    <div class="grid grid-2">
-                        <div style="display: flex; align-items: center;">
-                            <label class="checkbox-wrapper">
-                                <input type="checkbox" name="daily_summary_enabled" {% if settings.daily_summary_enabled
-                                    %}checked{% endif %}>
-                                <div class="checkbox-custom"></div>
-                                <span class="checkbox-label">Send Daily Summary</span>
-                            </label>
-                        </div>
-                        <div>
-                            <label>Summary Time</label>
-                            <input type="time" name="daily_summary_time" value="{{ settings.daily_summary_time }}">
-                        </div>
-                    </div>
-                </div>
             </div>
+
         </div>
-
-        <!-- Webhook Settings (Telegram / Discord) -->
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <div
-                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
-                <h3 style="margin: 0;">Telegram &amp; Discord Alerts</h3>
-            </div>
-            <!-- Note: webhook settings use their own form -->
-        </div>
-    </form>
-
-    <form action="/settings/save-webhooks" method="POST" style="margin-bottom: var(--space-8);">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <div class="card" style="margin-bottom: var(--space-4);">
-            <h3 style="margin: 0 0 var(--space-4) 0;">📲 Telegram</h3>
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-4); line-height: 1.5;">
-                Get instant stock alerts on Telegram. Create a bot via <a href="https://t.me/BotFather" target="_blank"
-                    style="color:var(--text-secondary);">@BotFather</a>, then message your bot and get your chat ID.</p>
-            <div class="grid grid-3" style="gap:var(--space-4); margin-bottom:var(--space-4);">
-                <label class="checkbox-wrapper" style="align-self:center;">
-                    <input type="checkbox" name="telegram_enabled" {% if settings.telegram_enabled %}checked{% endif %}>
-                    <div class="checkbox-custom"></div>
-                    <span class="checkbox-label">Enable Telegram Alerts</span>
-                </label>
-                <div>
-                    <label>Bot Token</label>
-                    <input type="password" name="telegram_bot_token"
-                        placeholder="{% if settings.telegram_bot_token %}••••••••{% else %}123456789:ABC-...{% endif %}">
-                </div>
-                <div>
-                    <label>Chat ID</label>
-                    <input type="text" name="telegram_chat_id" value="{{ settings.telegram_chat_id|default('') }}"
-                        placeholder="-100...">
-                </div>
-            </div>
-            <div style="display:flex;gap:0.5rem;">
-                <button type="submit" class="btn btn-primary">Save Telegram</button>
-                <button type="submit" formaction="/settings/test-telegram" class="btn btn-secondary">Test</button>
-            </div>
-            {% if request.query_params.get('telegram_ok') %}
-            <p style="color:var(--signal-positive);margin-top:0.5rem;">✓ Telegram connected!</p>
-            {% elif request.query_params.get('telegram_error') %}
-            <p style="color:var(--signal-negative);margin-top:0.5rem;">✗ Telegram error: {{
-                request.query_params.get('msg','') }}</p>
-            {% endif %}
-        </div>
-        <div class="card">
-            <h3 style="margin: 0 0 var(--space-4) 0;">🎮 Discord</h3>
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-4); line-height: 1.5;">
-                Create a webhook in any Discord channel via Server Settings &rarr; Integrations &rarr; Webhooks.</p>
-            <div class="grid grid-2" style="gap:var(--space-4); margin-bottom:var(--space-4);">
-                <label class="checkbox-wrapper" style="align-self:center;">
-                    <input type="checkbox" name="discord_enabled" {% if settings.discord_enabled %}checked{% endif %}>
-                    <div class="checkbox-custom"></div>
-                    <span class="checkbox-label">Enable Discord Alerts</span>
-                </label>
-                <div>
-                    <label>Webhook URL</label>
-                    <input type="password" name="discord_webhook_url"
-                        placeholder="{% if settings.discord_webhook_url %}••••••••{% else %}https://discord.com/api/webhooks/...{% endif %}">
-                </div>
-            </div>
-            <div style="display:flex;gap:0.5rem;">
-                <button type="submit" class="btn btn-primary">Save Discord</button>
-                <button type="submit" formaction="/settings/test-discord" class="btn btn-secondary">Test</button>
-            </div>
-            {% if request.query_params.get('discord_ok') %}
-            <p style="color:var(--signal-positive);margin-top:0.5rem;">✓ Discord connected!</p>
-            {% elif request.query_params.get('discord_error') %}
-            <p style="color:var(--signal-negative);margin-top:0.5rem;">✗ Discord error: {{
-                request.query_params.get('msg','') }}</p>
-            {% endif %}
-        </div>
-    </form>
-
-    <!-- Weekly Report -->
-    <form action="/settings/save-report" method="POST" style="margin-bottom: var(--space-8);">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5);">
-                <div>
-                    <h3 style="margin: 0 0 var(--space-1) 0;">Weekly Report</h3>
-                    <p style="margin: 0; font-size: var(--text-sm);">Portfolio, discoveries, earnings &amp; sector digest — sent via email/webhook</p>
-                </div>
-                <div style="display: flex; gap: var(--space-2);">
-                    <a href="/api/report/preview" target="_blank" class="btn btn-ghost" style="font-size: 0.75rem;">Preview</a>
-                    <button type="button" onclick="sendReportNow()" class="btn btn-secondary" style="font-size: 0.75rem;" id="send-report-btn">Send Now</button>
-                </div>
-            </div>
-
-            <div class="grid grid-3" style="gap: var(--space-5); margin-bottom: var(--space-5);">
-                <label class="checkbox-wrapper" style="align-self: center;">
-                    <input type="checkbox" name="weekly_report_auto_send"
-                        {% if settings.weekly_report_auto_send == '1' %}checked{% endif %}>
-                    <div class="checkbox-custom"></div>
-                    <span class="checkbox-label">Auto-send weekly report</span>
-                </label>
-                <div>
-                    <label>Send On</label>
-                    <select name="weekly_report_day">
-                        {% for day in ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] %}
-                        <option value="{{ day }}" {% if settings.weekly_report_day == day %}selected{% endif %}>{{ day }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <label>Send At</label>
-                    <input type="time" name="weekly_report_time"
-                        value="{{ settings.weekly_report_time|default('08:00') }}">
-                </div>
-            </div>
-
-            <div style="display: flex; gap: var(--space-2); align-items: center;">
-                <button type="submit" class="btn btn-primary">Save Report Settings</button>
-                <span id="report-send-status" style="font-size: 0.75rem; color: var(--text-muted);"></span>
-            </div>
-        </div>
-    </form>
-
-    <!-- Reopen main form for remaining settings -->
-    <form action="/settings/save" method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-
-        <!-- Analysis Settings -->
-
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <h3 style="margin: 0 0 var(--space-6) 0;">Analysis Configuration</h3>
-
-            <!-- Analysis Variant Clickable Tiles -->
-            <div class="grid grid-3" style="margin-bottom: var(--space-8); gap: var(--space-4);">
-                <!-- Conservative -->
-                <label class="variant-card {% if settings.analysis_variant=='conservative' %}active{% endif %}">
-                    <input type="radio" name="analysis_variant" value="conservative" style="display: none;" {% if
-                        settings.analysis_variant=='conservative' %}checked{% endif %}
-                        onchange="updateVariantSelection(this)">
-                    <div class="variant-card-content">
-                        <div class="variant-card-title">Conservative</div>
-                        <p class="variant-card-desc">
-                            Very strict filtering on blue-chips and dividends. Only watchlist stocks are analyzed.
-                        </p>
-                    </div>
-                    <div class="variant-card-indicator"></div>
-                </label>
-
-                <!-- Balanced -->
-                <label
-                    class="variant-card {% if settings.analysis_variant=='balanced' or not settings.analysis_variant %}active{% endif %}">
-                    <input type="radio" name="analysis_variant" value="balanced" style="display: none;" {% if
-                        settings.analysis_variant=='balanced' or not settings.analysis_variant %}checked{% endif %}
-                        onchange="updateVariantSelection(this)">
-                    <div class="variant-card-content">
-                        <div class="variant-card-title">Balanced</div>
-                        <p class="variant-card-desc">
-                            Default setting. Optimized for balanced request distribution. Solid analysis coverage.
-                        </p>
-                    </div>
-                    <div class="variant-card-indicator"></div>
-                </label>
-
-                <!-- Aggressive -->
-                <label class="variant-card {% if settings.analysis_variant=='aggressive' %}active{% endif %}">
-                    <input type="radio" name="analysis_variant" value="aggressive" style="display: none;" {% if
-                        settings.analysis_variant=='aggressive' %}checked{% endif %}
-                        onchange="updateVariantSelection(this)">
-                    <div class="variant-card-content">
-                        <div class="variant-card-title">Aggressive</div>
-                        <p class="variant-card-desc">
-                            Includes Market Discovery. Searches beyond watchlist for opportunities.
-                        </p>
-                    </div>
-                    <div class="variant-card-indicator"></div>
-                </label>
-            </div>
-
-            <!-- Monthly API Budget -->
-            <div
-                style="padding: var(--space-6); background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: var(--radius-md); box-shadow: var(--shadow-sm);">
-                <div style="display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-5);">
-                    <h3 style="margin: 0; font-size: 1rem; font-family: var(--font-body);">Monthly API Budget</h3>
-                    <span
-                        style="background: var(--bg-inverse); color: var(--text-inverse); font-size: 0.5625rem; font-weight: 500; padding: 2px 8px; text-transform: uppercase; letter-spacing: 0.06em;">Adaptive</span>
-                </div>
-
-                <p
-                    style="font-size: 0.75rem; color: var(--text-muted); margin: 0 0 var(--space-5) 0; line-height: 1.5;">
-                    Set your monthly spending limit per API. Daily request limits are calculated automatically
-                    based on remaining budget and days left in the month.
-                </p>
-
-                <!-- Budget Inputs -->
-                <div class="grid grid-2" style="gap: var(--space-5); margin-bottom: var(--space-6);">
-                    <div>
-                        <label>Perplexity Monthly Budget</label>
-                        <div style="display: flex; align-items: center; gap: var(--space-2);">
-                            <input type="number" name="perplexity_monthly_budget"
-                                value="{{ settings.perplexity_monthly_budget|default(5.0) }}" min="0" max="100"
-                                step="0.50" style="flex: 1;">
-                            <span
-                                style="font-size: 0.8125rem; color: var(--text-secondary); font-weight: 500;">EUR</span>
-                        </div>
-                        <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                            Sonar model: ~0.006 EUR/request
-                        </div>
-                    </div>
-                    <div>
-                        <label>Gemini Monthly Budget</label>
-                        <div style="display: flex; align-items: center; gap: var(--space-2);">
-                            <input type="number" name="gemini_monthly_budget"
-                                value="{{ settings.gemini_monthly_budget|default(5.0) }}" min="0" max="100" step="0.50"
-                                style="flex: 1;">
-                            <span
-                                style="font-size: 0.8125rem; color: var(--text-secondary); font-weight: 500;">EUR</span>
-                        </div>
-                        <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                            Flash-Lite: ~0.0003 | Flash: ~0.0005 | 3-Flash: ~0.002 EUR/req
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Budget Status (live data from server) -->
-                {% if budget_status %}
-                <div class="grid grid-2" style="gap: var(--space-4); margin-bottom: var(--space-4);">
-                    {% for api_name, label in [('perplexity', 'Perplexity'), ('gemini', 'Gemini')] %}
-                    {% set bs = budget_status.get(api_name, {}) %}
-                    <div
-                        style="padding: var(--space-4); background: var(--bg-card); border: 1px solid var(--border-light); border-radius: var(--radius-sm);">
-                        <div
-                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
-                            <span
-                                style="font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary);">{{
-                                label }}</span>
-                            <span style="font-size: 0.6875rem; color: var(--text-muted);">{{ bs.get('days_left', 0) }}
-                                days left</span>
-                        </div>
-                        <!-- Progress bar -->
-                        <div style="height: 4px; background: var(--border-hairline); margin-bottom: var(--space-3);">
-                            <div
-                                style="height: 100%; width: {{ bs.get('percent_used', 0) }}%; background: {% if bs.get('percent_used', 0) > 80 %}var(--signal-negative){% elif bs.get('percent_used', 0) > 50 %}var(--signal-warning, #f59e0b){% else %}var(--signal-positive){% endif %}; transition: width 0.3s;">
-                            </div>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.75rem;">
-                            <span style="color: var(--text-muted);">Spent: <span style="color: var(--text-primary);">{{
-                                    "%.2f"|format(bs.get('spent_eur', 0)) }} EUR</span></span>
-                            <span style="color: var(--text-muted);">Left: <span style="color: var(--text-primary);">{{
-                                    "%.2f"|format(bs.get('remaining_eur', 0)) }} EUR</span></span>
-                        </div>
-                        <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-ghost);">
-                            Today: {{ bs.get('today_requests', 0) }} requests · Limit: ~{{ bs.get('daily_request_limit',
-                            0) }}/day
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-
-                {% if budget_status.pipeline %}
-                <div
-                    style="text-align: center; font-size: 0.75rem; color: var(--text-muted); padding-top: var(--space-3); border-top: 1px solid var(--border-hairline);">
-                    Pipeline capacity today:
-                    <span style="font-weight: 500;">{{ budget_status.pipeline.stage1_max }}</span> scan &rarr;
-                    <span style="font-weight: 500;">{{ budget_status.pipeline.stage2_max }}</span> analyze &rarr;
-                    <span style="font-weight: 500;">{{ budget_status.pipeline.stage3_max }}</span> synthesize
-                </div>
-                {% endif %}
-                {% endif %}
-            </div>
-
-            <!-- Analysis Toggles -->
-            <div class="grid grid-3"
-                style="margin-top: var(--space-6); padding-top: var(--space-6); border-top: 1px solid var(--border-light);">
-                <label class="checkbox-wrapper">
-                    <input type="checkbox" name="include_news" {% if settings.include_news %}checked{% endif %}>
-                    <div class="checkbox-custom"></div>
-                    <span class="checkbox-label">Include News</span>
-                </label>
-                <label class="checkbox-wrapper">
-                    <input type="checkbox" name="include_fundamental" {% if settings.include_fundamental %}checked{%
-                        endif %}>
-                    <div class="checkbox-custom"></div>
-                    <span class="checkbox-label">Fundamental Analysis</span>
-                </label>
-                <label class="checkbox-wrapper">
-                    <input type="checkbox" name="include_technical" {% if settings.include_technical %}checked{% endif
-                        %}>
-                    <div class="checkbox-custom"></div>
-                    <span class="checkbox-label">Technical Analysis</span>
-                </label>
-            </div>
-        </div>
-
-        <!-- Portfolio Rules -->
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <h3 style="margin: 0 0 var(--space-5) 0;">Portfolio Rules</h3>
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
-                Rule-based alerts for position sizing, stop-losses, and concentration risk. No AI opinions.
-            </p>
-
-            <div class="grid grid-2" style="gap: var(--space-5); margin-bottom: var(--space-5);">
-                <div>
-                    <label>Max Position Size (%)</label>
-                    <input type="number" name="portfolio_max_position_pct"
-                        value="{{ settings.portfolio_max_position_pct|default(10.0) }}" min="1" max="100" step="1">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        Alert when any single position exceeds this % of portfolio
-                    </div>
-                </div>
-                <div>
-                    <label>Stop-Loss Threshold (%)</label>
-                    <input type="number" name="portfolio_stop_loss_pct"
-                        value="{{ settings.portfolio_stop_loss_pct|default(15.0) }}" min="1" max="50" step="1">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        Alert when a position drops this % from entry price
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid grid-2" style="gap: var(--space-5);">
-                <div>
-                    <label>Max Sector Concentration (%)</label>
-                    <input type="number" name="portfolio_max_sector_pct"
-                        value="{{ settings.portfolio_max_sector_pct|default(30.0) }}" min="5" max="100" step="5">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        Alert when any sector exceeds this % of portfolio
-                    </div>
-                </div>
-                <div>
-                    <label>Rebalance Drift Threshold (%)</label>
-                    <input type="number" name="portfolio_rebalance_drift_pct"
-                        value="{{ settings.portfolio_rebalance_drift_pct|default(5.0) }}" min="1" max="25" step="1">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        Suggest rebalancing when allocation drifts beyond this %
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid grid-3" style="gap: var(--space-5); margin-top: var(--space-5);">
-                <label class="checkbox-wrapper" style="padding-top: var(--space-6);">
-                    <input type="checkbox" name="portfolio_risk_guard_enabled" {% if
-                        settings.portfolio_risk_guard_enabled|default(true) %}checked{% endif %}>
-                    <div class="checkbox-custom"></div>
-                    <span class="checkbox-label">Enable Global Risk Guard</span>
-                </label>
-                <div>
-                    <label>Global Loss Limit (%)</label>
-                    <input type="number" name="portfolio_global_loss_limit_pct"
-                        value="{{ settings.portfolio_global_loss_limit_pct|default(10.0) }}" min="1" max="50"
-                        step="0.5">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        Suspend new analysis cycles when portfolio loss exceeds this value
-                    </div>
-                </div>
-                <div>
-                    <label>Risk Cooldown (Hours)</label>
-                    <input type="number" name="portfolio_risk_cooldown_hours"
-                        value="{{ settings.portfolio_risk_cooldown_hours|default(24) }}" min="0" max="168" step="1">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        Keep guard active for this duration after trigger
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Ticker Risk Overrides -->
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <h3 style="margin: 0 0 var(--space-5) 0;">Ticker Risk Overrides</h3>
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
-                Optional per-stock override for stop-loss and max position limits.
-            </p>
-
-            <div class="grid grid-3" style="gap: var(--space-4); margin-bottom: var(--space-5);">
-                <div>
-                    <label>Ticker</label>
-                    <input type="text" name="ticker" placeholder="AAPL">
-                </div>
-                <div>
-                    <label>Stop-Loss Override (%)</label>
-                    <input type="number" name="stop_loss_pct" min="1" max="50" step="0.5" placeholder="z.B. 8">
-                </div>
-                <div>
-                    <label>Max Position Override (%)</label>
-                    <input type="number" name="max_position_pct" min="1" max="100" step="0.5" placeholder="z.B. 6">
-                </div>
-                <div style="grid-column: span 3; display: flex; justify-content: flex-end;">
-                    <button type="submit" formaction="/settings/risk-override" formmethod="post"
-                        class="btn btn-secondary">
-                        Save Override
-                    </button>
-                </div>
-            </div>
-
-            {% if risk_overrides and risk_overrides|length > 0 %}
-            <div style="display: grid; gap: var(--space-3);">
-                {% for override in risk_overrides %}
-                <div
-                    style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3); border: 1px solid var(--border-light); border-radius: var(--radius-md);">
-                    <div style="font-size: 0.8125rem; color: var(--text-secondary);">
-                        <strong style="color: var(--text-primary);">{{ override.ticker }}</strong>
-                        · Stop-Loss: {{ override.stop_loss_pct if override.stop_loss_pct is not none else '-' }}%
-                        · Max Position: {{ override.max_position_pct if override.max_position_pct is not none else '-'
-                        }}%
-                    </div>
-                    <button type="submit" formaction="/settings/risk-override/delete/{{ override.ticker }}"
-                        formmethod="post" class="btn btn-ghost" style="font-size: 0.75rem;">
-                        Remove
-                    </button>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <div style="font-size: 0.75rem; color: var(--text-muted);">
-                No overrides configured.
-            </div>
-            {% endif %}
-        </div>
-
-        <!-- Learning System -->
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <h3 style="margin: 0 0 var(--space-5) 0;">Learning System</h3>
-            <div class="grid grid-2" style="gap: var(--space-5);">
-                <div>
-                    <label>Verification Window (Days)</label>
-                    <input type="number" name="learning_verification_days"
-                        value="{{ settings.learning_verification_days|default(90) }}" min="30" max="365" step="30">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        How many days to wait before verifying a prediction (30-365). Longer = more meaningful but
-                        slower feedback.
-                    </div>
-                </div>
-                <div style="display: flex; align-items: center; padding-top: var(--space-6);">
-                    <div style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.6;">
-                        Predictions are compared against actual price movement and SPY benchmark after this window.
-                        System warns if accuracy drops below 55% over 20+ predictions.
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Session Management -->
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <div
-                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); gap: var(--space-3); flex-wrap: wrap;">
-                <div>
-                    <h3 style="margin: 0 0 var(--space-1) 0;">Active Sessions</h3>
-                    <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0;">Review active devices and end
-                        all other sessions.</p>
-                </div>
-                <button type="submit" formaction="/settings/sessions/logout-others" formmethod="post"
-                    class="btn btn-secondary" style="font-size: 0.75rem;">
-                    Logout Other Sessions
-                </button>
-            </div>
-
-            {% if sessions and sessions|length > 0 %}
-            <div style="display: grid; gap: var(--space-3);">
-                {% for s in sessions %}
-                <div
-                    style="padding: var(--space-3); border: 1px solid var(--border-light); border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);">
-                    <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.5;">
-                        <div style="font-weight: 500; color: var(--text-primary); font-family: var(--font-mono);">
-                            {% if s.session_id == current_session_id %}Current Session{% else %}Session{% endif %}
-                        </div>
-                        <div>Last Activity: {{ s.last_activity }}</div>
-                        <div>Expires: {{ s.expires_at }}</div>
-                        <div>IP: {{ s.ip_address if s.ip_address else 'unknown' }}</div>
-                        <div>User-Agent: {{ (s.user_agent or 'unknown')[:90] }}{% if s.user_agent and
-                            s.user_agent|length > 90 %}...{% endif %}</div>
-                    </div>
-                    <div>
-                        {% if s.session_id == current_session_id %}
-                        <span class="badge badge-success">Current</span>
-                        {% else %}
-                        <div style="display: flex; align-items: center; gap: var(--space-2);">
-                            <span class="badge badge-secondary">Other</span>
-                            <button type="submit" formaction="/settings/sessions/logout/{{ s.session_id }}"
-                                formmethod="post" class="btn btn-ghost" style="font-size: 0.6875rem;">
-                                Logout
-                            </button>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <div style="font-size: 0.75rem; color: var(--text-muted);">No active sessions found.</div>
-            {% endif %}
-        </div>
-
-        <!-- Price Alerts -->
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <h3 style="margin: 0 0 var(--space-5) 0;">Price Alerts</h3>
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
-                Set up alerts when stocks reach specific price levels. Alerts are checked during scheduled scans.
-            </p>
-            <div class="grid grid-4" style="gap: var(--space-4); margin-bottom: var(--space-5);">
-                <div>
-                    <label>Ticker</label>
-                    <input type="text" id="alert-ticker" placeholder="AAPL" style="text-transform: uppercase;">
-                </div>
-                <div>
-                    <label>Alert Type</label>
-                    <select id="alert-type">
-                        <option value="target_price">Target Price</option>
-                        <option value="support_break">Support Break</option>
-                    </select>
-                </div>
-                <div>
-                    <label>Price</label>
-                    <input type="number" id="alert-threshold" step="0.01" placeholder="150.00">
-                </div>
-                <div>
-                    <label>Direction</label>
-                    <select id="alert-direction">
-                        <option value="above">Above</option>
-                        <option value="below">Below</option>
-                    </select>
-                </div>
-            </div>
-            <button type="button" class="btn btn-secondary" onclick="createAlert()" style="margin-bottom: var(--space-5);">Add Price Alert</button>
-            <div id="active-alerts"></div>
-        </div>
-
-        <!-- Authentication Security -->
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <h3 style="margin: 0 0 var(--space-5) 0;">Authentication Security</h3>
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
-                Configure login backoff/lockout behavior to reduce brute-force risk.
-            </p>
-
-            <div class="grid grid-3" style="gap: var(--space-5);">
-                <div>
-                    <label>Max Failed Attempts</label>
-                    <input type="number" name="auth_max_failed_attempts"
-                        value="{{ settings.auth_max_failed_attempts|default(5) }}" min="3" max="20" step="1">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        Failed attempts before temporary lockout
-                    </div>
-                </div>
-                <div>
-                    <label>Attempt Window (Minutes)</label>
-                    <input type="number" name="auth_attempt_window_minutes"
-                        value="{{ settings.auth_attempt_window_minutes|default(15) }}" min="5" max="120" step="1">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        Count failed attempts inside this rolling window
-                    </div>
-                </div>
-                <div>
-                    <label>Lockout Duration (Minutes)</label>
-                    <input type="number" name="auth_lockout_minutes"
-                        value="{{ settings.auth_lockout_minutes|default(15) }}" min="1" max="240" step="1">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        How long login stays locked after threshold is hit
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Spacer for sticky footer -->
-        <div class="sticky-footer-spacer"></div>
-
-        <!-- Sticky Save Bar -->
-        <div class="sticky-footer">
-            <button type="submit" class="btn btn-primary">Save All Settings</button>
-        </div>
-    </form>
+    </div>
 </div>
 
 <script>
-    function toggleEmailSettings() {
-        const toggle = document.getElementById('email-toggle');
-        const container = document.getElementById('email-settings-container');
+    function updateSettingsNavIndicator() {
+        var nav = document.querySelector('.settings-nav');
+        if (!nav) return;
 
-        if (toggle.checked) {
-            container.classList.remove('section-disabled');
-        } else {
-            container.classList.add('section-disabled');
+        var indicator = nav.querySelector('.settings-nav-indicator');
+        var activeItem = nav.querySelector('.settings-nav-item.active');
+
+        if (!indicator || !activeItem) {
+            nav.classList.remove('has-indicator');
+            return;
         }
+
+        var navRect = nav.getBoundingClientRect();
+        var itemRect = activeItem.getBoundingClientRect();
+        var translateY = itemRect.top - navRect.top;
+
+        indicator.style.height = itemRect.height + 'px';
+        indicator.style.transform = 'translateY(' + translateY + 'px)';
+        nav.classList.add('has-indicator');
+    }
+
+    // ─── Panel Switching ───
+    function switchSettingsPanel(panelId) {
+        document.querySelectorAll('.settings-nav-item').forEach(function(item) { item.classList.remove('active'); });
+        document.querySelectorAll('.settings-panel').forEach(function(panel) { panel.classList.remove('active'); });
+        var navItem = document.querySelector('[data-panel="' + panelId + '"]');
+        var panel = document.getElementById(panelId);
+        if (navItem) navItem.classList.add('active');
+        if (panel) panel.classList.add('active');
+        updateSettingsNavIndicator();
+        sessionStorage.setItem('settings-active-panel', panelId);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var saved = sessionStorage.getItem('settings-active-panel') || 'panel-api';
+        switchSettingsPanel(saved);
+        requestAnimationFrame(updateSettingsNavIndicator);
+    });
+
+    window.addEventListener('resize', updateSettingsNavIndicator);
+
+    // ─── Existing JS ───
+    function toggleEmailSettings() {
+        var toggle = document.getElementById('email-toggle');
+        var container = document.getElementById('email-settings-container');
+        if (toggle.checked) { container.classList.remove('section-disabled'); }
+        else { container.classList.add('section-disabled'); }
     }
 
     function toggleDiscoverySettings() {
-        const toggle = document.getElementById('discovery-toggle');
-        const container = document.getElementById('discovery-settings-container');
-
-        if (toggle.checked) {
-            container.classList.remove('section-disabled');
-        } else {
-            container.classList.add('section-disabled');
-        }
+        var toggle = document.getElementById('discovery-toggle');
+        var container = document.getElementById('discovery-settings-container');
+        if (toggle.checked) { container.classList.remove('section-disabled'); }
+        else { container.classList.add('section-disabled'); }
     }
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -891,161 +956,279 @@
     });
 
     function updateVariantSelection(radioInput) {
-        // Remove active class from all variant cards
-        document.querySelectorAll('.variant-card').forEach(card => {
-            card.classList.remove('active');
-        });
-
-        // Add active class to the selected one
-        if (radioInput.checked) {
-            radioInput.closest('.variant-card').classList.add('active');
-        }
+        document.querySelectorAll('.variant-card').forEach(function(card) { card.classList.remove('active'); });
+        if (radioInput.checked) { radioInput.closest('.variant-card').classList.add('active'); }
     }
+
     // Weekly Report
     function sendReportNow() {
-        const btn = document.getElementById('send-report-btn');
-        const status = document.getElementById('report-send-status');
-        btn.disabled = true;
-        btn.textContent = 'Sending…';
-        status.textContent = '';
+        var btn = document.getElementById('send-report-btn');
+        var status = document.getElementById('report-send-status');
+        btn.disabled = true; btn.textContent = 'Sending...'; status.textContent = '';
         fetch('/api/report/send', { method: 'POST', credentials: 'same-origin' })
-            .then(r => r.json())
-            .then(data => {
-                btn.disabled = false;
-                btn.textContent = 'Send Now';
-                if (data.sent) {
-                    status.style.color = 'var(--signal-positive)';
-                    status.textContent = '✓ Report sent successfully';
-                } else {
-                    status.style.color = 'var(--signal-negative)';
-                    status.textContent = '✗ ' + (data.error || 'Send failed — check email/webhook settings');
-                }
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                btn.disabled = false; btn.textContent = 'Send Now';
+                if (data.sent) { status.style.color = 'var(--signal-positive)'; status.textContent = 'Report sent'; }
+                else { status.style.color = 'var(--signal-negative)'; status.textContent = data.error || 'Failed'; }
             })
-            .catch(() => {
-                btn.disabled = false;
-                btn.textContent = 'Send Now';
-                status.style.color = 'var(--signal-negative)';
-                status.textContent = '✗ Request failed';
-            });
+            .catch(function() { btn.disabled = false; btn.textContent = 'Send Now'; status.style.color = 'var(--signal-negative)'; status.textContent = 'Request failed'; });
     }
 
     // Price Alerts
     function createAlert() {
-        const ticker = document.getElementById('alert-ticker').value.trim().toUpperCase();
-        const type = document.getElementById('alert-type').value;
-        const threshold = parseFloat(document.getElementById('alert-threshold').value);
-        const direction = document.getElementById('alert-direction').value;
+        var ticker = document.getElementById('alert-ticker').value.trim().toUpperCase();
+        var type = document.getElementById('alert-type').value;
+        var threshold = parseFloat(document.getElementById('alert-threshold').value);
+        var direction = document.getElementById('alert-direction').value;
         if (!ticker || isNaN(threshold)) return;
+        fetch('/api/price-alerts', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ticker: ticker, alert_type: type, threshold: threshold, direction: direction }) })
+        .then(function(r) { return r.json(); })
+        .then(function() { document.getElementById('alert-ticker').value = ''; document.getElementById('alert-threshold').value = ''; loadAlerts(); });
+    }
+    function deleteAlert(id) { fetch('/api/price-alerts/' + id, { method: 'DELETE' }).then(function() { loadAlerts(); }); }
+    function loadAlerts() {
+        fetch('/api/price-alerts').then(function(r) { return r.json(); }).then(function(data) {
+            var container = document.getElementById('active-alerts');
+            if (!data.alerts || data.alerts.length === 0) { container.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted);">No active price alerts.</div>'; return; }
+            var html = '';
+            data.alerts.forEach(function(a) {
+                html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-3);border:1px solid var(--border-light);border-radius:var(--radius-md);margin-bottom:var(--space-2);font-size:0.8125rem;">';
+                html += '<div><span style="font-family:var(--font-mono);font-weight:500;">' + a.ticker + '</span>';
+                html += ' <span style="color:var(--text-muted);">·</span> <span style="color:var(--text-secondary);">' + a.alert_type.replace('_', ' ') + '</span>';
+                html += ' <span style="color:var(--text-muted);">·</span> <span style="font-family:var(--font-mono);">' + a.direction + ' $' + a.threshold + '</span></div>';
+                html += '<button type="button" onclick="deleteAlert(' + a.id + ')" class="btn btn-ghost" style="font-size:0.7rem;">Remove</button></div>';
+            });
+            container.innerHTML = html;
+        });
+    }
+    loadAlerts();
 
-        fetch('/api/price-alerts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ticker, alert_type: type, threshold, direction })
+    // ─── Dynamic Providers (Phase 4) ───
+    var editingProviderId = null;
+
+    function resetProviderForm() {
+        editingProviderId = null;
+        document.getElementById('prov-name').value = '';
+        document.getElementById('prov-type').value = 'llm';
+        document.getElementById('prov-url').value = '';
+        document.getElementById('prov-key').value = '';
+        document.getElementById('prov-model').value = '';
+        document.getElementById('prov-role').value = '';
+        document.getElementById('prov-budget').value = '5.0';
+        var saveBtn = document.querySelector('#add-provider-form .btn.btn-primary');
+        if (saveBtn) saveBtn.textContent = 'Save Provider';
+    }
+
+    function toggleProviderForm() {
+        var form = document.getElementById('add-provider-form');
+        var shouldShow = form.style.display === 'none';
+        form.style.display = shouldShow ? '' : 'none';
+        if (!shouldShow) {
+            resetProviderForm();
+        }
+    }
+
+    function editProvider(providerId) {
+        fetch('/api/providers', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var provider = (data.providers || []).find(function(p) { return p.id === providerId; });
+            if (!provider) {
+                alert('Provider not found');
+                return;
+            }
+
+            editingProviderId = provider.id;
+            document.getElementById('prov-name').value = provider.name || '';
+            document.getElementById('prov-type').value = provider.provider_type || 'llm';
+            document.getElementById('prov-url').value = provider.base_url || '';
+            document.getElementById('prov-key').value = '';
+            document.getElementById('prov-model').value = provider.model || '';
+            document.getElementById('prov-role').value = provider.pipeline_role || '';
+            document.getElementById('prov-budget').value = provider.monthly_budget_eur || 5.0;
+
+            var saveBtn = document.querySelector('#add-provider-form .btn.btn-primary');
+            if (saveBtn) saveBtn.textContent = 'Update Provider';
+
+            var form = document.getElementById('add-provider-form');
+            if (form.style.display === 'none') {
+                form.style.display = '';
+            }
         })
-        .then(r => r.json())
-        .then(() => {
-            document.getElementById('alert-ticker').value = '';
-            document.getElementById('alert-threshold').value = '';
-            loadAlerts();
+        .catch(function() {
+            alert('Could not load provider for editing');
         });
     }
 
-    function deleteAlert(id) {
-        fetch('/api/price-alerts/' + id, { method: 'DELETE' })
-            .then(() => loadAlerts());
+    function saveProvider() {
+        var budgetValue = parseFloat(document.getElementById('prov-budget').value);
+        if (isNaN(budgetValue)) budgetValue = 5.0;
+
+        var data = {
+            name: document.getElementById('prov-name').value,
+            provider_type: document.getElementById('prov-type').value,
+            base_url: document.getElementById('prov-url').value,
+            api_key: document.getElementById('prov-key').value,
+            model: document.getElementById('prov-model').value,
+            pipeline_role: document.getElementById('prov-role').value,
+            monthly_budget_eur: budgetValue
+        };
+        if (!data.name || !data.base_url || !data.model) { alert('Name, Base URL, and Model are required.'); return; }
+
+        var method = editingProviderId ? 'PUT' : 'POST';
+        var url = editingProviderId ? ('/api/providers/' + editingProviderId) : '/api/providers';
+
+        fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+            body: JSON.stringify(data) })
+        .then(function(r) { return r.json(); })
+        .then(function(resp) {
+            if (resp.id) {
+                hideApiErrorBanner();
+                toggleProviderForm();
+                resetProviderForm();
+                loadProviders();
+            }
+        })
+        .catch(function(e) {
+            showApiErrorBanner('Failed to save provider: ' + e);
+        });
+    }
+    function deleteProvider(id) {
+        if (!confirm('Remove this provider?')) return;
+        fetch('/api/providers/' + id, { method: 'DELETE', credentials: 'same-origin' })
+        .then(function() { loadProviders(); });
+    }
+    function testProvider(id) {
+        var btn = event.target;
+        btn.textContent = 'Testing...'; btn.disabled = true;
+        fetch('/api/providers/' + id + '/test', { method: 'POST', credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            if (data.status === 'ok') {
+                hideApiErrorBanner();
+                btn.textContent = 'OK';
+                btn.style.color = 'var(--signal-positive)';
+            }
+            else {
+                btn.textContent = 'Failed';
+                btn.style.color = 'var(--signal-negative)';
+                var reason = data.message || data.error || 'Provider test failed. Check logs for details.';
+                if (data.details && Array.isArray(data.details.attempted_endpoints) && data.details.attempted_endpoints.length > 0) {
+                    reason += ' Tried: ' + data.details.attempted_endpoints.join(' | ');
+                }
+                showApiErrorBanner(reason);
+            }
+            setTimeout(function() { btn.textContent = 'Test'; btn.style.color = ''; }, 3000);
+        })
+        .catch(function() {
+            btn.disabled = false;
+            btn.textContent = 'Error';
+            showApiErrorBanner('Could not reach provider test endpoint. Check logs for details.');
+            setTimeout(function() { btn.textContent = 'Test'; }, 2000);
+        });
+    }
+    function showApiErrorBanner(message) {
+        var banner = document.getElementById('api-error-banner');
+        var msg = document.getElementById('api-error-banner-message');
+        if (!banner || !msg) return;
+        msg.textContent = message || 'Provider test failed. Check logs for details.';
+        banner.style.display = '';
     }
 
-    function loadAlerts() {
-        fetch('/api/price-alerts')
-            .then(r => r.json())
-            .then(data => {
-                const container = document.getElementById('active-alerts');
-                if (!data.alerts || data.alerts.length === 0) {
-                    container.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted);">No active price alerts.</div>';
-                    return;
-                }
-                let html = '';
-                data.alerts.forEach(a => {
-                    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-3);border:1px solid var(--border-light);border-radius:var(--radius-md);margin-bottom:var(--space-2);font-size:0.8125rem;">';
-                    html += '<div><span style="font-family:var(--font-mono);font-weight:500;">' + a.ticker + '</span>';
-                    html += ' <span style="color:var(--text-muted);">·</span> ';
-                    html += '<span style="color:var(--text-secondary);">' + a.alert_type.replace('_', ' ') + '</span>';
-                    html += ' <span style="color:var(--text-muted);">·</span> ';
-                    html += '<span style="font-family:var(--font-mono);">' + a.direction + ' $' + a.threshold + '</span></div>';
-                    html += '<button type="button" onclick="deleteAlert(' + a.id + ')" class="btn btn-ghost" style="font-size:0.7rem;">Remove</button>';
-                    html += '</div>';
-                });
-                container.innerHTML = html;
-            });
+    function hideApiErrorBanner() {
+        var banner = document.getElementById('api-error-banner');
+        if (!banner) return;
+        banner.style.display = 'none';
     }
-    loadAlerts();
+
+    function loadProviders() {
+        fetch('/api/providers', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var list = document.getElementById('providers-list');
+            var providers = data.providers || [];
+            if (providers.length === 0) { list.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted);">No custom providers configured yet. Use the button above to add one.</div>'; return; }
+            var html = '<div style="display: grid; gap: var(--space-3);">';
+            providers.forEach(function(p) {
+                html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-4);border:1px solid var(--border-light);border-radius:var(--radius-md);">';
+                html += '<div style="display:flex;align-items:center;gap:var(--space-3);">';
+                html += '<div class="status-dot ' + (p.enabled ? 'active' : '') + '"></div>';
+                html += '<div>';
+                html += '<div style="font-weight:500;font-size:0.875rem;">' + p.name + '</div>';
+                html += '<div style="font-size:0.6875rem;color:var(--text-muted);">' + p.model + (p.pipeline_role ? ' · ' + p.pipeline_role.replace(/_/g, ' ') : '') + '</div>';
+                html += '</div></div>';
+                html += '<div style="display:flex;gap:var(--space-2);">';
+                html += '<button type="button" onclick="editProvider(' + p.id + ')" class="btn btn-ghost" style="font-size:0.6875rem;">Edit</button>';
+                html += '<button type="button" onclick="testProvider(' + p.id + ')" class="btn btn-ghost" style="font-size:0.6875rem;">Test</button>';
+                html += '<button type="button" onclick="deleteProvider(' + p.id + ')" class="btn btn-ghost" style="font-size:0.6875rem;color:var(--signal-negative);">Remove</button>';
+                html += '</div></div>';
+            });
+            html += '</div>';
+            list.innerHTML = html;
+        })
+        .catch(function() {
+            document.getElementById('providers-list').innerHTML = '<div style="font-size: 0.75rem; color: var(--text-muted);">Could not load providers.</div>';
+        });
+    }
+    loadProviders();
 </script>
 
 <style>
     /* Clickable Variant Cards Styling */
-    .variant-card {
-        display: flex;
-        flex-direction: column;
-        padding: var(--space-5);
-        background: var(--bg-secondary);
-        border: 1px solid var(--border-light);
-        border-radius: var(--radius-md);
-        cursor: pointer;
-        transition: all var(--duration-normal) var(--ease-spring);
-        position: relative;
-        overflow: hidden;
-    }
+    .variant-card { display: flex; flex-direction: column; padding: var(--space-5); background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: var(--radius-md); cursor: pointer; transition: all var(--duration-normal) var(--ease-spring); position: relative; overflow: hidden; }
+    .variant-card:hover { background: var(--bg-hover); border-color: var(--border-default); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
+    .variant-card.active { border-color: var(--text-primary); background: var(--glass-bg-hover); box-shadow: 0 0 0 1px inset var(--text-primary), 0 4px 15px rgba(0, 0, 0, 0.2); }
+    .variant-card-title { font-weight: 600; margin-bottom: var(--space-2); color: var(--text-secondary); transition: color var(--duration-fast) var(--ease-smooth); }
+    .variant-card.active .variant-card-title { color: var(--text-primary); }
+    .variant-card-desc { font-size: 0.75rem; margin: 0; color: var(--text-muted); line-height: 1.5; }
+    .variant-card-indicator { position: absolute; top: 0; right: 0; width: 0; height: 0; border-style: solid; border-width: 0 24px 24px 0; border-color: transparent var(--text-primary) transparent transparent; opacity: 0; transform: scale(0.5); transform-origin: top right; transition: all var(--duration-normal) var(--ease-spring); }
+    .variant-card.active .variant-card-indicator { opacity: 1; transform: scale(1); }
 
-    .variant-card:hover {
-        background: var(--bg-hover);
-        border-color: var(--border-default);
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    }
-
-    .variant-card.active {
-        border-color: var(--text-primary);
-        background: var(--glass-bg-hover);
-        box-shadow: 0 0 0 1px inset var(--text-primary), 0 4px 15px rgba(0, 0, 0, 0.2);
-    }
-
-    .variant-card-title {
-        font-weight: 600;
-        margin-bottom: var(--space-2);
-        color: var(--text-secondary);
-        transition: color var(--duration-fast) var(--ease-smooth);
-    }
-
-    .variant-card.active .variant-card-title {
-        color: var(--text-primary);
-    }
-
-    .variant-card-desc {
-        font-size: 0.75rem;
-        margin: 0;
-        color: var(--text-muted);
-        line-height: 1.5;
-    }
-
-    /* Optional glowing active indicator */
-    .variant-card-indicator {
-        position: absolute;
-        top: 0;
-        right: 0;
-        width: 0;
-        height: 0;
-        border-style: solid;
-        border-width: 0 24px 24px 0;
-        border-color: transparent var(--text-primary) transparent transparent;
-        opacity: 0;
-        transform: scale(0.5);
-        transform-origin: top right;
-        transition: all var(--duration-normal) var(--ease-spring);
-    }
-
-    .variant-card.active .variant-card-indicator {
-        opacity: 1;
-        transform: scale(1);
-    }
+    /* API Key Peek Button */
+    .api-key-peek { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: background 0.15s; color: var(--text-muted); }
+    .api-key-peek:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .api-key-peek .eye-icon { display: block; }
+    .api-key-peek.is-visible .eye-open { display: none; }
+    .api-key-peek.is-visible .eye-closed { display: block !important; }
 </style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+    var keyCache = {};
+    document.querySelectorAll('.api-key-peek').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            var service = btn.dataset.service;
+            toggleApiKey(service, btn);
+        });
+    });
+    function toggleApiKey(service, btn) {
+        var input = document.getElementById(service + '-key-input');
+        if (!input) return;
+        if (btn.classList.contains('is-visible')) { hideKey(service, input, btn); return; }
+        if (keyCache[service]) { showKey(service, keyCache[service], input, btn); return; }
+        btn.style.opacity = '0.4';
+        fetch('/api/api-key/peek/' + service, { credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) { btn.style.opacity = ''; if (data.masked) { keyCache[service] = data.masked; showKey(service, data.masked, input, btn); } })
+            .catch(function() { btn.style.opacity = ''; });
+    }
+    function showKey(service, masked, input, btn) {
+        if (!input.dataset.origName) { input.dataset.origName = input.name; }
+        if (!input.dataset.origPlaceholder) { input.dataset.origPlaceholder = input.placeholder; }
+        input.type = 'text'; input.value = masked; input.name = '';
+        btn.classList.add('is-visible');
+    }
+    function hideKey(service, input, btn) {
+        input.type = 'password'; input.value = ''; input.name = input.dataset.origName || (service + '_key');
+        if (input.dataset.origPlaceholder) { input.placeholder = input.dataset.origPlaceholder; }
+        btn.classList.remove('is-visible');
+    }
+})();
+</script>
 {% endblock %}

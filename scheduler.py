@@ -302,7 +302,10 @@ class InvestmentScheduler:
         """Stop the scheduler"""
         if not self.is_running:
             return
-        self.scheduler.shutdown()
+        self.scheduler.shutdown(wait=False)
+        # Create a fresh scheduler instance — the old executor's thread pool
+        # is permanently destroyed after shutdown() and cannot accept new jobs.
+        self.scheduler = BackgroundScheduler()
         self.is_running = False
         print("Scheduler stopped")
     
@@ -574,16 +577,37 @@ class InvestmentScheduler:
         except Exception as e:
             print(f"(Error) MCPT validation failed: {e}")
 
+    def _run_full_manual_scan(self):
+        """Run both discovery and watchlist scan (used by Scan Now button)"""
+        from engine.scan_progress import scan_progress
+        scan_progress.start()
+        try:
+            # Step 1: Run auto-discovery to find new stocks
+            if self.discovery_enabled:
+                try:
+                    from engine.auto_discovery import auto_discovery
+                    result = auto_discovery.run_daily_discovery()
+                    found = result.get('discoveries', 0)
+                    promoted = len(result.get('promoted', []))
+                    print(f"  Discovery: {found} found, {promoted} promoted to watchlist")
+                except Exception as e:
+                    print(f"  Discovery skipped: {e}")
+
+            # Step 2: Run the normal watchlist scan
+            self.run_scan(force=True)
+        except Exception as e:
+            scan_progress.fail(str(e))
+            raise
+
     def trigger_manual_scan(self):
-        """Trigger an immediate scan in background"""
+        """Trigger an immediate scan in background (discovery + watchlist scan)"""
         if self.is_scanning:
             print("(!) Scan already in progress")
             return False
-            
-        print("Manual scan triggered in background")
+
+        print("Manual scan triggered in background (discovery + analysis)")
         self.scheduler.add_job(
-            self.run_scan,
-            args=[True], # force=True
+            self._run_full_manual_scan,
             trigger='date',
             run_date=datetime.now(),
             id='manual_scan_immediate',

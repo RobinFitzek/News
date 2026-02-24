@@ -344,29 +344,45 @@ class RealtimeUpdater {
 function updateAPIStatus() {
     fetchJSON('/api/status')
         .then(data => {
-            // Update Perplexity usage
-            const perplexityUsed = data.perplexity?.used_today || 0;
-            const perplexityLimit = data.perplexity?.daily_limit || 100;
-            const perplexityPercent = (perplexityUsed / perplexityLimit) * 100;
+            const apiUsage = data.api_usage || {};
 
-            updateProgressBar('perplexity-progress', perplexityPercent);
-            updateElement('perplexity-usage', `${perplexityUsed}/${perplexityLimit}`);
+            function updateApiCard(key, used, limit) {
+                const safeLimit = Math.max(limit || 1, 1);
+                const usageEl = document.getElementById('api-usage-' + key);
+                const progressEl = document.getElementById('api-progress-' + key);
+
+                if (usageEl) {
+                    usageEl.innerHTML = used + '<span style="color: var(--text-muted); font-weight: 300;">/' + safeLimit + '</span>';
+                }
+                if (progressEl) {
+                    const pct = Math.min(100, (used / safeLimit) * 100);
+                    progressEl.style.width = pct + '%';
+                }
+            }
+
+            // Update Perplexity usage
+            const perplexityUsed = apiUsage.perplexity?.used_today || 0;
+            const perplexityLimit = apiUsage.perplexity?.daily_limit || 100;
+            updateApiCard('perplexity', perplexityUsed, perplexityLimit);
 
             // Update Gemini Flash
-            const flashUsed = data.gemini?.flash?.used_today || 0;
-            const flashLimit = data.gemini?.flash?.daily_limit || 50;
-            const flashPercent = (flashUsed / flashLimit) * 100;
-
-            updateProgressBar('gemini-flash-progress', flashPercent);
-            updateElement('gemini-flash-usage', `${flashUsed}/${flashLimit}`);
+            const flashUsed = apiUsage.gemini?.flash?.used_today || 0;
+            const flashLimit = apiUsage.gemini?.flash?.daily_limit || 50;
+            updateApiCard('gemini-flash', flashUsed, flashLimit);
 
             // Update Gemini Pro
-            const proUsed = data.gemini?.pro?.used_today || 0;
-            const proLimit = data.gemini?.pro?.daily_limit || 50;
-            const proPercent = (proUsed / proLimit) * 100;
+            const proUsed = apiUsage.gemini?.pro?.used_today || 0;
+            const proLimit = apiUsage.gemini?.pro?.daily_limit || 50;
+            updateApiCard('gemini-pro', proUsed, proLimit);
 
-            updateProgressBar('gemini-pro-progress', proPercent);
-            updateElement('gemini-pro-usage', `${proUsed}/${proLimit}`);
+            // Update dynamic provider cards
+            const providers = data.providers || [];
+            providers.forEach(p => {
+                updateApiCard('provider-' + p.id, p.used_today || 0, p.daily_limit || 1);
+            });
+
+            // Top bar counters
+            updateElement('sys-stale-count', data.stale_analyses || 0);
         })
         .catch(error => console.error('Failed to update API status:', error));
 }
