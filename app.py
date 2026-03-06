@@ -266,6 +266,16 @@ async def change_password_submit(
     audit_log.log("password_change", username=username, ip=request.client.host)
     return RedirectResponse(url="/?password_changed=1", status_code=303)
 
+# ==================== ARCHITECTURE ====================
+
+@app.get("/architecture", response_class=HTMLResponse)
+async def architecture_page(request: Request, username: str = Depends(require_auth)):
+    """System architecture visualization page"""
+    return templates.TemplateResponse("architecture.html", {
+        "request": request,
+        "csrf_token": request.state.csrf_token,
+    })
+
 # ==================== DASHBOARD ====================
 
 @app.get("/", response_class=HTMLResponse)
@@ -705,7 +715,10 @@ async def save_settings(request: Request, username: str = Depends(require_auth))
         db.set_setting("email_enabled", form.get("email_enabled") == "on")
         db.set_setting("email_recipient", form.get("email_recipient", ""))
         db.set_setting("email_smtp_host", form.get("email_smtp_host", "smtp.gmail.com"))
-        db.set_setting("email_smtp_port", int(form.get("email_smtp_port", 587)))
+        try:
+            db.set_setting("email_smtp_port", int(form.get("email_smtp_port") or 587))
+        except (ValueError, TypeError):
+            db.set_setting("email_smtp_port", 587)
         db.set_setting("email_smtp_user", form.get("email_smtp_user", ""))
         if form.get("email_smtp_password"):
             db.set_setting("email_smtp_password", form.get("email_smtp_password"))
@@ -793,8 +806,9 @@ async def save_settings(request: Request, username: str = Depends(require_auth))
     scheduler.reload_settings()
     notifications.reload_settings()
     budget_tracker.invalidate_cache()
-    
-    return RedirectResponse(url="/settings?saved=1", status_code=303)
+
+    section_param = f"&section={section}" if section else ""
+    return RedirectResponse(url=f"/settings?saved=1{section_param}", status_code=303)
 
 
 @app.post("/settings/risk-override")
@@ -2983,7 +2997,27 @@ async def save_webhook_settings(
     db.set_setting("discord_enabled", form.get("discord_enabled") == "on")
     if form.get("discord_webhook_url"):
         db.set_setting("discord_webhook_url", form.get("discord_webhook_url", ""))
-    return RedirectResponse(url="/settings?saved=1", status_code=303)
+    return RedirectResponse(url="/settings?saved=1&section=notifications", status_code=303)
+
+
+@app.post("/settings/test-email")
+async def test_email(
+    request: Request,
+    csrf_token: str = Form(...),
+    username: str = Depends(require_auth),
+):
+    """Send a test email to validate SMTP configuration."""
+    csrf.verify_token(request, csrf_token)
+    notifications.reload_settings()
+    if not notifications.recipient:
+        return RedirectResponse(url="/settings?email_error=1&section=notifications&msg=No+recipient+configured", status_code=303)
+    ok = notifications._send_email(
+        "Stockholm — Test Notification",
+        "<p>If you see this, your email notifications are configured correctly.</p>"
+    )
+    if ok:
+        return RedirectResponse(url="/settings?email_ok=1&section=notifications", status_code=303)
+    return RedirectResponse(url="/settings?email_error=1&section=notifications&msg=SMTP+failed%2C+check+credentials", status_code=303)
 
 
 # ==================== WATCHLIST TIER ====================

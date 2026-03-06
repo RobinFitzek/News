@@ -657,6 +657,9 @@
 
 {% block extra_scripts %}
 <script>
+    // Financial chart instances — stored so we can resize them when their section becomes visible
+    let _revenueChart = null, _marginsChart = null;
+
     // Section filter UX
     (() => {
         const groups = document.querySelectorAll('[data-section-group]');
@@ -678,6 +681,11 @@
                     b.classList.add('btn-ghost');
                 }
             });
+            // Resize financial charts when deep section becomes visible
+            if (target === 'deep' || target === 'all') {
+                if (_revenueChart) _revenueChart.resize();
+                if (_marginsChart) _marginsChart.resize();
+            }
         }
         buttons.forEach(btn => btn.addEventListener('click', () => setActive(btn.dataset.target)));
         setActive('overview');
@@ -962,24 +970,6 @@
         })
         .catch(() => {});
 
-            new Chart(document.getElementById('priceChart'), {
-                type: 'line',
-                data: { labels: d.dates, datasets },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { labels: { color: '#888', boxWidth: 12, font: { size: 10 } } } },
-                    scales: {
-                        x: { ticks: { maxTicksLimit: 6, color: '#888' }, grid: { color: '#222' } },
-                        y: { ticks: { color: '#888' }, grid: { color: '#222' } }
-                    }
-                }
-            });
-
-            // Populate technical indicators from chart data
-            loadTechnicals(d);
-        } catch (e) { console.warn('Price chart failed:', e); }
-    }
-
     // Technical Indicators
     function loadTechnicals(chartData) {
         if (!chartData.prices || chartData.prices.length < 20) return;
@@ -1171,7 +1161,7 @@
     const revM = revenue.map(v => v ? v / 1e6 : null);
     const niM = netIncome.map(v => v ? v / 1e6 : null);
 
-    new Chart(document.getElementById('revenueChart'), {
+    _revenueChart = new Chart(document.getElementById('revenueChart'), {
         type: 'bar',
         data: {
             labels: qLabels,
@@ -1190,7 +1180,7 @@
         }
     });
 
-    new Chart(document.getElementById('marginsChart'), {
+    _marginsChart = new Chart(document.getElementById('marginsChart'), {
         type: 'line',
         data: {
             labels: qLabels,

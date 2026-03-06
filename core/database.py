@@ -877,6 +877,21 @@ class Database:
                 except Exception:
                     pass
 
+        # Dividend calendar table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS dividend_calendar (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                ex_date TEXT NOT NULL,
+                payment_date TEXT,
+                dividend_amount REAL,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(ticker, ex_date)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_dividend_ticker ON dividend_calendar(ticker)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_dividend_exdate ON dividend_calendar(ex_date)")
+
         # System alerts table (service error banners)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS system_alerts (

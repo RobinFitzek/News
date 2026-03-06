@@ -221,6 +221,16 @@ class CustomProviderClient:
                  temperature: float = 0.2, max_tokens: int = 900) -> Optional[str]:
         if not provider:
             return None
+
+        # Route non-OpenAI-compatible providers through their dedicated adapters
+        adapter_type = (provider.get('adapter_type') or 'openai_compatible').lower()
+        if adapter_type == 'perplexity':
+            from clients.adapters.perplexity import PerplexityAdapter
+            return PerplexityAdapter().generate(provider, system_prompt, user_prompt, temperature, max_tokens)
+        if adapter_type == 'google_gemini':
+            from clients.adapters.google_gemini import GoogleGeminiAdapter
+            return GoogleGeminiAdapter().generate(provider, system_prompt, user_prompt, temperature, max_tokens)
+
         content, _ = self._generate_with_diagnostics(
             provider=provider,
             system_prompt=system_prompt,

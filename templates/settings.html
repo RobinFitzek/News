@@ -522,8 +522,17 @@
                                 </div>
                                 <div>
                                     <label>SMTP Password</label>
-                                    <input type="password" name="email_smtp_password"
-                                        placeholder="{% if settings.email_smtp_password %}••••••••{% else %}App password{% endif %}">
+                                    <div style="position:relative;">
+                                        <input type="password" id="smtp-password-input" name="email_smtp_password"
+                                            placeholder="{% if settings.email_smtp_password %}••••••••{% else %}App password{% endif %}"
+                                            style="padding-right:2.5rem;width:100%;box-sizing:border-box;">
+                                        <button type="button" onclick="toggleSmtpPasswordVisibility()"
+                                            style="position:absolute;right:0.5rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);padding:0.25rem;">
+                                            <svg id="smtp-eye-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                                            </svg>
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                             <div style="padding-top: var(--space-5); border-top: 1px solid var(--border-light);">
@@ -542,8 +551,14 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="panel-save">
+                        <div class="panel-save" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
                             <button type="submit" class="btn btn-primary">Save Email Settings</button>
+                            <button type="submit" formaction="/settings/test-email" class="btn btn-secondary">Test</button>
+                            {% if request.query_params.get('email_ok') %}
+                            <span style="color:var(--signal-positive);font-size:0.8125rem;">Test email sent!</span>
+                            {% elif request.query_params.get('email_error') %}
+                            <span style="color:var(--signal-negative);font-size:0.8125rem;">{{ request.query_params.get('msg', 'Failed') | replace('+', ' ') }}</span>
+                            {% endif %}
                         </div>
                     </div>
                 </form>
@@ -902,7 +917,10 @@
     }
 
     document.addEventListener('DOMContentLoaded', function() {
-        var saved = sessionStorage.getItem('settings-active-panel') || 'panel-api';
+        var params = new URLSearchParams(window.location.search);
+        var urlSection = params.get('section');
+        var saved = urlSection ? 'panel-' + urlSection
+                  : (sessionStorage.getItem('settings-active-panel') || 'panel-api');
         switchSettingsPanel(saved);
         requestAnimationFrame(updateSettingsNavIndicator);
     });
@@ -915,6 +933,18 @@
         var container = document.getElementById('email-settings-container');
         if (toggle.checked) { container.classList.remove('section-disabled'); }
         else { container.classList.add('section-disabled'); }
+    }
+
+    function toggleSmtpPasswordVisibility() {
+        var input = document.getElementById('smtp-password-input');
+        var icon = document.getElementById('smtp-eye-icon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.innerHTML = '<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>';
+        } else {
+            input.type = 'password';
+            icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+        }
     }
 
     function toggleDiscoverySettings() {

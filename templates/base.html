@@ -24,7 +24,8 @@
 
     <!-- Chart.js + Annotation Plugin -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+    <script
+        src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
 
     {% block extra_head %}{% endblock %}
 </head>
@@ -276,6 +277,15 @@
                                 <line x1="12" y1="19" x2="20" y2="19" />
                             </svg>
                             Logs
+                        </a>
+                        <div class="nav-dropdown-divider"></div>
+                        <a href="/architecture"
+                            class="nav-dropdown-item {% if request.url.path == '/architecture' %}active{% endif %}">
+                            <svg class="icon-svg" viewBox="0 0 24 24">
+                                <polygon
+                                    points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                            </svg>
+                            How it Works
                         </a>
                         <div class="nav-dropdown-divider"></div>
                         <a href="/logout" class="nav-dropdown-item" style="color: var(--signal-negative);">
@@ -550,6 +560,185 @@
                     return;
                 }
             });
+        })();
+    </script>
+
+    <!-- Global Scan Notification Banner -->
+    <style>
+        #global-scan-banner {
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            z-index: 9000;
+            max-width: 340px;
+            min-width: 260px;
+            background: var(--bg-secondary, #18181c);
+            border: 1px solid var(--border-light, rgba(255,255,255,.15));
+            padding: 12px 16px;
+            display: none;
+            flex-direction: column;
+            gap: 6px;
+            box-shadow: 0 8px 32px rgba(0,0,0,.5);
+            animation: scan-banner-in .25s cubic-bezier(.34,1.56,.64,1) both;
+        }
+        @keyframes scan-banner-in {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        #global-scan-banner.visible { display: flex; }
+        #global-scan-banner .gsb-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        #global-scan-banner .gsb-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8125rem;
+            font-weight: 500;
+            color: var(--text-primary, #e8e4de);
+        }
+        #global-scan-banner .gsb-close {
+            background: none;
+            border: none;
+            color: var(--text-muted, #777);
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+            font-size: 1rem;
+        }
+        #global-scan-banner .gsb-msg {
+            font-size: 0.75rem;
+            color: var(--text-muted, #888);
+            line-height: 1.4;
+        }
+        #global-scan-banner .gsb-progress {
+            height: 2px;
+            background: var(--bg-tertiary, #222);
+            overflow: hidden;
+        }
+        #global-scan-banner .gsb-fill {
+            height: 100%;
+            background: var(--accent-primary, #5588ff);
+            transition: width .6s ease;
+        }
+        #global-scan-banner .gsb-link {
+            font-size: 0.75rem;
+            color: var(--accent-primary, #5588ff);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        #global-scan-banner .gsb-link:hover { text-decoration: underline; }
+        .gsb-dot-pulse {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--accent-primary, #5588ff);
+            flex-shrink: 0;
+            animation: gsb-pulse 1.4s ease infinite;
+        }
+        @keyframes gsb-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50%       { opacity: .4; transform: scale(.7); }
+        }
+        .gsb-dot-done { background: var(--signal-positive, #2ecc71); animation: none; }
+        .gsb-dot-err  { background: var(--signal-negative, #e74c3c); animation: none; }
+    </style>
+    <div id="global-scan-banner">
+        <div class="gsb-header">
+            <div class="gsb-title">
+                <span class="gsb-dot-pulse" id="gsb-dot"></span>
+                <span id="gsb-stage">Scanning…</span>
+            </div>
+            <button class="gsb-close" id="gsb-close" title="Dismiss">×</button>
+        </div>
+        <div class="gsb-progress" id="gsb-progress-wrap">
+            <div class="gsb-fill" id="gsb-fill" style="width:0%"></div>
+        </div>
+        <div class="gsb-msg" id="gsb-msg"></div>
+        <a href="/history" class="gsb-link" id="gsb-results-link" style="display:none">View results →</a>
+    </div>
+    <script>
+        (function() {
+            var banner = document.getElementById('global-scan-banner');
+            var dot    = document.getElementById('gsb-dot');
+            var stage  = document.getElementById('gsb-stage');
+            var fill   = document.getElementById('gsb-fill');
+            var msg    = document.getElementById('gsb-msg');
+            var link   = document.getElementById('gsb-results-link');
+            var closeBtn = document.getElementById('gsb-close');
+            if (!banner) return;
+
+            // Don't show on dashboard (it has its own progress bar)
+            var isDashboard = (window.location.pathname === '/');
+
+            var dismissed = false;
+            var seenActive = false;
+            var timer = null;
+            var hideTimer = null;
+
+            closeBtn && closeBtn.addEventListener('click', function() {
+                dismissed = true;
+                banner.classList.remove('visible');
+            });
+
+            function show() { if (!dismissed) banner.classList.add('visible'); }
+            function hide() { banner.classList.remove('visible'); }
+
+            function poll() {
+                fetch('/api/scan-progress', { credentials: 'same-origin' })
+                    .then(function(r) { return r.ok ? r.json() : null; })
+                    .then(function(data) {
+                        if (!data) return;
+
+                        if (data.active) {
+                            if (dismissed) dismissed = false; // re-show for new scan
+                            seenActive = true;
+                            dot.className = 'gsb-dot-pulse';
+                            stage.textContent = data.stage_label || 'Scanning…';
+                            fill.style.width = (data.progress_pct || 0) + '%';
+                            msg.textContent = data.message || '';
+                            link.style.display = 'none';
+                            if (!isDashboard) show();
+                            if (!timer) timer = setInterval(poll, 3000);
+                            if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+
+                        } else if (data.stage === 'complete' && seenActive) {
+                            dot.className = 'gsb-dot-pulse gsb-dot-done';
+                            stage.textContent = 'Scan complete';
+                            fill.style.width = '100%';
+                            msg.textContent = data.message || 'Analysis finished.';
+                            link.style.display = '';
+                            if (!isDashboard) show();
+                            if (timer) { clearInterval(timer); timer = null; }
+                            if (!hideTimer) hideTimer = setTimeout(function() {
+                                hide(); seenActive = false;
+                            }, 10000);
+
+                        } else if (data.stage === 'error' && seenActive) {
+                            dot.className = 'gsb-dot-pulse gsb-dot-err';
+                            stage.textContent = 'Scan failed';
+                            fill.style.width = '0%';
+                            msg.textContent = data.error || data.message || 'An error occurred.';
+                            link.style.display = 'none';
+                            if (!isDashboard) show();
+                            if (timer) { clearInterval(timer); timer = null; }
+                            if (!hideTimer) hideTimer = setTimeout(function() {
+                                hide(); seenActive = false;
+                            }, 8000);
+
+                        } else {
+                            if (!seenActive) hide();
+                        }
+                    })
+                    .catch(function() {});
+            }
+
+            // Initial poll + background heartbeat
+            poll();
+            setInterval(poll, 8000);
         })();
     </script>
 
