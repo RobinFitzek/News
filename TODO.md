@@ -230,9 +230,236 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 [x] Test SCHWEREGRAD regex — multi-score, slash variant, threshold 8, no-match
 ```
 
+### 19. Smarter alert deduplication (direction + score change gate)
+**File:** `core/notifications.py`, `engine/alert_manager.py`
+**Description:** Current dedup is hash-based (same signal type = skip). Missing: if AAPL fired STRONG_BUY on Monday, suppress re-alert Tuesday unless signal flips direction, risk score changes by >2 points, or new geopolitical context appeared since last alert. "Alert fatigue" kills usefulness faster than anything else.
+**Effort:** S · **Impact:** High (daily usability)
+```
+[ ] Track last_alert_signal + last_alert_score per ticker in DB
+[ ] Gate re-alert: only fire if direction changed OR |score_delta| >= 2 OR new geo event since last alert
+[ ] Add alert cooldown hours setting in Settings UI
+```
+
+### 20. Geo-risk overlay badge on watchlist table
+**File:** `templates/watchlist.html`, `app.py`
+**Description:** The geopolitical scan already generates per-ticker exposure scores. Show a small colored badge (1–10 scale) directly in the watchlist table row, so you can immediately see which holdings are geo-exposed without clicking into each analysis. Data already in `analysis_history.geo_risk_score`.
+**Effort:** S · **Impact:** Medium (daily scan speed)
+```
+[ ] Expose geo_risk_score in GET /api/watchlist response
+[ ] Add geo badge column to watchlist.html table
+[ ] Color-code: green <4, yellow 4-7, red >7
+```
+
 ---
 
-## Completed
+## Trading & Execution
+
+### 21. Real broker integration (IBKR / Alpaca)
+**File:** new `clients/broker_client.py`, `engine/order_manager.py`, `app.py`
+**Description:** The entire pipeline exists to generate signals but can only paper trade. Adding real order execution via Interactive Brokers (ib_insync) or Alpaca API would make this system genuinely actionable. Gate behind a confirmation UI — signals propose, user confirms. Position sizing, stop losses, and risk guards are already implemented.
+**Effort:** XL · **Impact:** Critical (the missing last step)
+**Dependencies:** `ib_insync` or `alpaca-trade-api`
+```
+[ ] Add broker_type setting (paper / ibkr / alpaca)
+[ ] Create clients/broker_client.py with place_order / cancel / get_positions
+[ ] Confirmation step: signal card shows "Execute?" button, requires user click
+[ ] Sync open broker positions into portfolio_trades table
+[ ] Add POST /api/orders/execute endpoint
+[ ] Show live P&L from broker in portfolio page (vs simulated paper P&L)
+```
+
+---
+
+## Data & Intelligence (continued)
+
+### 22. Macro dashboard — yield curve, VIX term structure, credit spreads
+**File:** new `engine/macro_tracker.py`, `templates/macro.html`, `app.py`
+**Description:** The system tracks equities and geopolitics but not the macro backbone. Yield curve shape (2y/10y spread), VIX term structure (VIX/VIX3M), put/call ratio, credit spreads (HYG vs LQD), DXY. All free via yfinance tickers. These are leading indicators for regime changes and would make `market_regime.py` much more powerful.
+**Effort:** L · **Impact:** High (macro context for every signal)
+```
+[ ] Create engine/macro_tracker.py: fetch ^TNX, ^IRX, ^VIX, HYG, LQD, DXY via yfinance
+[ ] Compute: 2y/10y spread (inverted = recession signal), VIX term structure slope, HYG/LQD credit spread
+[ ] Store daily snapshot in new macro_snapshots table
+[ ] Inject macro context into Stage 3 Gemini prompt (alongside geo_block)
+[ ] Add /macro page with charts: yield curve, VIX term, credit spread over 90d
+[ ] Add macro badge to dashboard (e.g., "Yield curve inverted — recession watch")
+```
+
+### 23. Earnings calendar — pre/post earnings logic
+**File:** `engine/earnings_tracker.py` (extend), `engine/pipeline.py`
+**Description:** `earnings_tracker.py` exists but doesn't drive the pipeline. Should: auto-flag tickers with earnings in next 5 days, show implied move (options IV) vs historical earnings move, suppress STRONG_BUY signals within 48h of earnings unless explicitly overridden. Post-earnings drift (stocks that gap tend to continue 3-5 days) is an underused pattern.
+**Effort:** M · **Impact:** High (biggest single-day risk event for any position)
+```
+[ ] Pull earnings dates from yfinance calendar or earningswhispers.com scrape
+[ ] Add earnings_date column to watchlist
+[ ] In pipeline: warn Stage 3 when earnings within 5 days (inject as risk factor)
+[ ] Suppress STRONG_BUY for earnings-imminent tickers unless risk_score < 5
+[ ] Track post-earnings drift: after earnings, flag ticker for re-analysis at +1d, +3d, +5d
+[ ] Show earnings countdown badge on watchlist and stock_detail
+```
+
+### 24. Alternative sentiment — Reddit / Google Trends
+**File:** new `engine/sentiment_reddit.py`, `engine/sentiment_trends.py`
+**Description:** The system has no retail sentiment layer. Reddit (WSB, r/investing, r/stocks via PRAW) and Google Trends (pytrends) are especially predictive for retail-heavy stocks. A spike in search volume or Reddit mentions 1-2 days before a price move is a known leading signal.
+**Effort:** L · **Impact:** Medium (high alpha for small/mid cap, lower for blue chip)
+**Dependencies:** `praw` (Reddit), `pytrends` (Google Trends) — both free
+```
+[ ] Create engine/sentiment_reddit.py: fetch top posts + comment counts for ticker via PRAW
+[ ] Create engine/sentiment_trends.py: pytrends relative search volume for ticker (7d)
+[ ] Add reddit_sentiment_score + trends_score to Stage 1 quant output
+[ ] Inject high-reddit-activity into Stage 3 prompt as anomaly
+[ ] Show sentiment badges on watchlist (retail interest: low/medium/high)
+```
+
+### 25. 13F institutional holdings tracker
+**File:** `engine/institutional_tracker.py` (extend), `clients/sec_edgar_client.py`
+**Description:** The `institutional_tracker.py` exists but 13F filings (quarterly, free from SEC EDGAR) are the real source for big money moves. Tracking when Berkshire, Bridgewater, Citadel, or Tiger Global add/drop positions is a high-signal data point. The existing `sec_edgar_client.py` already handles EDGAR — extend it.
+**Effort:** M · **Impact:** High (smart money tracking)
+```
+[ ] Add get_13f_filings(cik) to sec_edgar_client.py
+[ ] Track top 20 institutional filers (hardcoded CIKs for Berkshire, Bridgewater, etc.)
+[ ] Store holding changes in institutional_holdings table
+[ ] Show "Smart Money" badge on stock_detail when a top-20 filer added position this quarter
+[ ] Weekly job: refresh 13F data after EDGAR quarterly deadline (Feb/May/Aug/Nov 15)
+```
+
+### 26. Dark pool / unusual block trade detection
+**File:** new `engine/dark_pool_tracker.py`
+**Description:** Finviz and stockanalysis.com expose unusual block trades (>$1M single transactions) without requiring a paid feed. A simple scraper checking these for watchlist tickers would add an institutional signal layer with zero API cost. Complement to the insider tracker.
+**Effort:** M · **Impact:** Medium
+```
+[ ] Scrape finviz.com/quote.ashx block trade section for watchlist tickers
+[ ] Flag if block trade > $5M on a single ticker in last 48h
+[ ] Add as anomaly type in Stage 1 quant output
+[ ] Show in stock_detail as "Unusual block activity detected"
+```
+
+---
+
+## Dashboard & UI (continued)
+
+### 27. Watchlist groups / tags
+**File:** `core/database.py`, `templates/watchlist.html`, `app.py`
+**Description:** A flat list of 50 tickers becomes unmanageable. Groups (ETFs, Tech, Energy, Speculative) with per-group risk budgets, aggregate geo-exposure summaries, and group-level signal summaries. Also enables tiered scan frequency per group.
+**Effort:** M · **Impact:** High (daily usability at scale)
+```
+[ ] Add group column to watchlist table (with default "Uncategorized")
+[ ] CRUD endpoints: POST /api/watchlist/groups, PATCH /api/watchlist/{ticker}/group
+[ ] Render watchlist grouped with collapsible sections
+[ ] Show per-group aggregate: avg risk score, avg geo risk, signal distribution
+[ ] Add group filter dropdown on watchlist and discoveries pages
+```
+
+### 28. Confidence decay visualization
+**File:** `templates/watchlist.html`, `templates/stock_detail.html`
+**Description:** `staleness_tracker.py` tracks signal age but the dashboard doesn't show it visually. A simple age indicator (green → yellow → red as signal ages past verification window) would make it immediately obvious which analyses need refreshing without reading timestamps.
+**Effort:** S · **Impact:** Medium (reduces stale-analysis risk)
+```
+[ ] Add staleness_days computed field to watchlist API response
+[ ] Color-code last_analyzed badge: green <2d, yellow 2-7d, red >7d
+[ ] Add "Stale" filter on watchlist to show only tickers not analyzed in >5d
+[ ] Tooltip: "Last analyzed X days ago — click to re-run"
+```
+
+### 29. API key budget health card (dashboard widget)
+**File:** `templates/dashboard.html`, `app.py`
+**Description:** `budget_tracker.py` has all the data but it's buried in Settings. Surface it as a small dashboard card: remaining monthly budget (Perplexity/Gemini), daily burn rate, estimated days until exhausted, cost per analysis. Prevents surprise budget lockouts mid-cycle.
+**Effort:** S · **Impact:** Medium (operational awareness)
+```
+[ ] Add GET /api/budget/status endpoint (daily spend, monthly cap, days remaining, avg cost/analysis)
+[ ] Add budget health card to dashboard.html (next to scheduler status)
+[ ] Warn visually when >80% monthly budget consumed
+```
+
+### 30. Watchlist import from broker CSV
+**File:** `app.py`, `templates/watchlist.html`
+**Description:** Tickers must be added manually one by one. One-click import of your actual holdings from a broker CSV export (IBKR, Degiro, Schwab — all export position CSVs) would be the natural onboarding path and encourages users to track their real portfolio.
+**Effort:** S · **Impact:** Medium (onboarding)
+```
+[ ] POST /api/watchlist/import endpoint: accept CSV upload
+[ ] Parse common broker CSV formats (IBKR: "Symbol", Degiro: "Produkt", Schwab: "Symbol")
+[ ] Preview screen showing parsed tickers before import
+[ ] Add "Import from CSV" button to watchlist page
+```
+
+### 31. PWA — mobile push notifications
+**File:** `static/`, `app.py`
+**Description:** The web dashboard could be a Progressive Web App (add `manifest.json` + service worker with push subscription). This enables native-style push notifications without requiring a Telegram bot setup. The notification content already exists (alerts, geo events, breakouts).
+**Effort:** M · **Impact:** Medium (mobile usability)
+```
+[ ] Add manifest.json (name, icons, theme_color, display: standalone)
+[ ] Create static/service-worker.js with push notification handler
+[ ] POST /api/push/subscribe endpoint (stores push subscription in DB)
+[ ] Trigger push on: STRONG_BUY/SELL alert, geo severity >= 8, intraday breakout
+[ ] Add "Enable notifications" button to dashboard
+```
+
+---
+
+## Infrastructure & Quality (continued)
+
+### 32. Vectorized backtesting with realistic execution costs
+**File:** `engine/backtest_engine.py` (rewrite)
+**Description:** Current backtesting accuracy numbers are likely optimistic because bid-ask spread, slippage, and commissions are not modeled. A clean vectorized backtest (pandas rolling) with realistic fill assumptions (0.1% slippage, €1 commission) would make signal validation credible enough to actually trust for real capital allocation.
+**Effort:** L · **Impact:** High (credibility of all accuracy metrics)
+```
+[ ] Add slippage_pct and commission_eur parameters to backtest_engine
+[ ] Use vectorized pandas operations instead of row-by-row loops
+[ ] Walk-forward split: 70% in-sample fit, 30% out-of-sample test
+[ ] Report: net-of-costs Sharpe, Sortino, max drawdown, win rate, avg hold
+[ ] Compare gross vs net-of-costs returns side by side in backtest.html
+```
+
+### 33. Two-factor authentication (TOTP)
+**File:** `core/auth.py`, `templates/login.html`, `app.py`
+**Description:** The system stores encrypted API keys and is exposed via HTTPS. Adding TOTP (Google Authenticator / Authy compatible) via `pyotp` would be a meaningful security upgrade. Single-user setup: generate secret on first enable, show QR code, verify TOTP on each login.
+**Effort:** M · **Impact:** High (security — API keys are valuable)
+**Dependencies:** `pyotp`, `qrcode` (both small, pure-Python)
+```
+[ ] Add pyotp + qrcode to requirements.txt
+[ ] Add totp_secret column to users table
+[ ] GET /settings/2fa/setup — generate secret, render QR code
+[ ] POST /settings/2fa/enable — verify TOTP code, store secret
+[ ] Inject TOTP verification step into login flow after password check
+[ ] Allow 2FA bypass via backup codes (generate 8 one-time codes on setup)
+```
+
+### 34. CLI mode — headless analysis without web server
+**File:** new `cli.py`
+**Description:** `python cli.py analyze AAPL --strategy balanced` should run a full 3-stage analysis and print results to terminal without starting the web server. Useful for scripting, cron jobs outside APScheduler, CI testing, or quick ad-hoc checks.
+**Effort:** M · **Impact:** Medium (developer/power user usability)
+```
+[ ] Create cli.py using argparse or click
+[ ] Commands: analyze <TICKER>, scan (run full pipeline), geo (latest geo scan), watchlist (list)
+[ ] Reuse existing engine/ and clients/ directly — no HTTP layer
+[ ] Output: colored terminal table (rich library) or plain JSON with --json flag
+[ ] Add to README as usage example
+```
+
+### 35. Correlation-aware position sizing
+**File:** `engine/position_sizing.py`, `engine/correlation_analyzer.py`
+**Description:** `correlation_analyzer.py` computes the matrix but position sizing doesn't use it. A Kelly-adjusted position size that accounts for portfolio correlation (if AAPL and MSFT are 0.85 correlated, the second position should be smaller) would meaningfully improve the risk management math vs the current flat max-position-pct approach.
+**Effort:** M · **Impact:** Medium (portfolio risk quality)
+```
+[ ] In position_sizing.py, fetch current portfolio correlation from correlation_analyzer
+[ ] Scale position size down by correlation factor: size *= (1 - avg_corr_with_portfolio)
+[ ] Cap: minimum 50% of base size (prevent over-dilution for very diversified portfolios)
+[ ] Show adjusted position size in stock_detail alongside raw Kelly size
+[ ] Document the formula in Settings help text
+```
+
+### 36. Export — PDF report and CSV history
+**File:** `app.py`, `engine/report_generator.py`
+**Description:** Useful the moment this informs real investment decisions: PDF export of the weekly report, CSV export of analysis history (all signals, dates, outcomes), and basic cost-basis tracking (FIFO) for paper trading positions. The HTML report already exists — PDF conversion is one library call.
+**Effort:** M · **Impact:** Medium (record-keeping, tax prep)
+**Dependencies:** `weasyprint` or `reportlab` for PDF
+```
+[ ] GET /report/weekly/pdf — render existing HTML report to PDF via weasyprint
+[ ] GET /api/analysis/export.csv — all analysis_history rows as CSV
+[ ] GET /api/portfolio/export.csv — paper trades with entry/exit/P&L as CSV
+[ ] Add FIFO cost-basis calculation to portfolio_manager.py
+[ ] Add Export buttons to history.html and portfolio.html
+```
 
 ```
 [x] Geopolitical scan (get_geopolitical_scan) — perplexity_client.py
