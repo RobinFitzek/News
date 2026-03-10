@@ -461,6 +461,118 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 [ ] Add Export buttons to history.html and portfolio.html
 ```
 
+---
+
+## AI & Intelligence (advanced)
+
+### 37. Natural language portfolio queries
+**File:** new `engine/portfolio_qa.py`, `app.py`, `templates/analyze.html`
+**Description:** "Which of my holdings are most exposed to a Chinese tariff escalation?" or "What's my portfolio's effective sector tilt?" answered by Gemini against live DB data. Not a chatbot — a structured query interface on the analyze page. The data is all there (geo exposure, sector weights, correlation, risk scores, analysis history). This would be the highest-leverage UX addition because it collapses 10 minutes of dashboard clicking into one question.
+**Effort:** M · **Impact:** Very High (unique, differentiating feature)
+```
+[ ] Create engine/portfolio_qa.py: builds context from DB (current holdings, latest analyses, geo scores, sector weights) and passes to Gemini with user query
+[ ] POST /api/portfolio/ask endpoint: accepts free-text question, returns Gemini answer
+[ ] Add query input box to analyze.html ("Ask about your portfolio...")
+[ ] Inject structured context: holdings JSON, sector distribution, top geo exposures, last geo scan summary
+[ ] Rate-limit: 1 query per 30s, deducted from Gemini budget
+[ ] Show source data used in answer (which tickers/analyses informed the response)
+```
+
+### 38. Continuous news NLP scoring (free, no LLM)
+**File:** new `engine/nlp_scorer.py`, `scheduler.py`
+**Description:** Currently news is only fetched per-ticker at analysis time via Perplexity. A parallel background job running FinBERT or VADER (both free, local, no API cost) on RSS headline streams would score sentiment for all watchlist tickers every hour without burning any API budget. The delta between the NLP score and the last Gemini signal score flags which tickers need re-analysis most urgently.
+**Effort:** L · **Impact:** High (continuous monitoring, zero API cost)
+**Dependencies:** `transformers` + `torch` for FinBERT, or `vaderSentiment` (pure Python, lighter)
+```
+[ ] Create engine/nlp_scorer.py with VADER sentiment scorer (zero dependency on GPU)
+[ ] Fetch RSS feeds (Reuters, AP, MarketWatch) and match headlines to watchlist tickers by name/ticker mention
+[ ] Score each mention: compound score -1.0 to +1.0
+[ ] Store hourly snapshot in ticker_sentiment table (ticker, score, headline_count, timestamp)
+[ ] In pipeline Stage 1: inject NLP score delta as anomaly when |delta_vs_last_analysis| > 0.3
+[ ] Dashboard widget: "Sentiment Movers" — tickers with biggest NLP score shift in last 24h
+[ ] Weekly job: compare NLP scores to actual signal outcomes for calibration
+```
+
+### 39. Geopolitical scenario stress testing
+**File:** new `engine/geo_scenario.py`, `templates/portfolio.html`, `app.py`
+**Description:** Distinct from the generic `scenario_analyzer.py`: predefine 5-6 named geo scenarios (China blockades Taiwan, OPEC production cut -20%, Russia expands conflict, US-Iran escalation, EU energy crisis) with estimated sector impact vectors. When the geo scanner detects a relevant event, automatically run the matching scenario against the current portfolio and show estimated P&L impact. Scenario definitions are static config — the hard part (correlations, sector exposures) already exists.
+**Effort:** M · **Impact:** High (most useful during actual crises, which is when it matters most)
+```
+[ ] Create engine/geo_scenario.py with 6 hardcoded scenarios as dicts:
+    { name, keywords, sector_impacts: {energy: +0.15, tech: -0.10, ...}, historical_analog }
+[ ] Scenario runner: cross with portfolio sector weights → estimated portfolio impact %
+[ ] Auto-trigger: when geo scan severity >= 8, find matching scenario by keyword overlap, run it
+[ ] Show scenario result card on dashboard when triggered: "Taiwan scenario match — estimated portfolio impact: -4.2%"
+[ ] Manual trigger: POST /api/scenarios/run?name=taiwan_blockade
+[ ] Add /scenarios page showing all presets with portfolio impact preview
+```
+
+### 40. Pairs trading / statistical arbitrage
+**File:** new `engine/pairs_trader.py`, `app.py`
+**Description:** `correlation_analyzer.py` computes the matrix but doesn't look for cointegration. Detecting pairs that are historically cointegrated (XOM/CVX, AAPL/MSFT, GLD/GDX, etc.) and monitoring the spread for mean-reversion entry is a natural zero-cost-data extension of the existing correlation work. When the spread exceeds 2σ, flag as a long/short opportunity.
+**Effort:** L · **Impact:** Medium (new strategy class, complements directional signals)
+**Dependencies:** `statsmodels` (for Engle-Granger cointegration test — likely already installed or trivial to add)
+```
+[ ] Create engine/pairs_trader.py: run Engle-Granger cointegration test on all watchlist pairs
+[ ] Filter: only pairs with p-value < 0.05 and >90d of shared history
+[ ] Monitor spread z-score daily: flag when |z| > 2.0
+[ ] Signal: z > +2 = short spread (long B, short A), z < -2 = long spread (long A, short B)
+[ ] Store cointegrated pairs + current z-score in pairs_signals table
+[ ] Add /pairs page: show active pairs with spread chart, current z-score, entry/exit levels
+[ ] Weekly retest: recheck cointegration (pairs break down over time)
+```
+
+### 41. Self-hosted LLM fallback (Ollama)
+**File:** new `clients/ollama_client.py`, `clients/gemini_client.py` (extend)
+**Description:** When monthly Gemini/Perplexity budget is exhausted, automatically fall back to a local LLM via Ollama (llama3, mistral) for Stage 3 synthesis. Quality is lower but "budget-resilient degraded analysis" is far better than "no analysis from the 15th of the month onwards." The budget tracker already detects exhaustion — it just has no fallback. Increasingly practical as local models improve.
+**Effort:** M · **Impact:** High (eliminates hard budget cutoffs mid-month)
+**Dependencies:** `ollama` Python library (calls local Ollama daemon — user installs Ollama separately)
+```
+[ ] Create clients/ollama_client.py: generate(prompt, model='llama3') via Ollama REST API (localhost:11434)
+[ ] In gemini_client.py: when monthly budget exhausted, fall back to ollama_client
+[ ] Add ollama_enabled and ollama_model settings
+[ ] Label fallback analyses in DB: source='ollama' vs source='gemini'
+[ ] Show "(local model)" badge on analysis cards generated via Ollama
+[ ] Health check: ping Ollama at startup, warn in settings if not available
+```
+
+### 42. Programmatic API access (personal API key)
+**File:** `core/auth.py`, `app.py`, `templates/settings.html`
+**Description:** The dashboard has REST endpoints but they're session-auth only. A personal API key system (generated in Settings, bearer token on requests) would allow integrating Stockholm into external tools — Notion automations, Obsidian daily notes, custom scripts, Raycast plugins, n8n workflows. Costs almost nothing to implement and completely changes the integration story.
+**Effort:** S · **Impact:** High (ecosystem / integration potential)
+```
+[ ] Add api_keys table (key_hash, label, created_at, last_used_at, scopes)
+[ ] POST /api/keys/generate endpoint (returns key once, then stores hash only)
+[ ] GET /api/keys → list user's keys (label + last_used)
+[ ] DELETE /api/keys/{id} → revoke
+[ ] Middleware: accept Authorization: Bearer <key> header on all /api/* endpoints
+[ ] Scope system: read-only vs full access (start with read-only only)
+[ ] Show API key management section in settings.html with copy button
+[ ] Document example: curl /api/watchlist -H "Authorization: Bearer sk_..."
+```
+
+---
+
+## Portfolio Analytics (advanced)
+
+### 43. Dividend and corporate action ledger
+**File:** `engine/portfolio_manager.py`, `core/database.py`
+**Description:** Splits, dividends, mergers, and spin-offs are currently not tracked. A position opened at $150 pre-split is worth different things pre/post 3:1 split — the paper trading P&L and cost basis math breaks silently. This is a correctness issue more than a feature, and becomes critical the moment real money is involved.
+**Effort:** M · **Impact:** High (correctness — silent P&L errors)
+```
+[ ] Add corporate_actions table: ticker, action_type (split/dividend/merger), date, factor/amount
+[ ] Fetch splits from yfinance Ticker.splits and dividends from Ticker.dividends
+[ ] Weekly job: check for new corporate actions on all watchlist tickers
+[ ] Retroactively adjust cost basis in portfolio_trades for pre-split entries
+[ ] Add dividend income tracking: when ex-date passes, credit dividend to paper portfolio cash
+[ ] Show corporate action timeline on stock_detail.html
+[ ] Alert via webhook when a watchlist ticker announces a split or special dividend
+```
+
+---
+
+## Completed
+
 ```
 [x] Geopolitical scan (get_geopolitical_scan) — perplexity_client.py
 [x] Per-ticker exposure assessment (get_ticker_geopolitical_exposure) — perplexity_client.py
