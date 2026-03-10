@@ -19,7 +19,7 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 ```
 **Effort:** XS (1 line) · **Impact:** High (silent data corruption)
 ```
-[ ] Fix extract_section lookahead to include Geo-Risiko
+[x] Fix extract_section lookahead to include Geo-Risiko
 ```
 
 ---
@@ -30,7 +30,7 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Fix:** Check the `should_notify` logic. Either add `GEOPOLITICAL_ALERT` to the allowed set, or call the email/webhook layer directly for geo alerts.
 **Effort:** XS · **Impact:** High (geo alerts are the main safety feature)
 ```
-[ ] Verify GEOPOLITICAL_ALERT bypasses signal-type filter in notifications
+[x] Verify GEOPOLITICAL_ALERT bypasses signal-type filter in notifications
 ```
 
 ---
@@ -42,8 +42,8 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Note:** Add a cooldown (e.g. only re-trigger if last full scan was >2h ago) to avoid cascade.
 **Effort:** S · **Impact:** High (main point of real-time geo monitoring)
 ```
-[ ] Queue full watchlist re-analysis when geo severity >= 8
-[ ] Add cooldown: skip re-trigger if last scan < 2h ago
+[x] Queue full watchlist re-analysis when geo severity >= 8
+[x] Add cooldown: skip re-trigger if last scan < 2h ago
 ```
 
 ---
@@ -54,8 +54,8 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Fix:** Add a "Geopolitisches Risiko" section to the analysis detail view showing EXPOSURE/RICHTUNG/BEGRÜNDUNG and the Geo-Risiko score.
 **Effort:** S · **Impact:** Medium
 ```
-[ ] Add geo fields to analysis detail template
-[ ] Show Geo-Risiko score next to Risk Score in history table
+[x] Add geo fields to analysis detail template
+[x] Show Geo-Risiko score next to Risk Score in history table
 ```
 
 ---

@@ -135,15 +135,39 @@ class InvestmentScheduler:
         scan_id = db.save_geopolitical_scan(raw_summary)
         print(f"  Geopolitical scan saved (id={scan_id})")
 
-        # Alert on high-severity events (severity >= 8)
+        # Alert + priority re-analysis on high-severity events (severity >= 8)
         scores = [int(m) for m in re.findall(r'SCHWEREGRAD[:\s/]+(\d+)', raw_summary)]
-        if scores and max(scores) >= 8:
-            alert_msg = (
-                f"Hochschweres geopolitisches Ereignis erkannt "
-                f"(Schweregrad {max(scores)}/10):\n\n{raw_summary[:1000]}"
-            )
-            notifications.send_alert("GEO", "GEOPOLITICAL_ALERT", alert_msg)
-            print(f"  High-severity alert sent (max severity: {max(scores)})")
+        max_severity = max(scores) if scores else 0
+        if max_severity >= 8:
+            notifications.send_geopolitical_alert(raw_summary, max_severity)
+            print(f"  High-severity alert sent (max severity: {max_severity})")
+            self._trigger_priority_reanalysis()
+
+    def _trigger_priority_reanalysis(self):
+        """Trigger a full watchlist re-analysis after a high-severity geo event.
+        Cooldown: skips if the last scan finished less than 2 hours ago."""
+        try:
+            logs = db.get_scheduler_logs(limit=1)
+            if logs:
+                last_run_str = logs[0].get('run_at', '')
+                if last_run_str:
+                    from datetime import timezone
+                    last_run = datetime.fromisoformat(last_run_str)
+                    # Make naive datetime timezone-aware for comparison
+                    if last_run.tzinfo is None:
+                        last_run = last_run.replace(tzinfo=timezone.utc)
+                    now_utc = datetime.now(timezone.utc)
+                    elapsed_hours = (now_utc - last_run).total_seconds() / 3600
+                    if elapsed_hours < 2:
+                        print(f"  Priority re-analysis skipped — last scan was {elapsed_hours:.1f}h ago (cooldown: 2h)")
+                        return
+
+            print("  Triggering priority watchlist re-analysis due to high-severity geo event...")
+            import threading
+            t = threading.Thread(target=self.run_scan, kwargs={'force': True}, daemon=True)
+            t.start()
+        except Exception as e:
+            print(f"  Priority re-analysis trigger failed: {e}")
 
     def run_daily_summary(self):
         """Send daily summary email"""

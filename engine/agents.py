@@ -204,7 +204,7 @@ Zusammenfassung: [Kurzer Gesamteindruck]
         analysis_result['geo_risk_score'] = int(geo_match.group(1)) if geo_match else None
 
         def extract_section(text: str, header: str) -> str:
-            pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Bull Case|Bear Case|Quellen|Zusammenfassung):|$)"
+            pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|Quellen|Zusammenfassung):|$)"
             match = re.search(pattern, text, flags=re.IGNORECASE | re.DOTALL)
             return match.group(1).strip() if match else ""
 
