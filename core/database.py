@@ -153,6 +153,8 @@ class Database:
             ("sources", "TEXT"),
             ("risk_profile", "TEXT"),
             ("insider_sentiment", "TEXT"),
+            ("geopolitical_context", "TEXT"),
+            ("geo_risk_score", "INTEGER"),
         ]
         for col_name, col_type in ah_migrations:
             if col_name not in ah_cols:
@@ -191,6 +193,17 @@ class Database:
                 except Exception:
                     pass
         
+        # Geopolitical Events
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS geopolitical_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                raw_summary TEXT NOT NULL,
+                severity_avg REAL,
+                source TEXT DEFAULT 'perplexity'
+            )
+        """)
+
         # Scheduler runs log
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS scheduler_log (
@@ -1005,8 +1018,8 @@ class Database:
 
                 cursor.execute("""
                     INSERT INTO analysis_history
-                    (ticker, news, fundamental, technical, recommendation, signal, confidence, risk_score, bull_case, bear_case, sources, risk_profile, insider_sentiment)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (ticker, news, fundamental, technical, recommendation, signal, confidence, risk_score, bull_case, bear_case, sources, risk_profile, insider_sentiment, geopolitical_context, geo_risk_score)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     ticker,
                     str(results.get('news', ''))[:10000],  # Limit length
@@ -1020,7 +1033,9 @@ class Database:
                     str(results.get('bear_case', ''))[:5000],
                     str(results.get('sources', ''))[:5000],
                     str(results.get('risk_profile', 'Unknown'))[:100],
-                    str(results.get('insider_sentiment', ''))[:1000]
+                    str(results.get('insider_sentiment', ''))[:1000],
+                    str(results.get('geopolitical_context', '') or '')[:5000],
+                    results.get('geo_risk_score', None)
                 ))
 
                 analysis_id = cursor.lastrowid
@@ -1061,7 +1076,37 @@ class Database:
     def get_latest_analysis(self, ticker: str) -> Optional[Dict]:
         history = self.get_analysis_history(ticker, limit=1)
         return history[0] if history else None
-    
+
+    # === Geopolitical Events ===
+
+    def save_geopolitical_scan(self, raw_summary: str) -> int:
+        """Save a geopolitical scan result and return the new row id"""
+        import re
+        scores = [int(m) for m in re.findall(r'SCHWEREGRAD[:\s/]+(\d+)', raw_summary)]
+        severity_avg = sum(scores) / len(scores) if scores else None
+
+        with self._get_transaction() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO geopolitical_events (raw_summary, severity_avg) VALUES (?, ?)",
+                (raw_summary[:50000], severity_avg)
+            )
+            return cursor.lastrowid
+
+    def get_latest_geopolitical_scan(self) -> Optional[Dict]:
+        """Return the most recent geopolitical scan (max 24h old), or None"""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM geopolitical_events
+            WHERE timestamp >= datetime('now', '-24 hours')
+            ORDER BY timestamp DESC
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
     # === Alerts ===
     def log_alert(self, ticker: str, signal: str, message: str, sent_to: str):
         conn = self._get_conn()

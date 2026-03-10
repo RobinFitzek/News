@@ -121,6 +121,30 @@ class InvestmentScheduler:
         finally:
             self.is_scanning = False
     
+    def run_geopolitical_scan(self):
+        """Run global geopolitical scan and alert on high-severity events"""
+        import re
+        from clients.perplexity_client import pplx_client
+        print(f"\n[GEO SCAN] {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+
+        raw_summary = pplx_client.get_geopolitical_scan()
+        if not raw_summary:
+            print("  Geopolitical scan returned no data")
+            return
+
+        scan_id = db.save_geopolitical_scan(raw_summary)
+        print(f"  Geopolitical scan saved (id={scan_id})")
+
+        # Alert on high-severity events (severity >= 8)
+        scores = [int(m) for m in re.findall(r'SCHWEREGRAD[:\s/]+(\d+)', raw_summary)]
+        if scores and max(scores) >= 8:
+            alert_msg = (
+                f"Hochschweres geopolitisches Ereignis erkannt "
+                f"(Schweregrad {max(scores)}/10):\n\n{raw_summary[:1000]}"
+            )
+            notifications.send_alert("GEO", "GEOPOLITICAL_ALERT", alert_msg)
+            print(f"  High-severity alert sent (max severity: {max(scores)})")
+
     def run_daily_summary(self):
         """Send daily summary email"""
         if not self.daily_summary_enabled:
@@ -291,6 +315,15 @@ class InvestmentScheduler:
             CronTrigger(day_of_week='sun', hour=23, minute=0, timezone=self.timezone),
             id='mcpt_validation',
             name='MCPT Strategy Validation',
+            replace_existing=True
+        )
+
+        # Geopolitical scan (every 6 hours, independent of market hours)
+        self.scheduler.add_job(
+            self.run_geopolitical_scan,
+            IntervalTrigger(hours=6),
+            id='geopolitical_scan',
+            name='Geopolitical Scan',
             replace_existing=True
         )
 

@@ -318,6 +318,38 @@
         </div>
     </div>
 
+    <!-- ─── GEOPOLITISCHES RADAR ───────────────────────── -->
+
+    <div class="dash-section-label">Geopolitik</div>
+    <div class="card" style="margin-bottom: var(--space-6);" id="geo-radar-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-4);">
+            <div style="display: flex; align-items: center; gap: var(--space-3);">
+                <h3 style="margin: 0;">Geopolitisches Radar</h3>
+                <span id="geo-scan-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px; display: none;"></span>
+            </div>
+            <div id="geo-scan-timestamp" style="font-size: 0.6875rem; color: var(--text-muted);"></div>
+        </div>
+
+        <!-- Exposure Heatmap -->
+        <div id="geo-exposure-section" style="display: none; margin-bottom: var(--space-5);">
+            <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-3);">Portfolio Exposure</div>
+            <div id="geo-exposure-grid" style="display: flex; flex-wrap: wrap; gap: var(--space-2);"></div>
+        </div>
+
+        <!-- Full Scan Summary (collapsible) -->
+        <details id="geo-scan-details">
+            <summary style="cursor: pointer; font-size: 0.8125rem; color: var(--text-secondary); list-style: none; display: flex; align-items: center; gap: var(--space-2);">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                Aktuelle Ereignisse anzeigen
+            </summary>
+            <div id="geo-scan-content" style="margin-top: var(--space-4); font-size: 0.8125rem; color: var(--text-secondary); white-space: pre-wrap; font-family: var(--font-mono); line-height: 1.6; padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">Lade...</div>
+        </details>
+
+        <div id="geo-scan-empty" style="display: none; font-size: 0.8125rem; color: var(--text-muted); padding: var(--space-4) 0;">
+            Kein Geo-Scan verfügbar. Wird beim nächsten Scheduler-Lauf (alle 6h) aktualisiert.
+        </div>
+    </div>
+
     <!-- ─── LAYER 4: AUTO-DISCOVERY STATS ───────────────── -->
 
     {% if discovery_stats %}
@@ -1345,5 +1377,104 @@
             }
         })
         .catch(() => { });
+
+    // ── Geopolitisches Radar ──────────────────────────────────────────────
+    (function loadGeoRadar() {
+        const EXPOSURE_COLORS = {
+            'HOCH': { bg: 'rgba(220,38,38,0.15)', border: 'rgba(220,38,38,0.4)', text: '#fca5a5' },
+            'MITTEL': { bg: 'rgba(234,179,8,0.12)', border: 'rgba(234,179,8,0.35)', text: '#fde68a' },
+            'GERING': { bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.35)', text: '#6ee7b7' },
+            'KEINE': { bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.1)', text: 'var(--text-muted)' },
+        };
+
+        fetch('/api/geopolitical', { credentials: 'same-origin' })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                const scanContent = document.getElementById('geo-scan-content');
+                const scanEmpty = document.getElementById('geo-scan-empty');
+                const scanBadge = document.getElementById('geo-scan-badge');
+                const scanTs = document.getElementById('geo-scan-timestamp');
+                const details = document.getElementById('geo-scan-details');
+
+                if (!data || !data.scan) {
+                    if (scanContent) scanContent.style.display = 'none';
+                    if (scanEmpty) scanEmpty.style.display = 'block';
+                    return;
+                }
+
+                const scan = data.scan;
+                if (scanContent) scanContent.textContent = scan.raw_summary || '';
+                if (scanTs) scanTs.textContent = 'Aktualisiert: ' + (scan.timestamp || '').replace('T', ' ').slice(0, 16);
+
+                // Severity badge
+                if (scan.severity_avg !== null && scan.severity_avg !== undefined) {
+                    const avg = parseFloat(scan.severity_avg).toFixed(1);
+                    if (scanBadge) {
+                        scanBadge.textContent = 'Ø Schweregrad ' + avg + '/10';
+                        scanBadge.style.display = '';
+                        if (avg >= 7) {
+                            scanBadge.style.background = 'rgba(220,38,38,0.2)';
+                            scanBadge.style.color = '#fca5a5';
+                            scanBadge.style.border = '1px solid rgba(220,38,38,0.4)';
+                        } else if (avg >= 4) {
+                            scanBadge.style.background = 'rgba(234,179,8,0.15)';
+                            scanBadge.style.color = '#fde68a';
+                            scanBadge.style.border = '1px solid rgba(234,179,8,0.3)';
+                        } else {
+                            scanBadge.style.background = 'rgba(16,185,129,0.12)';
+                            scanBadge.style.color = '#6ee7b7';
+                            scanBadge.style.border = '1px solid rgba(16,185,129,0.3)';
+                        }
+                    }
+                }
+            })
+            .catch(() => {
+                const scanEmpty = document.getElementById('geo-scan-empty');
+                if (scanEmpty) scanEmpty.style.display = 'block';
+            });
+
+        fetch('/api/geopolitical/exposure', { credentials: 'same-origin' })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (!data || !data.exposures || data.exposures.length === 0) return;
+                const hasAny = data.exposures.some(e => e.geopolitical_context);
+                if (!hasAny) return;
+
+                const section = document.getElementById('geo-exposure-section');
+                const grid = document.getElementById('geo-exposure-grid');
+                if (!section || !grid) return;
+                section.style.display = '';
+
+                data.exposures.forEach(e => {
+                    const ctx = e.geopolitical_context || '';
+                    const expMatch = ctx.match(/EXPOSURE:\s*(HOCH|MITTEL|GERING|KEINE)/i);
+                    const geoScore = e.geo_risk_score;
+                    const level = expMatch ? expMatch[1].toUpperCase() : (ctx ? 'KEINE' : null);
+                    if (!level) return;
+
+                    const colors = EXPOSURE_COLORS[level] || EXPOSURE_COLORS['KEINE'];
+                    const chip = document.createElement('div');
+                    chip.title = ctx.slice(0, 200);
+                    chip.style.cssText = [
+                        'padding: 4px 10px',
+                        'border-radius: 4px',
+                        'font-size: 0.75rem',
+                        'font-weight: 500',
+                        'cursor: default',
+                        'border: 1px solid ' + colors.border,
+                        'background: ' + colors.bg,
+                        'color: ' + colors.text,
+                        'display: flex',
+                        'align-items: center',
+                        'gap: 6px'
+                    ].join(';');
+
+                    const geoStr = (geoScore !== null && geoScore !== undefined) ? ' <span style="opacity:0.65;font-size:0.6875rem;">Geo:' + geoScore + '</span>' : '';
+                    chip.innerHTML = '<span>' + e.ticker + '</span><span style="opacity:0.65;font-size:0.6875rem;">' + level + '</span>' + geoStr;
+                    grid.appendChild(chip);
+                });
+            })
+            .catch(() => { });
+    })();
 </script>
 {% endblock %}
