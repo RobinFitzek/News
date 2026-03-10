@@ -68,8 +68,8 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Approach:** Before inserting, fetch the last scan and compare a hash or key phrases. Only save if materially different (or always save but add a `is_delta BOOLEAN` column).
 **Effort:** M · **Impact:** Low (cosmetic/storage, not functional)
 ```
-[ ] Add is_delta flag to geopolitical_events table
-[ ] Hash-compare new scan vs last before saving full duplicate
+[x] Add is_delta flag to geopolitical_events table
+[x] Hash-compare new scan vs last before saving full duplicate
 ```
 
 ### 6. Geo scan history page
@@ -103,10 +103,9 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Effort:** M · **Impact:** High (brings geo latency from 6h to ~15min)
 **Dependencies:** `feedparser` library (add to requirements.txt)
 ```
-[ ] Add feedparser to requirements.txt
-[ ] Create clients/rss_client.py with keyword scanner
-[ ] Add 15-min RSS check job to scheduler
-[ ] Trigger run_geopolitical_scan() on keyword hit (with 1h cooldown)
+[x] Create clients/rss_client.py with keyword scanner (stdlib xml, no feedparser)
+[x] Add 15-min RSS check job to scheduler
+[x] Trigger run_geopolitical_scan() on keyword hit (with 1h cooldown)
 ```
 
 ### 9. Central bank / FOMC event tracker
@@ -189,10 +188,10 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Note:** The existing `price_alert_check` job runs every 15min but only sends static alerts.
 **Effort:** M · **Impact:** High (catches earnings reactions, gap-ups, etc.)
 ```
-[ ] In check_price_alerts, detect ±3% intraday move
-[ ] On trigger, call swarm.analyze_single_stock(ticker) in background thread
-[ ] Log breakout as anomaly in analysis result
-[ ] Add intraday_trigger_pct setting in Settings
+[x] In check_price_alerts, detect ±3% intraday move
+[x] On trigger, call swarm.analyze_single_stock(ticker) in background thread
+[x] Log breakout as anomaly in analysis result
+[ ] Add intraday_trigger_pct setting in Settings UI
 ```
 
 ---
@@ -215,10 +214,9 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Description:** The DB backup exists (`investment_monitor.db.backup`) but is likely overwritten every time. Add scheduled rotation: keep daily backups for 7 days, weekly for 4 weeks.
 **Effort:** S · **Impact:** Medium (data safety)
 ```
-[ ] Add backup_db() method to Database class
-[ ] Schedule daily backup job at 03:30 (after health_check)
-[ ] Keep last 7 daily + 4 weekly backups, delete older
-[ ] Log backup size + status to scheduler_log
+[x] Add backup_db() method to Database class (SQLite online backup API)
+[x] Schedule daily backup job at 03:30 (after health_check)
+[x] Keep last 7 daily + 4 weekly backups, delete older
 ```
 
 ### 18. Test coverage for new geo subsystem
@@ -226,10 +224,10 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Description:** The new geo functions have zero test coverage. Add unit tests for: `save_geopolitical_scan`, `get_latest_geopolitical_scan`, `extract_section` with `Geo-Risiko` in response, severity parsing regex.
 **Effort:** S · **Impact:** Medium (prevents regressions)
 ```
-[ ] Test save_geopolitical_scan with mock severity scores
-[ ] Test get_latest_geopolitical_scan with >24h old record (expect None)
-[ ] Test extract_section doesn't swallow Bull Case when Geo-Risiko present
-[ ] Test run_geopolitical_scan severity alert threshold
+[x] Test save_geopolitical_scan — id, severity_avg, NULL severity, is_delta dedup
+[x] Test get_latest_geopolitical_scan — recent returns row, >24h returns None
+[x] Test extract_section doesn't swallow Bull Case when Geo-Risiko present
+[x] Test SCHWEREGRAD regex — multi-score, slash variant, threshold 8, no-match
 ```
 
 ---

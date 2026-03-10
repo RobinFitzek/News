@@ -780,9 +780,19 @@ class Database:
                 (wkey, wval)
             )
 
+        # Schema migrations (idempotent ALTER TABLE additions)
+        migrations = [
+            "ALTER TABLE geopolitical_events ADD COLUMN is_delta INTEGER DEFAULT 1",
+        ]
+        for sql in migrations:
+            try:
+                cursor.execute(sql)
+            except Exception:
+                pass  # Column already exists
+
         conn.commit()
         conn.close()
-    
+
     # === Settings ===
     # === Helper Methods for New Modules ===
     
@@ -1077,19 +1087,84 @@ class Database:
         history = self.get_analysis_history(ticker, limit=1)
         return history[0] if history else None
 
+    # === Backups ===
+
+    def backup_db(self) -> dict:
+        """Create a timestamped DB backup. Keeps 7 daily + 4 weekly copies."""
+        import shutil, re, sqlite3 as _sqlite3
+        backup_dir = self.db_path.parent / "backups"
+        backup_dir.mkdir(exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        dest = backup_dir / f"investment_monitor_{timestamp}.db"
+
+        # Use SQLite's built-in online backup (safe while DB is open)
+        src_conn = self._get_conn()
+        try:
+            dst_conn = _sqlite3.connect(str(dest))
+            src_conn.backup(dst_conn)
+            dst_conn.close()
+        finally:
+            src_conn.close()
+
+        size_mb = round(dest.stat().st_size / 1024 / 1024, 2)
+        self.logger.info(f"DB backup created: {dest.name} ({size_mb} MB)")
+
+        # Rotation: keep 7 most-recent + 4 oldest-of-distinct-week
+        all_backups = sorted(backup_dir.glob("investment_monitor_*.db"))
+        if len(all_backups) > 11:
+            to_keep = {str(b) for b in all_backups[-7:]}
+            seen_weeks: dict = {}
+            for b in all_backups:
+                m = re.search(r'(\d{8})', b.name)
+                if m:
+                    try:
+                        d = datetime.strptime(m.group(1), "%Y%m%d")
+                        week_key = d.strftime("%G-W%V")
+                        if week_key not in seen_weeks:
+                            seen_weeks[week_key] = str(b)
+                    except Exception:
+                        pass
+            for path in list(seen_weeks.values())[:4]:
+                to_keep.add(path)
+            for b in all_backups:
+                if str(b) not in to_keep:
+                    try:
+                        b.unlink()
+                    except Exception:
+                        pass
+
+        return {"success": True, "file": dest.name, "size_mb": size_mb}
+
     # === Geopolitical Events ===
 
     def save_geopolitical_scan(self, raw_summary: str) -> int:
-        """Save a geopolitical scan result and return the new row id"""
-        import re
+        """Save a geopolitical scan result and return the new row id.
+        Sets is_delta=0 when content hash matches the last saved scan (no new events)."""
+        import re, hashlib
         scores = [int(m) for m in re.findall(r'SCHWEREGRAD[:\s/]+(\d+)', raw_summary)]
         severity_avg = sum(scores) / len(scores) if scores else None
+
+        # Hash-compare against last scan to detect duplicates
+        content_hash = hashlib.md5(raw_summary[:5000].encode('utf-8', errors='replace')).hexdigest()
+        is_delta = 1
+        check_conn = self._get_conn()
+        try:
+            row = check_conn.execute(
+                "SELECT raw_summary FROM geopolitical_events ORDER BY timestamp DESC LIMIT 1"
+            ).fetchone()
+            if row:
+                prev_hash = hashlib.md5(row[0][:5000].encode('utf-8', errors='replace')).hexdigest()
+                if prev_hash == content_hash:
+                    is_delta = 0
+        finally:
+            check_conn.close()
 
         with self._get_transaction() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO geopolitical_events (raw_summary, severity_avg) VALUES (?, ?)",
-                (raw_summary[:50000], severity_avg)
+                "INSERT INTO geopolitical_events (raw_summary, severity_avg, is_delta) VALUES (?, ?, ?)",
+                (raw_summary[:50000], severity_avg, is_delta)
             )
             return cursor.lastrowid
 

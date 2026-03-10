@@ -351,6 +351,24 @@ class InvestmentScheduler:
             replace_existing=True
         )
 
+        # RSS geo trigger (every 15 min — fires immediate scan on keyword hit)
+        self.scheduler.add_job(
+            self.check_rss_geo_trigger,
+            IntervalTrigger(minutes=15),
+            id='rss_geo_trigger',
+            name='RSS Geo Trigger',
+            replace_existing=True
+        )
+
+        # Daily DB backup (03:30, after health check at 03:00)
+        self.scheduler.add_job(
+            self.run_db_backup,
+            CronTrigger(hour=3, minute=30, timezone=self.timezone),
+            id='db_backup',
+            name='DB Backup',
+            replace_existing=True
+        )
+
         self.scheduler.start()
         self.is_running = True
         print(f"Scheduler started: Daily every {self.interval_hours}h, Weekly Sun 20:00, Monthly 28th 18:00")
@@ -510,6 +528,9 @@ class InvestmentScheduler:
 
             if triggered:
                 print(f"Price alerts: {triggered} triggered out of {len(alerts)} active")
+
+            # Also scan watchlist for ±3% intraday breakouts → auto-analysis
+            self._check_intraday_breakouts()
         except Exception as e:
             print(f"(Error) Price alert check failed: {e}")
 
@@ -630,6 +651,81 @@ class InvestmentScheduler:
                       f"({result.get('n_signals', 0)}/{result.get('min_required', 30)} signals)")
         except Exception as e:
             print(f"(Error) MCPT validation failed: {e}")
+
+    def check_rss_geo_trigger(self):
+        """Scan RSS feeds for geo keywords; fire an immediate geo scan on hit (60-min cooldown)."""
+        try:
+            from clients.rss_client import rss_geo_scanner
+            hits = rss_geo_scanner.scan()
+            if rss_geo_scanner.should_trigger(hits):
+                print(f"[RSS GEO] {len(hits)} keyword hit(s) — firing immediate geo scan")
+                for h in hits[:3]:
+                    print(f"  · {h}")
+                rss_geo_scanner.mark_triggered()
+                self.run_geopolitical_scan()
+        except Exception as e:
+            print(f"(Error) RSS geo trigger failed: {e}")
+
+    def _check_intraday_breakouts(self, threshold_pct: float = 3.0):
+        """Check all watchlist tickers for ±threshold_pct% intraday move and queue analysis."""
+        import threading
+        try:
+            import yfinance as yf
+            watchlist = db.get_watchlist()
+            if not watchlist:
+                return
+            triggered = []
+            for item in watchlist:
+                ticker = item['ticker']
+                try:
+                    info = yf.Ticker(ticker).fast_info
+                    current = getattr(info, 'last_price', None) or getattr(info, 'regular_market_price', None)
+                    prev_close = getattr(info, 'previous_close', None)
+                    if current and prev_close and prev_close > 0:
+                        pct = (current - prev_close) / prev_close * 100
+                        if abs(pct) >= threshold_pct:
+                            triggered.append((ticker, pct))
+                except Exception:
+                    pass
+
+            for ticker, pct in triggered:
+                sign = "+" if pct > 0 else ""
+                print(f"  Breakout: {ticker} {sign}{pct:.1f}% — queuing analysis")
+                try:
+                    from engine.webhook_notifier import webhook_notifier
+                    webhook_notifier.reload()
+                    webhook_notifier.send_custom(
+                        f"⚡ *Intraday Breakout: {ticker}*\n"
+                        f"Move: {sign}{pct:.1f}% — triggering re-analysis"
+                    )
+                except Exception:
+                    pass
+
+                def _analyze(t=ticker, p=pct):
+                    try:
+                        from engine.agents import InvestmentSwarm
+                        swarm = InvestmentSwarm()
+                        result = swarm.analyze_single_stock(t)
+                        if result and result.get('recommendation'):
+                            result.setdefault('anomaly', f'Intraday breakout {p:+.1f}%')
+                            db.save_analysis(t, result)
+                            print(f"  Breakout analysis saved for {t}")
+                    except Exception as e:
+                        print(f"  Breakout analysis failed for {t}: {e}")
+
+                threading.Thread(target=_analyze, daemon=True).start()
+        except Exception as e:
+            print(f"(Error) Intraday breakout check failed: {e}")
+
+    def run_db_backup(self):
+        """Create a daily DB backup with rotation (7 daily + 4 weekly)."""
+        try:
+            result = db.backup_db()
+            msg = f"DB backup: {result['file']} ({result['size_mb']} MB)"
+            print(msg)
+            db.log_scheduler_run(tickers_scanned=0, alerts_sent=0, errors="", duration=0)
+        except Exception as e:
+            print(f"(Error) DB backup failed: {e}")
 
     def trigger_manual_scan(self):
         """Trigger an immediate scan in background"""
