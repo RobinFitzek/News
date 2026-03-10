@@ -43,3 +43,8 @@ __pycache__/
 *.pyc
 .claude/
 app.log
+logs/
+*.log
+core/__pycache__/
+engine/__pycache__/
+clients/__pycache__/
