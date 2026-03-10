@@ -121,6 +121,54 @@ class InvestmentScheduler:
         finally:
             self.is_scanning = False
     
+    def run_geopolitical_scan(self):
+        """Run global geopolitical scan and alert on high-severity events"""
+        import re
+        from clients.perplexity_client import pplx_client
+        print(f"\n[GEO SCAN] {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+
+        raw_summary = pplx_client.get_geopolitical_scan()
+        if not raw_summary:
+            print("  Geopolitical scan returned no data")
+            return
+
+        scan_id = db.save_geopolitical_scan(raw_summary)
+        print(f"  Geopolitical scan saved (id={scan_id})")
+
+        # Alert + priority re-analysis on high-severity events (severity >= 8)
+        scores = [int(m) for m in re.findall(r'SCHWEREGRAD[:\s/]+(\d+)', raw_summary)]
+        max_severity = max(scores) if scores else 0
+        if max_severity >= 8:
+            notifications.send_geopolitical_alert(raw_summary, max_severity)
+            print(f"  High-severity alert sent (max severity: {max_severity})")
+            self._trigger_priority_reanalysis()
+
+    def _trigger_priority_reanalysis(self):
+        """Trigger a full watchlist re-analysis after a high-severity geo event.
+        Cooldown: skips if the last scan finished less than 2 hours ago."""
+        try:
+            logs = db.get_scheduler_logs(limit=1)
+            if logs:
+                last_run_str = logs[0].get('run_at', '')
+                if last_run_str:
+                    from datetime import timezone
+                    last_run = datetime.fromisoformat(last_run_str)
+                    # Make naive datetime timezone-aware for comparison
+                    if last_run.tzinfo is None:
+                        last_run = last_run.replace(tzinfo=timezone.utc)
+                    now_utc = datetime.now(timezone.utc)
+                    elapsed_hours = (now_utc - last_run).total_seconds() / 3600
+                    if elapsed_hours < 2:
+                        print(f"  Priority re-analysis skipped — last scan was {elapsed_hours:.1f}h ago (cooldown: 2h)")
+                        return
+
+            print("  Triggering priority watchlist re-analysis due to high-severity geo event...")
+            import threading
+            t = threading.Thread(target=self.run_scan, kwargs={'force': True}, daemon=True)
+            t.start()
+        except Exception as e:
+            print(f"  Priority re-analysis trigger failed: {e}")
+
     def run_daily_summary(self):
         """Send daily summary email"""
         if not self.daily_summary_enabled:
@@ -294,6 +342,33 @@ class InvestmentScheduler:
             replace_existing=True
         )
 
+        # Geopolitical scan (every 6 hours, independent of market hours)
+        self.scheduler.add_job(
+            self.run_geopolitical_scan,
+            IntervalTrigger(hours=6),
+            id='geopolitical_scan',
+            name='Geopolitical Scan',
+            replace_existing=True
+        )
+
+        # RSS geo trigger (every 15 min — fires immediate scan on keyword hit)
+        self.scheduler.add_job(
+            self.check_rss_geo_trigger,
+            IntervalTrigger(minutes=15),
+            id='rss_geo_trigger',
+            name='RSS Geo Trigger',
+            replace_existing=True
+        )
+
+        # Daily DB backup (03:30, after health check at 03:00)
+        self.scheduler.add_job(
+            self.run_db_backup,
+            CronTrigger(hour=3, minute=30, timezone=self.timezone),
+            id='db_backup',
+            name='DB Backup',
+            replace_existing=True
+        )
+
         self.scheduler.start()
         self.is_running = True
         print(f"Scheduler started: Daily every {self.interval_hours}h, Weekly Sun 20:00, Monthly 28th 18:00")
@@ -453,6 +528,9 @@ class InvestmentScheduler:
 
             if triggered:
                 print(f"Price alerts: {triggered} triggered out of {len(alerts)} active")
+
+            # Also scan watchlist for ±3% intraday breakouts → auto-analysis
+            self._check_intraday_breakouts()
         except Exception as e:
             print(f"(Error) Price alert check failed: {e}")
 
@@ -573,6 +651,81 @@ class InvestmentScheduler:
                       f"({result.get('n_signals', 0)}/{result.get('min_required', 30)} signals)")
         except Exception as e:
             print(f"(Error) MCPT validation failed: {e}")
+
+    def check_rss_geo_trigger(self):
+        """Scan RSS feeds for geo keywords; fire an immediate geo scan on hit (60-min cooldown)."""
+        try:
+            from clients.rss_client import rss_geo_scanner
+            hits = rss_geo_scanner.scan()
+            if rss_geo_scanner.should_trigger(hits):
+                print(f"[RSS GEO] {len(hits)} keyword hit(s) — firing immediate geo scan")
+                for h in hits[:3]:
+                    print(f"  · {h}")
+                rss_geo_scanner.mark_triggered()
+                self.run_geopolitical_scan()
+        except Exception as e:
+            print(f"(Error) RSS geo trigger failed: {e}")
+
+    def _check_intraday_breakouts(self, threshold_pct: float = 3.0):
+        """Check all watchlist tickers for ±threshold_pct% intraday move and queue analysis."""
+        import threading
+        try:
+            import yfinance as yf
+            watchlist = db.get_watchlist()
+            if not watchlist:
+                return
+            triggered = []
+            for item in watchlist:
+                ticker = item['ticker']
+                try:
+                    info = yf.Ticker(ticker).fast_info
+                    current = getattr(info, 'last_price', None) or getattr(info, 'regular_market_price', None)
+                    prev_close = getattr(info, 'previous_close', None)
+                    if current and prev_close and prev_close > 0:
+                        pct = (current - prev_close) / prev_close * 100
+                        if abs(pct) >= threshold_pct:
+                            triggered.append((ticker, pct))
+                except Exception:
+                    pass
+
+            for ticker, pct in triggered:
+                sign = "+" if pct > 0 else ""
+                print(f"  Breakout: {ticker} {sign}{pct:.1f}% — queuing analysis")
+                try:
+                    from engine.webhook_notifier import webhook_notifier
+                    webhook_notifier.reload()
+                    webhook_notifier.send_custom(
+                        f"⚡ *Intraday Breakout: {ticker}*\n"
+                        f"Move: {sign}{pct:.1f}% — triggering re-analysis"
+                    )
+                except Exception:
+                    pass
+
+                def _analyze(t=ticker, p=pct):
+                    try:
+                        from engine.agents import InvestmentSwarm
+                        swarm = InvestmentSwarm()
+                        result = swarm.analyze_single_stock(t)
+                        if result and result.get('recommendation'):
+                            result.setdefault('anomaly', f'Intraday breakout {p:+.1f}%')
+                            db.save_analysis(t, result)
+                            print(f"  Breakout analysis saved for {t}")
+                    except Exception as e:
+                        print(f"  Breakout analysis failed for {t}: {e}")
+
+                threading.Thread(target=_analyze, daemon=True).start()
+        except Exception as e:
+            print(f"(Error) Intraday breakout check failed: {e}")
+
+    def run_db_backup(self):
+        """Create a daily DB backup with rotation (7 daily + 4 weekly)."""
+        try:
+            result = db.backup_db()
+            msg = f"DB backup: {result['file']} ({result['size_mb']} MB)"
+            print(msg)
+            db.log_scheduler_run(tickers_scanned=0, alerts_sent=0, errors="", duration=0)
+        except Exception as e:
+            print(f"(Error) DB backup failed: {e}")
 
     def trigger_manual_scan(self):
         """Trigger an immediate scan in background"""

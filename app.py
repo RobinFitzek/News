@@ -340,6 +340,35 @@ async def api_health(username: str = Depends(require_auth)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ==================== GEOPOLITICAL ====================
+
+@app.get("/api/geopolitical")
+async def api_geopolitical(username: str = Depends(require_auth)):
+    """Return the latest geopolitical scan (max 24h old)"""
+    try:
+        scan = db.get_latest_geopolitical_scan()
+        return {"scan": scan}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/geopolitical/exposure")
+async def api_geopolitical_exposure(username: str = Depends(require_auth)):
+    """Return per-ticker geopolitical exposure from the latest analysis"""
+    try:
+        watchlist = db.get_watchlist()
+        exposures = []
+        for stock in watchlist:
+            latest = db.get_latest_analysis(stock['ticker'])
+            exposures.append({
+                "ticker": stock['ticker'],
+                "geopolitical_context": latest.get('geopolitical_context') if latest else None,
+                "geo_risk_score": latest.get('geo_risk_score') if latest else None,
+                "timestamp": latest.get('timestamp') if latest else None,
+            })
+        return {"exposures": exposures}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ==================== SIGNAL ACCURACY ====================
 
 @app.get("/api/signal-accuracy")

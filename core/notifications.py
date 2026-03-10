@@ -81,6 +81,46 @@ class NotificationService:
 
         return sent
     
+    def send_geopolitical_alert(self, summary: str, max_severity: int) -> bool:
+        """Send geopolitical high-severity alert — bypasses stock-signal filter."""
+        if not self.enabled or not self.recipient:
+            return False
+
+        severity_color = '#ef4444' if max_severity >= 8 else '#f59e0b'
+        subject = f"🌍 Geopolitisches Hochrisiko-Ereignis (Schweregrad {max_severity}/10)"
+        html = f"""
+        <html><body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: {severity_color}; color: white; padding: 20px; text-align: center;">
+                <h1 style="margin: 0;">🌍 Geopolitischer Alert</h1>
+                <h2 style="margin: 10px 0 0 0;">Schweregrad {max_severity}/10</h2>
+            </div>
+            <div style="padding: 20px; background: #f9fafb;">
+                <h3>Aktuelle Ereignisse</h3>
+                <div style="background: white; padding: 15px; border-radius: 8px; white-space: pre-wrap; font-size: 13px; line-height: 1.6;">{summary[:2000]}</div>
+                <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">
+                    {datetime.now().strftime('%d.%m.%Y %H:%M')} | AI Investment Monitor — Geopolitisches Radar
+                </p>
+            </div>
+        </body></html>
+        """
+        sent = self._send_email(subject, html)
+
+        # Also push to webhooks
+        try:
+            from engine.webhook_notifier import webhook_notifier
+            webhook_notifier.reload()
+            if webhook_notifier.any_configured():
+                sent |= webhook_notifier.send_signal_alert(
+                    ticker="GEO",
+                    signal="GEOPOLITICAL_ALERT",
+                    confidence=max_severity * 10,
+                    recommendation=summary[:300],
+                )
+        except Exception as e:
+            logger.debug(f"Webhook geo alert skipped: {e}")
+
+        return sent
+
     def send_daily_summary(self, analyses: list) -> bool:
         """Send daily summary email"""
         if not self.enabled or not self.recipient:

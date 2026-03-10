@@ -127,6 +127,16 @@ class InvestmentSwarm:
         else:
             results['news'] = "Perplexity API not configured - news unavailable"
 
+        # Geopolitical exposure assessment
+        results['geopolitical_context'] = None
+        geo_scan = db.get_latest_geopolitical_scan()
+        if geo_scan and self.pplx.is_configured():
+            print(f"    Assessing geopolitical exposure for {ticker}...")
+            geo_exposure = self.pplx.get_ticker_geopolitical_exposure(
+                ticker, geo_scan['raw_summary']
+            )
+            results['geopolitical_context'] = geo_exposure
+
         return results
 
     def stage3_synthesize(self, analysis_result: dict, variant: str = "balanced") -> dict:
@@ -146,6 +156,13 @@ class InvestmentSwarm:
         if insider and insider.get('has_activity'):
             insider_text = f"\nInsider-Aktivitaet (Folge dem Geld):\n{insider.get('fact_summary', 'Insider-Aktivitaet vorhanden.')}\n"
 
+        geo_block = ""
+        if analysis_result.get('geopolitical_context'):
+            geo_block = f"""
+Geopolitisches Umfeld:
+{analysis_result['geopolitical_context']}
+"""
+
         prompt = f"""Du bist ein Research-Analyst. Schreibe eine kurze Research-Notiz fuer {ticker}.
 
 Quantitative Daten:
@@ -156,18 +173,20 @@ Quantitative Daten:
 - Anomalien:
 {anomaly_text}
 - Quant Signal: {qm.get('signal', 'Neutral')} (Score: {qm.get('composite_score', 'N/A')}/100){insider_text}
-
+{geo_block}
 Aktuelle Nachrichten:
 {analysis_result.get('news', 'Keine Nachrichten verfuegbar')}
 
 Aufgabe:
 Erstelle eine strukturierte Analyse mit klaren Bull/Bear Argumenten, einer Risikobewertung und überprüfbaren Quellen aus den Nachrichten.
 Falls der Nachrichtentext URLs oder explizite Quellen enthält, MÜSSEN diese im Abschnitt "Quellen" aufgelistet werden.
+Beruecksichtige das geopolitische Umfeld in den Bull/Bear Argumenten, sofern relevant.
 
 KEINE Kauf/Verkauf-Empfehlung. Nur Fakten und Kontext.
 
 Zwingendes Format:
 Risk Score: [1-10]
+Geo-Risiko: [1-10]
 Bull Case: [Argumente für die Aktie - 2-3 Sätze]
 Bear Case: [Die größten Risiken und Schwächen - 2-3 Sätze]
 Quellen: [Liste der URLs oder Publikationen]
@@ -181,8 +200,11 @@ Zusammenfassung: [Kurzer Gesamteindruck]
         risk_match = re.search(r"Risk Score:\s*(\d+)", response, re.IGNORECASE)
         analysis_result['risk_score'] = int(risk_match.group(1)) if risk_match else 5
 
+        geo_match = re.search(r"Geo-Risiko:\s*(\d+)", response, re.IGNORECASE)
+        analysis_result['geo_risk_score'] = int(geo_match.group(1)) if geo_match else None
+
         def extract_section(text: str, header: str) -> str:
-            pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Bull Case|Bear Case|Quellen|Zusammenfassung):|$)"
+            pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|Quellen|Zusammenfassung):|$)"
             match = re.search(pattern, text, flags=re.IGNORECASE | re.DOTALL)
             return match.group(1).strip() if match else ""
 
@@ -198,7 +220,8 @@ Zusammenfassung: [Kurzer Gesamteindruck]
         # Signal comes from quant screener, not AI
         analysis_result['signal'] = qm.get('signal', 'Neutral')
 
-        print(f"    {ticker}: {analysis_result['signal']} | Risk: {analysis_result['risk_score']}/10 | Score: {qm.get('composite_score', 'N/A')}/100")
+        geo_str = f" | Geo: {analysis_result['geo_risk_score']}/10" if analysis_result.get('geo_risk_score') else ""
+        print(f"    {ticker}: {analysis_result['signal']} | Risk: {analysis_result['risk_score']}/10{geo_str} | Score: {qm.get('composite_score', 'N/A')}/100")
 
         return analysis_result
 

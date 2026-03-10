@@ -41,6 +41,22 @@
                         style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; color: var(--text-primary); letter-spacing: -0.02em;">
                         {{ analysis.confidence }}/100</div>
                 </div>
+                {% if analysis.risk_score %}
+                <div style="border-left: 1px solid var(--border-hairline); padding-left: var(--space-6);">
+                    <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: var(--space-1);">Risk Score</div>
+                    <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; letter-spacing: -0.02em; color:
+                        {% if analysis.risk_score >= 7 %}#ef4444{% elif analysis.risk_score >= 4 %}#f59e0b{% else %}#10b981{% endif %};">
+                        {{ analysis.risk_score }}/10</div>
+                </div>
+                {% endif %}
+                {% if analysis.geo_risk_score %}
+                <div style="border-left: 1px solid var(--border-hairline); padding-left: var(--space-6);">
+                    <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: var(--space-1);">Geo-Risiko</div>
+                    <div style="font-family: var(--font-display); font-size: 2rem; font-weight: 400; letter-spacing: -0.02em; color:
+                        {% if analysis.geo_risk_score >= 7 %}#ef4444{% elif analysis.geo_risk_score >= 4 %}#f59e0b{% else %}#10b981{% endif %};">
+                        {{ analysis.geo_risk_score }}/10</div>
+                </div>
+                {% endif %}
             </div>
             <div style="display: flex; align-items: center; gap: var(--space-4);">
                 <span id="regime-label" class="badge"
@@ -210,6 +226,51 @@
             <span>{{ analysis.insider_sentiment }}</span>
             {% endif %}
         </div>
+    </div>
+    {% endif %}
+
+    <!-- Geopolitical Risk -->
+    {% if analysis.geopolitical_context %}
+    <div class="card" style="margin-bottom: var(--space-6); border-left: 3px solid
+        {% set ctx = analysis.geopolitical_context %}
+        {% if 'EXPOSURE: HOCH' in ctx or 'EXPOSURE:HOCH' in ctx %}rgba(220,38,38,0.7)
+        {% elif 'EXPOSURE: MITTEL' in ctx or 'EXPOSURE:MITTEL' in ctx %}rgba(234,179,8,0.7)
+        {% elif 'EXPOSURE: GERING' in ctx or 'EXPOSURE:GERING' in ctx %}rgba(16,185,129,0.7)
+        {% else %}rgba(255,255,255,0.15){% endif %};">
+
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-4);">
+            <h3 style="margin: 0; display: flex; align-items: center; gap: var(--space-3);">
+                <span class="status-dot" style="background:
+                    {% if 'EXPOSURE: HOCH' in ctx or 'EXPOSURE:HOCH' in ctx %}#ef4444
+                    {% elif 'EXPOSURE: MITTEL' in ctx or 'EXPOSURE:MITTEL' in ctx %}#f59e0b
+                    {% elif 'EXPOSURE: GERING' in ctx or 'EXPOSURE:GERING' in ctx %}#10b981
+                    {% else %}var(--text-muted){% endif %};"></span>
+                Geopolitisches Risiko
+            </h3>
+            <div style="display: flex; align-items: center; gap: var(--space-4);">
+                {% if analysis.geo_risk_score %}
+                <div style="text-align: right;">
+                    <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em;">Geo-Risiko</div>
+                    <div style="font-family: var(--font-display); font-size: 1.5rem; color:
+                        {% if analysis.geo_risk_score >= 7 %}#ef4444
+                        {% elif analysis.geo_risk_score >= 4 %}#f59e0b
+                        {% else %}#10b981{% endif %};">
+                        {{ analysis.geo_risk_score }}/10
+                    </div>
+                </div>
+                {% endif %}
+                {% if 'EXPOSURE: HOCH' in ctx or 'EXPOSURE:HOCH' in ctx %}
+                <span class="badge" style="background: rgba(220,38,38,0.15); color: #fca5a5; border: 1px solid rgba(220,38,38,0.4); font-size: 0.6875rem;">HOCH</span>
+                {% elif 'EXPOSURE: MITTEL' in ctx or 'EXPOSURE:MITTEL' in ctx %}
+                <span class="badge" style="background: rgba(234,179,8,0.12); color: #fde68a; border: 1px solid rgba(234,179,8,0.35); font-size: 0.6875rem;">MITTEL</span>
+                {% elif 'EXPOSURE: GERING' in ctx or 'EXPOSURE:GERING' in ctx %}
+                <span class="badge" style="background: rgba(16,185,129,0.12); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.35); font-size: 0.6875rem;">GERING</span>
+                {% elif 'EXPOSURE: KEINE' in ctx or 'EXPOSURE:KEINE' in ctx %}
+                <span class="badge" style="background: rgba(255,255,255,0.04); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.1); font-size: 0.6875rem;">KEINE</span>
+                {% endif %}
+            </div>
+        </div>
+        <div style="white-space: pre-wrap; line-height: 1.7; font-size: 0.9375rem; color: var(--text-secondary);">{{ analysis.geopolitical_context }}</div>
     </div>
     {% endif %}
 
