@@ -571,6 +571,91 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 
 ---
 
+## AI & Intelligence (advanced, continued)
+
+### 44. Supply chain risk mapping
+**File:** new `engine/supply_chain.py`, `core/database.py`
+**Description:** Deeper than sector-level geo exposure: for each watchlist ticker, map its top 5 suppliers and key customers. If a supplier appears in the geo scan (e.g., TSMC when a Taiwan event fires), automatically flag the downstream holding even if it's not directly mentioned. One-time Perplexity call per ticker ("Who are the key suppliers and customers of {company}?"), cached in DB, refreshed quarterly.
+**Effort:** M · **Impact:** High (catches indirect geo exposure missed by direct sector heuristics)
+```
+[ ] Create engine/supply_chain.py: query Perplexity for supplier/customer graph per ticker
+[ ] Add supply_chain_map table: ticker, supplier_ticker, relationship_type, cached_at
+[ ] In geo scan: after scoring direct exposure, cross-check supplier list against flagged regions
+[ ] Elevate geo_risk_score if a key supplier is in a flagged region (+2 pts, max 10)
+[ ] Show supply chain dependencies on stock_detail.html
+[ ] Quarterly refresh job: re-fetch for tickers not updated in >90 days
+```
+
+### 45. Economic moat scoring
+**File:** `engine/agents.py` (Stage 3 sub-prompt), `core/database.py`
+**Description:** A dedicated Gemini sub-prompt within Stage 3 that explicitly scores 1–10 on the five Buffett moat types: network effects, switching costs, cost advantage, intangible assets, efficient scale. A stock with a high risk score but a 9/10 moat is a very different hold decision than one with the same risk score and no moat. The bull/bear synthesis gestures at this but doesn't score it systematically.
+**Effort:** M · **Impact:** High (fundamental quality filter — separates "risky but great business" from "risky and weak business")
+```
+[ ] Add moat_scoring sub-prompt to Stage 3 Gemini call (or as a Stage 2.5 step)
+[ ] Parse 5 moat scores from response: network_effects, switching_costs, cost_advantage, intangibles, efficient_scale
+[ ] Add moat_score (composite 1–10) + moat_breakdown (JSON) columns to analysis_history
+[ ] Show moat radar chart on stock_detail.html (pentagon/spider chart via Chart.js)
+[ ] Use moat_score as signal modifier: dampen STRONG_SELL for moat_score > 8 (quality override)
+[ ] Add moat column to watchlist table for at-a-glance view
+```
+
+### 46. Portfolio-level anomaly detection
+**File:** new `engine/portfolio_anomaly.py`, `scheduler.py`, `app.py`
+**Description:** Current anomaly detection is per-ticker. Missing: detecting when the portfolio as a whole shows unusual patterns — all holdings down simultaneously (systemic event vs idiosyncratic), correlation spike across normally uncorrelated positions (regime change signal), or portfolio beta suddenly doubling. This is a different signal class than any individual ticker analysis. `var_calculator.py` and `correlation_analyzer.py` have the ingredients.
+**Effort:** M · **Impact:** High (systemic risk detection is blind spot of per-ticker approach)
+```
+[ ] Create engine/portfolio_anomaly.py: compute rolling portfolio-level metrics (correlation dispersion, average beta, common factor exposure)
+[ ] Detect: >70% of holdings in same direction intraday (systemic flag)
+[ ] Detect: rolling 20d average pairwise correlation spikes >0.2 above 90d baseline (regime change)
+[ ] Detect: effective portfolio beta > 1.5 * target_beta (leverage creep)
+[ ] Store portfolio_anomalies table: type, severity, triggered_at, description
+[ ] Alert via webhook/email when portfolio anomaly fires
+[ ] Show portfolio anomaly banner on dashboard when active
+```
+
+### 47. Cross-asset composite signals
+**File:** `engine/macro_tracker.py` (extend), `core/notifications.py`
+**Description:** When gold rises + VIX spikes + equities fall + credit spreads widen simultaneously, that's a "flight to safety" regime that calls for a very different response than any single indicator firing. The macro tracker (#22) will collect all these series — this is the synthesis layer on top. A named composite alert type: "Flight-to-Safety pattern — 4/4 indicators aligned."
+**Dependencies:** Requires macro_tracker.py (#22) to be implemented first.
+**Effort:** S · **Impact:** High (once macro data exists, composites are pattern-matching on top)
+```
+[ ] Define composite signal patterns as config dicts: { name, conditions: [{series, direction, threshold}], min_match }
+[ ] Patterns to implement: "Flight to Safety" (gold+, VIX+, equities-), "Risk-On Surge" (equities+, VIX-, credit spreads-), "Inflation Spike" (gold+, bonds-, DXY-)
+[ ] After each macro snapshot, evaluate all patterns and fire if min_match conditions met
+[ ] Store composite signals in macro_composite_signals table
+[ ] Alert with composite name when triggered (distinct alert type from individual macro alerts)
+[ ] Show active composite signal badge on dashboard
+```
+
+### 48. Feature importance from meta-labeler
+**File:** `engine/meta_labeler.py`, `templates/learning.html`, `app.py`
+**Description:** The Random Forest meta-labeler is trained and predicts signal confidence — but which features does it weight most heavily? Surfacing `feature_importances_` (e.g., "RSI weight 23%, momentum_3m 18%, D/E ratio 12%") on the Learning page tells which of the 20+ quant metrics are actually predictive vs noise. Already have the trained model — this is a one-liner in sklearn, plus a UI to display it.
+**Effort:** XS · **Impact:** Medium (insight into which quant metrics matter)
+```
+[ ] After model.fit() in meta_labeler.py, extract feature_importances_ with feature names
+[ ] Store as JSON in learning_stats or a separate model_metadata table
+[ ] Add GET /api/learning/feature-importance endpoint
+[ ] Add feature importance bar chart to learning.html (sorted descending)
+[ ] Show "Top 3 predictive features" summary card on dashboard learning section
+```
+
+---
+
+## Infrastructure & Quality (continued)
+
+### 49. Market holiday skip logic
+**File:** `scheduler.py`
+**Description:** The scheduler currently runs on US market holidays (Memorial Day, 4th July, Thanksgiving, Christmas, etc.) and burns Perplexity/Gemini budget analyzing stocks with zero price movement. A simple calendar check before each scan cycle prevents ~10 wasted API calls/year and avoids misleading "no news" analyses on closed-market days.
+**Effort:** XS · **Impact:** Low (operational correctness, minor cost saving)
+```
+[ ] Add US market holiday list for current year to scheduler.py (or use pandas_market_calendars / hardcoded set)
+[ ] Wrap run_daily_cycle() with: if today in market_holidays: skip and log "Market closed — skipping cycle"
+[ ] Also skip intraday breakout check (#15) and price alert check on holidays
+[ ] Add holiday_skip_enabled setting (default True) in Settings UI
+```
+
+---
+
 ## Completed
 
 ```
