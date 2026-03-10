@@ -1,0 +1,240 @@
+nohup: ignoring input
+
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║     AI Investment Monitor                                    ║
+║   ─────────────────────────────────────────────────────────  ║
+║   Automatisiertes Investment-Analyse-System                  ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+    
+Status Check:
+   ├─ Perplexity API: Konfiguriert
+   ├─ Gemini API: Konfiguriert
+   ├─ Watchlist: 7 Aktien
+   └─ Datenbank: /home/robin/Documents/GitHub/News/core/data/investment_monitor.db
+
+Starting scheduler...
+Scheduler started: Daily every 2h, Weekly Sun 20:00, Monthly 28th 18:00
+Starting web dashboard...
+   └─ http://0.0.0.0:8443
+
+============================================================
+   Drücke Ctrl+C zum Beenden
+============================================================
+
+DEVELOPMENT MODE ENABLED - Verbose debug logging active
+2026-02-25 22:38:22 INFO root:121 - Logging initialized in DEVELOPMENT MODE with DEBUG level
+2026-02-25 22:38:22 INFO clients.gemini_client:47 - Gemini client initialized successfully
+2026-02-25 22:38:22 INFO clients.gemini_client:47 - Gemini client initialized successfully
+2026-02-25 22:38:22 INFO uvicorn.error:84 - Started server process [52102]
+2026-02-25 22:38:22 INFO uvicorn.error:48 - Waiting for application startup.
+2026-02-25 22:38:22 INFO uvicorn.error:62 - Application startup complete.
+2026-02-25 22:38:22 INFO uvicorn.error:216 - Uvicorn running on https://0.0.0.0:8443 (Press CTRL+C to quit)
+2026-02-25 22:38:38 INFO uvicorn.access:480 - 127.0.0.1:36278 - "HEAD /architecture HTTP/1.1" 405
+2026-02-25 22:39:09 INFO uvicorn.access:480 - 127.0.0.1:33504 - "HEAD /architecture HTTP/1.1" 405
+2026-02-25 22:39:19 INFO uvicorn.access:480 - 127.0.0.1:42156 - "GET /architecture HTTP/1.1" 303
+2026-02-25 22:39:31 INFO uvicorn.access:480 - 127.0.0.1:48708 - "GET /architecture HTTP/1.1" 303
+2026-02-25 22:39:31 INFO uvicorn.access:480 - 127.0.0.1:48708 - "GET /login HTTP/1.1" 200
+2026-02-25 22:39:59 INFO uvicorn.access:480 - 127.0.0.1:52484 - "GET /settings HTTP/1.1" 200
+2026-02-25 22:39:59 INFO uvicorn.access:480 - 127.0.0.1:52484 - "GET /api/price-alerts HTTP/1.1" 200
+2026-02-25 22:39:59 INFO uvicorn.access:480 - 127.0.0.1:52498 - "GET /api/stage-assignments HTTP/1.1" 200
+2026-02-25 22:39:59 INFO uvicorn.access:480 - 127.0.0.1:52488 - "GET /api/providers HTTP/1.1" 200
+2026-02-25 22:39:59 INFO uvicorn.access:480 - 127.0.0.1:52512 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:40:02 INFO uvicorn.access:480 - 127.0.0.1:52484 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:40:03 INFO uvicorn.access:480 - 127.0.0.1:52484 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:40:33 INFO uvicorn.access:480 - 127.0.0.1:45082 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:40:34 INFO uvicorn.access:480 - 127.0.0.1:45082 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:40:34 INFO uvicorn.access:480 - 127.0.0.1:45082 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:40:36 INFO uvicorn.access:480 - 127.0.0.1:45082 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:40:36 INFO uvicorn.access:480 - 127.0.0.1:45082 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:41:06 INFO uvicorn.access:480 - 127.0.0.1:58672 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:41:36 INFO uvicorn.access:480 - 127.0.0.1:38422 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:41:51 INFO uvicorn.access:480 - 127.0.0.1:44012 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:41:51 INFO uvicorn.access:480 - 127.0.0.1:44012 - "GET /static/css/modern.css HTTP/1.1" 200
+2026-02-25 22:41:51 INFO uvicorn.access:480 - 127.0.0.1:44026 - "GET /static/js/liquid-glass.js HTTP/1.1" 200
+2026-02-25 22:41:51 INFO uvicorn.access:480 - 127.0.0.1:44028 - "GET /static/js/dashboard.js HTTP/1.1" 200
+2026-02-25 22:41:53 INFO uvicorn.access:480 - 127.0.0.1:44012 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:41:53 INFO uvicorn.access:480 - 127.0.0.1:44012 - "GET /static/images/favicon.png HTTP/1.1" 200
+2026-02-25 22:42:23 INFO uvicorn.access:480 - 127.0.0.1:48644 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:42:54 INFO uvicorn.access:480 - 127.0.0.1:36486 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:43:23 INFO uvicorn.access:480 - 127.0.0.1:36552 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:43:53 INFO uvicorn.access:480 - 127.0.0.1:45214 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:44:23 INFO uvicorn.access:480 - 127.0.0.1:60746 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:44:53 INFO uvicorn.access:480 - 127.0.0.1:58826 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:45:23 INFO uvicorn.access:480 - 127.0.0.1:35548 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:45:53 INFO uvicorn.access:480 - 127.0.0.1:58644 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:46:23 INFO uvicorn.access:480 - 127.0.0.1:58084 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:46:34 INFO uvicorn.access:480 - 127.0.0.1:51832 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:46:34 INFO uvicorn.access:480 - 127.0.0.1:51832 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:46:35 INFO uvicorn.access:480 - 127.0.0.1:51836 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:46:35 INFO uvicorn.access:480 - 127.0.0.1:51836 - "GET /static/css/modern.css HTTP/1.1" 200
+2026-02-25 22:46:35 INFO uvicorn.access:480 - 127.0.0.1:51838 - "GET /static/js/liquid-glass.js HTTP/1.1" 200
+2026-02-25 22:46:35 INFO uvicorn.access:480 - 127.0.0.1:51854 - "GET /static/js/dashboard.js HTTP/1.1" 200
+2026-02-25 22:46:37 INFO uvicorn.access:480 - 127.0.0.1:51836 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:46:38 INFO uvicorn.access:480 - 127.0.0.1:51836 - "GET /static/images/favicon.png HTTP/1.1" 200
+2026-02-25 22:46:40 INFO uvicorn.access:480 - 127.0.0.1:51836 - "GET /settings HTTP/1.1" 200
+2026-02-25 22:46:41 INFO uvicorn.access:480 - 127.0.0.1:51836 - "GET /api/price-alerts HTTP/1.1" 200
+2026-02-25 22:46:41 INFO uvicorn.access:480 - 127.0.0.1:35124 - "GET /api/providers HTTP/1.1" 200
+2026-02-25 22:46:41 INFO uvicorn.access:480 - 127.0.0.1:35134 - "GET /api/stage-assignments HTTP/1.1" 200
+2026-02-25 22:46:41 INFO uvicorn.access:480 - 127.0.0.1:35136 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:46:42 INFO uvicorn.access:480 - 127.0.0.1:51836 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:46:43 INFO uvicorn.access:480 - 127.0.0.1:51836 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:47:13 INFO uvicorn.access:480 - 127.0.0.1:35216 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:47:27 INFO uvicorn.access:480 - 127.0.0.1:39240 - "GET / HTTP/1.1" 200
+2026-02-25 22:47:27 INFO uvicorn.access:480 - 127.0.0.1:39240 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:47:27 INFO uvicorn.access:480 - 127.0.0.1:39242 - "GET /api/portfolio/alerts HTTP/1.1" 200
+2026-02-25 22:47:32 ERROR yfinance:592 - HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: CORE MSCI WORLD USD (ACC)"}}}
+2026-02-25 22:47:33 ERROR yfinance:276 - $CORE MSCI WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-25 22:47:33 ERROR yfinance:276 - $AFX: possibly delisted; no price data found  (period=6mo)
+2026-02-25 22:47:35 ERROR yfinance:592 - HTTP Error 404: {"quoteSummary":{"result":null,"error":{"code":"Not Found","description":"Quote not found for symbol: FTSE ALL-WORLD USD (ACC)"}}}
+2026-02-25 22:47:36 ERROR yfinance:276 - $FTSE ALL-WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-25 22:47:37 WARNING engine.visibility_graph:48 - ts2vg or networkx not installed. Visibility graph analysis disabled.
+2026-02-25 22:47:37 INFO uvicorn.access:480 - 127.0.0.1:39276 - "GET /api/chart-data/CORE%20MSCI%20WORLD%20USD%20%28ACC%29 HTTP/1.1" 200
+2026-02-25 22:47:37 INFO uvicorn.access:480 - 127.0.0.1:39258 - "GET /api/chart-data/AFX HTTP/1.1" 200
+2026-02-25 22:47:37 INFO uvicorn.access:480 - 127.0.0.1:33312 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:47:37 INFO uvicorn.access:480 - 127.0.0.1:33330 - "GET /api/scan-progress HTTP/1.1" 200
+2026-02-25 22:47:38 INFO uvicorn.access:480 - 127.0.0.1:33312 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:47:38 INFO uvicorn.access:480 - 127.0.0.1:33312 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:47:38 INFO uvicorn.access:480 - 127.0.0.1:33312 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:47:52 INFO uvicorn.access:480 - 127.0.0.1:37526 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:47:52 INFO uvicorn.access:480 - 127.0.0.1:37526 - "GET /static/css/modern.css HTTP/1.1" 200
+2026-02-25 22:47:52 INFO uvicorn.access:480 - 127.0.0.1:37528 - "GET /static/js/liquid-glass.js HTTP/1.1" 200
+2026-02-25 22:47:52 INFO uvicorn.access:480 - 127.0.0.1:37530 - "GET /static/js/dashboard.js HTTP/1.1" 200
+2026-02-25 22:47:55 INFO uvicorn.access:480 - 127.0.0.1:37526 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:47:55 INFO uvicorn.access:480 - 127.0.0.1:37526 - "GET /static/images/favicon.png HTTP/1.1" 200
+2026-02-25 22:48:25 INFO uvicorn.access:480 - 127.0.0.1:58758 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:48:55 INFO uvicorn.access:480 - 127.0.0.1:45900 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:49:25 INFO uvicorn.access:480 - 127.0.0.1:42474 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:49:55 INFO uvicorn.access:480 - 127.0.0.1:48514 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:50:25 INFO uvicorn.access:480 - 127.0.0.1:41462 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:50:55 INFO uvicorn.access:480 - 127.0.0.1:43374 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:51:25 INFO uvicorn.access:480 - 127.0.0.1:32796 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:51:55 INFO uvicorn.access:480 - 127.0.0.1:47264 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:52:25 INFO uvicorn.access:480 - 127.0.0.1:46058 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:52:55 INFO uvicorn.access:480 - 127.0.0.1:53726 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:52:56 INFO uvicorn.access:480 - 127.0.0.1:53726 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:52:56 INFO uvicorn.access:480 - 127.0.0.1:53726 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:53:00 INFO uvicorn.access:480 - 127.0.0.1:53726 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:53:00 INFO uvicorn.access:480 - 127.0.0.1:53726 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:53:01 INFO uvicorn.access:480 - 127.0.0.1:53726 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:53:02 INFO uvicorn.access:480 - 127.0.0.1:53726 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:53:03 INFO uvicorn.access:480 - 127.0.0.1:44472 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:53:03 INFO uvicorn.access:480 - 127.0.0.1:44472 - "GET /static/css/modern.css HTTP/1.1" 200
+2026-02-25 22:53:03 INFO uvicorn.access:480 - 127.0.0.1:44484 - "GET /static/js/liquid-glass.js HTTP/1.1" 200
+2026-02-25 22:53:03 INFO uvicorn.access:480 - 127.0.0.1:44498 - "GET /static/js/dashboard.js HTTP/1.1" 200
+2026-02-25 22:53:04 INFO uvicorn.access:480 - 127.0.0.1:44472 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:53:04 INFO uvicorn.access:480 - 127.0.0.1:44472 - "GET /static/images/favicon.png HTTP/1.1" 200
+2026-02-25 22:53:13 INFO uvicorn.access:480 - 127.0.0.1:55258 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:53:13 INFO uvicorn.access:480 - 127.0.0.1:55258 - "GET /static/css/modern.css HTTP/1.1" 200
+2026-02-25 22:53:13 INFO uvicorn.access:480 - 127.0.0.1:55274 - "GET /static/js/dashboard.js HTTP/1.1" 200
+2026-02-25 22:53:13 INFO uvicorn.access:480 - 127.0.0.1:55268 - "GET /static/js/liquid-glass.js HTTP/1.1" 200
+2026-02-25 22:53:15 INFO uvicorn.access:480 - 127.0.0.1:55258 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:53:15 INFO uvicorn.access:480 - 127.0.0.1:55258 - "GET /static/images/favicon.png HTTP/1.1" 200
+2026-02-25 22:53:18 INFO uvicorn.access:480 - 127.0.0.1:55258 - "GET / HTTP/1.1" 200
+2026-02-25 22:53:19 ERROR yfinance:276 - $AFX: possibly delisted; no price data found  (period=6mo)
+2026-02-25 22:53:19 ERROR yfinance:276 - $CORE MSCI WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-25 22:53:19 INFO uvicorn.access:480 - 127.0.0.1:55274 - "GET /api/portfolio/alerts HTTP/1.1" 200
+2026-02-25 22:53:20 INFO uvicorn.access:480 - 127.0.0.1:55258 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:53:20 INFO uvicorn.access:480 - 127.0.0.1:55268 - "GET /api/chart-data/AFX HTTP/1.1" 200
+2026-02-25 22:53:21 ERROR yfinance:276 - $FTSE ALL-WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-25 22:53:21 INFO uvicorn.access:480 - 127.0.0.1:55278 - "GET /api/chart-data/CORE%20MSCI%20WORLD%20USD%20%28ACC%29 HTTP/1.1" 200
+2026-02-25 22:53:21 INFO uvicorn.access:480 - 127.0.0.1:55290 - "GET /api/chart-data/GOOGL HTTP/1.1" 200
+2026-02-25 22:53:21 INFO uvicorn.access:480 - 127.0.0.1:55298 - "GET /api/chart-data/FTSE%20ALL-WORLD%20USD%20%28ACC%29 HTTP/1.1" 200
+2026-02-25 22:53:22 DEBUG apscheduler.scheduler:1151 - Looking for jobs to run
+2026-02-25 22:53:22 INFO apscheduler.executors.default:129 - Running job "Price Alert Check (trigger: interval[0:15:00], next run at: 2026-02-25 22:53:22 CET)" (scheduled at 2026-02-25 22:53:22.119804+01:00)
+2026-02-25 22:53:22 DEBUG apscheduler.scheduler:1258 - Next wakeup is due at 2026-02-25 23:08:22.119804+01:00 (in 899.999082 seconds)
+2026-02-25 22:53:22 INFO apscheduler.executors.default:156 - Job "Price Alert Check (trigger: interval[0:15:00], next run at: 2026-02-25 23:08:22 CET)" executed successfully
+2026-02-25 22:53:22 INFO uvicorn.access:480 - 127.0.0.1:50374 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:53:22 INFO uvicorn.access:480 - 127.0.0.1:50374 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:53:52 INFO uvicorn.access:480 - 127.0.0.1:41460 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:54:22 INFO uvicorn.access:480 - 127.0.0.1:53304 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:54:54 INFO uvicorn.access:480 - 127.0.0.1:48860 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:55:24 INFO uvicorn.access:480 - 127.0.0.1:44208 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:55:43 INFO uvicorn.access:480 - 127.0.0.1:42114 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:55:43 INFO uvicorn.access:480 - 127.0.0.1:42114 - "GET /static/css/modern.css HTTP/1.1" 200
+2026-02-25 22:55:43 INFO uvicorn.access:480 - 127.0.0.1:42122 - "GET /static/js/liquid-glass.js HTTP/1.1" 200
+2026-02-25 22:55:43 INFO uvicorn.access:480 - 127.0.0.1:42138 - "GET /static/js/dashboard.js HTTP/1.1" 200
+2026-02-25 22:55:45 INFO uvicorn.access:480 - 127.0.0.1:42114 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:55:45 INFO uvicorn.access:480 - 127.0.0.1:42114 - "GET /static/images/favicon.png HTTP/1.1" 200
+2026-02-25 22:55:48 INFO uvicorn.access:480 - 127.0.0.1:42114 - "GET / HTTP/1.1" 200
+2026-02-25 22:55:49 INFO uvicorn.access:480 - 127.0.0.1:42114 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:55:49 INFO uvicorn.access:480 - 127.0.0.1:42150 - "GET /api/portfolio/alerts HTTP/1.1" 200
+2026-02-25 22:55:50 ERROR yfinance:276 - $AFX: possibly delisted; no price data found  (period=6mo)
+2026-02-25 22:55:51 ERROR yfinance:276 - $FTSE ALL-WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-25 22:55:52 ERROR yfinance:276 - $CORE MSCI WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-25 22:55:53 INFO uvicorn.access:480 - 127.0.0.1:42168 - "GET /api/chart-data/AFX HTTP/1.1" 200
+2026-02-25 22:55:53 INFO uvicorn.access:480 - 127.0.0.1:42150 - "GET /api/chart-data/NVDA HTTP/1.1" 200
+2026-02-25 22:55:53 INFO uvicorn.access:480 - 127.0.0.1:42162 - "GET /api/truth-banner HTTP/1.1" 200
+2026-02-25 22:55:53 INFO uvicorn.access:480 - 127.0.0.1:42184 - "GET /api/chart-data/FTSE%20ALL-WORLD%20USD%20%28ACC%29 HTTP/1.1" 200
+2026-02-25 22:55:53 INFO uvicorn.access:480 - 127.0.0.1:42188 - "GET /api/chart-data/CORE%20MSCI%20WORLD%20USD%20%28ACC%29 HTTP/1.1" 200
+2026-02-25 22:55:53 INFO uvicorn.access:480 - 127.0.0.1:42114 - "GET /api/chart-data/GOOGL HTTP/1.1" 200
+2026-02-25 22:55:53 INFO uvicorn.access:480 - 127.0.0.1:44888 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:55:53 INFO uvicorn.access:480 - 127.0.0.1:44888 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:55:59 INFO uvicorn.access:480 - 127.0.0.1:44904 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:55:59 INFO uvicorn.access:480 - 127.0.0.1:44904 - "GET /static/css/modern.css HTTP/1.1" 200
+2026-02-25 22:55:59 INFO uvicorn.access:480 - 127.0.0.1:44910 - "GET /static/js/liquid-glass.js HTTP/1.1" 200
+2026-02-25 22:55:59 INFO uvicorn.access:480 - 127.0.0.1:44926 - "GET /static/js/dashboard.js HTTP/1.1" 200
+2026-02-25 22:56:00 INFO uvicorn.access:480 - 127.0.0.1:44904 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:56:01 INFO uvicorn.access:480 - 127.0.0.1:44904 - "GET /static/images/favicon.png HTTP/1.1" 200
+2026-02-25 22:56:27 INFO uvicorn.access:480 - 127.0.0.1:47012 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:56:28 INFO uvicorn.access:480 - 127.0.0.1:47012 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:56:29 INFO uvicorn.access:480 - 127.0.0.1:47012 - "GET / HTTP/1.1" 200
+2026-02-25 22:56:30 ERROR yfinance:276 - $AFX: possibly delisted; no price data found  (period=6mo)
+2026-02-25 22:56:30 INFO uvicorn.access:480 - 127.0.0.1:47012 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:56:30 INFO uvicorn.access:480 - 127.0.0.1:47028 - "GET /api/portfolio/alerts HTTP/1.1" 200
+2026-02-25 22:56:30 INFO uvicorn.access:480 - 127.0.0.1:47034 - "GET /api/chart-data/AFX HTTP/1.1" 200
+2026-02-25 22:56:30 ERROR yfinance:276 - $CORE MSCI WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-25 22:56:31 ERROR yfinance:276 - $FTSE ALL-WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-25 22:56:34 ERROR yfinance:276 - $PAG911: possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-25 22:56:35 INFO uvicorn.access:480 - 127.0.0.1:47040 - "GET /api/chart-data/CORE%20MSCI%20WORLD%20USD%20%28ACC%29 HTTP/1.1" 200
+2026-02-25 22:56:35 INFO uvicorn.access:480 - 127.0.0.1:47060 - "GET /api/chart-data/GOOGL HTTP/1.1" 200
+2026-02-25 22:56:35 INFO uvicorn.access:480 - 127.0.0.1:47044 - "GET /api/chart-data/FTSE%20ALL-WORLD%20USD%20%28ACC%29 HTTP/1.1" 200
+2026-02-25 22:56:35 INFO uvicorn.access:480 - 127.0.0.1:47028 - "GET /api/chart-data/PAG911 HTTP/1.1" 200
+2026-02-25 22:56:35 INFO uvicorn.access:480 - 127.0.0.1:47012 - "GET /api/chart-data/NVDA HTTP/1.1" 200
+2026-02-25 22:56:35 INFO uvicorn.access:480 - 127.0.0.1:47034 - "GET /api/chart-data/RR HTTP/1.1" 200
+2026-02-25 22:56:35 INFO uvicorn.access:480 - 127.0.0.1:49898 - "GET /architecture HTTP/1.1" 200
+2026-02-25 22:56:35 INFO uvicorn.access:480 - 127.0.0.1:49910 - "GET /api/scan-progress HTTP/1.1" 200
+2026-02-25 22:56:35 INFO uvicorn.access:480 - 127.0.0.1:49898 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:57:05 INFO uvicorn.access:480 - 127.0.0.1:39378 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:57:35 INFO uvicorn.access:480 - 127.0.0.1:57608 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:58:05 INFO uvicorn.access:480 - 127.0.0.1:37892 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:58:35 INFO uvicorn.access:480 - 127.0.0.1:48526 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:59:05 INFO uvicorn.access:480 - 127.0.0.1:47832 - "GET /api/status HTTP/1.1" 200
+2026-02-25 22:59:35 INFO uvicorn.access:480 - 127.0.0.1:39320 - "GET /api/status HTTP/1.1" 200
+2026-02-25 23:00:05 INFO uvicorn.access:480 - 127.0.0.1:33796 - "GET /api/status HTTP/1.1" 200
+2026-02-25 23:00:35 INFO uvicorn.access:480 - 127.0.0.1:53802 - "GET /api/status HTTP/1.1" 200
+2026-02-25 23:01:05 INFO uvicorn.access:480 - 127.0.0.1:45010 - "GET /api/status HTTP/1.1" 200
+2026-02-25 23:01:35 INFO uvicorn.access:480 - 127.0.0.1:35434 - "GET /api/status HTTP/1.1" 200
+2026-02-25 23:01:47 INFO uvicorn.access:480 - 127.0.0.1:34120 - "GET /architecture HTTP/1.1" 200
+2026-02-25 23:01:47 INFO uvicorn.access:480 - 127.0.0.1:34120 - "GET /static/css/modern.css HTTP/1.1" 200
+2026-02-25 23:01:47 INFO uvicorn.access:480 - 127.0.0.1:34124 - "GET /static/js/liquid-glass.js HTTP/1.1" 200
+2026-02-25 23:01:47 INFO uvicorn.access:480 - 127.0.0.1:34138 - "GET /static/js/dashboard.js HTTP/1.1" 200
+2026-02-25 23:01:49 INFO uvicorn.access:480 - 127.0.0.1:34120 - "GET /api/status HTTP/1.1" 200
+2026-02-25 23:01:49 INFO uvicorn.access:480 - 127.0.0.1:34120 - "GET /static/images/favicon.png HTTP/1.1" 200
+2026-02-25 23:01:55 INFO uvicorn.access:480 - 127.0.0.1:35008 - "GET / HTTP/1.1" 200
+2026-02-25 23:01:55 INFO uvicorn.access:480 - 127.0.0.1:35008 - "GET /api/status HTTP/1.1" 200
+2026-02-25 23:01:56 ERROR yfinance:276 - $AFX: possibly delisted; no price data found  (period=6mo)
+2026-02-25 23:01:58 ERROR yfinance:276 - $CORE MSCI WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-25 23:02:00 ERROR yfinance:276 - $FTSE ALL-WORLD USD (ACC): possibly delisted; no price data found  (period=6mo) (Yahoo error = "No data found, symbol may be delisted")
+2026-02-25 23:02:00 INFO uvicorn.access:480 - 127.0.0.1:35030 - "GET /api/chart-data/AFX HTTP/1.1" 200
+2026-02-25 23:02:00 INFO uvicorn.access:480 - 127.0.0.1:35056 - "GET /api/chart-data/CORE%20MSCI%20WORLD%20USD%20%28ACC%29 HTTP/1.1" 200
+2026-02-25 23:02:00 INFO uvicorn.access:480 - 127.0.0.1:35008 - "GET /api/chart-data/NVDA HTTP/1.1" 200
+2026-02-25 23:02:00 INFO uvicorn.access:480 - 127.0.0.1:35016 - "GET /api/portfolio/alerts HTTP/1.1" 200
+2026-02-25 23:02:00 INFO uvicorn.access:480 - 127.0.0.1:35070 - "GET /api/chart-data/GOOGL HTTP/1.1" 200
+2026-02-25 23:02:00 INFO uvicorn.access:480 - 127.0.0.1:35040 - "GET /api/chart-data/FTSE%20ALL-WORLD%20USD%20%28ACC%29 HTTP/1.1" 200
+2026-02-25 23:02:00 INFO uvicorn.access:480 - 127.0.0.1:59822 - "GET /api/scan-progress HTTP/1.1" 200
+2026-02-25 23:02:00 INFO uvicorn.access:480 - 127.0.0.1:35074 - "GET /architecture HTTP/1.1" 200
+2026-02-25 23:02:00 INFO uvicorn.access:480 - 127.0.0.1:35074 - "GET /api/status HTTP/1.1" 200
+2026-02-25 23:02:16 INFO uvicorn.error:264 - Shutting down
+2026-02-25 23:02:16 INFO uvicorn.error:67 - Waiting for application shutdown.
+2026-02-25 23:02:16 INFO uvicorn.error:76 - Application shutdown complete.
+2026-02-25 23:02:16 INFO uvicorn.error:94 - Finished server process [52102]
+
+
+Shutting down...
+2026-02-25 23:02:16 INFO apscheduler.scheduler:245 - Scheduler has been shut down
+2026-02-25 23:02:16 DEBUG apscheduler.scheduler:1151 - Looking for jobs to run
+2026-02-25 23:02:16 DEBUG apscheduler.scheduler:1252 - No jobs; waiting until a job is added
+Scheduler stopped
+Goodbye!
