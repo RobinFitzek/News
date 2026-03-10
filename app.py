@@ -266,16 +266,6 @@ async def change_password_submit(
     audit_log.log("password_change", username=username, ip=request.client.host)
     return RedirectResponse(url="/?password_changed=1", status_code=303)
 
-# ==================== ARCHITECTURE ====================
-
-@app.get("/architecture", response_class=HTMLResponse)
-async def architecture_page(request: Request, username: str = Depends(require_auth)):
-    """System architecture visualization page"""
-    return templates.TemplateResponse("architecture.html", {
-        "request": request,
-        "csrf_token": request.state.csrf_token,
-    })
-
 # ==================== DASHBOARD ====================
 
 @app.get("/", response_class=HTMLResponse)
@@ -329,35 +319,16 @@ async def dashboard(request: Request, username: str = Depends(require_auth)):
         except Exception:
             discovery_stats = None
 
-        # Active system alerts (service errors)
-        try:
-            system_alerts = db.get_active_system_alerts()
-        except Exception:
-            system_alerts = []
-
-        try:
-            custom_provider_cards = db.get_enabled_api_provider_cards()
-        except Exception:
-            custom_provider_cards = []
-
-        api_cards = []
-        for provider in provider_registry.get_all_providers_with_status():
-            api_cards.append({
-                "key": f"provider-{provider['id']}",
-                "name": provider.get("name", "Provider"),
-                "is_configured": provider.get("is_configured", False),
-                "used_today": provider.get("used_today", 0),
-                "daily_limit": max(1, provider.get("daily_limit", 1)),
-                "hint": (provider.get("pipeline_role") or "manual").replace("_", " ").title(),
-            })
-
         return templates.TemplateResponse("dashboard.html", {
             "request": request,
             "csrf_token": request.state.csrf_token,
             "scheduler_status": scheduler.get_status(),
             "watchlist": db.get_watchlist(),
             "recent_analyses": recent_analyses,
-            "api_status": {p["name"]: p for p in provider_registry.get_all_providers_with_status()},
+            "api_status": {
+                "perplexity": pplx_client.get_usage(),
+                "gemini": gemini_client.get_usage()
+            },
             "learning_stats": learning_stats,
             "top_picks_preview": top_picks_preview,
             "trusted_tickers": trusted_tickers,
@@ -365,8 +336,6 @@ async def dashboard(request: Request, username: str = Depends(require_auth)):
             "cold_start_reason": cold_start_reason,
             "system_paused": system_paused,
             "discovery_stats": discovery_stats,
-            "system_alerts": system_alerts,
-            "api_cards": api_cards,
         })
     except Exception as e:
         import traceback
@@ -658,10 +627,6 @@ async def settings_page(request: Request, username: str = Depends(require_auth))
             "gemini": bool(db.get_api_key("gemini"))
         },
         "system_paused": system_paused,
-        "providers": db.get_api_providers(include_secrets=False),
-        "provider_shortcuts": provider_registry.get_shortcuts(),
-        "stage_info": provider_registry.get_stage_info(),
-        "stage_assignments": db.get_stage_assignments(),
     })
 
 @app.post("/settings/clear-kill-switch")
@@ -752,37 +717,53 @@ async def save_settings(request: Request, username: str = Depends(require_auth))
             pass
 
     # Portfolio rule thresholds
-    if save_all or section == "portfolio":
-        try:
-            db.set_setting("portfolio_max_position_pct", float(form.get("portfolio_max_position_pct", 10.0)))
-        except (ValueError, TypeError):
-            pass
-        try:
-            db.set_setting("portfolio_stop_loss_pct", float(form.get("portfolio_stop_loss_pct", 15.0)))
-        except (ValueError, TypeError):
-            pass
-        try:
-            db.set_setting("portfolio_max_sector_pct", float(form.get("portfolio_max_sector_pct", 30.0)))
-        except (ValueError, TypeError):
-            pass
-        try:
-            db.set_setting("portfolio_rebalance_drift_pct", float(form.get("portfolio_rebalance_drift_pct", 5.0)))
-        except (ValueError, TypeError):
-            pass
-        try:
-            db.set_setting("portfolio_risk_guard_enabled", form.get("portfolio_risk_guard_enabled") == "on")
-        except (ValueError, TypeError):
-            pass
-        try:
-            global_loss_limit = float(form.get("portfolio_global_loss_limit_pct", 10.0))
-            db.set_setting("portfolio_global_loss_limit_pct", max(1.0, min(50.0, global_loss_limit)))
-        except (ValueError, TypeError):
-            pass
-        try:
-            cooldown_hours = float(form.get("portfolio_risk_cooldown_hours", 24.0))
-            db.set_setting("portfolio_risk_cooldown_hours", max(0.0, min(168.0, cooldown_hours)))
-        except (ValueError, TypeError):
-            pass
+    try:
+        db.set_setting("portfolio_max_position_pct", float(form.get("portfolio_max_position_pct", 10.0)))
+    except (ValueError, TypeError):
+        pass
+    try:
+        db.set_setting("portfolio_stop_loss_pct", float(form.get("portfolio_stop_loss_pct", 15.0)))
+    except (ValueError, TypeError):
+        pass
+    try:
+        db.set_setting("portfolio_max_sector_pct", float(form.get("portfolio_max_sector_pct", 30.0)))
+    except (ValueError, TypeError):
+        pass
+    try:
+        db.set_setting("portfolio_rebalance_drift_pct", float(form.get("portfolio_rebalance_drift_pct", 5.0)))
+    except (ValueError, TypeError):
+        pass
+    try:
+        db.set_setting("portfolio_risk_guard_enabled", form.get("portfolio_risk_guard_enabled") == "on")
+    except (ValueError, TypeError):
+        pass
+    try:
+        global_loss_limit = float(form.get("portfolio_global_loss_limit_pct", 10.0))
+        db.set_setting("portfolio_global_loss_limit_pct", max(1.0, min(50.0, global_loss_limit)))
+    except (ValueError, TypeError):
+        pass
+    try:
+        cooldown_hours = float(form.get("portfolio_risk_cooldown_hours", 24.0))
+        db.set_setting("portfolio_risk_cooldown_hours", max(0.0, min(168.0, cooldown_hours)))
+    except (ValueError, TypeError):
+        pass
+
+    # Authentication lockout policy
+    try:
+        max_failed = int(form.get("auth_max_failed_attempts", 5))
+        db.set_setting("auth_max_failed_attempts", max(3, min(20, max_failed)))
+    except (ValueError, TypeError):
+        pass
+    try:
+        attempt_window = int(form.get("auth_attempt_window_minutes", 15))
+        db.set_setting("auth_attempt_window_minutes", max(5, min(120, attempt_window)))
+    except (ValueError, TypeError):
+        pass
+    try:
+        lockout_minutes = int(form.get("auth_lockout_minutes", 15))
+        db.set_setting("auth_lockout_minutes", max(1, min(240, lockout_minutes)))
+    except (ValueError, TypeError):
+        pass
 
     # Authentication lockout policy
     if save_all or section == "security":
@@ -802,13 +783,49 @@ async def save_settings(request: Request, username: str = Depends(require_auth))
         except (ValueError, TypeError):
             pass
 
+    # Auto-Discovery settings
+    db.set_setting("discovery_enabled", form.get("discovery_enabled") == "on")
+    db.set_setting("discovery_daily_time", form.get("discovery_daily_time", "06:00"))
+    db.set_setting("discovery_weekly_day", form.get("discovery_weekly_day", "wed"))
+    db.set_setting("discovery_weekly_time", form.get("discovery_weekly_time", "12:00"))
+    try:
+        db.set_setting("discovery_promotion_threshold", int(form.get("discovery_promotion_threshold", 55)))
+    except (ValueError, TypeError):
+        pass
+    try:
+        db.set_setting("discovery_max_promote_per_run", int(form.get("discovery_max_promote_per_run", 5)))
+    except (ValueError, TypeError):
+        pass
+    try:
+        db.set_setting("discovery_max_watchlist_size", int(form.get("discovery_max_watchlist_size", 50)))
+    except (ValueError, TypeError):
+        pass
+
+    # Strategy toggles
+    all_strategies = ['volume_spike', 'breakout', 'oversold', 'sector_rotation', 'insider_buy', 'value_screen']
+    enabled_strategies = [s for s in all_strategies if form.get(f"strategy_{s}") == "on"]
+    if enabled_strategies:
+        db.set_setting("discovery_strategies", enabled_strategies)
+
+    # Monthly API budgets (EUR)
+    try:
+        pplx_budget = float(form.get("perplexity_monthly_budget", 5.0))
+        db.set_setting("perplexity_monthly_budget", max(0, min(100, pplx_budget)))
+    except (ValueError, TypeError):
+        db.set_setting("perplexity_monthly_budget", 5.0)
+
+    try:
+        gemini_budget = float(form.get("gemini_monthly_budget", 5.0))
+        db.set_setting("gemini_monthly_budget", max(0, min(100, gemini_budget)))
+    except (ValueError, TypeError):
+        db.set_setting("gemini_monthly_budget", 5.0)
+    
     # Reload settings in services
     scheduler.reload_settings()
     notifications.reload_settings()
     budget_tracker.invalidate_cache()
-
-    section_param = f"&section={section}" if section else ""
-    return RedirectResponse(url=f"/settings?saved=1{section_param}", status_code=303)
+    
+    return RedirectResponse(url="/settings?saved=1", status_code=303)
 
 
 @app.post("/settings/risk-override")
@@ -1134,8 +1151,36 @@ async def analysis_detail(request: Request, analysis_id: int, username: str = De
     if not row:
         raise HTTPException(status_code=404, detail="Analysis not found")
 
-    ticker = row[0]
-    return RedirectResponse(url=f"/stock/{ticker}?analysis_id={analysis_id}", status_code=303)
+    analysis = dict(row)
+
+    # Fetch cross-check result for this analysis
+    crosscheck = None
+    try:
+        conn2 = db._get_conn()
+        cur2 = conn2.cursor()
+        cur2.execute(
+            "SELECT * FROM ai_crosscheck_log WHERE analysis_id = ? ORDER BY checked_at DESC LIMIT 1",
+            (analysis_id,)
+        )
+        cc_row = cur2.fetchone()
+        conn2.close()
+        if cc_row:
+            import json as _json
+            crosscheck = dict(cc_row)
+            if crosscheck.get('details'):
+                try:
+                    crosscheck['details'] = _json.loads(crosscheck['details'])
+                except (ValueError, TypeError):
+                    crosscheck['details'] = []
+    except Exception:
+        pass
+
+    return templates.TemplateResponse("analysis_detail.html", {
+        "request": request,
+        "csrf_token": request.state.csrf_token,
+        "analysis": analysis,
+        "crosscheck": crosscheck
+    })
 
 # ==================== SCHEDULER CONTROL ====================
 
@@ -1193,7 +1238,7 @@ async def run_scan_now(
     except Exception as e:
         # Log the error
         audit_log.log("manual_scan_failed", username=username, ip=request.client.host, details={"error": str(e)})
-        print(f"[ERROR] Manual scan error: {e}")
+        print(f"❌ Manual scan error: {e}")
 
         # Return with error message
         error_msg = str(e)[:100]  # Limit error message length
@@ -1307,8 +1352,6 @@ async def discoveries_page(request: Request, username: str = Depends(require_aut
         "stats": stats,
         "discovery_log": discovery_log,
         "status_filter": status_filter,
-        "message": request.query_params.get("message"),
-        "error": request.query_params.get("error"),
     })
 
 @app.post("/discoveries/{discovery_id}/promote")
@@ -1356,6 +1399,7 @@ async def api_discovery_stats(request: Request, username: str = Depends(require_
     return db.get_discovery_stats()
 
 @app.post("/discovery/run-now")
+@limiter.limit("2/hour")
 async def run_discovery_now(
     request: Request,
     csrf_token: str = Form(...),
@@ -1363,12 +1407,6 @@ async def run_discovery_now(
 ):
     """Manual trigger for discovery run"""
     csrf.verify_token(request, csrf_token)
-
-    if not db.get_setting("discovery_enabled"):
-        return RedirectResponse(
-            url="/discoveries?message=Discovery+is+disabled+in+settings",
-            status_code=303
-        )
 
     import threading
     from engine.auto_discovery import auto_discovery
@@ -1469,17 +1507,6 @@ async def logs_page(request: Request, username: str = Depends(require_auth)):
     from engine.alert_manager import alert_manager
 
     dev_mode = db.get_setting('development_mode') or False
-    enable_dev_mode_param = (request.query_params.get('enable_dev_mode') or '').strip().lower()
-    if enable_dev_mode_param in ('1', 'true', 'yes', 'on') and not dev_mode:
-        db.set_setting('development_mode', True)
-        dev_mode = True
-        audit_log.log(
-            event_type="enable_dev_mode_via_logs_link",
-            username=username,
-            ip=request.client.host,
-            details={"source": "settings_api_error_banner"}
-        )
-
     alert_filter = (request.query_params.get('alert_filter') or 'active').lower()
     if alert_filter not in ('active', 'all'):
         alert_filter = 'active'
@@ -2143,8 +2170,10 @@ async def api_status(request: Request, username: str = Depends(require_auth)):
 
     return {
         "scheduler": scheduler.get_status(),
-        "api_usage": {p["name"]: p for p in provider_registry.get_all_providers_with_status()},
-        "providers": db.get_enabled_api_provider_cards(),
+        "api_usage": {
+            "perplexity": pplx_client.get_usage(),
+            "gemini": gemini_client.get_usage()
+        },
         "watchlist_count": len(db.get_watchlist()),
         "stale_analyses": stale_count,
     }
@@ -2718,11 +2747,13 @@ async def health_check():
 # ==================== STOCK DETAIL PAGE ====================
 
 @app.get("/stock/{ticker}", response_class=HTMLResponse)
-async def stock_detail_page(request: Request, ticker: str, analysis_id: int | None = None, username: str = Depends(require_auth)):
+async def stock_detail_page(request: Request, ticker: str, username: str = Depends(require_auth)):
     """Unified stock detail page — all data about a ticker in one place."""
     from engine.earnings_tracker import earnings_tracker
     from engine.financial_statements import financial_statements
     from engine.insider_tracker import insider_tracker
+    from engine.multi_timeframe import multi_timeframe_analyzer
+    from engine.position_sizing import position_sizer
     from engine.dividend_tracker import dividend_tracker
 
     ticker = ticker.upper()
@@ -2768,60 +2799,6 @@ async def stock_detail_page(request: Request, ticker: str, analysis_id: int | No
     except Exception:
         analysis_history = []
 
-    selected_analysis = None
-    crosscheck = None
-
-    # Selected/latest analysis for merged stock+analysis view
-    try:
-        conn = db._get_conn()
-        cursor = conn.cursor()
-        if analysis_id is not None:
-            cursor.execute(
-                "SELECT * FROM analysis_history WHERE id = ? AND ticker = ?",
-                (analysis_id, ticker)
-            )
-            row = cursor.fetchone()
-            if not row:
-                cursor.execute(
-                    "SELECT * FROM analysis_history WHERE ticker = ? ORDER BY timestamp DESC LIMIT 1",
-                    (ticker,)
-                )
-                row = cursor.fetchone()
-        else:
-            cursor.execute(
-                "SELECT * FROM analysis_history WHERE ticker = ? ORDER BY timestamp DESC LIMIT 1",
-                (ticker,)
-            )
-            row = cursor.fetchone()
-        conn.close()
-
-        if row:
-            selected_analysis = dict(row)
-
-            try:
-                conn2 = db._get_conn()
-                cur2 = conn2.cursor()
-                cur2.execute(
-                    "SELECT * FROM ai_crosscheck_log WHERE analysis_id = ? ORDER BY checked_at DESC LIMIT 1",
-                    (selected_analysis["id"],)
-                )
-                cc_row = cur2.fetchone()
-                conn2.close()
-
-                if cc_row:
-                    import json as _json
-                    crosscheck = dict(cc_row)
-                    if crosscheck.get("details"):
-                        try:
-                            crosscheck["details"] = _json.loads(crosscheck["details"])
-                        except (ValueError, TypeError):
-                            crosscheck["details"] = []
-            except Exception:
-                crosscheck = None
-    except Exception:
-        selected_analysis = None
-        crosscheck = None
-
     # Stock notes
     try:
         stock_note = db.get_stock_note(ticker)
@@ -2843,7 +2820,7 @@ async def stock_detail_page(request: Request, ticker: str, analysis_id: int | No
     # Discovery history for this ticker
     try:
         discovery_history = db.query("""
-            SELECT *
+            SELECT strategy, score, found_at, promoted
             FROM discovered_stocks
             WHERE ticker = ?
             ORDER BY found_at DESC LIMIT 10
@@ -2863,8 +2840,6 @@ async def stock_detail_page(request: Request, ticker: str, analysis_id: int | No
         "dcf": dcf,
         "insider_data": insider_data,
         "analysis_history": analysis_history,
-        "selected_analysis": selected_analysis,
-        "crosscheck": crosscheck,
         "stock_note": stock_note,
         "div_info": div_info,
         "in_watchlist": in_watchlist,
@@ -2997,27 +2972,7 @@ async def save_webhook_settings(
     db.set_setting("discord_enabled", form.get("discord_enabled") == "on")
     if form.get("discord_webhook_url"):
         db.set_setting("discord_webhook_url", form.get("discord_webhook_url", ""))
-    return RedirectResponse(url="/settings?saved=1&section=notifications", status_code=303)
-
-
-@app.post("/settings/test-email")
-async def test_email(
-    request: Request,
-    csrf_token: str = Form(...),
-    username: str = Depends(require_auth),
-):
-    """Send a test email to validate SMTP configuration."""
-    csrf.verify_token(request, csrf_token)
-    notifications.reload_settings()
-    if not notifications.recipient:
-        return RedirectResponse(url="/settings?email_error=1&section=notifications&msg=No+recipient+configured", status_code=303)
-    ok = notifications._send_email(
-        "Stockholm — Test Notification",
-        "<p>If you see this, your email notifications are configured correctly.</p>"
-    )
-    if ok:
-        return RedirectResponse(url="/settings?email_ok=1&section=notifications", status_code=303)
-    return RedirectResponse(url="/settings?email_error=1&section=notifications&msg=SMTP+failed%2C+check+credentials", status_code=303)
+    return RedirectResponse(url="/settings?saved=1", status_code=303)
 
 
 # ==================== WATCHLIST TIER ====================
@@ -3795,21 +3750,6 @@ async def api_data_freshness(request: Request, username: str = Depends(require_a
     from engine.data_freshness import data_freshness
     summary = data_freshness.get_freshness_summary()
     return summary
-
-
-# Startup: check API keys and raise alerts if no provider is configured
-def _check_api_keys_on_startup():
-    """Raise system alert if no AI provider is configured at startup."""
-    configured = db.get_api_providers(include_secrets=False)
-    if not any(p.get("enabled") for p in configured):
-        db.raise_system_alert(
-            'no_ai_provider',
-            'No AI Provider Configured',
-            'No AI provider configured. Add one in Settings → API Connections.',
-            severity='warning',
-            action_url='/settings', action_label='Add Provider')
-
-_check_api_keys_on_startup()
 
 
 # Entry point

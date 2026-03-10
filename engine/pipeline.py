@@ -12,7 +12,6 @@ from core.budget_tracker import budget_tracker
 from engine.agents import swarm
 from engine.learning_optimizer import learning_optimizer
 from engine.ai_crosscheck import ai_crosscheck
-from engine.scan_progress import scan_progress
 import time
 import logging
 from typing import Dict, List
@@ -209,12 +208,6 @@ class DailyPipeline:
                     break
 
                 try:
-                    scan_progress.update_stage3(
-                        candidate.get('ticker', '?'),
-                        s3_idx + 1,
-                        len(stage3_candidates),
-                        provider_label=stage3_provider_label
-                    )
                     # Feature 7: Fetch Insider Activity (Follow The Money)
                     try:
                         from engine.insider_tracker import insider_tracker

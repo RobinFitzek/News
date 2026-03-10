@@ -52,9 +52,7 @@ class DividendTracker:
                 # Assume quarterly (90 days)
                 next_ex_date = last_date.to_pydatetime() + timedelta(days=90)
 
-            # Align "now" timezone with yfinance timestamp timezone when present
-            now_dt = datetime.now(next_ex_date.tzinfo) if next_ex_date.tzinfo else datetime.now()
-            days_until = (next_ex_date - now_dt).days
+            days_until = (next_ex_date - datetime.now()).days
 
             # Calculate expected price drop % on ex-date (dividend yield impact)
             info = stock.info

@@ -92,16 +92,14 @@ def main():
             port=WEB_PORT,
             ssl_certfile=str(CERT_FILE),
             ssl_keyfile=str(KEY_FILE),
-            log_level=uvicorn_log_level,
-            log_config=None
+            log_level=uvicorn_log_level
         )
     else:
         uvicorn.run(
             app,
             host=WEB_HOST,
             port=WEB_PORT,
-            log_level=uvicorn_log_level,
-            log_config=None
+            log_level=uvicorn_log_level
         )
 
 if __name__ == "__main__":

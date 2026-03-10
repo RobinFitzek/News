@@ -39,3 +39,7 @@ certs/
 *.pem
 *.key
 *.crt
+__pycache__/
+*.pyc
+.claude/
+app.log

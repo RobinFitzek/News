@@ -497,53 +497,6 @@ class Database:
             )
         """)
 
-        # Custom API providers (OpenAI-compatible endpoints)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS api_providers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT UNIQUE NOT NULL,
-                provider_type TEXT NOT NULL DEFAULT 'llm',
-                base_url TEXT NOT NULL,
-                api_key TEXT,
-                model TEXT NOT NULL,
-                pipeline_role TEXT,
-                monthly_budget_eur REAL DEFAULT 5.0,
-                enabled INTEGER DEFAULT 1,
-                adapter_type TEXT NOT NULL DEFAULT 'openai_compatible',
-                extra_config TEXT DEFAULT '{}',
-                is_builtin INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-
-        # AI Stage Assignments (which provider handles which pipeline stage)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS ai_stage_assignments (
-                stage_name TEXT PRIMARY KEY,
-                provider_id INTEGER,
-                fallback_provider_id INTEGER,
-                enabled INTEGER DEFAULT 1,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (provider_id) REFERENCES api_providers(id) ON DELETE SET NULL,
-                FOREIGN KEY (fallback_provider_id) REFERENCES api_providers(id) ON DELETE SET NULL
-            )
-        """)
-
-        # Migrate: add new columns to api_providers if missing
-        cursor.execute("PRAGMA table_info(api_providers)")
-        existing_cols = {row['name'] for row in cursor.fetchall()}
-        for col, col_type, default in [
-            ('adapter_type', 'TEXT', "'openai_compatible'"),
-            ('extra_config', 'TEXT', "'{}'"),
-            ('is_builtin', 'INTEGER', '0'),
-        ]:
-            if col not in existing_cols:
-                try:
-                    cursor.execute(f"ALTER TABLE api_providers ADD COLUMN {col} {col_type} DEFAULT {default}")
-                except Exception:
-                    pass
-
         # Handle legacy backtest_results schema (old version had different columns)
         cursor.execute("PRAGMA table_info(backtest_results)")
         _bt_cols = [row['name'] for row in cursor.fetchall()]
@@ -631,8 +584,6 @@ class Database:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_insider_date ON insider_transactions(transaction_date)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cost_api_month ON api_cost_log(api, month)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cost_api_date ON api_cost_log(api, date)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_api_providers_role ON api_providers(pipeline_role)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_api_providers_enabled ON api_providers(enabled)")
 
         # AI Cross-Check Log
         cursor.execute("""
@@ -799,112 +750,6 @@ class Database:
                 active INTEGER DEFAULT 1,
                 triggered_at TEXT,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-
-        # === Volume Metrics & Earnings Calendar migration ===
-        # The old migration created these tables with wrong schemas.
-        # Rebuild them with the correct schema if they have wrong unique constraints.
-
-        # Check if volume_metrics has the old UNIQUE(ticker, date) constraint
-        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='volume_metrics'")
-        vm_row = cursor.fetchone()
-        if vm_row and 'UNIQUE(ticker, date)' in (vm_row[0] or ''):
-            # Old schema - rebuild with correct UNIQUE(ticker)
-            cursor.execute("DROP TABLE IF EXISTS volume_metrics")
-            vm_row = None
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS volume_metrics (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ticker TEXT UNIQUE NOT NULL,
-                avg_volume_20d REAL,
-                current_volume REAL DEFAULT 0,
-                volume_ratio REAL,
-                vwap REAL,
-                vwap_deviation_pct REAL,
-                volume_trend TEXT,
-                accumulation_distribution TEXT,
-                high_volume_anomaly INTEGER DEFAULT 0,
-                calculated_at TEXT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        # Add any missing columns for tables that already exist with correct constraint
-        cursor.execute("PRAGMA table_info(volume_metrics)")
-        vm_cols = {row['name'] for row in cursor.fetchall()}
-        for col_name, col_type in [
-            ("volume_trend", "TEXT"),
-            ("accumulation_distribution", "TEXT"),
-            ("high_volume_anomaly", "INTEGER DEFAULT 0"),
-            ("calculated_at", "TEXT"),
-            ("current_volume", "REAL DEFAULT 0"),
-        ]:
-            if col_name not in vm_cols:
-                try:
-                    cursor.execute(f"ALTER TABLE volume_metrics ADD COLUMN {col_name} {col_type}")
-                except Exception:
-                    pass
-
-        # Check if earnings_calendar has wrong unique constraint
-        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='earnings_calendar'")
-        ec_row = cursor.fetchone()
-        if ec_row and 'UNIQUE(ticker, earnings_date)' in (ec_row[0] or ''):
-            # Old schema - rebuild with UNIQUE(ticker)
-            cursor.execute("DROP TABLE IF EXISTS earnings_calendar")
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS earnings_calendar (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ticker TEXT UNIQUE NOT NULL,
-                earnings_date TEXT NOT NULL DEFAULT '',
-                days_until INTEGER DEFAULT 0,
-                fetched_at TEXT,
-                estimate_eps REAL,
-                fiscal_quarter TEXT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        cursor.execute("PRAGMA table_info(earnings_calendar)")
-        ec_cols = {row['name'] for row in cursor.fetchall()}
-        for col_name, col_type in [
-            ("days_until", "INTEGER DEFAULT 0"),
-            ("fetched_at", "TEXT"),
-        ]:
-            if col_name not in ec_cols:
-                try:
-                    cursor.execute(f"ALTER TABLE earnings_calendar ADD COLUMN {col_name} {col_type}")
-                except Exception:
-                    pass
-
-        # Dividend calendar table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS dividend_calendar (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                ticker TEXT NOT NULL,
-                ex_date TEXT NOT NULL,
-                payment_date TEXT,
-                dividend_amount REAL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(ticker, ex_date)
-            )
-        """)
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_dividend_ticker ON dividend_calendar(ticker)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_dividend_exdate ON dividend_calendar(ex_date)")
-
-        # System alerts table (service error banners)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS system_alerts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                alert_key TEXT UNIQUE NOT NULL,
-                severity TEXT NOT NULL DEFAULT 'error',
-                title TEXT NOT NULL,
-                message TEXT NOT NULL,
-                service TEXT,
-                action_url TEXT,
-                action_label TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                dismissed_at TIMESTAMP
             )
         """)
 

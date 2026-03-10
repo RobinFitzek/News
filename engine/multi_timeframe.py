@@ -335,6 +335,3 @@ class MultiTimeframe:
 
 # Singleton
 multi_timeframe = MultiTimeframe()
-
-# Backward-compatible alias used by older routes/imports
-multi_timeframe_analyzer = multi_timeframe
