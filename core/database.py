@@ -1232,6 +1232,13 @@ class Database:
             )
             return cursor.lastrowid
 
+    def get_geopolitical_history(self, limit: int = 50, only_deltas: bool = False) -> List[Dict]:
+        sql = "SELECT * FROM geopolitical_events"
+        if only_deltas:
+            sql += " WHERE is_delta = 1"
+        sql += " ORDER BY timestamp DESC LIMIT ?"
+        return self.query(sql, (limit,))
+
     def get_latest_geopolitical_scan(self) -> Optional[Dict]:
         """Return the most recent geopolitical scan (max 24h old), or None"""
         conn = self._get_conn()
