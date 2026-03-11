@@ -258,6 +258,7 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **File:** new `clients/broker_client.py`, `engine/order_manager.py`, `app.py`
 **Description:** The entire pipeline exists to generate signals but can only paper trade. Adding real order execution via Interactive Brokers (ib_insync) or Alpaca API would make this system genuinely actionable. Gate behind a confirmation UI — signals propose, user confirms. Position sizing, stop losses, and risk guards are already implemented.
 **Effort:** XL · **Impact:** Critical (the missing last step)
+**⚠️ Use Claude Opus for this — highest-stakes feature, requires careful design of confirmation flow, risk guards, and error handling before any real order reaches a broker.**
 **Dependencies:** `ib_insync` or `alpaca-trade-api`
 ```
 [ ] Add broker_type setting (paper / ibkr / alpaca)
