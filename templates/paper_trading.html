@@ -134,6 +134,18 @@
 
             <!-- Trust gate bar -->
             <div id="at-trust-gate" style="padding:var(--space-3) var(--space-4);background:var(--surface-secondary);border-radius:var(--radius-md);font-size:0.75rem;color:var(--text-muted);">Loading…</div>
+
+            <!-- Broker connection bar (Phase 6 — shown for alpaca/ibkr modes) -->
+            <div id="broker-conn-bar" style="display:none; margin-top:var(--space-4); padding:var(--space-3) var(--space-4); background:var(--bg-secondary); border:1px solid var(--border-default); border-radius:var(--radius-md); display:none; align-items:center; gap:var(--space-4); flex-wrap:wrap; font-size:0.8125rem;">
+                <span id="broker-conn-label" style="font-weight:500;">🔌 Broker</span>
+                <span id="broker-buying-power" style="color:var(--text-muted);">—</span>
+                <span id="broker-sync-ago" style="color:var(--text-muted); font-size:0.75rem;">—</span>
+                <button class="btn btn-ghost" style="font-size:0.75rem; margin-left:auto;" onclick="triggerBrokerSync()">↻ Sync</button>
+                <label style="display:flex;align-items:center;gap:var(--space-2);font-size:0.75rem;cursor:pointer;">
+                    <input type="checkbox" id="live-pnl-toggle" onchange="toggleLivePnL(this.checked)">
+                    Live P&amp;L (broker)
+                </label>
+            </div>
         </div>
     </div>
 
@@ -150,14 +162,16 @@
                         <tr style="border-bottom:1px solid var(--border-light);">
                             <th style="text-align:left;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Ticker</th>
                             <th style="text-align:left;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Dir</th>
+                            <th style="text-align:left;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Origin</th>
                             <th style="text-align:left;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Entry Date</th>
                             <th style="text-align:right;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Entry $</th>
+                            <th style="text-align:right;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">P&amp;L</th>
                             <th style="text-align:right;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Days</th>
                             <th style="padding:var(--space-2) var(--space-3);"></th>
                         </tr>
                     </thead>
                     <tbody id="at-positions-body">
-                        <tr><td colspan="6" style="text-align:center;padding:var(--space-6);color:var(--text-muted);">Loading…</td></tr>
+                        <tr><td colspan="8" style="text-align:center;padding:var(--space-6);color:var(--text-muted);">Loading…</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -182,6 +196,7 @@
                             <th style="text-align:left;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Date</th>
                             <th style="text-align:left;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Ticker</th>
                             <th style="text-align:left;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Dir</th>
+                            <th style="text-align:left;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Origin</th>
                             <th style="text-align:right;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Entry $</th>
                             <th style="text-align:right;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Exit $</th>
                             <th style="text-align:right;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">PnL %</th>
@@ -381,9 +396,11 @@
     let equityChart = null;
 
     function loadEquityCurve(days) {
-        fetch(`/api/paper-trading/equity-curve?days=${days}`)
-            .then(r => r.json())
-            .then(data => {
+        // Fetch portfolio curve and auto-trade curve in parallel
+        Promise.all([
+            fetch(`/api/paper-trading/equity-curve?days=${days}`).then(r => r.json()),
+            fetch(`/api/auto-trade/equity-curve?days=${days}`).then(r => r.json()).catch(() => []),
+        ]).then(function([data, autoData]) {
                 const chartEl = document.getElementById('equity-chart');
                 const emptyEl = document.getElementById('equity-empty');
 
@@ -400,37 +417,64 @@
                 const portfolioData = data.map(d => d.portfolio_return_pct);
                 const spyData = data.map(d => d.spy_return_pct);
 
+                // Build auto-trade dataset aligned to portfolio labels
+                var autoMap = {};
+                if (autoData && autoData.length) {
+                    autoData.forEach(function(d) { autoMap[d.date] = d.cumulative_pnl_pct; });
+                }
+                var autoPoints = labels.map(function(d) {
+                    return autoMap.hasOwnProperty(d) ? autoMap[d] : null;
+                });
+                var hasAutoData = autoPoints.some(function(v) { return v !== null; });
+
                 if (equityChart) {
                     equityChart.destroy();
+                }
+
+                var datasets = [
+                    {
+                        label: 'Portfolio',
+                        data: portfolioData,
+                        borderColor: '#ffffff',
+                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                    },
+                    {
+                        label: 'SPY',
+                        data: spyData,
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        borderWidth: 1,
+                        borderDash: [5, 5],
+                        fill: false,
+                        tension: 0.3,
+                        pointRadius: 0,
+                    }
+                ];
+                if (hasAutoData) {
+                    datasets.push({
+                        label: '⚡ Auto-Trade',
+                        data: autoPoints,
+                        borderColor: '#f97316',
+                        backgroundColor: 'rgba(249, 115, 22, 0.08)',
+                        borderWidth: 2,
+                        borderDash: [4, 3],
+                        fill: false,
+                        tension: 0.3,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        spanGaps: true,
+                    });
                 }
 
                 equityChart = new Chart(chartEl, {
                     type: 'line',
                     data: {
                         labels: labels,
-                        datasets: [
-                            {
-                                label: 'Portfolio',
-                                data: portfolioData,
-                                borderColor: '#ffffff',
-                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                                borderWidth: 2,
-                                fill: true,
-                                tension: 0.3,
-                                pointRadius: 0,
-                                pointHoverRadius: 4,
-                            },
-                            {
-                                label: 'SPY',
-                                data: spyData,
-                                borderColor: 'rgba(255, 255, 255, 0.3)',
-                                borderWidth: 1,
-                                borderDash: [5, 5],
-                                fill: false,
-                                tension: 0.3,
-                                pointRadius: 0,
-                            }
-                        ]
+                        datasets: datasets,
                     },
                     options: {
                         responsive: true,
@@ -487,6 +531,7 @@
             })
             .catch(err => console.error('Equity curve error:', err));
     }
+
 
     // Range buttons
     document.querySelectorAll('.equity-range').forEach(btn => {
@@ -713,21 +758,29 @@
                 if (!tbody) return;
                 const positions = data.positions || [];
                 if (positions.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:var(--space-6);color:var(--text-muted);">No open positions</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:var(--space-6);color:var(--text-muted);">No open positions</td></tr>';
                     return;
                 }
-                tbody.innerHTML = positions.map(p => `
-                    <tr style="border-bottom:1px solid var(--border-light);">
+                tbody.innerHTML = positions.map(p => {
+                    const originBadge = originBadgeHtml(p.origin);
+                    const livePnl = (window._livePnlMap && window._livePnlMap[p.ticker]) || null;
+                    const pnlCell = livePnl !== null
+                        ? `<span style="font-family:var(--font-mono);color:${livePnl >= 0 ? '#6bba7e' : '#d47272'};">${livePnl >= 0 ? '+' : ''}${livePnl.toFixed(2)}%</span>`
+                        : '<span style="color:var(--text-muted);">—</span>';
+                    return `<tr style="border-bottom:1px solid var(--border-light);">
                         <td style="padding:var(--space-3);font-weight:500;">${p.ticker}</td>
                         <td style="padding:var(--space-3);color:${p.direction === 'LONG' ? '#6bba7e' : '#d47272'};">${p.direction}</td>
+                        <td style="padding:var(--space-3);">${originBadge}</td>
                         <td style="padding:var(--space-3);color:var(--text-muted);">${fmtDate(p.entry_date)}</td>
                         <td style="padding:var(--space-3);text-align:right;font-family:var(--font-mono);">$${parseFloat(p.entry_price).toFixed(2)}</td>
+                        <td style="padding:var(--space-3);text-align:right;" id="pnl-cell-${p.id}">${pnlCell}</td>
                         <td style="padding:var(--space-3);text-align:right;color:var(--text-muted);">${daysSince(p.entry_date)}</td>
                         <td style="padding:var(--space-3);text-align:right;">
                             <button class="btn btn-ghost" style="font-size:0.6875rem;padding:2px 8px;"
                                 onclick="closeAutoPosition(${p.id}, '${p.ticker}')">✕ Close</button>
                         </td>
-                    </tr>`).join('');
+                    </tr>`;
+                }).join('');
             })
             .catch(() => {});
     }
@@ -764,10 +817,12 @@
                         const pnlStr = pnl !== null ? (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '%' : '—';
                         const icon = closeReasonIcon(t.close_reason);
                         const rowBg = pnl === null ? '' : pnl >= 0 ? 'rgba(107,186,126,0.04)' : 'rgba(212,114,114,0.04)';
+                        const originBadge = originBadgeHtml(t.origin);
                         return `<tr style="border-bottom:1px solid var(--border-light);background:${rowBg};">
                             <td style="padding:var(--space-3);color:var(--text-muted);font-size:0.75rem;">${fmtDate(t.exit_date)}</td>
                             <td style="padding:var(--space-3);font-weight:500;">${t.ticker}</td>
                             <td style="padding:var(--space-3);color:${t.direction === 'LONG' ? '#6bba7e' : '#d47272'};">${t.direction}</td>
+                            <td style="padding:var(--space-3);">${originBadge}</td>
                             <td style="padding:var(--space-3);text-align:right;font-family:var(--font-mono);">$${parseFloat(t.entry_price).toFixed(2)}</td>
                             <td style="padding:var(--space-3);text-align:right;font-family:var(--font-mono);">${t.exit_price ? '$' + parseFloat(t.exit_price).toFixed(2) : '—'}</td>
                             <td style="padding:var(--space-3);text-align:right;font-family:var(--font-mono);color:${pnlColor(pnl)};font-weight:500;">${pnlStr}</td>
@@ -801,7 +856,70 @@
             .catch(() => {});
     }
 
+    // Origin badge helper
+    function originBadgeHtml(origin) {
+        const map = { 'auto': '🤖 auto', 'manual': '✋ manual', 'broker-sync': '🔄 sync' };
+        const label = map[origin] || (origin || '—');
+        return `<span style="font-size:0.6875rem;color:var(--text-muted);">${label}</span>`;
+    }
+
+    // Broker connection bar (Phase 6)
+    function loadBrokerBar() {
+        fetch('/api/broker/account', { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => {
+                if (!data || data.broker === 'paper') return;
+                const bar = document.getElementById('broker-conn-bar');
+                if (bar) bar.style.display = 'flex';
+                const connLabel = document.getElementById('broker-conn-label');
+                if (connLabel) connLabel.textContent = '🟢 ' + (data.broker || 'broker').toUpperCase();
+                const bp = document.getElementById('broker-buying-power');
+                if (bp) bp.textContent = '$' + parseFloat(data.buying_power || 0).toLocaleString('en-US', {minimumFractionDigits:0}) + ' buying power';
+                const syncAgo = document.getElementById('broker-sync-ago');
+                if (syncAgo && data.broker_last_sync) {
+                    const mins = Math.round((Date.now() - new Date(data.broker_last_sync).getTime()) / 60000);
+                    syncAgo.textContent = 'synced ' + (mins < 1 ? '<1' : mins) + 'm ago';
+                }
+            })
+            .catch(() => {});
+    }
+
+    function triggerBrokerSync() {
+        fetch('/api/broker/sync', { method: 'POST', credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => {
+                loadBrokerBar();
+                loadAutoPositions();
+                if (data.synced !== undefined) {
+                    const el = document.getElementById('broker-sync-ago');
+                    if (el) el.textContent = 'synced now (' + data.synced + ' positions)';
+                }
+            })
+            .catch(() => alert('Broker sync failed'));
+    }
+
+    // Live P&L toggle
+    window._livePnlMap = {};
+    function toggleLivePnL(enabled) {
+        if (!enabled) {
+            window._livePnlMap = {};
+            loadAutoPositions();
+            return;
+        }
+        fetch('/api/broker/positions', { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(positions => {
+                window._livePnlMap = {};
+                (positions || []).forEach(function(p) {
+                    if (p.ticker) window._livePnlMap[p.ticker] = parseFloat(p.unrealized_plpc || 0);
+                });
+                loadAutoPositions();
+            })
+            .catch(() => {});
+    }
+
     // Load auto-trade data on page load
     loadAutoStatus();
+    loadBrokerBar();
 </script>
 {% endblock %}

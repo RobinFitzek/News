@@ -39,6 +39,35 @@ class WeeklyLetterGenerator:
         except Exception:
             learning_stats = {}
 
+        # Auto-trade weekly digest
+        auto_trade_digest = {}
+        try:
+            from engine.auto_paper_trader import auto_paper_trader
+            perf = auto_paper_trader.get_performance_summary()
+            opened_rows = db.query(
+                "SELECT COUNT(*) as c FROM auto_paper_trades WHERE entry_date >= ? AND status != 'blocked'",
+                (cutoff,)
+            )
+            closed_rows = db.query(
+                "SELECT COUNT(*) as c, AVG(pnl_pct) as avg_pnl FROM auto_paper_trades WHERE exit_date >= ? AND status = 'closed'",
+                (cutoff,)
+            )
+            opened = opened_rows[0]['c'] if opened_rows else 0
+            closed_row = closed_rows[0] if closed_rows else {}
+            closed = closed_row.get('c') or 0
+            avg_pnl = (closed_row.get('avg_pnl') or 0) * 100
+            auto_trade_digest = {
+                'opened': opened,
+                'closed': closed,
+                'avg_pnl_pct': round(avg_pnl, 2),
+                'total_closed': perf['total_closed'],
+                'win_rate_pct': perf['win_rate_pct'],
+                'total_pnl_pct': perf['total_pnl_pct'],
+                'open_positions': perf['open_positions'],
+            }
+        except Exception:
+            pass
+
         strong_buys = [a for a in analyses if 'BUY' in (a.get('signal') or '')]
         strong_sells = [a for a in analyses if 'SELL' in (a.get('signal') or '')]
 
@@ -46,6 +75,7 @@ class WeeklyLetterGenerator:
             'analyses': analyses,
             'geo_scans': geo_scans,
             'learning_stats': learning_stats,
+            'auto_trade_digest': auto_trade_digest,
             'strong_buys': strong_buys[:5],
             'strong_sells': strong_sells[:5],
             'week_start': cutoff[:10],
@@ -60,6 +90,18 @@ class WeeklyLetterGenerator:
         accuracy = data['learning_stats'].get('avg_accuracy', 0)
         total_verified = data['learning_stats'].get('total_verified', 0)
 
+        at = data.get('auto_trade_digest', {})
+        if at:
+            sign = '+' if at.get('avg_pnl_pct', 0) >= 0 else ''
+            auto_line = (
+                f"- Auto-trader this week: {at.get('opened', 0)} opened, "
+                f"{at.get('closed', 0)} closed, avg {sign}{at.get('avg_pnl_pct', 0):.1f}% "
+                f"(all-time: {at.get('total_closed', 0)} closed, {at.get('win_rate_pct', 0):.0f}% win rate, "
+                f"{'+' if at.get('total_pnl_pct', 0) >= 0 else ''}{at.get('total_pnl_pct', 0):.1f}% total)"
+            )
+        else:
+            auto_line = "- Auto-trader: no data available"
+
         return f"""You are an AI investment analyst. Write a concise weekly investment letter for the week of {data['week_start']} to {data['week_end']}.
 
 DATA:
@@ -68,11 +110,13 @@ DATA:
 - Strong sell signals: {sells}
 - System accuracy: {accuracy:.0%} over {total_verified} verified predictions
 - Latest geo risk summary: {geo_summary}
+{auto_line}
 
-Write a professional, concise 3-paragraph HTML letter:
+Write a professional, concise 4-paragraph HTML letter:
 1. Market overview and key signals this week
 2. Geopolitical risk highlights and portfolio implications
 3. System accuracy and outlook for next week
+4. Auto-trader performance digest (one sentence summary)
 
 Format as clean HTML paragraphs. Be direct and specific. No generic filler."""
 

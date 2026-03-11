@@ -24,6 +24,7 @@ HELP_TEXT = (
     "/toppicks — Top 5 stocks by composite score (today)\n"
     "/geo — Latest geopolitical risk summary\n"
     "/status — System health & last scan time\n"
+    "/autostatus — Auto-trader open/closed/win-rate summary\n"
     "/help — Show this message"
 )
 
@@ -115,6 +116,12 @@ class TelegramBot:
     # ------------------------------------------------------------------
 
     def _handle_update(self, update: dict):
+        # Handle inline keyboard callback queries (auto-trade approve/skip)
+        callback = update.get("callback_query")
+        if callback:
+            self._handle_callback(callback)
+            return
+
         msg = update.get("message") or update.get("edited_message")
         if not msg:
             return
@@ -147,6 +154,8 @@ class TelegramBot:
             self._cmd_geo(chat_id)
         elif cmd == "status":
             self._cmd_status(chat_id)
+        elif cmd == "autostatus":
+            self._cmd_autostatus(chat_id)
         elif cmd in ("help", "start"):
             self._send(chat_id, HELP_TEXT)
         else:
@@ -296,6 +305,73 @@ class TelegramBot:
             self._send(chat_id, msg)
         except Exception as e:
             logger.error(f"Telegram /status failed: {e}")
+            self._send(chat_id, f"❌ Error: {e}")
+
+    def _handle_callback(self, callback: dict):
+        """Handle inline keyboard callbacks for auto-trade approve/skip."""
+        callback_id = callback.get("id", "")
+        data = callback.get("data", "")
+        chat_id = str(callback.get("message", {}).get("chat", {}).get("id", ""))
+
+        # Acknowledge the callback to remove the loading spinner
+        self._answer_callback(callback_id)
+
+        if self.allowed_chat_id and chat_id != self.allowed_chat_id:
+            return
+
+        if data.startswith("at_approve:"):
+            token = data.split(":", 1)[1]
+            try:
+                from engine.auto_paper_trader import auto_paper_trader
+                result = auto_paper_trader.confirm_trade(token)
+                if result.get("success"):
+                    self._send(chat_id, f"✅ Trade approved: {result.get('direction', '')} {result.get('ticker', '')}")
+                else:
+                    self._send(chat_id, f"❌ {result.get('error', 'Could not approve trade')}")
+            except Exception as e:
+                self._send(chat_id, f"❌ Error: {e}")
+
+        elif data.startswith("at_skip:"):
+            token = data.split(":", 1)[1]
+            try:
+                from engine.auto_paper_trader import auto_paper_trader
+                auto_paper_trader.skip_trade(token)
+                self._send(chat_id, "⏭ Trade skipped.")
+            except Exception as e:
+                self._send(chat_id, f"❌ Error: {e}")
+
+    def _answer_callback(self, callback_id: str):
+        """Answer a callback query to dismiss the Telegram loading indicator."""
+        if not self.token or not callback_id:
+            return
+        try:
+            requests.post(
+                f"{self._base()}/answerCallbackQuery",
+                json={"callback_query_id": callback_id},
+                timeout=5,
+            )
+        except Exception:
+            pass
+
+    def _cmd_autostatus(self, chat_id: str):
+        try:
+            from engine.auto_paper_trader import auto_paper_trader
+            perf = auto_paper_trader.get_performance_summary()
+            trust = auto_paper_trader.get_trust_gate()
+            cfg_enabled = auto_paper_trader._setting("auto_trade_enabled", False)
+            mode = auto_paper_trader._setting("auto_trade_mode", "paper")
+            status_str = "🟢 Enabled" if cfg_enabled else "⏸ Disabled"
+            trust_str = "✅ Unlocked" if trust["trusted"] else f"🔒 {trust['trades_remaining']} trades remaining"
+            msg = (
+                f"⚡ *Auto-Trader Status*\n"
+                f"State: {status_str}  ·  Mode: {mode.upper()}\n"
+                f"Open: {perf['open_positions']}  ·  Closed: {perf['total_closed']}\n"
+                f"Win Rate: {perf['win_rate_pct']}%  ·  Total PnL: {perf['total_pnl_pct']:+.1f}%\n"
+                f"Trust Gate: {trust_str}"
+            )
+            self._send(chat_id, msg)
+        except Exception as e:
+            logger.error(f"Telegram /autostatus failed: {e}")
             self._send(chat_id, f"❌ Error: {e}")
 
     # ------------------------------------------------------------------

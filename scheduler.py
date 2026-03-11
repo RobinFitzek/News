@@ -382,6 +382,15 @@ class InvestmentScheduler:
             replace_existing=True
         )
 
+        # Broker Position Sync — every 5 min, market hours only, non-paper modes (Phase 6)
+        self.scheduler.add_job(
+            self.run_broker_sync,
+            IntervalTrigger(minutes=5),
+            id='broker_sync',
+            name='Broker Position Sync',
+            replace_existing=True
+        )
+
         # Price alert check (every 15 min during market hours Mon–Fri)
         self.scheduler.add_job(
             self.check_price_alerts,
@@ -725,6 +734,21 @@ class InvestmentScheduler:
             print(f"Auto Paper Trader: Exited {exited} positions.")
         except Exception as e:
             print(f"(Error) Auto paper exit failed: {e}")
+
+    def run_broker_sync(self):
+        """Sync positions from real broker (market hours + non-paper mode only). Phase 6."""
+        mode = (db.get_setting("auto_trade_mode") or "paper").lower()
+        if mode == "paper":
+            return  # Nothing to sync in paper mode
+        if not self.is_market_open():
+            return
+        try:
+            from engine.order_manager import order_manager
+            synced = order_manager.sync_broker_positions()
+            if synced:
+                print(f"Broker Sync: {synced} positions synced from {mode.upper()}")
+        except Exception as e:
+            print(f"(Error) Broker sync failed: {e}")
 
     def retrain_meta_labeler(self):
         """Retrain the Random Forest meta-labeler on graded signal outcomes."""

@@ -332,10 +332,59 @@ class AutoPaperTrader:
                 f"Signal: {signal}" + (f"  ·  Score: {score}/100" if score else "") + "\n"
                 f"Entry: ${entry_price:.2f}  |  Size: ${size_usd:.0f}\n"
                 f"Target: ${tp_price:.2f} ({tp_pct:+.1f}%)  ·  Stop: ${sl_price:.2f} ({sl_pct:+.1f}%)\n"
-                f"Token: `{token}`  ·  _Expires in 5 minutes_"
+                f"_Expires in 5 minutes_"
             )
             from engine.webhook_notifier import webhook_notifier
-            webhook_notifier.send_custom(msg)
+            # Telegram: send with Approve / Skip inline keyboard
+            buttons = [[
+                {"text": "✅ Approve", "callback_data": f"at_approve:{token}"},
+                {"text": "❌ Skip",    "callback_data": f"at_skip:{token}"},
+            ]]
+            sent = webhook_notifier.send_with_inline_keyboard(msg, buttons)
+            # Fallback to plain message if keyboard send not supported/configured
+            if not sent:
+                webhook_notifier.send_custom(msg)
+        except Exception:
+            pass
+
+        # Email: signed one-click confirm/skip links
+        try:
+            from core.notifications import notifications
+            notifications.reload_settings()
+            site_url = (db.get_setting("site_url") or "").rstrip("/")
+            if not site_url:
+                # Best-effort fallback using configured host/port
+                from core.config import WEB_HOST, WEB_PORT
+                host = WEB_HOST if WEB_HOST != "0.0.0.0" else "localhost"
+                site_url = f"http://{host}:{WEB_PORT}"
+            tp_pct = (tp_price / entry_price - 1) * 100
+            sl_pct = (sl_price / entry_price - 1) * 100
+            confirm_url = f"{site_url}/action/auto-trade/confirm/{token}"
+            skip_url    = f"{site_url}/action/auto-trade/skip/{token}"
+            subject = f"⚡ Auto-Trade Proposal: {ticker} {direction}"
+            html = f"""
+<html><body style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#f9fafb;">
+<div style="background:#111827;color:#fff;padding:20px;text-align:center;">
+  <h2 style="margin:0;">⚡ Auto-Trade Proposal</h2>
+  <h3 style="margin:8px 0 0;font-weight:400;">{ticker} {direction}</h3>
+</div>
+<div style="padding:20px;">
+  <table style="width:100%;border-collapse:collapse;font-size:14px;">
+    <tr><td style="padding:8px 0;color:#6b7280;">Signal</td><td style="font-weight:600;">{signal}{(' · Score: ' + str(score) + '/100') if score else ''}</td></tr>
+    <tr><td style="padding:8px 0;color:#6b7280;">Entry price</td><td style="font-family:monospace;">${entry_price:.2f}</td></tr>
+    <tr><td style="padding:8px 0;color:#6b7280;">Position size</td><td style="font-family:monospace;">${size_usd:.0f}</td></tr>
+    <tr><td style="padding:8px 0;color:#6b7280;">Take-profit</td><td style="color:#10b981;font-family:monospace;">${tp_price:.2f} ({tp_pct:+.1f}%)</td></tr>
+    <tr><td style="padding:8px 0;color:#6b7280;">Stop-loss</td><td style="color:#ef4444;font-family:monospace;">${sl_price:.2f} ({sl_pct:+.1f}%)</td></tr>
+  </table>
+  <p style="color:#9ca3af;font-size:12px;margin:16px 0;">This proposal expires in 5 minutes.</p>
+  <div style="text-align:center;margin:24px 0;display:flex;gap:12px;justify-content:center;">
+    <a href="{confirm_url}" style="display:inline-block;padding:12px 28px;background:#10b981;color:#fff;text-decoration:none;border-radius:4px;font-weight:600;">✅ Approve</a>
+    <a href="{skip_url}"    style="display:inline-block;padding:12px 28px;background:#6b7280;color:#fff;text-decoration:none;border-radius:4px;font-weight:600;">❌ Skip</a>
+  </div>
+  <p style="color:#9ca3af;font-size:11px;text-align:center;">AI Investment Monitor — Auto-Trading</p>
+</div>
+</body></html>"""
+            notifications._send_email(subject, html)
         except Exception:
             pass
 
@@ -542,7 +591,7 @@ class AutoPaperTrader:
 
     def get_open_positions(self) -> List[Dict[str, Any]]:
         rows = db.query("""
-            SELECT id, ticker, direction, entry_date, entry_price
+            SELECT id, ticker, direction, entry_date, entry_price, origin
             FROM auto_paper_trades
             WHERE status = 'open'
             ORDER BY entry_date DESC
@@ -554,7 +603,7 @@ class AutoPaperTrader:
         offset = (page - 1) * limit
         rows = db.query("""
             SELECT id, ticker, direction, entry_date, entry_price,
-                   exit_date, exit_price, pnl_pct, close_reason
+                   exit_date, exit_price, pnl_pct, close_reason, origin
             FROM auto_paper_trades
             WHERE status = 'closed'
             ORDER BY exit_date DESC
