@@ -254,19 +254,435 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 
 ## Trading & Execution
 
-### 21. Real broker integration (IBKR / Alpaca)
-**File:** new `clients/broker_client.py`, `engine/order_manager.py`, `app.py`
-**Description:** The entire pipeline exists to generate signals but can only paper trade. Adding real order execution via Interactive Brokers (ib_insync) or Alpaca API would make this system genuinely actionable. Gate behind a confirmation UI — signals propose, user confirms. Position sizing, stop losses, and risk guards are already implemented.
+### 21. Auto-Trading Integration (paper → real broker)
+
+**Files:**
+- `engine/auto_paper_trader.py` (extend)
+- new `engine/order_manager.py`
+- new `clients/broker_client.py`
+- `app.py` (new routes)
+- `core/config.py` (new defaults)
+- `templates/settings.html` (new Auto-Trade section)
+- `templates/paper_trading.html` (new auto-trade dashboard)
+- `templates/dashboard.html` (signal card execute button)
+
+**Description:**
+The `AutoPaperTrader` (`engine/auto_paper_trader.py`) already silently enters/exits trades on STRONG signals with hardcoded parameters (+8% TP, -4% SL, 30-day timeout). It runs with no UI and no user feedback. This item makes it a first-class, optional feature with: configurable risk parameters, a trust gate that must be earned before real execution, an optional confirmation step, broker abstraction (Alpaca or IBKR), and live position sync. Feature is OFF by default and can be used purely in paper mode indefinitely.
+
+**⚠️ Use Claude Opus for Phase 6 (broker execution) — highest-stakes code.**
+
 **Effort:** XL · **Impact:** Critical (the missing last step)
-**⚠️ Use Claude Opus for this — highest-stakes feature, requires careful design of confirmation flow, risk guards, and error handling before any real order reaches a broker.**
-**Dependencies:** `ib_insync` or `alpaca-trade-api`
+
+---
+
+#### Phase 1 — Make existing AutoPaperTrader configurable (S effort)
+
+Current implementation has hardcoded TP (8%), SL (4%), max_days (30), signal threshold.
+These must come from DB settings.
+
+**Settings to add to `core/config.py` DEFAULT_SETTINGS:**
+```python
+"auto_trade_enabled": False,             # master switch
+"auto_trade_signal_filter": "STRONG",    # "STRONG" = STRONG_BUY/SELL only, "ALL" = BUY/SELL too
+"auto_trade_take_profit_pct": 8.0,       # % gain to auto-close long
+"auto_trade_stop_loss_pct": 4.0,         # % loss to auto-close (positive number)
+"auto_trade_max_days_open": 30,          # force-close after N days
+"auto_trade_position_size_pct": 5.0,     # % of paper portfolio per trade
+"auto_trade_max_open_positions": 10,     # cap concurrent positions
+"auto_trade_require_confirm": True,      # user must click confirm before entry
+"auto_trade_mode": "paper",              # "paper" | "alpaca" | "ibkr"
+"auto_trade_min_trust_trades": 20,       # closed trades needed before live mode unlocks
+"auto_trade_min_trust_win_rate": 55.0,   # min win-rate % needed before live mode unlocks
 ```
-[ ] Add broker_type setting (paper / ibkr / alpaca)
-[ ] Create clients/broker_client.py with place_order / cancel / get_positions
-[ ] Confirmation step: signal card shows "Execute?" button, requires user click
-[ ] Sync open broker positions into portfolio_trades table
-[ ] Add POST /api/orders/execute endpoint
-[ ] Show live P&L from broker in portfolio page (vs simulated paper P&L)
+
+**Changes to `engine/auto_paper_trader.py`:**
+```
+[x] _init_table, process_new_signals, check_open_positions, get_performance_summary
+[ ] Read TP/SL/max_days/signal_filter/max_positions from db.get_setting() instead of hardcoded
+[ ] Add position_size_pct support: shares = (portfolio_value * pos_pct) / entry_price
+[ ] Add max_open_positions guard: skip entry if open count >= limit
+[ ] Add dedup guard: skip entry if ticker already has an open auto-paper trade
+[ ] Expose get_trade_log(limit=50) → list of closed trades with all fields
+[ ] Expose manual_close(trade_id) → force-close a specific open position at current price
+```
+
+**Scheduler wiring:**
+```
+[ ] Call auto_paper_trader.process_new_signals() at end of every main scan
+[ ] Call auto_paper_trader.check_open_positions() on every price-alert tick (15-min)
+```
+
+---
+
+#### Phase 2 — Settings UI (S effort)
+
+Add **Auto-Trade** section to `templates/settings.html` in a new
+`<form action="/settings/save-auto-trade">` block.
+
+**UI layout:**
+```
+[ ] Master toggle: "Enable Auto-Trading" (checkbox → auto_trade_enabled)
+    ⚠ Warning banner when enabled: "This enters trades automatically.
+      Use paper mode until you trust the signals."
+
+[ ] Mode selector (radio):
+    ○ Paper only   ← safe, default
+    ○ Alpaca       ← locked with 🔒 icon until trust gate met
+    ○ IBKR         ← locked with 🔒 icon until trust gate met
+
+[ ] Signal filter (radio):
+    ○ STRONG only (STRONG_BUY / STRONG_SELL)
+    ○ All signals  (BUY / SELL / STRONG_*)
+
+[ ] Risk parameters (number inputs, collapsed when disabled):
+    Take-profit %     (default 8,  range 1–50)
+    Stop-loss %       (default 4,  range 1–25)
+    Max days open     (default 30, range 1–90)
+    Position size %   (default 5,  range 1–20)
+    Max open positions (default 10, range 1–50)
+
+[ ] Confirmation toggle:
+    "Require confirmation before each trade" (→ auto_trade_require_confirm)
+    Sub-label: "Sends Telegram/email with Approve/Skip. Expires in 5 min."
+
+[ ] Trust gate progress bar (JS-loaded via GET /api/auto-trade/trust-gate):
+    ████████░░  18 / 20 trades  ·  Win rate: 58.3% ✓
+    "Live mode unlocks at 20 trades with ≥55% win rate"
+    🔒 red when not met, 🔓 green when met
+
+[ ] Broker credentials (hidden unless mode = alpaca/ibkr):
+    Alpaca:  API Key (pw field), API Secret (pw field),
+             Base URL (default https://paper-api.alpaca.markets)
+    IBKR:    TWS Host (default 127.0.0.1), Port (7497 paper/7496 live),
+             Client ID (default 1)
+
+[ ] Save + status message
+```
+
+**New routes:**
+```
+[ ] POST /settings/save-auto-trade   — save all auto_trade_* settings + broker creds
+[ ] GET  /api/auto-trade/trust-gate  — {closed, win_rate, trusted, needed_trades, needed_win_rate}
+```
+
+---
+
+#### Phase 3 — Paper Trading Page UI (M effort)
+
+Extend `templates/paper_trading.html` with a dedicated auto-trade section.
+
+**Auto-Trade Status Card (shown only if auto_trade_enabled=True):**
+```
+┌──────────────────────────────────────────────────────────────┐
+│  ⚡ Auto-Trade  [MODE: PAPER]   [● ENABLED  toggle]          │
+├──────────────────────────────────────────────────────────────┤
+│  Win Rate: 61.2%  ·  Avg PnL: +2.4%  ·  Total: +18.7%      │
+│  Trust Gate: ✅ UNLOCKED  (23 trades · 61% win rate)         │
+│  Open: 4 / 10 positions                                       │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**Open Auto-Positions Table:**
+```
+Ticker  Dir   Entry Date  Entry $  Current $  P&L%   Days  [×]
+AAPL    LONG  2026-03-08  182.40   189.20     +3.7%  3d    [×]
+NVDA    LONG  2026-03-07  892.10   918.00     +2.9%  4d    [×]
+```
+- `[×]` → POST /api/auto-trade/close/<id> (force-close at current price)
+- Row background green/red by P&L sign
+- Faint TP line (+8%) and SL line (-4%) as visual reference in P&L column
+
+**Auto-Trade Log Table (last 20 closed, paginated):**
+```
+Date        Ticker  Dir   Entry $  Exit $   P&L%   Closed By
+2026-03-10  TSLA    LONG  244.00   263.52   +8.0%  take_profit ✅
+2026-03-09  AMZN    LONG  188.00   180.48   -4.0%  stop_loss   ❌
+2026-03-08  MSFT    LONG  412.00   423.11   +2.7%  time_limit  ⏰
+```
+- Color: green for take_profit, red for stop_loss, gray for time_limit
+
+**New API endpoints:**
+```
+[ ] GET  /api/auto-trade/status           — {enabled, mode, open_positions, performance, trust_gate}
+[ ] GET  /api/auto-trade/positions        — list of open auto_paper_trades with live P&L
+[ ] GET  /api/auto-trade/log?page=1       — paginated closed trade history
+[ ] POST /api/auto-trade/close/<id>       — force-close specific position
+[ ] POST /api/auto-trade/toggle           — flip enabled/disabled master switch
+[ ] GET  /api/auto-trade/pending-confirm  — list pending confirmation requests
+[ ] POST /api/auto-trade/confirm/<token>  — approve a pending trade (executes entry)
+[ ] POST /api/auto-trade/skip/<token>     — skip/decline a pending trade
+```
+
+---
+
+#### Phase 4 — Signal Card Confirmation Flow (M effort)
+
+When `auto_trade_require_confirm=True`, signals create a pending confirmation request
+instead of executing immediately. User approves via Telegram or email link.
+
+**New DB table `auto_trade_pending`:**
+```sql
+CREATE TABLE auto_trade_pending (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    token       TEXT UNIQUE NOT NULL,      -- 32-char random hex, used in confirm URLs
+    analysis_id INTEGER NOT NULL,
+    ticker      TEXT NOT NULL,
+    direction   TEXT NOT NULL,             -- LONG / SHORT
+    signal      TEXT NOT NULL,
+    score       INTEGER,
+    proposed_entry_price REAL,
+    proposed_shares      REAL,
+    proposed_size_usd    REAL,
+    risk_tp_price        REAL,             -- entry * (1 + tp_pct/100)
+    risk_sl_price        REAL,             -- entry * (1 - sl_pct/100)
+    created_at  TEXT NOT NULL,
+    expires_at  TEXT NOT NULL,             -- created_at + 5 minutes
+    status      TEXT DEFAULT 'pending',    -- pending | approved | skipped | expired
+    decided_at  TEXT
+)
+```
+
+**Notification format (Telegram + email):**
+```
+⚡ Auto-Trade Proposal: AAPL LONG
+Signal: STRONG_BUY  ·  Score: 82/100
+Entry: $182.40  |  Size: $913 (5% of portfolio)
+Target: $197.00 (+8%)  ·  Stop: $175.10 (-4%)
+Risk gate: ✅ All clear
+────────────────────────────────
+[✅ Approve]   [❌ Skip]
+Expires in 5 minutes
+```
+- Telegram: inline keyboard buttons → POST /api/auto-trade/confirm/<token>
+- Email: itsdangerous TimestampSigner links (5-min max_age)
+
+**Dashboard signal card UI:**
+```
+┌─ AAPL  STRONG BUY  82 ─────────────────────────────┐
+│  (summary…)                                          │
+│                                                      │
+│  [📊 View]   [⚡ Auto-Execute →]                     │
+└──────────────────────────────────────────────────────┘
+```
+- Button states: idle → "⏳ Pending…" → "✅ Queued" or "❌ Skipped"
+- If require_confirm=False + mode=paper: executes inline, shows "✅ Auto-executed"
+
+**Changes:**
+```
+[ ] Add auto_trade_pending table (init in AutoPaperTrader._init_table)
+[ ] Add create_pending_confirmation(analysis_id, ticker, ...) method
+[ ] Add confirm_trade(token) → execute entry, mark approved
+[ ] POST /api/auto-trade/propose endpoint (creates pending + fires notification)
+[ ] Telegram bot: handle callback_query for Approve/Skip inline buttons
+[ ] Email: render confirm/skip signed URLs in notification template
+[ ] Dashboard JS: Auto-Execute button state machine
+[ ] Scheduler job every 5 min: mark expired where expires_at < now()
+```
+
+---
+
+#### Phase 5 — Risk Guard Integration (M effort)
+
+Before ANY auto-trade entry (paper or real), run a fail-fast gate sequence.
+
+**Gate checks (in order):**
+
+1. **Global loss gate** — `portfolio_manager.get_risk_gate_status()`
+   If triggered → block all entries, log, send ≤1 notification per cooldown
+
+2. **Position concentration** — `(proposed_size_usd / portfolio_value) * 100 > max_position_pct`?
+   If yes → shrink to fit, or skip if result below min viable size
+
+3. **Sector concentration** — adding this ticker pushes sector > `portfolio_max_sector_pct`?
+   Fetch sector via yfinance info['sector'], compare current weights. If yes → skip
+
+4. **Duplicate position** — ticker already open in auto_paper_trades?
+   If yes → skip
+
+5. **Signal age** — triggering analysis older than 24h?
+   If yes → skip (stale signal)
+
+**Gate result surfaced in confirmation notification:**
+```
+Risk gate: ✅ All clear
+  · Global loss: -1.2% (limit -10%) ✅
+  · AAPL position: 4.8% (limit 10%) ✅
+  · Tech sector: 22% (limit 30%) ✅
+```
+Or blocked:
+```
+Risk gate: ❌ BLOCKED — Tech sector 31% > limit 30%
+```
+
+**Changes:**
+```
+[ ] Add _run_risk_gate(ticker, proposed_size_usd) → {allowed, reason, checks[]}
+[ ] Call gate before every entry in process_new_signals() and confirm_trade()
+[ ] Extend auto_paper_trades table: add blocked_reason TEXT column
+[ ] Log blocked entries to auto_paper_trades with status='blocked'
+[ ] Inject gate summary into confirmation notification
+[ ] GET /api/auto-trade/risk-gate-status — live gate check result for UI
+```
+
+---
+
+#### Phase 6 — Real Broker Execution (XL effort — ⚠️ Claude Opus)
+
+Thin abstraction over brokers. Paper mode uses AutoPaperTrader. Real modes route through
+OrderManager → BrokerClient.
+
+**`clients/broker_client.py`:**
+```python
+class BrokerClient(ABC):
+    def place_order(ticker, qty, side, order_type='market') -> dict
+    def cancel_order(order_id) -> bool
+    def get_positions() -> list[dict]
+    def get_account() -> dict       # cash, buying_power, equity
+
+class AlpacaBrokerClient(BrokerClient)   # pure requests, no new dep needed
+class IBKRBrokerClient(BrokerClient)     # uses ib_insync
+class PaperBrokerClient(BrokerClient)    # delegates to auto_paper_trader
+```
+
+**`engine/order_manager.py`:**
+```python
+class OrderManager:
+    execute_entry(ticker, direction, size_usd) -> OrderResult
+        # 1. run _run_risk_gate()
+        # 2. shares = size_usd / current_price
+        # 3. broker_client.place_order()
+        # 4. write to portfolio_trades (origin='auto')
+        # 5. send execution notification
+
+    execute_exit(trade_id, reason) -> OrderResult
+        # 1. fetch open trade
+        # 2. broker_client.place_order(side='sell'/'cover')
+        # 3. update portfolio_trades: exit_price, exit_date, pnl
+        # 4. send close notification
+
+    sync_broker_positions()
+        # pull open positions from broker
+        # upsert into portfolio_trades (origin='broker-sync')
+        # mark closed in portfolio_trades if absent at broker
+```
+
+**New app.py routes:**
+```
+[ ] POST /api/orders/execute            — execute confirmed trade ({token} or {ticker, direction, size_usd})
+[ ] POST /api/orders/close/<trade_id>   — close position at broker
+[ ] GET  /api/orders/status/<order_id>  — poll fill status
+[ ] GET  /api/broker/account            — equity, buying power, cash
+[ ] GET  /api/broker/positions          — live broker positions
+[ ] POST /api/broker/sync               — manual position sync trigger
+```
+
+**Portfolio page additions:**
+```
+[ ] Toggle: "Live P&L" (broker) vs "Paper P&L" columns
+[ ] Origin badge per row: 🤖 auto | ✋ manual | 🔄 broker-sync
+[ ] Header bar: "🟢 Alpaca  ·  $12,340 buying power  ·  synced 2m ago"
+```
+
+**Scheduler:**
+```
+[ ] Broker position sync every 5 min (market hours only, uses _is_market_open())
+[ ] Broker P&L snapshot every 15 min → store in paper_snapshots (add broker_value col)
+```
+
+**Trust gate enforcement:**
+```
+[ ] Block mode switch to alpaca/ibkr in settings if trust gate not met
+[ ] UI: "2 more paper trades needed (18/20 · 61% win rate)"
+[ ] Admin override: auto_trade_trust_override setting (for dev testing)
+```
+
+**New dependencies (optional, guarded imports):**
+```
+alpaca-trade-api>=3.0.0   # only imported when mode=alpaca
+ib_insync>=0.9.86          # only imported when mode=ibkr
+```
+
+---
+
+#### Phase 7 — Observability & Performance Tracking (S effort)
+
+```
+[ ] Auto-trade equity curve: separate orange line on paper_trading.html equity chart
+[ ] Weekly AI Letter digest: "Auto-trader: 3 opened, 2 closed, avg +1.8%"
+[ ] Dashboard mini-widget: "⚡ Auto this week: 2 open · 1 closed +5.2%"
+[ ] GET /api/export/auto-trades — CSV (id, ticker, direction, entry, exit, pnl, reason, date)
+[ ] Telegram bot /autostatus command: "4 open · 23 closed · 62% win · +18.3% total"
+```
+
+---
+
+#### Full checklist:
+
+**Phase 1 — Configurable core:**
+```
+[ ] Add 10 auto_trade_* settings to core/config.py DEFAULT_SETTINGS
+[ ] Update auto_paper_trader.py: read all params from DB
+[ ] Add position_size_pct calculation + max_positions guard
+[ ] Add dedup guard (skip if ticker already open)
+[ ] Add get_trade_log() and manual_close() methods
+[ ] Wire process_new_signals() + check_open_positions() into scheduler
+```
+
+**Phase 2 — Settings UI:**
+```
+[ ] Auto-Trade section in settings.html (all controls above)
+[ ] Mode selector with trust gate lock on broker options
+[ ] POST /settings/save-auto-trade
+[ ] GET /api/auto-trade/trust-gate
+```
+
+**Phase 3 — Paper trading page:**
+```
+[ ] Auto-trade status card (mode, trust gate, open count, perf)
+[ ] Open auto-positions table with [×] close button
+[ ] Closed trade log table (paginated, color-coded)
+[ ] All /api/auto-trade/* endpoints (status, positions, log, close, toggle)
+```
+
+**Phase 4 — Confirmation flow:**
+```
+[ ] auto_trade_pending table (DB migration)
+[ ] create_pending_confirmation() + confirm_trade() in auto_paper_trader.py
+[ ] POST /api/auto-trade/propose, /confirm/<token>, /skip/<token>
+[ ] Telegram inline keyboard for Approve/Skip callbacks
+[ ] Email signed-URL confirm/skip links
+[ ] Dashboard signal card Auto-Execute button + state machine
+[ ] Scheduler: expire pending after 5 min
+```
+
+**Phase 5 — Risk guards:**
+```
+[ ] _run_risk_gate(ticker, size_usd) method
+[ ] Gate checks: global loss, position concentration, sector, dedup, signal age
+[ ] Log blocked entries to auto_paper_trades (status='blocked', blocked_reason col)
+[ ] Gate summary in confirmation notification
+[ ] GET /api/auto-trade/risk-gate-status
+```
+
+**Phase 6 — Real broker (⚠️ Opus):**
+```
+[ ] clients/broker_client.py (ABC + Alpaca + IBKR + Paper impls)
+[ ] engine/order_manager.py (execute_entry, execute_exit, sync_broker_positions)
+[ ] POST /api/orders/execute + /api/orders/close/<id> + GET /api/orders/status/<id>
+[ ] GET /api/broker/account + /api/broker/positions + POST /api/broker/sync
+[ ] Portfolio page: live P&L toggle, origin badge, broker connection header widget
+[ ] Broker sync scheduler job (5 min, market hours)
+[ ] Trust gate enforcement before mode switch
+[ ] alpaca-trade-api + ib_insync in requirements.txt (optional/guarded)
+```
+
+**Phase 7 — Observability:**
+```
+[ ] Auto-trade line on equity curve chart
+[ ] Weekly letter auto-trade digest
+[ ] Dashboard auto-trade summary widget
+[ ] GET /api/export/auto-trades CSV
+[ ] Telegram /autostatus command
 ```
 
 ---
