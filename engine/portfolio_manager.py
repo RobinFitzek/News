@@ -557,6 +557,68 @@ class PortfolioManager:
 
         return None
 
+    def calculate_fifo_pnl(self) -> List[Dict]:
+        """Calculate realized P&L for each sell trade using FIFO cost basis.
+
+        Returns a list of dicts, one per SELL trade, with:
+          trade_id, date, ticker, shares, sell_price, fees,
+          fifo_cost_basis, proceeds, realized_pnl, realized_pnl_pct
+        """
+        trades = db.get_trades()
+        # get_trades returns DESC by default — we need chronological (ASC) order
+        trades_asc = list(reversed(trades))
+
+        # lots[ticker] = list of {'shares': float, 'price': float} oldest-first
+        lots: Dict[str, List[Dict]] = {}
+        results: List[Dict] = []
+
+        for trade in trades_asc:
+            ticker = trade['ticker']
+            if ticker not in lots:
+                lots[ticker] = []
+
+            if trade['type'] == 'BUY':
+                lots[ticker].append({'shares': trade['amount'], 'price': trade['price']})
+
+            elif trade['type'] == 'SELL':
+                shares_to_sell = trade['amount']
+                fifo_cost = 0.0
+                remaining = shares_to_sell
+
+                i = 0
+                while remaining > 0 and i < len(lots.get(ticker, [])):
+                    lot = lots[ticker][i]
+                    if lot['shares'] <= remaining:
+                        fifo_cost += lot['shares'] * lot['price']
+                        remaining -= lot['shares']
+                        lot['shares'] = 0
+                    else:
+                        fifo_cost += remaining * lot['price']
+                        lot['shares'] -= remaining
+                        remaining = 0
+                    i += 1
+                # Remove exhausted lots
+                lots[ticker] = [l for l in lots[ticker] if l['shares'] > 0]
+
+                proceeds = (trade['amount'] * trade['price']) - trade.get('fees', 0.0)
+                realized_pnl = proceeds - fifo_cost
+                results.append({
+                    'trade_id': trade.get('id'),
+                    'date': trade['date'],
+                    'ticker': ticker,
+                    'shares': trade['amount'],
+                    'sell_price': trade['price'],
+                    'fees': trade.get('fees', 0.0),
+                    'fifo_cost_basis': round(fifo_cost, 4),
+                    'proceeds': round(proceeds, 2),
+                    'realized_pnl': round(realized_pnl, 2),
+                    'realized_pnl_pct': round(
+                        (realized_pnl / fifo_cost * 100) if fifo_cost > 0 else 0.0, 2
+                    ),
+                })
+
+        return results
+
 
 # Singleton
 portfolio_manager = PortfolioManager()

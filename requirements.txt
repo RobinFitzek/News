@@ -39,3 +39,6 @@ networkx>=3.0
 # Optional broker integrations — install manually if using real broker mode
 # alpaca-trade-api>=3.0.0   # Alpaca Markets (mode=alpaca)
 # ib_insync>=0.9.86          # Interactive Brokers TWS/Gateway (mode=ibkr)
+
+# PDF export (#36)
+weasyprint>=60.0

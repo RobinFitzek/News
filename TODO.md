@@ -781,9 +781,9 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** `budget_tracker.py` has all the data but it's buried in Settings. Surface it as a small dashboard card: remaining monthly budget (Perplexity/Gemini), daily burn rate, estimated days until exhausted, cost per analysis. Prevents surprise budget lockouts mid-cycle.
 **Effort:** S · **Impact:** Medium (operational awareness)
 ```
-[ ] Add GET /api/budget/status endpoint (daily spend, monthly cap, days remaining, avg cost/analysis)
-[ ] Add budget health card to dashboard.html (next to scheduler status)
-[ ] Warn visually when >80% monthly budget consumed
+[x] Add GET /api/budget/status endpoint (daily spend, monthly cap, days remaining, avg cost/analysis)
+[x] Add budget health card to dashboard.html (next to scheduler status)
+[x] Warn visually when >80% monthly budget consumed
 ```
 
 ### 30. Watchlist import from broker CSV
@@ -791,10 +791,10 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** Tickers must be added manually one by one. One-click import of your actual holdings from a broker CSV export (IBKR, Degiro, Schwab — all export position CSVs) would be the natural onboarding path and encourages users to track their real portfolio.
 **Effort:** S · **Impact:** Medium (onboarding)
 ```
-[ ] POST /api/watchlist/import endpoint: accept CSV upload
-[ ] Parse common broker CSV formats (IBKR: "Symbol", Degiro: "Produkt", Schwab: "Symbol")
-[ ] Preview screen showing parsed tickers before import
-[ ] Add "Import from CSV" button to watchlist page
+[x] POST /api/watchlist/import endpoint: accept CSV upload
+[x] Parse common broker CSV formats (IBKR: "Symbol", Degiro: "Produkt", Schwab: "Symbol")
+[x] Preview screen showing parsed tickers before import
+[x] Add "Import from CSV" button to watchlist page
 ```
 
 ### 31. PWA — mobile push notifications
@@ -869,11 +869,11 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Effort:** M · **Impact:** Medium (record-keeping, tax prep)
 **Dependencies:** `weasyprint` or `reportlab` for PDF
 ```
-[ ] GET /report/weekly/pdf — render existing HTML report to PDF via weasyprint
-[ ] GET /api/analysis/export.csv — all analysis_history rows as CSV
-[ ] GET /api/portfolio/export.csv — paper trades with entry/exit/P&L as CSV
-[ ] Add FIFO cost-basis calculation to portfolio_manager.py
-[ ] Add Export buttons to history.html and portfolio.html
+[x] GET /report/weekly/pdf — render existing HTML report to PDF via weasyprint
+[x] GET /api/analysis/export.csv — all analysis_history rows as CSV
+[x] GET /api/portfolio/export.csv — paper trades with entry/exit/P&L as CSV
+[x] Add FIFO cost-basis calculation to portfolio_manager.py
+[x] Add Export buttons to history.html and portfolio.html
 ```
 
 ---
