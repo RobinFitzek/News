@@ -172,6 +172,60 @@ class StalenessTracker:
             logger.error(f"Error in bulk staleness update: {e}")
             return 0
 
+    GEO_SCAN_STALE_HOURS = 24
+
+    def get_geo_staleness(self) -> Dict:
+        """Return staleness info for the latest geopolitical scan."""
+        latest = db.get_latest_geopolitical_scan()
+        if not latest:
+            return {
+                'has_scan': False,
+                'age_hours': None,
+                'level': 'missing',
+                'should_skip_geo_enrichment': True,
+                'message': 'No geopolitical scan available',
+            }
+        try:
+            timestamp = datetime.fromisoformat(latest['timestamp'].replace('Z', '+00:00'))
+            age_hours = (datetime.now() - timestamp.replace(tzinfo=None)).total_seconds() / 3600
+        except Exception:
+            age_hours = 999
+
+        level = 'fresh'
+        if age_hours > 48:
+            level = 'critical'
+        elif age_hours > self.GEO_SCAN_STALE_HOURS:
+            level = 'stale'
+
+        return {
+            'has_scan': True,
+            'age_hours': round(age_hours, 1),
+            'level': level,
+            'severity_avg': latest.get('severity_avg'),
+            'should_skip_geo_enrichment': level == 'critical',
+            'message': f"Geo scan is {age_hours:.1f}h old ({level})",
+        }
+
+    def get_tickers_with_stale_geo(self, watchlist: List[Dict]) -> List[str]:
+        """Return tickers whose last analysis predates the latest geo scan."""
+        latest_geo = db.get_latest_geopolitical_scan()
+        if not latest_geo:
+            return []
+        geo_ts = latest_geo.get('timestamp', '')
+        stale = []
+        for stock in watchlist:
+            ticker = stock.get('ticker', '')
+            if not ticker:
+                continue
+            latest_analysis = db.get_latest_analysis(ticker)
+            if not latest_analysis:
+                stale.append(ticker)
+                continue
+            analysis_ts = latest_analysis.get('timestamp', '')
+            if analysis_ts < geo_ts:
+                stale.append(ticker)
+        return stale
+
     def sort_by_freshness(self, analyses: List[Dict], primary_sort: str = 'score') -> List[Dict]:
         """
         Sort analyses prioritizing freshness while maintaining signal strength.

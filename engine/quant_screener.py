@@ -278,6 +278,16 @@ class QuantScreener:
         except Exception as e:
             logger.debug(f"Market regime check skipped: {e}")
 
+        # Short squeeze score
+        squeeze = self.get_squeeze_data(ticker)
+        if squeeze['squeeze_score'] >= 70:
+            anomalies.append({
+                'metric': 'Short Squeeze Risk',
+                'value': squeeze['squeeze_score'],
+                'direction': 'negative',
+                'description': f"SHORT SQUEEZE RISK: score={squeeze['squeeze_score']}/100 ({squeeze['squeeze_level']})",
+            })
+
         result = {
             'ticker': ticker,
             'composite_score': composite,
@@ -302,6 +312,8 @@ class QuantScreener:
             'harmonic_patterns': harmonic_patterns,
             'vg_metrics': vg_metrics,
             'anomalies': anomalies,
+            'squeeze_score': squeeze['squeeze_score'],
+            'squeeze_level': squeeze['squeeze_level'],
             'data': {
                 'name': info.get('longName', info.get('shortName', ticker)),
                 'sector': info.get('sector', 'Unknown'),
@@ -1005,6 +1017,96 @@ class QuantScreener:
             return 'Caution'
         else:
             return 'Neutral'
+
+    # --- Short Squeeze Scoring ---
+
+    def calculate_squeeze_score(self, ticker: str, short_interest_pct: float = None,
+                                  days_to_cover: float = None, float_pct: float = None,
+                                  price_momentum_5d: float = None) -> Dict:
+        """
+        Squeeze probability score 0-100.
+        High short interest + low days-to-cover + rising price = squeeze setup.
+        """
+        score = 0
+        factors = {}
+
+        # Short interest % (higher = more squeeze potential)
+        if short_interest_pct is not None:
+            si_score = min(40, short_interest_pct * 2)  # 20% SI -> 40 pts max
+            score += si_score
+            factors['short_interest_pct'] = short_interest_pct
+            factors['si_score'] = round(si_score, 1)
+
+        # Days to cover (lower = faster covering needed = more pressure)
+        if days_to_cover is not None:
+            if days_to_cover <= 1:
+                dtc_score = 25
+            elif days_to_cover <= 3:
+                dtc_score = 15
+            elif days_to_cover <= 7:
+                dtc_score = 5
+            else:
+                dtc_score = 0
+            score += dtc_score
+            factors['days_to_cover'] = days_to_cover
+            factors['dtc_score'] = dtc_score
+
+        # Float % (lower float = easier to squeeze)
+        if float_pct is not None:
+            if float_pct < 10:
+                float_score = 20
+            elif float_pct < 20:
+                float_score = 10
+            elif float_pct < 40:
+                float_score = 5
+            else:
+                float_score = 0
+            score += float_score
+            factors['float_pct'] = float_pct
+            factors['float_score'] = float_score
+
+        # Price momentum (rising price pressures shorts)
+        if price_momentum_5d is not None:
+            if price_momentum_5d > 10:
+                mom_score = 15
+            elif price_momentum_5d > 5:
+                mom_score = 10
+            elif price_momentum_5d > 2:
+                mom_score = 5
+            else:
+                mom_score = 0
+            score += mom_score
+            factors['price_momentum_5d'] = price_momentum_5d
+            factors['momentum_score'] = mom_score
+
+        score = min(100, round(score))
+        return {
+            'squeeze_score': score,
+            'squeeze_level': 'HIGH' if score >= 70 else ('MEDIUM' if score >= 45 else 'LOW'),
+            'factors': factors,
+        }
+
+    def get_squeeze_data(self, ticker: str) -> Dict:
+        """Fetch short interest data from yfinance and compute squeeze score."""
+        try:
+            info = yf.Ticker(ticker).info
+            short_pct = info.get('shortPercentOfFloat', 0)
+            if short_pct and short_pct < 1:  # yfinance returns as decimal
+                short_pct = short_pct * 100
+            days_to_cover = info.get('shortRatio')
+            float_shares = info.get('floatShares')
+            shares_outstanding = info.get('sharesOutstanding')
+            float_pct = None
+            if float_shares and shares_outstanding and shares_outstanding > 0:
+                float_pct = (float_shares / shares_outstanding) * 100
+            return self.calculate_squeeze_score(
+                ticker=ticker,
+                short_interest_pct=short_pct,
+                days_to_cover=days_to_cover,
+                float_pct=float_pct,
+            )
+        except Exception as e:
+            return {'squeeze_score': 0, 'squeeze_level': 'LOW', 'factors': {}}
 
     # --- Utility ---
 

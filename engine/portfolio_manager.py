@@ -160,8 +160,28 @@ class PortfolioManager:
             'reason': reason,
         }
 
+    def get_fx_rate(self, currency: str, target: str = 'USD') -> float:
+        """Fetch live FX rate via yfinance, with 4-hour DB cache."""
+        if currency == target:
+            return 1.0
+        cached = db.get_fx_rate(currency, target)
+        if cached:
+            return cached
+        try:
+            import yfinance as yf
+            pair = f"{currency}{target}=X"
+            rate = yf.Ticker(pair).fast_info.last_price
+            if rate and rate > 0:
+                db.set_fx_rate(currency, target, float(rate))
+                return float(rate)
+        except Exception as e:
+            logger.warning(f"FX rate fetch failed {currency}/{target}: {e}")
+        return 1.0
+
     def _enrich_with_prices(self, holdings: List[Dict]) -> List[Dict]:
-        """Add current price, value, sector, and P&L to each holding."""
+        """Add current price, value, sector, P&L, and FX-converted display values to each holding."""
+        display_currency = db.get_setting('display_currency') or 'USD'
+
         for h in holdings:
             ticker = h['ticker']
             price_data = self._get_current_price(ticker)
@@ -183,6 +203,20 @@ class PortfolioManager:
                 h['sector'] = 'Unknown'
                 h['pnl_pct'] = 0.0
                 h['pnl_value'] = 0.0
+
+            # FX display conversion
+            trade_currency = h.get('currency', 'USD') or 'USD'
+            if trade_currency != display_currency:
+                fx = self.get_fx_rate(trade_currency, display_currency)
+                h['current_value_display'] = round(h.get('current_value', 0) * fx, 2)
+                h['pnl_display'] = round(h.get('pnl_value', 0) * fx, 2)
+                h['fx_rate'] = fx
+            else:
+                h['current_value_display'] = h.get('current_value', 0)
+                h['pnl_display'] = h.get('pnl_value', 0)
+                h['fx_rate'] = 1.0
+            h['display_currency'] = display_currency
+            h['trade_currency'] = trade_currency
 
         return holdings
 

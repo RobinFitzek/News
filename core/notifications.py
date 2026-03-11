@@ -40,8 +40,21 @@ class NotificationService:
         return signal in ["STRONG_BUY", "STRONG_SELL", "BUY", "SELL"]
     
     def send_alert(self, ticker: str, signal: str, recommendation: str,
-                   confidence: int = 0) -> bool:
-        """Send alert to email + webhooks for a stock signal."""
+                   confidence: int = 0, risk_score: int = 5) -> bool:
+        """Send alert to email + webhooks for a stock signal.
+
+        Applies smart dedup: only fires if direction changed, score delta >= 2,
+        new geo event, or cooldown expired.
+        """
+        # Smart dedup gate
+        try:
+            from engine.alert_manager import alert_manager
+            if not alert_manager.should_send_ticker_alert(ticker, signal, risk_score):
+                logger.debug(f"Alert suppressed by smart dedup for {ticker} ({signal})")
+                return False
+        except Exception as e:
+            logger.debug(f"Smart dedup check skipped: {e}")
+
         sent = False
 
         # Email channel
@@ -79,8 +92,16 @@ class NotificationService:
         except Exception as e:
             logger.debug(f"Webhook send skipped: {e}")
 
+        # Update last-alert state for future dedup checks
+        if sent:
+            try:
+                from engine.alert_manager import alert_manager
+                alert_manager.update_watchlist_alert_state(ticker, signal, risk_score)
+            except Exception as e:
+                logger.debug(f"Could not update alert state: {e}")
+
         return sent
-    
+
     def send_geopolitical_alert(self, summary: str, max_severity: int) -> bool:
         """Send geopolitical high-severity alert — bypasses stock-signal filter."""
         if not self.enabled or not self.recipient:

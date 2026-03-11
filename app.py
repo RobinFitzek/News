@@ -161,6 +161,19 @@ async def login(request: Request, username: str = Form(...), password: str = For
     if db.verify_user(username, password):
         db.clear_login_failures(username)
 
+        # Check if 2FA is required (#33)
+        totp_info = auth_manager.get_user_totp_info(username)
+        if totp_info.get('enabled'):
+            # Store pending auth state in a short-lived cookie and redirect to TOTP step
+            import secrets as _sec
+            pending_token = _sec.token_urlsafe(24)
+            db.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                (f'_pending_totp_{pending_token}', f'"{username}"')
+            )
+            resp = RedirectResponse(url=f"/login/totp?token={pending_token}", status_code=303)
+            return resp
+
         # Create session
         session_id = auth_manager.create_session(
             username,
@@ -211,6 +224,153 @@ async def logout(request: Request):
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie("session_id")
     return response
+
+
+# === TOTP / 2FA Routes (#33) ===
+
+@app.get("/login/totp", response_class=HTMLResponse)
+async def login_totp_page(request: Request, token: str = ""):
+    """TOTP verification step shown after successful password auth."""
+    # Validate token exists
+    row = db.query_one("SELECT value FROM settings WHERE key = ?", (f'_pending_totp_{token}',))
+    if not row:
+        return RedirectResponse(url="/login?error=invalid", status_code=303)
+    return templates.TemplateResponse("login_totp.html", {
+        "request": request,
+        "token": token,
+        "error": request.query_params.get("error"),
+        "csrf_token": request.state.csrf_token,
+    })
+
+
+@app.post("/login/totp")
+@limiter.limit("10/minute")
+async def login_totp_verify(
+    request: Request,
+    token: str = Form(...),
+    code: str = Form(...),
+    csrf_token: str = Form(...),
+):
+    """Verify TOTP code or backup code and complete login."""
+    from core.config import ENABLE_HTTPS
+    from slowapi.util import get_remote_address
+    csrf.verify_token(request, csrf_token)
+
+    # Retrieve pending username from DB
+    row = db.query_one("SELECT value FROM settings WHERE key = ?", (f'_pending_totp_{token}',))
+    if not row:
+        return RedirectResponse(url="/login?error=invalid", status_code=303)
+
+    import json as _json
+    try:
+        username = _json.loads(row['value'])
+    except Exception:
+        username = row['value']
+
+    # Get user TOTP secret
+    user_row = db.query_one("SELECT totp_secret FROM users WHERE username = ?", (username,))
+    if not user_row or not user_row.get('totp_secret'):
+        # TOTP setup broken — let them through
+        pass
+    else:
+        code = code.strip()
+        # Try TOTP first, then backup codes
+        if not auth_manager.verify_totp(user_row['totp_secret'], code):
+            if not auth_manager.use_backup_code(username, code):
+                audit_log.log("login_totp_failed", username=username,
+                              ip=get_remote_address(request))
+                return RedirectResponse(url=f"/login/totp?token={token}&error=invalid_code", status_code=303)
+
+    # Clean up pending token
+    db.execute("DELETE FROM settings WHERE key = ?", (f'_pending_totp_{token}',))
+
+    # Create full session
+    client_ip = get_remote_address(request)
+    session_id = auth_manager.create_session(
+        username,
+        ip_address=client_ip,
+        user_agent=request.headers.get('user-agent', '')
+    )
+    db.update_last_login(username)
+    audit_log.log("login_success_2fa", username=username, ip=client_ip)
+
+    force_pw = db.user_must_change_password(username)
+    response = RedirectResponse(url="/change-password" if force_pw else "/", status_code=303)
+    response.set_cookie(
+        key="session_id", value=session_id,
+        httponly=True, secure=ENABLE_HTTPS, samesite="lax", max_age=86400
+    )
+    return response
+
+
+@app.get("/settings/2fa/setup", response_class=HTMLResponse)
+async def settings_2fa_setup(request: Request, username: str = Depends(require_auth)):
+    """Show 2FA setup page with QR code."""
+    secret = auth_manager.generate_totp_secret()
+    uri = auth_manager.get_totp_uri(username, secret)
+    try:
+        qr_b64 = auth_manager.generate_qr_code_base64(uri)
+    except Exception:
+        qr_b64 = None
+    backup_codes = auth_manager.generate_backup_codes()
+    # Store secret temporarily in session for confirmation step
+    import json as _json
+    db.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        (f'_pending_totp_setup_{username}', _json.dumps({'secret': secret, 'backup_codes': backup_codes}))
+    )
+    totp_info = auth_manager.get_user_totp_info(username)
+    return templates.TemplateResponse("settings_2fa.html", {
+        "request": request,
+        "csrf_token": request.state.csrf_token,
+        "username": username,
+        "secret": secret,
+        "qr_b64": qr_b64,
+        "backup_codes": backup_codes,
+        "totp_info": totp_info,
+        "error": request.query_params.get("error"),
+        "success": request.query_params.get("success"),
+    })
+
+
+@app.post("/settings/2fa/enable")
+async def settings_2fa_enable(
+    request: Request,
+    code: str = Form(...),
+    csrf_token: str = Form(...),
+    username: str = Depends(require_auth),
+):
+    """Confirm TOTP code and enable 2FA."""
+    csrf.verify_token(request, csrf_token)
+    import json as _json
+    row = db.query_one("SELECT value FROM settings WHERE key = ?", (f'_pending_totp_setup_{username}',))
+    if not row:
+        return RedirectResponse(url="/settings/2fa/setup?error=expired", status_code=303)
+    data = _json.loads(row['value'])
+    secret = data['secret']
+    backup_codes = data['backup_codes']
+    if not auth_manager.verify_totp(secret, code.strip()):
+        return RedirectResponse(url="/settings/2fa/setup?error=invalid_code", status_code=303)
+    auth_manager.save_totp_for_user(username, secret, backup_codes)
+    db.execute("DELETE FROM settings WHERE key = ?", (f'_pending_totp_setup_{username}',))
+    audit_log.log("2fa_enabled", username=username, ip=request.client.host)
+    return RedirectResponse(url="/settings/2fa/setup?success=1", status_code=303)
+
+
+@app.post("/settings/2fa/disable")
+async def settings_2fa_disable(
+    request: Request,
+    password: str = Form(...),
+    csrf_token: str = Form(...),
+    username: str = Depends(require_auth),
+):
+    """Disable 2FA after password confirmation."""
+    csrf.verify_token(request, csrf_token)
+    if not db.verify_user(username, password):
+        return RedirectResponse(url="/settings/2fa/setup?error=wrong_password", status_code=303)
+    auth_manager.disable_totp_for_user(username)
+    audit_log.log("2fa_disabled", username=username, ip=request.client.host)
+    return RedirectResponse(url="/settings/2fa/setup?success=disabled", status_code=303)
 
 
 @app.get("/change-password", response_class=HTMLResponse)
@@ -351,6 +511,11 @@ async def api_geopolitical(username: str = Depends(require_auth)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/macro/events")
+async def api_macro_events(days: int = 14, username: str = Depends(require_auth)):
+    from engine.macro_tracker import macro_tracker
+    return {"events": macro_tracker.get_upcoming_events(days_ahead=days)}
+
 @app.get("/api/geopolitical/exposure")
 async def api_geopolitical_exposure(username: str = Depends(require_auth)):
     """Return per-ticker geopolitical exposure from the latest analysis"""
@@ -388,7 +553,7 @@ async def api_signal_accuracy(username: str = Depends(require_auth)):
 
 @app.get("/api/paper-trading/auto")
 async def api_auto_paper_trading(username: str = Depends(require_auth)):
-    """Provides automated paper trading tracking."""
+    """Provides automated paper trading tracking (legacy endpoint)."""
     from engine.auto_paper_trader import auto_paper_trader
     try:
         return {
@@ -398,6 +563,148 @@ async def api_auto_paper_trading(username: str = Depends(require_auth)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== AUTO-TRADE API ====================
+
+@app.get("/api/auto-trade/status")
+async def api_auto_trade_status(username: str = Depends(require_auth)):
+    from engine.auto_paper_trader import auto_paper_trader
+    try:
+        return auto_paper_trader.get_status()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/auto-trade/trust-gate")
+async def api_auto_trade_trust_gate(username: str = Depends(require_auth)):
+    from engine.auto_paper_trader import auto_paper_trader
+    try:
+        return auto_paper_trader.get_trust_gate()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/auto-trade/positions")
+async def api_auto_trade_positions(username: str = Depends(require_auth)):
+    from engine.auto_paper_trader import auto_paper_trader
+    try:
+        return {"positions": auto_paper_trader.get_open_positions()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/auto-trade/log")
+async def api_auto_trade_log(
+    page: int = 1,
+    username: str = Depends(require_auth)
+):
+    from engine.auto_paper_trader import auto_paper_trader
+    try:
+        trades = auto_paper_trader.get_trade_log(limit=20, page=page)
+        total = auto_paper_trader.get_trade_log_count()
+        return {"trades": trades, "total": total, "page": page, "pages": max(1, (total + 19) // 20)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/auto-trade/close/{trade_id}")
+async def api_auto_trade_close(
+    trade_id: int,
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    from engine.auto_paper_trader import auto_paper_trader
+    try:
+        result = auto_paper_trader.manual_close(trade_id)
+        audit_log.log("auto_trade_manual_close", username=username,
+                      ip=request.client.host, details=f"trade_id={trade_id}")
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/auto-trade/toggle")
+async def api_auto_trade_toggle(
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    from core.database import db as _db
+    current = _db.get_setting("auto_trade_enabled") or False
+    _db.set_setting("auto_trade_enabled", not current)
+    audit_log.log("auto_trade_toggle", username=username, ip=request.client.host,
+                  details=f"enabled={not current}")
+    return {"enabled": not current}
+
+@app.get("/api/auto-trade/pending-confirm")
+async def api_auto_trade_pending(username: str = Depends(require_auth)):
+    from engine.auto_paper_trader import auto_paper_trader
+    try:
+        return {"pending": auto_paper_trader.get_pending_confirmations()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/auto-trade/confirm/{token}")
+async def api_auto_trade_confirm(
+    token: str,
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    from engine.auto_paper_trader import auto_paper_trader
+    result = auto_paper_trader.confirm_trade(token)
+    if result.get("success"):
+        audit_log.log("auto_trade_confirmed", username=username,
+                      ip=request.client.host, details=f"token={token[:8]}…")
+    return result
+
+@app.post("/api/auto-trade/skip/{token}")
+async def api_auto_trade_skip(
+    token: str,
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    from engine.auto_paper_trader import auto_paper_trader
+    result = auto_paper_trader.skip_trade(token)
+    audit_log.log("auto_trade_skipped", username=username,
+                  ip=request.client.host, details=f"token={token[:8]}…")
+    return result
+
+@app.get("/api/auto-trade/risk-gate-status")
+async def api_auto_trade_risk_gate(username: str = Depends(require_auth)):
+    from engine.auto_paper_trader import auto_paper_trader
+    try:
+        return auto_paper_trader.get_risk_gate_status()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/export/auto-trades")
+async def export_auto_trades(username: str = Depends(require_auth)):
+    """CSV export of all auto paper trades."""
+    import csv, io
+    from fastapi.responses import StreamingResponse
+    from core.database import db as _db
+
+    rows = _db.query("""
+        SELECT id, ticker, direction, entry_date, entry_price,
+               exit_date, exit_price, pnl_pct, close_reason, status, blocked_reason
+        FROM auto_paper_trades
+        ORDER BY entry_date DESC
+    """)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "ticker", "direction", "entry_date", "entry_price",
+                     "exit_date", "exit_price", "pnl_pct", "close_reason", "status", "blocked_reason"])
+    for row in (rows or []):
+        pnl = round(row['pnl_pct'] * 100, 2) if row['pnl_pct'] is not None else ""
+        writer.writerow([
+            row['id'], row['ticker'], row['direction'],
+            row['entry_date'], row['entry_price'],
+            row['exit_date'] or "", row['exit_price'] or "",
+            pnl, row['close_reason'] or "",
+            row['status'], row['blocked_reason'] or ""
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=auto_trades.csv"}
+    )
 
 # ==================== TRUTH BANNER ====================
 
@@ -662,6 +969,11 @@ async def save_settings(request: Request, username: str = Depends(require_auth))
     db.set_setting("scan_interval_hours", int(form.get("scan_interval_hours", 2)))
     db.set_setting("active_hours_start", form.get("active_hours_start", "08:00"))
     db.set_setting("active_hours_end", form.get("active_hours_end", "22:00"))
+    try:
+        trigger_pct = float(form.get("intraday_trigger_pct", 3.0))
+        db.set_setting("intraday_trigger_pct", max(0.5, min(20.0, trigger_pct)))
+    except (ValueError, TypeError):
+        pass
     
     # Email settings
     db.set_setting("email_enabled", form.get("email_enabled") == "on")
@@ -774,11 +1086,31 @@ async def save_settings(request: Request, username: str = Depends(require_auth))
     except (ValueError, TypeError):
         db.set_setting("gemini_monthly_budget", 5.0)
     
+    # Auto-Trading settings
+    db.set_setting("auto_trade_enabled", form.get("auto_trade_enabled") == "on")
+    db.set_setting("auto_trade_mode", form.get("auto_trade_mode", "paper"))
+    db.set_setting("auto_trade_signal_filter", form.get("auto_trade_signal_filter", "STRONG"))
+    db.set_setting("auto_trade_require_confirm", form.get("auto_trade_require_confirm") == "on")
+    for key, default, lo, hi in [
+        ("auto_trade_take_profit_pct",    8.0,  1.0,  50.0),
+        ("auto_trade_stop_loss_pct",      4.0,  1.0,  25.0),
+        ("auto_trade_max_days_open",      30,   1,    90),
+        ("auto_trade_position_size_pct",  5.0,  1.0,  20.0),
+        ("auto_trade_max_open_positions", 10,   1,    50),
+        ("auto_trade_min_trust_trades",   20,   5,    200),
+        ("auto_trade_min_trust_win_rate", 55.0, 40.0, 80.0),
+    ]:
+        try:
+            val = float(form.get(key, default))
+            db.set_setting(key, max(lo, min(hi, val)))
+        except (ValueError, TypeError):
+            pass
+
     # Reload settings in services
     scheduler.reload_settings()
     notifications.reload_settings()
     budget_tracker.invalidate_cache()
-    
+
     return RedirectResponse(url="/settings?saved=1", status_code=303)
 
 
@@ -890,6 +1222,22 @@ async def history_page(request: Request, ticker: str = None, username: str = Dep
         "csrf_token": request.state.csrf_token,
         "analyses": db.get_analysis_history(ticker=ticker, limit=100),
         "filter_ticker": ticker
+    })
+
+@app.get("/geo-history", response_class=HTMLResponse)
+async def geo_history_page(
+    request: Request,
+    limit: int = 30,
+    only_deltas: bool = False,
+    username: str = Depends(require_auth)
+):
+    scans = db.get_geopolitical_history(limit=limit, only_deltas=only_deltas)
+    return templates.TemplateResponse("geo_history.html", {
+        "request": request,
+        "csrf_token": request.state.csrf_token,
+        "scans": scans,
+        "only_deltas": only_deltas,
+        "limit": limit,
     })
 
 @app.get("/analysis/{analysis_id}", response_class=HTMLResponse)
@@ -1540,10 +1888,12 @@ async def add_trade(
     date: str = Form(None),
     fees: float = Form(0.0),
     notes: str = Form(""),
+    currency: str = Form("USD"),
     username: str = Depends(require_auth)
 ):
     """Add a trade to portfolio"""
     csrf.verify_token(request, csrf_token)
+    currency = currency.upper()
     db.add_trade(
         ticker=ticker,
         trade_type=type,
@@ -1551,7 +1901,8 @@ async def add_trade(
         price=price,
         date=date,
         fees=fees,
-        notes=notes
+        notes=notes,
+        currency=currency,
     )
     return RedirectResponse(url="/portfolio?added=1", status_code=303)
 
@@ -1940,6 +2291,29 @@ async def api_status(request: Request, username: str = Depends(require_auth)):
 async def api_budget_status(request: Request, username: str = Depends(require_auth)):
     """API endpoint for budget status (used by dashboard AJAX)"""
     return budget_tracker.get_budget_status()
+
+@app.get("/api/budget/status")
+async def api_budget_status_detail(request: Request, username: str = Depends(require_auth)):
+    """Detailed budget health card endpoint (#29)."""
+    status = budget_tracker.get_budget_status()
+    # Compute avg cost per analysis from last 7 days
+    try:
+        from datetime import date as _date, timedelta
+        week_ago = (_date.today() - timedelta(days=7)).isoformat()
+        rows = db.query(
+            "SELECT api, SUM(estimated_cost) as total, COUNT(*) as calls FROM api_cost_log WHERE date >= ? GROUP BY api",
+            (week_ago,)
+        )
+        cost_7d = {r['api']: {'total': r['total'], 'calls': r['calls']} for r in rows}
+        total_cost_7d = sum(r['total'] for r in rows)
+        total_calls_7d = sum(r['calls'] for r in rows)
+        avg_cost_per_analysis = round(total_cost_7d / max(total_calls_7d, 1), 4)
+    except Exception:
+        cost_7d = {}
+        avg_cost_per_analysis = None
+    status['avg_cost_per_analysis_usd'] = avg_cost_per_analysis
+    status['cost_7d'] = cost_7d
+    return status
 
 @app.get("/api/portfolio/alerts")
 async def api_portfolio_alerts(request: Request, username: str = Depends(require_auth)):
@@ -2406,6 +2780,20 @@ async def api_weight_suggestions(request: Request, username: str = Depends(requi
     """Get current vs suggested quant weights based on learning data."""
     return learning_optimizer.calculate_optimal_weights()
 
+@app.get("/api/learning/feature-importance")
+async def api_feature_importance(request: Request, username: str = Depends(require_auth)):
+    """Return RF meta-labeler feature importances sorted descending (#48)."""
+    from engine.meta_labeler import meta_labeler
+    importances = meta_labeler.get_feature_importances()
+    if not importances:
+        return {"ready": False, "importances": [], "top3": []}
+    sorted_items = sorted(importances.items(), key=lambda x: x[1], reverse=True)
+    return {
+        "ready": True,
+        "importances": [{"feature": k, "importance": v} for k, v in sorted_items],
+        "top3": [k for k, _ in sorted_items[:3]],
+    }
+
 @app.post("/api/learning/apply-weights")
 @limiter.limit("5/hour")
 async def api_apply_weights(request: Request, username: str = Depends(require_auth)):
@@ -2591,6 +2979,24 @@ async def stock_detail_page(request: Request, ticker: str, username: str = Depen
     })
 
 
+@app.get("/api/stock/{ticker}/risk-trend")
+async def api_risk_trend(ticker: str, days: int = 30, username: str = Depends(require_auth)):
+    rows = db.query("""
+        SELECT timestamp, risk_score, geo_risk_score, signal, confidence
+        FROM analysis_history
+        WHERE ticker = ?
+        AND timestamp >= datetime('now', ? || ' days')
+        ORDER BY timestamp ASC
+    """, (ticker.upper(), f"-{days}"))
+    return {"ticker": ticker.upper(), "data": rows}
+
+@app.get("/api/stock/{ticker}/corporate-actions")
+async def api_corporate_actions(ticker: str, username: str = Depends(require_auth)):
+    """Return corporate actions (splits, dividends) for a ticker (#43)."""
+    ticker = ticker.upper()
+    actions = db.get_corporate_actions(ticker, limit=50)
+    return {"ticker": ticker, "actions": actions}
+
 @app.post("/stock/{ticker}/notes")
 async def save_stock_note(
     request: Request,
@@ -2713,6 +3119,14 @@ async def save_webhook_settings(
         db.set_setting("telegram_bot_token", form.get("telegram_bot_token", ""))
     if form.get("telegram_chat_id"):
         db.set_setting("telegram_chat_id", form.get("telegram_chat_id", ""))
+    bot_enabled = form.get("telegram_bot_enabled") == "on"
+    db.set_setting("telegram_bot_enabled", bot_enabled)
+    # Restart the bot polling thread to pick up the new setting
+    try:
+        from clients.telegram_bot import telegram_bot
+        telegram_bot.restart()
+    except Exception:
+        pass
     db.set_setting("discord_enabled", form.get("discord_enabled") == "on")
     if form.get("discord_webhook_url"):
         db.set_setting("discord_webhook_url", form.get("discord_webhook_url", ""))

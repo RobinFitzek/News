@@ -162,6 +162,37 @@ DEFAULT_SETTINGS = {
     "discovery_max_promote_per_run": 5,
     "discovery_max_watchlist_size": 50,
     "discovery_strategies": ["volume_spike", "breakout", "oversold", "sector_rotation", "insider_buy", "value_screen"],
+
+    # Market Holiday Skip
+    "holiday_skip_enabled": True,
+
+    # Alert Deduplication
+    "alert_cooldown_hours": 24,
+
+    # Weekly AI Letter
+    "weekly_letter_enabled": False,
+
+    # Multi-Currency
+    "display_currency": "USD",
+
+    # Intraday Breakout Auto-Trigger (#15)
+    "intraday_trigger_pct": 3.0,
+
+    # Two-way Telegram Bot (#14)
+    "telegram_bot_enabled": False,
+
+    # Auto-Trading (#21)
+    "auto_trade_enabled": False,
+    "auto_trade_mode": "paper",              # "paper" | "alpaca" | "ibkr"
+    "auto_trade_signal_filter": "STRONG",    # "STRONG" = STRONG_BUY/SELL only, "ALL" = BUY/SELL too
+    "auto_trade_take_profit_pct": 8.0,
+    "auto_trade_stop_loss_pct": 4.0,
+    "auto_trade_max_days_open": 30,
+    "auto_trade_position_size_pct": 5.0,
+    "auto_trade_max_open_positions": 10,
+    "auto_trade_require_confirm": True,
+    "auto_trade_min_trust_trades": 20,
+    "auto_trade_min_trust_win_rate": 55.0,
 }
 
 # Web Server
