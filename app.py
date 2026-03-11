@@ -1052,6 +1052,22 @@ async def history_page(request: Request, ticker: str = None, username: str = Dep
         "filter_ticker": ticker
     })
 
+@app.get("/geo-history", response_class=HTMLResponse)
+async def geo_history_page(
+    request: Request,
+    limit: int = 30,
+    only_deltas: bool = False,
+    username: str = Depends(require_auth)
+):
+    scans = db.get_geopolitical_history(limit=limit, only_deltas=only_deltas)
+    return templates.TemplateResponse("geo_history.html", {
+        "request": request,
+        "csrf_token": request.state.csrf_token,
+        "scans": scans,
+        "only_deltas": only_deltas,
+        "limit": limit,
+    })
+
 @app.get("/analysis/{analysis_id}", response_class=HTMLResponse)
 async def analysis_detail(request: Request, analysis_id: int, username: str = Depends(require_auth)):
     """Single analysis detail"""
@@ -2787,6 +2803,17 @@ async def stock_detail_page(request: Request, ticker: str, username: str = Depen
         "discovery_history": discovery_history,
     })
 
+
+@app.get("/api/stock/{ticker}/risk-trend")
+async def api_risk_trend(ticker: str, days: int = 30, username: str = Depends(require_auth)):
+    rows = db.query("""
+        SELECT timestamp, risk_score, geo_risk_score, signal, confidence
+        FROM analysis_history
+        WHERE ticker = ?
+        AND timestamp >= datetime('now', ? || ' days')
+        ORDER BY timestamp ASC
+    """, (ticker.upper(), f"-{days}"))
+    return {"ticker": ticker.upper(), "data": rows}
 
 @app.get("/api/stock/{ticker}/corporate-actions")
 async def api_corporate_actions(ticker: str, username: str = Depends(require_auth)):

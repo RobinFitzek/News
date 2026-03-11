@@ -77,9 +77,9 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Description:** Simple `/geo-history` page showing last 30 scans from `geopolitical_events` with timestamps, severity averages, and collapsible full text. Useful for reviewing how geo risk evolved over time.
 **Effort:** M · **Impact:** Medium
 ```
-[ ] Add GET /geo-history route
-[ ] Create templates/geo_history.html
-[ ] Add navigation link in base.html
+[x] Add GET /geo-history route
+[x] Create templates/geo_history.html
+[x] Add navigation link in base.html
 ```
 
 ### 7. Staleness-aware geo context invalidation
@@ -88,9 +88,9 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Approach:** When geo scan is newer than the last analysis for a ticker, flag that ticker's geo context as stale and prioritize it in the next cycle.
 **Effort:** M · **Impact:** Medium
 ```
-[ ] Compare geo scan timestamp vs analysis timestamp per ticker
-[ ] Flag tickers whose geo context predates the latest geo scan
-[ ] Elevate stale-geo tickers in scan priority queue
+[x] Compare geo scan timestamp vs analysis timestamp per ticker
+[x] Flag tickers whose geo context predates the latest geo scan
+[x] Elevate stale-geo tickers in scan priority queue
 ```
 
 ---
@@ -139,8 +139,8 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Description:** On the stock detail page, show a small time-series chart of `risk_score` and `geo_risk_score` from `analysis_history`. Useful to see if geo risk is rising while overall risk is stable.
 **Effort:** M · **Impact:** Medium
 ```
-[ ] Add API endpoint returning risk_score + geo_risk_score history for ticker
-[ ] Add trend chart to stock_detail.html using existing Chart.js setup
+[x] Add API endpoint returning risk_score + geo_risk_score history for ticker
+[x] Add trend chart to stock_detail.html using existing Chart.js setup
 ```
 
 ### 12. Watchlist tier → adaptive scan frequency
@@ -148,8 +148,8 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Description:** The watchlist already has a `tier` concept. Implement differential scan frequency: Tier 1 tickers scanned every cycle, Tier 2 every 2nd cycle, Tier 3 weekly only. Reduces API cost without losing coverage on priority holdings.
 **Effort:** M · **Impact:** Medium (cost reduction)
 ```
-[ ] Add last_scanned_at to watchlist table
-[ ] In pipeline, filter tickers by tier and cycle count
+[x] Add last_scanned_at to watchlist table
+[x] In pipeline, filter tickers by tier and cycle count
 [ ] Document tier behavior in Settings UI
 ```
 

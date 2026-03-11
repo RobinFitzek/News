@@ -822,6 +822,8 @@ class Database:
             "ALTER TABLE watchlist ADD COLUMN last_alerted_at TIMESTAMP",
             # Geo staleness tracking (#7)
             "ALTER TABLE watchlist ADD COLUMN geo_context_stale BOOLEAN DEFAULT 0",
+            # Adaptive scan frequency (#12)
+            "ALTER TABLE watchlist ADD COLUMN last_scanned_at TEXT",
             # Corporate actions (#43)
             "ALTER TABLE portfolio_trades ADD COLUMN split_adjusted INTEGER DEFAULT 0",
             # Multi-currency (#16)
@@ -1021,6 +1023,13 @@ class Database:
         conn.close()
         return [dict(row) for row in rows]
     
+    def update_last_scanned(self, ticker: str):
+        """Record the timestamp when a ticker was last analyzed by the pipeline."""
+        self.execute(
+            "UPDATE watchlist SET last_scanned_at = ? WHERE ticker = ?",
+            (datetime.now().isoformat(), ticker.upper())
+        )
+
     def add_to_watchlist(self, ticker: str, name: str = ""):
         conn = self._get_conn()
         cursor = conn.cursor()
@@ -2700,6 +2709,13 @@ class Database:
         self.execute(
             "UPDATE watchlist SET tier = ? WHERE ticker = ?",
             (tier, ticker.upper())
+        )
+
+    def update_last_scanned(self, ticker: str):
+        """Update last_scanned_at timestamp for adaptive scan frequency."""
+        self.execute(
+            "UPDATE watchlist SET last_scanned_at = ? WHERE ticker = ?",
+            (datetime.now().isoformat(), ticker.upper())
         )
 
     # === Trade Journal ===

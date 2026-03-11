@@ -12,9 +12,30 @@ from core.budget_tracker import budget_tracker
 from engine.agents import swarm
 from engine.learning_optimizer import learning_optimizer
 from engine.ai_crosscheck import ai_crosscheck
+from engine.staleness_tracker import staleness_tracker
 import time
 import logging
 from typing import Dict, List
+from datetime import datetime, timedelta
+
+def should_scan_ticker(ticker_row: dict) -> bool:
+    """Tier-based scan frequency filter."""
+    tier = ticker_row.get('tier', 'tier2')
+    last_scanned = ticker_row.get('last_scanned_at')
+    if not last_scanned:
+        return True
+    try:
+        last_dt = datetime.fromisoformat(last_scanned)
+    except Exception:
+        return True
+    age = datetime.now() - last_dt
+    if tier == 'tier1':
+        return True
+    elif tier == 'tier2':
+        return age > timedelta(hours=24)
+    else:
+        return age > timedelta(hours=72)
+
 
 class DailyPipeline:
     def __init__(self):
@@ -91,7 +112,12 @@ class DailyPipeline:
 
             try:
                 watchlist = db.get_watchlist(active_only=True)
-                watchlist_tickers = [item['ticker'] for item in watchlist if item.get('ticker')]
+                # Apply tier-based adaptive scan frequency filtering
+                filtered_watchlist = [item for item in watchlist if item.get('ticker') and should_scan_ticker(item)]
+                watchlist_tickers = [item['ticker'] for item in filtered_watchlist]
+                skipped_tickers = [item['ticker'] for item in watchlist if item.get('ticker') and not should_scan_ticker(item)]
+                if skipped_tickers:
+                    self.logger.info(f"Tier frequency filter: skipping {len(skipped_tickers)} tickers this cycle: {skipped_tickers}")
             except Exception as e:
                 self.logger.error(f"Failed to load watchlist: {e}")
                 raise Exception(f"Cannot load watchlist: {str(e)}")
@@ -100,6 +126,29 @@ class DailyPipeline:
                 error_msg = "Watchlist is empty. Please add stocks to your watchlist first."
                 self.logger.warning(error_msg)
                 raise Exception(error_msg)
+
+            # Geo staleness gate
+            try:
+                geo_staleness = staleness_tracker.get_geo_staleness()
+                if geo_staleness['should_skip_geo_enrichment']:
+                    self.logger.warning(f"Geo scan is {geo_staleness.get('age_hours', '?')}h old — skipping geo context enrichment")
+                    use_geo_context = False
+                else:
+                    use_geo_context = True
+            except Exception as e:
+                self.logger.warning(f"Could not evaluate geo staleness: {e}")
+                use_geo_context = True
+
+            # Elevate stale-geo tickers in scan priority
+            try:
+                stale_geo_tickers = staleness_tracker.get_tickers_with_stale_geo(watchlist)
+                if stale_geo_tickers:
+                    self.logger.info(f"Stale-geo tickers elevated: {stale_geo_tickers}")
+                    # Move stale-geo tickers to front of watchlist_tickers (preserving order of rest)
+                    non_stale = [t for t in watchlist_tickers if t not in stale_geo_tickers]
+                    watchlist_tickers = stale_geo_tickers + non_stale
+            except Exception as e:
+                self.logger.warning(f"Could not elevate stale-geo tickers: {e}")
 
             # 1. Ticker Selection based on Variant
             scan_list = []
@@ -223,6 +272,12 @@ class DailyPipeline:
                         analysis_id = None
                         self.logger.error(f"Failed to save analysis for {final['ticker']}: {e}")
                         errors.append(f"DB save error for {final['ticker']}: {str(e)}")
+
+                    # Update adaptive scan timestamp (#12)
+                    try:
+                        db.update_last_scanned(final['ticker'])
+                    except Exception as e:
+                        self.logger.debug(f"Could not update last_scanned_at for {final['ticker']}: {e}")
 
                     # Cross-check AI claims against yfinance ground truth
                     if analysis_id:
