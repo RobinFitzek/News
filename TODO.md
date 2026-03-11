@@ -269,8 +269,6 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Description:**
 The `AutoPaperTrader` (`engine/auto_paper_trader.py`) already silently enters/exits trades on STRONG signals with hardcoded parameters (+8% TP, -4% SL, 30-day timeout). It runs with no UI and no user feedback. This item makes it a first-class, optional feature with: configurable risk parameters, a trust gate that must be earned before real execution, an optional confirmation step, broker abstraction (Alpaca or IBKR), and live position sync. Feature is OFF by default and can be used purely in paper mode indefinitely.
 
-**⚠️ Use Claude Opus for Phase 6 (broker execution) — highest-stakes code.**
-
 **Effort:** XL · **Impact:** Critical (the missing last step)
 
 ---
@@ -568,32 +566,32 @@ class OrderManager:
 
 **New app.py routes:**
 ```
-[ ] POST /api/orders/execute            — execute confirmed trade ({token} or {ticker, direction, size_usd})
-[ ] POST /api/orders/close/<trade_id>   — close position at broker
-[ ] GET  /api/orders/status/<order_id>  — poll fill status
-[ ] GET  /api/broker/account            — equity, buying power, cash
-[ ] GET  /api/broker/positions          — live broker positions
-[ ] POST /api/broker/sync               — manual position sync trigger
+[x] POST /api/orders/execute            — execute confirmed trade ({token} or {ticker, direction, size_usd})
+[x] POST /api/orders/close/<trade_id>   — close position at broker
+[x] GET  /api/orders/status/<order_id>  — poll fill status
+[x] GET  /api/broker/account            — equity, buying power, cash
+[x] GET  /api/broker/positions          — live broker positions
+[x] POST /api/broker/sync               — manual position sync trigger
 ```
 
 **Portfolio page additions:**
 ```
-[ ] Toggle: "Live P&L" (broker) vs "Paper P&L" columns
-[ ] Origin badge per row: 🤖 auto | ✋ manual | 🔄 broker-sync
-[ ] Header bar: "🟢 Alpaca  ·  $12,340 buying power  ·  synced 2m ago"
+[x] Toggle: "Live P&L" (broker) vs "Paper P&L" columns
+[x] Origin badge per row: 🤖 auto | ✋ manual | 🔄 broker-sync
+[x] Header bar: "🟢 Alpaca  ·  $12,340 buying power  ·  synced 2m ago"
 ```
 
 **Scheduler:**
 ```
-[ ] Broker position sync every 5 min (market hours only, uses _is_market_open())
+[x] Broker position sync every 5 min (market hours only, uses _is_market_open())
 [ ] Broker P&L snapshot every 15 min → store in paper_snapshots (add broker_value col)
 ```
 
 **Trust gate enforcement:**
 ```
-[ ] Block mode switch to alpaca/ibkr in settings if trust gate not met
-[ ] UI: "2 more paper trades needed (18/20 · 61% win rate)"
-[ ] Admin override: auto_trade_trust_override setting (for dev testing)
+[x] Block mode switch to alpaca/ibkr in settings if trust gate not met
+[x] UI: "2 more paper trades needed (18/20 · 61% win rate)"
+[x] Admin override: auto_trade_trust_override setting (for dev testing)
 ```
 
 **New dependencies (optional, guarded imports):**
@@ -664,16 +662,16 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 [x] GET /api/auto-trade/risk-gate-status
 ```
 
-**Phase 6 — Real broker (⚠️ Opus):**
+**Phase 6 — Real broker:**
 ```
-[ ] clients/broker_client.py (ABC + Alpaca + IBKR + Paper impls)
-[ ] engine/order_manager.py (execute_entry, execute_exit, sync_broker_positions)
-[ ] POST /api/orders/execute + /api/orders/close/<id> + GET /api/orders/status/<id>
-[ ] GET /api/broker/account + /api/broker/positions + POST /api/broker/sync
-[ ] Portfolio page: live P&L toggle, origin badge, broker connection header widget
-[ ] Broker sync scheduler job (5 min, market hours)
-[ ] Trust gate enforcement before mode switch
-[ ] alpaca-trade-api + ib_insync in requirements.txt (optional/guarded)
+[x] clients/broker_client.py (ABC + Alpaca + IBKR + Paper impls)
+[x] engine/order_manager.py (execute_entry, execute_exit, sync_broker_positions)
+[x] POST /api/orders/execute + /api/orders/close/<id> + GET /api/orders/status/<id>
+[x] GET /api/broker/account + /api/broker/positions + POST /api/broker/sync
+[x] Portfolio page: live P&L toggle, origin badge, broker connection header widget
+[x] Broker sync scheduler job (5 min, market hours)
+[x] Trust gate enforcement before mode switch
+[x] alpaca-trade-api + ib_insync in requirements.txt (optional/guarded)
 ```
 
 **Phase 7 — Observability:**

@@ -1028,6 +1028,74 @@
                     </div>
                 </div>
 
+                <!-- Broker credentials — Alpaca -->
+                <div id="alpaca-credentials" style="display:none; margin-top:var(--space-5); padding:var(--space-4); background:var(--bg-secondary); border:1px solid var(--border-light); border-radius:var(--radius-md);">
+                    <div style="font-size:0.75rem; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:var(--space-4);">Alpaca API Credentials</div>
+                    <div class="grid grid-2" style="gap:var(--space-5); margin-bottom:var(--space-4);">
+                        <div>
+                            <label>API Key</label>
+                            <input type="text" name="auto_trade_alpaca_api_key"
+                                value="{{ settings.auto_trade_alpaca_api_key|default('') }}"
+                                placeholder="PKXXXXXXXXXXXXXXXX" autocomplete="off">
+                        </div>
+                        <div>
+                            <label>API Secret</label>
+                            <input type="password" name="auto_trade_alpaca_secret"
+                                value="{{ settings.auto_trade_alpaca_secret|default('') }}"
+                                placeholder="••••••••••••" autocomplete="new-password">
+                        </div>
+                    </div>
+                    <div>
+                        <label>Base URL</label>
+                        <input type="text" name="auto_trade_alpaca_base_url"
+                            value="{{ settings.auto_trade_alpaca_base_url|default('https://paper-api.alpaca.markets') }}"
+                            placeholder="https://paper-api.alpaca.markets">
+                        <div style="margin-top:var(--space-2);font-size:0.6875rem;color:var(--text-muted);">Use <code>https://paper-api.alpaca.markets</code> for paper, <code>https://api.alpaca.markets</code> for live.</div>
+                    </div>
+                </div>
+
+                <!-- Broker credentials — IBKR -->
+                <div id="ibkr-credentials" style="display:none; margin-top:var(--space-5); padding:var(--space-4); background:var(--bg-secondary); border:1px solid var(--border-light); border-radius:var(--radius-md);">
+                    <div style="font-size:0.75rem; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:var(--space-4);">Interactive Brokers TWS / Gateway</div>
+                    <div class="grid grid-3" style="gap:var(--space-5);">
+                        <div>
+                            <label>TWS Host</label>
+                            <input type="text" name="auto_trade_ibkr_host"
+                                value="{{ settings.auto_trade_ibkr_host|default('127.0.0.1') }}"
+                                placeholder="127.0.0.1">
+                        </div>
+                        <div>
+                            <label>TWS Port</label>
+                            <input type="number" name="auto_trade_ibkr_port"
+                                value="{{ settings.auto_trade_ibkr_port|default('7497') }}"
+                                min="1000" max="65535">
+                            <div style="margin-top:var(--space-2);font-size:0.6875rem;color:var(--text-muted);">7497 = TWS live, 7496 = TWS paper, 4002 = Gateway</div>
+                        </div>
+                        <div>
+                            <label>Client ID</label>
+                            <input type="number" name="auto_trade_ibkr_client_id"
+                                value="{{ settings.auto_trade_ibkr_client_id|default('1') }}"
+                                min="1" max="999">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin trust override -->
+                <div style="margin-top:var(--space-5);display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3) var(--space-4);background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:var(--radius-md);">
+                    <label class="toggle-switch" style="flex-shrink:0;margin-top:2px;">
+                        <input type="checkbox" name="auto_trade_trust_override" id="trust-override-toggle"
+                            {% if settings.auto_trade_trust_override %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div>
+                        <div style="font-size:0.8125rem;font-weight:500;">Admin override — bypass trust gate</div>
+                        <div style="font-size:0.6875rem;color:var(--text-muted);margin-top:var(--space-1);">
+                            Allows switching to broker mode even if trust gate is not met. For development/testing only.
+                        </div>
+                    </div>
+                </div>
+                <div id="trust-gate-block-msg" style="display:none; margin-top:var(--space-3); font-size:0.75rem; color:var(--signal-negative); padding:var(--space-2) var(--space-4); background:rgba(239,68,68,0.08); border-radius:var(--radius-sm);"></div>
+
             </div><!-- /#auto-trade-settings -->
         </div>
 
@@ -1077,6 +1145,50 @@
         }
     }
 
+    function updateBrokerCredentialPanels() {
+        const mode = document.querySelector('input[name="auto_trade_mode"]:checked');
+        const alpacaDiv = document.getElementById('alpaca-credentials');
+        const ibkrDiv = document.getElementById('ibkr-credentials');
+        if (!mode) return;
+        if (alpacaDiv) alpacaDiv.style.display = mode.value === 'alpaca' ? '' : 'none';
+        if (ibkrDiv) ibkrDiv.style.display = mode.value === 'ibkr' ? '' : 'none';
+    }
+
+    // Attach change listener to mode radios
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('input[name="auto_trade_mode"]').forEach(function (radio) {
+            radio.addEventListener('change', updateBrokerCredentialPanels);
+        });
+        updateBrokerCredentialPanels();
+    });
+
+    // Trust gate enforcement on form submit
+    (function () {
+        var _trustData = null;
+        fetch('/api/auto-trade/trust-gate', { credentials: 'same-origin' })
+            .then(r => r.json()).then(d => { _trustData = d; }).catch(() => {});
+
+        document.addEventListener('DOMContentLoaded', function () {
+            var form = document.querySelector('form[action="/settings/save"]') || document.querySelector('form');
+            if (!form) return;
+            form.addEventListener('submit', function (e) {
+                var mode = document.querySelector('input[name="auto_trade_mode"]:checked');
+                if (!mode || mode.value === 'paper') return; // paper is always allowed
+                var override = document.getElementById('trust-override-toggle');
+                if (override && override.checked) return; // admin bypass
+                if (_trustData && !_trustData.trusted) {
+                    e.preventDefault();
+                    var msg = document.getElementById('trust-gate-block-msg');
+                    if (msg) {
+                        msg.style.display = '';
+                        msg.textContent = '\u26a0\ufe0f Trust gate not met (' + (_trustData.trades_remaining || 0) + ' more trades needed, ' + (_trustData.win_rate_pct || 0) + '% win rate). Enable Admin Override or switch to Paper mode.';
+                    }
+                    window.scrollTo({ top: document.getElementById('trust-gate-block-msg').getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
+                }
+            });
+        });
+    })();
+
     function loadTrustGate() {
         fetch('/api/auto-trade/trust-gate', { credentials: 'same-origin' })
             .then(r => r.json())
@@ -1114,6 +1226,7 @@
         toggleEmailSettings();
         toggleDiscoverySettings();
         loadTrustGate();
+        updateBrokerCredentialPanels();
     });
 
     function updateVariantSelection(radioInput) {

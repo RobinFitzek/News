@@ -591,7 +591,7 @@ class AutoPaperTrader:
 
     def get_open_positions(self) -> List[Dict[str, Any]]:
         rows = db.query("""
-            SELECT id, ticker, direction, entry_date, entry_price
+            SELECT id, ticker, direction, entry_date, entry_price, origin
             FROM auto_paper_trades
             WHERE status = 'open'
             ORDER BY entry_date DESC
@@ -603,7 +603,7 @@ class AutoPaperTrader:
         offset = (page - 1) * limit
         rows = db.query("""
             SELECT id, ticker, direction, entry_date, entry_price,
-                   exit_date, exit_price, pnl_pct, close_reason
+                   exit_date, exit_price, pnl_pct, close_reason, origin
             FROM auto_paper_trades
             WHERE status = 'closed'
             ORDER BY exit_date DESC
