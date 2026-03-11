@@ -671,6 +671,38 @@ class Database:
 
         # === NEW TABLES ===
 
+        # Corporate actions ledger (#43)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS corporate_actions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                action_type TEXT NOT NULL,
+                action_date TEXT NOT NULL,
+                factor REAL,
+                amount REAL,
+                currency TEXT DEFAULT 'USD',
+                notes TEXT,
+                source TEXT DEFAULT 'yfinance',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(ticker, action_type, action_date)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_corp_actions_ticker ON corporate_actions(ticker)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_corp_actions_date ON corporate_actions(action_date)")
+
+        # FX rate snapshots (#16)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS fx_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                from_currency TEXT NOT NULL,
+                to_currency TEXT NOT NULL,
+                rate REAL NOT NULL,
+                fetched_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(from_currency, to_currency, fetched_at)
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_fx_snapshots_pair ON fx_snapshots(from_currency, to_currency)")
+
         # Financial statement cache (8-quarter trend data, DCF, key stats)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS financial_cache (
@@ -783,6 +815,22 @@ class Database:
         # Schema migrations (idempotent ALTER TABLE additions)
         migrations = [
             "ALTER TABLE geopolitical_events ADD COLUMN is_delta INTEGER DEFAULT 1",
+            # Alert dedup tracking (#19)
+            "ALTER TABLE watchlist ADD COLUMN last_alert_signal TEXT",
+            "ALTER TABLE watchlist ADD COLUMN last_alert_score INTEGER",
+            "ALTER TABLE watchlist ADD COLUMN last_alert_geo_event_id INTEGER",
+            "ALTER TABLE watchlist ADD COLUMN last_alerted_at TIMESTAMP",
+            # Geo staleness tracking (#7)
+            "ALTER TABLE watchlist ADD COLUMN geo_context_stale BOOLEAN DEFAULT 0",
+            # Corporate actions (#43)
+            "ALTER TABLE portfolio_trades ADD COLUMN split_adjusted INTEGER DEFAULT 0",
+            # Multi-currency (#16)
+            "ALTER TABLE portfolio_trades ADD COLUMN currency TEXT DEFAULT 'USD'",
+            "ALTER TABLE portfolio_trades ADD COLUMN fx_rate_at_entry REAL DEFAULT 1.0",
+            # Two-factor auth (#33)
+            "ALTER TABLE users ADD COLUMN totp_secret TEXT",
+            "ALTER TABLE users ADD COLUMN totp_enabled INTEGER DEFAULT 0",
+            "ALTER TABLE users ADD COLUMN backup_codes TEXT",
         ]
         for sql in migrations:
             try:
@@ -949,10 +997,26 @@ class Database:
     def get_watchlist(self, active_only: bool = True) -> List[Dict]:
         conn = self._get_conn()
         cursor = conn.cursor()
-        if active_only:
-            cursor.execute("SELECT * FROM watchlist WHERE is_active = 1 ORDER BY ticker")
-        else:
-            cursor.execute("SELECT * FROM watchlist ORDER BY ticker")
+        active_filter = "WHERE w.is_active = 1" if active_only else ""
+        cursor.execute(f"""
+            SELECT w.*,
+                   ah.signal        AS latest_signal,
+                   ah.geo_risk_score AS geo_risk_score,
+                   ah.risk_score    AS latest_risk_score,
+                   ah.timestamp     AS last_analyzed_at,
+                   CAST(
+                       (julianday('now') - julianday(ah.timestamp))
+                       AS INTEGER
+                   )                AS staleness_days
+            FROM watchlist w
+            LEFT JOIN (
+                SELECT ticker, signal, geo_risk_score, risk_score, timestamp,
+                       ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY id DESC) AS rn
+                FROM analysis_history
+            ) ah ON ah.ticker = w.ticker AND ah.rn = 1
+            {active_filter}
+            ORDER BY w.ticker
+        """)
         rows = cursor.fetchall()
         conn.close()
         return [dict(row) for row in rows]
@@ -1201,8 +1265,40 @@ class Database:
         conn.close()
         return [dict(row) for row in rows]
     
+    # === Corporate Actions (#43) ===
+    def save_corporate_action(self, ticker: str, action_type: str, action_date: str,
+                               factor: float = None, amount: float = None,
+                               currency: str = 'USD', notes: str = '') -> bool:
+        """Save a corporate action (split, dividend). Returns True if new, False if duplicate."""
+        try:
+            self.execute(
+                """INSERT OR IGNORE INTO corporate_actions
+                   (ticker, action_type, action_date, factor, amount, currency, notes)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (ticker.upper(), action_type, action_date, factor, amount, currency, notes)
+            )
+            return True
+        except Exception as e:
+            self.logger.warning(f"save_corporate_action failed for {ticker}: {e}")
+            return False
+
+    def get_corporate_actions(self, ticker: str, limit: int = 50) -> List[Dict]:
+        """Get corporate actions for a ticker, newest first."""
+        return self.query(
+            "SELECT * FROM corporate_actions WHERE ticker = ? ORDER BY action_date DESC LIMIT ?",
+            (ticker.upper(), limit)
+        )
+
+    def get_recent_corporate_actions(self, days: int = 30) -> List[Dict]:
+        """Get corporate actions across all tickers within the last N days."""
+        cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+        return self.query(
+            "SELECT * FROM corporate_actions WHERE action_date >= ? ORDER BY action_date DESC",
+            (cutoff,)
+        )
+
     # === Scheduler Log ===
-    def log_scheduler_run(self, tickers_scanned: int, alerts_sent: int, 
+    def log_scheduler_run(self, tickers_scanned: int, alerts_sent: int,
                           errors: str = "", duration: float = 0):
         conn = self._get_conn()
         cursor = conn.cursor()
@@ -1357,23 +1453,45 @@ class Database:
         conn.close()
     
     # === Portfolio Management ===
-    def add_trade(self, ticker: str, trade_type: str, amount: float, price: float, 
-                  date: str = None, fees: float = 0, notes: str = "", analysis_id: int = None):
+    def add_trade(self, ticker: str, trade_type: str, amount: float, price: float,
+                  date: str = None, fees: float = 0, notes: str = "", analysis_id: int = None,
+                  currency: str = "USD", fx_rate_at_entry: float = 1.0):
         """Record a portfolio trade (buy/sell)"""
         conn = self._get_conn()
         cursor = conn.cursor()
-        
+
         if not date:
             date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
+
         cursor.execute("""
-            INSERT INTO portfolio_trades 
-            (ticker, type, amount, price, date, fees, notes, analysis_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (ticker.upper(), trade_type.upper(), amount, price, date, fees, notes, analysis_id))
-        
+            INSERT INTO portfolio_trades
+            (ticker, type, amount, price, date, fees, notes, analysis_id, currency, fx_rate_at_entry)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (ticker.upper(), trade_type.upper(), amount, price, date, fees, notes, analysis_id,
+              currency.upper(), fx_rate_at_entry))
+
         conn.commit()
         conn.close()
+
+    def save_fx_snapshot(self, from_currency: str, to_currency: str, rate: float):
+        """Save an FX rate snapshot."""
+        self.execute(
+            "INSERT OR REPLACE INTO fx_snapshots (from_currency, to_currency, rate, fetched_at) VALUES (?, ?, ?, ?)",
+            (from_currency.upper(), to_currency.upper(), rate, datetime.now().isoformat())
+        )
+
+    def get_currency_exposure(self) -> list:
+        """Return currency exposure summary from portfolio_trades."""
+        rows = self.query("""
+            SELECT
+                COALESCE(currency, 'USD') AS currency,
+                SUM(CASE WHEN type = 'BUY' THEN amount * price ELSE 0 END)
+                - SUM(CASE WHEN type = 'SELL' THEN amount * price ELSE 0 END) AS net_exposure
+            FROM portfolio_trades
+            GROUP BY currency
+            ORDER BY net_exposure DESC
+        """)
+        return rows if rows else []
 
     def get_trades(self, ticker: str = None) -> List[Dict]:
         """Get trading history"""

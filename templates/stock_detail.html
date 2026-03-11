@@ -537,6 +537,17 @@
 </div>
 {% endif %}
 
+<!-- Corporate Actions Timeline (#43) -->
+<div class="card" style="margin-bottom:1.5rem;" id="corporate-actions-card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 class="card-title">Corporate Actions</h3>
+        <span style="font-size:0.75rem;color:var(--text-muted);">Splits &amp; Dividends</span>
+    </div>
+    <div class="card-body" id="corp-actions-content">
+        <p style="color:var(--text-muted);font-size:0.875rem;">Loading…</p>
+    </div>
+</div>
+
 <!-- Notes -->
 <div class="card" style="margin-bottom:1.5rem;">
     <div class="card-header">
@@ -1126,5 +1137,43 @@
         .catch(() => {});
 
     loadPriceChart();
+
+    // Corporate Actions loader (#43)
+    (function() {
+        var ticker = '{{ ticker }}';
+        fetch('/api/stock/' + ticker + '/corporate-actions')
+            .then(r => r.json())
+            .then(data => {
+                var el = document.getElementById('corp-actions-content');
+                if (!el) return;
+                var actions = data.actions || [];
+                if (actions.length === 0) {
+                    el.innerHTML = '<p style="color:var(--text-muted);font-size:0.875rem;">No corporate actions on record. Run a refresh to fetch from yfinance.</p>';
+                    return;
+                }
+                var rows = actions.map(function(a) {
+                    var typeLabel = a.action_type === 'split' ? '📊 Split' :
+                                   a.action_type === 'dividend' ? '💰 Dividend' :
+                                   a.action_type === 'special_dividend' ? '💎 Special Div.' : a.action_type;
+                    var detail = a.action_type === 'split' ? (a.factor + ':1') :
+                                 a.amount ? ('$' + parseFloat(a.amount).toFixed(4) + '/share') : '';
+                    return '<tr><td style="font-family:var(--font-mono);font-size:0.8125rem;">' + a.action_date + '</td>' +
+                           '<td style="font-size:0.875rem;">' + typeLabel + '</td>' +
+                           '<td style="font-family:var(--font-mono);font-size:0.8125rem;">' + detail + '</td>' +
+                           '<td style="font-size:0.75rem;color:var(--text-muted);">' + (a.notes || '') + '</td></tr>';
+                }).join('');
+                el.innerHTML = '<table style="width:100%;border-collapse:collapse;">' +
+                    '<thead><tr>' +
+                    '<th style="text-align:left;padding:var(--space-2) var(--space-3);font-size:0.6875rem;color:var(--text-muted);">Date</th>' +
+                    '<th style="text-align:left;padding:var(--space-2) var(--space-3);font-size:0.6875rem;color:var(--text-muted);">Type</th>' +
+                    '<th style="text-align:left;padding:var(--space-2) var(--space-3);font-size:0.6875rem;color:var(--text-muted);">Detail</th>' +
+                    '<th style="text-align:left;padding:var(--space-2) var(--space-3);font-size:0.6875rem;color:var(--text-muted);">Notes</th>' +
+                    '</tr></thead><tbody>' + rows + '</tbody></table>';
+            })
+            .catch(function() {
+                var el = document.getElementById('corp-actions-content');
+                if (el) el.innerHTML = '<p style="color:var(--text-muted);font-size:0.875rem;">Could not load corporate actions.</p>';
+            });
+    })();
 </script>
 {% endblock %}

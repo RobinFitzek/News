@@ -299,6 +299,18 @@
         <div id="ab-content"></div>
     </div>
 
+    <!-- Feature Importance Card (#48) -->
+    <div class="card" style="margin-bottom: var(--space-8);" id="feature-importance-card">
+        <div style="margin-bottom: var(--space-6);">
+            <h3 style="margin: 0 0 var(--space-1) 0;">Meta-Labeler Feature Importance</h3>
+            <p style="margin: 0; font-size: var(--text-sm); color: var(--text-muted);">Which quant factors actually drive signal accuracy? (Random Forest importances)</p>
+        </div>
+        <div id="feature-importance-content">
+            <p style="color: var(--text-muted); font-size: 0.875rem;">Loading feature importances…</p>
+        </div>
+        <div id="feature-importance-top3" style="margin-top:var(--space-4); padding:var(--space-3) var(--space-4); background:var(--bg-secondary); border-left:1px solid var(--border-default); font-size:0.8125rem; color:var(--text-secondary); display:none;"></div>
+    </div>
+
     <!-- System Info -->
     <div class="grid grid-3">
         <div class="card" style="margin-bottom: 0;">
@@ -618,5 +630,44 @@
             btn.textContent = 'Error';
         }
     }
+
+    // Feature Importance Chart (#48)
+    (function() {
+        fetch('/api/learning/feature-importance').then(r => r.json()).then(data => {
+            var container = document.getElementById('feature-importance-content');
+            if (!container) return;
+            if (!data.ready || !data.importances || data.importances.length === 0) {
+                container.innerHTML = '<p style="color:var(--text-muted);font-size:0.875rem;">Model not yet trained — feature importances unavailable.</p>';
+                return;
+            }
+            var items = data.importances.slice(0, 15); // Show top 15
+            var maxImp = items[0].importance;
+            var html = '<div style="display:flex;flex-direction:column;gap:var(--space-2);">';
+            items.forEach(function(item, i) {
+                var pct = maxImp > 0 ? (item.importance / maxImp * 100).toFixed(1) : 0;
+                var color = i < 3 ? '#6bba7e' : i < 7 ? '#5ba4e8' : 'var(--text-muted)';
+                html += '<div style="display:flex;align-items:center;gap:var(--space-3);">' +
+                    '<div style="width:160px;font-size:0.75rem;font-family:var(--font-mono);color:var(--text-secondary);text-align:right;flex-shrink:0;">' + item.feature + '</div>' +
+                    '<div style="flex:1;background:var(--bg-secondary);border-radius:3px;height:14px;position:relative;">' +
+                    '<div style="position:absolute;top:0;left:0;height:14px;border-radius:3px;background:' + color + ';width:' + pct + '%;"></div>' +
+                    '</div>' +
+                    '<div style="width:50px;font-size:0.75rem;font-family:var(--font-mono);color:var(--text-muted);">' + (item.importance * 100).toFixed(1) + '%</div>' +
+                    '</div>';
+            });
+            html += '</div>';
+            container.innerHTML = html;
+            // Top 3 callout
+            if (data.top3 && data.top3.length > 0) {
+                var top3el = document.getElementById('feature-importance-top3');
+                if (top3el) {
+                    top3el.style.display = '';
+                    top3el.textContent = 'Top 3 predictive features: ' + data.top3.join(', ');
+                }
+            }
+        }).catch(function() {
+            var container = document.getElementById('feature-importance-content');
+            if (container) container.innerHTML = '<p style="color:var(--text-muted);font-size:0.875rem;">Failed to load feature importances.</p>';
+        });
+    })();
 </script>
 {% endblock %}

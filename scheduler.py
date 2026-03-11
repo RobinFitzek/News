@@ -5,10 +5,26 @@ Runs automated scans based on configuration.
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-from datetime import datetime, time
+from datetime import datetime, date, time
 import pytz
 from core.database import db
 from core.notifications import notifications
+
+# NYSE market holidays for 2026 (format: (month, day))
+US_MARKET_HOLIDAYS_2026 = {
+    date(2026, 1, 1),   # New Year's Day
+    date(2026, 1, 19),  # Martin Luther King Jr. Day
+    date(2026, 2, 16),  # Presidents' Day
+    date(2026, 4, 3),   # Good Friday
+    date(2026, 5, 25),  # Memorial Day
+    date(2026, 6, 19),  # Juneteenth National Independence Day
+    date(2026, 7, 3),   # Independence Day (observed, July 4 falls on Saturday)
+    date(2026, 9, 7),   # Labor Day
+    date(2026, 11, 26), # Thanksgiving Day
+    date(2026, 12, 25), # Christmas Day
+}
+
+US_MARKET_HOLIDAYS = US_MARKET_HOLIDAYS_2026
 
 # Will be imported after scheduler is defined
 agents = None
@@ -33,6 +49,8 @@ class InvestmentScheduler:
         self.discovery_daily_time = db.get_setting("discovery_daily_time") or "06:00"
         self.discovery_weekly_day = db.get_setting("discovery_weekly_day") or "wed"
         self.discovery_weekly_time = db.get_setting("discovery_weekly_time") or "12:00"
+        # Holiday skip
+        self.holiday_skip_enabled = db.get_setting("holiday_skip_enabled") if db.get_setting("holiday_skip_enabled") is not None else True
     
     def reload_settings(self):
         """Reload settings and reschedule jobs"""
@@ -41,6 +59,17 @@ class InvestmentScheduler:
             self.stop()
             self.start()
     
+    def _is_market_holiday(self) -> bool:
+        """Check if today is a US market holiday."""
+        if not self.holiday_skip_enabled:
+            return False
+        try:
+            tz = pytz.timezone(self.timezone)
+            today = datetime.now(tz).date()
+            return today in US_MARKET_HOLIDAYS
+        except Exception:
+            return False
+
     def _is_active_time(self) -> bool:
         """Check if current time is within active hours and on a weekday"""
         try:
@@ -77,6 +106,10 @@ class InvestmentScheduler:
 
         if not force and not self._is_active_time():
             print(f"(-) Outside active hours ({self.active_start}-{self.active_end}), skipping scan")
+            return
+
+        if not force and self._is_market_holiday():
+            print(f"(-) Market closed today (US holiday) — skipping scan")
             return
 
         print(f"\n{'='*50}")
@@ -369,6 +402,15 @@ class InvestmentScheduler:
             replace_existing=True
         )
 
+        # Weekly corporate actions refresh (Saturday 04:00) (#43)
+        self.scheduler.add_job(
+            self.refresh_corporate_actions,
+            CronTrigger(day_of_week='sat', hour=4, minute=0, timezone=self.timezone),
+            id='corporate_actions_refresh',
+            name='Corporate Actions Refresh',
+            replace_existing=True
+        )
+
         self.scheduler.start()
         self.is_running = True
         print(f"Scheduler started: Daily every {self.interval_hours}h, Weekly Sun 20:00, Monthly 28th 18:00")
@@ -469,6 +511,8 @@ class InvestmentScheduler:
             now = datetime.now(tz)
             # Only run Monday–Friday, 9:30–16:05 ET
             if now.weekday() >= 5:
+                return
+            if self._is_market_holiday():
                 return
             market_open = time(9, 30)
             market_close = time(16, 5)
@@ -716,6 +760,19 @@ class InvestmentScheduler:
                 threading.Thread(target=_analyze, daemon=True).start()
         except Exception as e:
             print(f"(Error) Intraday breakout check failed: {e}")
+
+    def refresh_corporate_actions(self):
+        """Weekly refresh: fetch splits + dividends for all watchlist tickers (#43)."""
+        try:
+            from engine.corporate_actions import corporate_actions_tracker
+            result = corporate_actions_tracker.refresh_all()
+            # Apply any pending split adjustments to portfolio_trades
+            adjusted = corporate_actions_tracker.apply_splits_to_portfolio()
+            # Credit any pending dividends to paper portfolio
+            credited = corporate_actions_tracker.credit_dividends_to_paper_portfolio()
+            print(f"Corporate actions: {result['tickers']} tickers, {result['splits']} splits, {result['dividends']} dividends | {adjusted} trades adjusted, {credited} dividends credited")
+        except Exception as e:
+            print(f"(Error) Corporate actions refresh failed: {e}")
 
     def run_db_backup(self):
         """Create a daily DB backup with rotation (7 daily + 4 weekly)."""

@@ -792,6 +792,56 @@
         </div>
     </div>
 
+    <!-- Budget Health Card (#29) -->
+    <div class="card" style="margin-bottom: var(--space-6);" id="budget-health-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-4);">
+            <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em;">API Budget Health</div>
+            <a href="/settings" style="font-size:0.75rem; color:var(--text-muted);">Configure</a>
+        </div>
+        <div id="budget-health-content" style="display:grid; grid-template-columns: 1fr 1fr; gap:var(--space-4);">
+            <div style="padding:var(--space-3) var(--space-4); background:var(--bg-secondary); border:1px solid var(--border-hairline);">
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:var(--space-2);">Perplexity</div>
+                <div id="budget-pplx-bar" style="background:var(--bg-tertiary); border-radius:3px; height:6px; margin-bottom:var(--space-2);">
+                    <div id="budget-pplx-fill" style="height:6px; border-radius:3px; background:#6bba7e; width:0%;"></div>
+                </div>
+                <div id="budget-pplx-text" style="font-size:0.8125rem; color:var(--text-secondary);">Loading…</div>
+            </div>
+            <div style="padding:var(--space-3) var(--space-4); background:var(--bg-secondary); border:1px solid var(--border-hairline);">
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:var(--space-2);">Gemini</div>
+                <div id="budget-gemini-bar" style="background:var(--bg-tertiary); border-radius:3px; height:6px; margin-bottom:var(--space-2);">
+                    <div id="budget-gemini-fill" style="height:6px; border-radius:3px; background:#6bba7e; width:0%;"></div>
+                </div>
+                <div id="budget-gemini-text" style="font-size:0.8125rem; color:var(--text-secondary);">Loading…</div>
+            </div>
+        </div>
+        <div id="budget-health-footer" style="margin-top:var(--space-3); font-size:0.75rem; color:var(--text-muted);"></div>
+    </div>
+    <script>
+    (function() {
+        fetch('/api/budget/status').then(function(r) { return r.json(); }).then(function(d) {
+            function renderBar(fillId, textId, spent, cap, label) {
+                var pct = cap > 0 ? Math.min(100, spent / cap * 100) : 0;
+                var fill = document.getElementById(fillId);
+                var text = document.getElementById(textId);
+                if (!fill || !text) return;
+                fill.style.width = pct.toFixed(1) + '%';
+                fill.style.background = pct >= 80 ? '#d47272' : pct >= 60 ? '#f59e0b' : '#6bba7e';
+                text.textContent = label + ': €' + spent.toFixed(2) + ' / €' + cap.toFixed(2) + ' (' + pct.toFixed(0) + '%)';
+                if (pct >= 80) text.style.color = '#d47272';
+            }
+            if (d.perplexity) renderBar('budget-pplx-fill', 'budget-pplx-text', d.perplexity.spent_eur, d.perplexity.monthly_budget_eur, 'Perplexity');
+            if (d.gemini) renderBar('budget-gemini-fill', 'budget-gemini-text', d.gemini.spent_eur, d.gemini.monthly_budget_eur, 'Gemini');
+            var footer = document.getElementById('budget-health-footer');
+            if (footer) {
+                var parts = [];
+                if (d.perplexity) parts.push(d.perplexity.days_left + 'd remaining in month');
+                if (d.avg_cost_per_analysis_usd != null) parts.push('avg $' + d.avg_cost_per_analysis_usd.toFixed(4) + '/call (7d)');
+                footer.textContent = parts.join(' · ');
+            }
+        }).catch(function() {});
+    })();
+    </script>
+
     <!-- Scheduled Jobs (if running) -->
     {% if scheduler_status.jobs %}
     <div class="card" style="margin-bottom: var(--space-6);">

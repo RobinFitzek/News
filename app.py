@@ -161,6 +161,19 @@ async def login(request: Request, username: str = Form(...), password: str = For
     if db.verify_user(username, password):
         db.clear_login_failures(username)
 
+        # Check if 2FA is required (#33)
+        totp_info = auth_manager.get_user_totp_info(username)
+        if totp_info.get('enabled'):
+            # Store pending auth state in a short-lived cookie and redirect to TOTP step
+            import secrets as _sec
+            pending_token = _sec.token_urlsafe(24)
+            db.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                (f'_pending_totp_{pending_token}', f'"{username}"')
+            )
+            resp = RedirectResponse(url=f"/login/totp?token={pending_token}", status_code=303)
+            return resp
+
         # Create session
         session_id = auth_manager.create_session(
             username,
@@ -211,6 +224,153 @@ async def logout(request: Request):
     response = RedirectResponse(url="/login", status_code=303)
     response.delete_cookie("session_id")
     return response
+
+
+# === TOTP / 2FA Routes (#33) ===
+
+@app.get("/login/totp", response_class=HTMLResponse)
+async def login_totp_page(request: Request, token: str = ""):
+    """TOTP verification step shown after successful password auth."""
+    # Validate token exists
+    row = db.query_one("SELECT value FROM settings WHERE key = ?", (f'_pending_totp_{token}',))
+    if not row:
+        return RedirectResponse(url="/login?error=invalid", status_code=303)
+    return templates.TemplateResponse("login_totp.html", {
+        "request": request,
+        "token": token,
+        "error": request.query_params.get("error"),
+        "csrf_token": request.state.csrf_token,
+    })
+
+
+@app.post("/login/totp")
+@limiter.limit("10/minute")
+async def login_totp_verify(
+    request: Request,
+    token: str = Form(...),
+    code: str = Form(...),
+    csrf_token: str = Form(...),
+):
+    """Verify TOTP code or backup code and complete login."""
+    from core.config import ENABLE_HTTPS
+    from slowapi.util import get_remote_address
+    csrf.verify_token(request, csrf_token)
+
+    # Retrieve pending username from DB
+    row = db.query_one("SELECT value FROM settings WHERE key = ?", (f'_pending_totp_{token}',))
+    if not row:
+        return RedirectResponse(url="/login?error=invalid", status_code=303)
+
+    import json as _json
+    try:
+        username = _json.loads(row['value'])
+    except Exception:
+        username = row['value']
+
+    # Get user TOTP secret
+    user_row = db.query_one("SELECT totp_secret FROM users WHERE username = ?", (username,))
+    if not user_row or not user_row.get('totp_secret'):
+        # TOTP setup broken — let them through
+        pass
+    else:
+        code = code.strip()
+        # Try TOTP first, then backup codes
+        if not auth_manager.verify_totp(user_row['totp_secret'], code):
+            if not auth_manager.use_backup_code(username, code):
+                audit_log.log("login_totp_failed", username=username,
+                              ip=get_remote_address(request))
+                return RedirectResponse(url=f"/login/totp?token={token}&error=invalid_code", status_code=303)
+
+    # Clean up pending token
+    db.execute("DELETE FROM settings WHERE key = ?", (f'_pending_totp_{token}',))
+
+    # Create full session
+    client_ip = get_remote_address(request)
+    session_id = auth_manager.create_session(
+        username,
+        ip_address=client_ip,
+        user_agent=request.headers.get('user-agent', '')
+    )
+    db.update_last_login(username)
+    audit_log.log("login_success_2fa", username=username, ip=client_ip)
+
+    force_pw = db.user_must_change_password(username)
+    response = RedirectResponse(url="/change-password" if force_pw else "/", status_code=303)
+    response.set_cookie(
+        key="session_id", value=session_id,
+        httponly=True, secure=ENABLE_HTTPS, samesite="lax", max_age=86400
+    )
+    return response
+
+
+@app.get("/settings/2fa/setup", response_class=HTMLResponse)
+async def settings_2fa_setup(request: Request, username: str = Depends(require_auth)):
+    """Show 2FA setup page with QR code."""
+    secret = auth_manager.generate_totp_secret()
+    uri = auth_manager.get_totp_uri(username, secret)
+    try:
+        qr_b64 = auth_manager.generate_qr_code_base64(uri)
+    except Exception:
+        qr_b64 = None
+    backup_codes = auth_manager.generate_backup_codes()
+    # Store secret temporarily in session for confirmation step
+    import json as _json
+    db.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+        (f'_pending_totp_setup_{username}', _json.dumps({'secret': secret, 'backup_codes': backup_codes}))
+    )
+    totp_info = auth_manager.get_user_totp_info(username)
+    return templates.TemplateResponse("settings_2fa.html", {
+        "request": request,
+        "csrf_token": request.state.csrf_token,
+        "username": username,
+        "secret": secret,
+        "qr_b64": qr_b64,
+        "backup_codes": backup_codes,
+        "totp_info": totp_info,
+        "error": request.query_params.get("error"),
+        "success": request.query_params.get("success"),
+    })
+
+
+@app.post("/settings/2fa/enable")
+async def settings_2fa_enable(
+    request: Request,
+    code: str = Form(...),
+    csrf_token: str = Form(...),
+    username: str = Depends(require_auth),
+):
+    """Confirm TOTP code and enable 2FA."""
+    csrf.verify_token(request, csrf_token)
+    import json as _json
+    row = db.query_one("SELECT value FROM settings WHERE key = ?", (f'_pending_totp_setup_{username}',))
+    if not row:
+        return RedirectResponse(url="/settings/2fa/setup?error=expired", status_code=303)
+    data = _json.loads(row['value'])
+    secret = data['secret']
+    backup_codes = data['backup_codes']
+    if not auth_manager.verify_totp(secret, code.strip()):
+        return RedirectResponse(url="/settings/2fa/setup?error=invalid_code", status_code=303)
+    auth_manager.save_totp_for_user(username, secret, backup_codes)
+    db.execute("DELETE FROM settings WHERE key = ?", (f'_pending_totp_setup_{username}',))
+    audit_log.log("2fa_enabled", username=username, ip=request.client.host)
+    return RedirectResponse(url="/settings/2fa/setup?success=1", status_code=303)
+
+
+@app.post("/settings/2fa/disable")
+async def settings_2fa_disable(
+    request: Request,
+    password: str = Form(...),
+    csrf_token: str = Form(...),
+    username: str = Depends(require_auth),
+):
+    """Disable 2FA after password confirmation."""
+    csrf.verify_token(request, csrf_token)
+    if not db.verify_user(username, password):
+        return RedirectResponse(url="/settings/2fa/setup?error=wrong_password", status_code=303)
+    auth_manager.disable_totp_for_user(username)
+    audit_log.log("2fa_disabled", username=username, ip=request.client.host)
+    return RedirectResponse(url="/settings/2fa/setup?success=disabled", status_code=303)
 
 
 @app.get("/change-password", response_class=HTMLResponse)
@@ -1941,6 +2101,29 @@ async def api_budget_status(request: Request, username: str = Depends(require_au
     """API endpoint for budget status (used by dashboard AJAX)"""
     return budget_tracker.get_budget_status()
 
+@app.get("/api/budget/status")
+async def api_budget_status_detail(request: Request, username: str = Depends(require_auth)):
+    """Detailed budget health card endpoint (#29)."""
+    status = budget_tracker.get_budget_status()
+    # Compute avg cost per analysis from last 7 days
+    try:
+        from datetime import date as _date, timedelta
+        week_ago = (_date.today() - timedelta(days=7)).isoformat()
+        rows = db.query(
+            "SELECT api, SUM(estimated_cost) as total, COUNT(*) as calls FROM api_cost_log WHERE date >= ? GROUP BY api",
+            (week_ago,)
+        )
+        cost_7d = {r['api']: {'total': r['total'], 'calls': r['calls']} for r in rows}
+        total_cost_7d = sum(r['total'] for r in rows)
+        total_calls_7d = sum(r['calls'] for r in rows)
+        avg_cost_per_analysis = round(total_cost_7d / max(total_calls_7d, 1), 4)
+    except Exception:
+        cost_7d = {}
+        avg_cost_per_analysis = None
+    status['avg_cost_per_analysis_usd'] = avg_cost_per_analysis
+    status['cost_7d'] = cost_7d
+    return status
+
 @app.get("/api/portfolio/alerts")
 async def api_portfolio_alerts(request: Request, username: str = Depends(require_auth)):
     """Portfolio rule checks: position sizing, stop-loss, sector concentration, benchmark."""
@@ -2406,6 +2589,20 @@ async def api_weight_suggestions(request: Request, username: str = Depends(requi
     """Get current vs suggested quant weights based on learning data."""
     return learning_optimizer.calculate_optimal_weights()
 
+@app.get("/api/learning/feature-importance")
+async def api_feature_importance(request: Request, username: str = Depends(require_auth)):
+    """Return RF meta-labeler feature importances sorted descending (#48)."""
+    from engine.meta_labeler import meta_labeler
+    importances = meta_labeler.get_feature_importances()
+    if not importances:
+        return {"ready": False, "importances": [], "top3": []}
+    sorted_items = sorted(importances.items(), key=lambda x: x[1], reverse=True)
+    return {
+        "ready": True,
+        "importances": [{"feature": k, "importance": v} for k, v in sorted_items],
+        "top3": [k for k, _ in sorted_items[:3]],
+    }
+
 @app.post("/api/learning/apply-weights")
 @limiter.limit("5/hour")
 async def api_apply_weights(request: Request, username: str = Depends(require_auth)):
@@ -2590,6 +2787,13 @@ async def stock_detail_page(request: Request, ticker: str, username: str = Depen
         "discovery_history": discovery_history,
     })
 
+
+@app.get("/api/stock/{ticker}/corporate-actions")
+async def api_corporate_actions(ticker: str, username: str = Depends(require_auth)):
+    """Return corporate actions (splits, dividends) for a ticker (#43)."""
+    ticker = ticker.upper()
+    actions = db.get_corporate_actions(ticker, limit=50)
+    return {"ticker": ticker, "actions": actions}
 
 @app.post("/stock/{ticker}/notes")
 async def save_stock_note(

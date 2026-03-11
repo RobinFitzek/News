@@ -162,6 +162,12 @@ DEFAULT_SETTINGS = {
     "discovery_max_promote_per_run": 5,
     "discovery_max_watchlist_size": 50,
     "discovery_strategies": ["volume_spike", "breakout", "oversold", "sector_rotation", "insider_buy", "value_screen"],
+
+    # Market Holiday Skip
+    "holiday_skip_enabled": True,
+
+    # Alert Deduplication
+    "alert_cooldown_hours": 24,
 }
 
 # Web Server
