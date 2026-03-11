@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Geo Scan History — Stockholm{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+
+    <!-- Page Header -->
+    <header class="page-header">
+        <div>
+            <h1>Geopolitical Scan History</h1>
+            <p>Last {{ limit }} geopolitical scans — severity trends and event deltas</p>
+        </div>
+    </header>
+
+    <!-- Filter Controls -->
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <form method="GET" action="/geo-history"
+            style="display: flex; gap: var(--space-4); align-items: flex-end; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: var(--space-3);">
+                <input type="checkbox" name="only_deltas" id="only_deltas" value="true"
+                    {% if only_deltas %}checked{% endif %}
+                    style="width: 16px; height: 16px; accent-color: var(--accent-primary);">
+                <label for="only_deltas" style="font-size: 0.875rem; color: var(--text-secondary); cursor: pointer;">
+                    Show only new events
+                </label>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-3);">
+                <label for="limit_sel" style="font-size: 0.875rem; color: var(--text-secondary);">Show:</label>
+                <select name="limit" id="limit_sel"
+                    style="background: var(--bg-secondary); border: 1px solid var(--border-subtle); color: var(--text-primary); padding: 4px 8px; border-radius: var(--radius-sm); font-size: 0.875rem;">
+                    {% for n in [30, 60, 90] %}
+                    <option value="{{ n }}" {% if limit == n %}selected{% endif %}>{{ n }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-secondary" style="font-size: 0.875rem;">Apply</button>
+        </form>
+    </div>
+
+    <!-- Scan List -->
+    {% if scans %}
+    <div style="display: flex; flex-direction: column; gap: var(--space-4);">
+        {% for scan in scans %}
+        {% set sev = scan.severity_avg %}
+        {% if sev is not none %}
+            {% if sev >= 8 %}
+                {% set sev_color = 'var(--signal-negative)' %}
+                {% set sev_bg = 'rgba(220,38,38,0.12)' %}
+                {% set sev_label = 'High' %}
+            {% elif sev >= 5 %}
+                {% set sev_color = 'var(--signal-caution)' %}
+                {% set sev_bg = 'rgba(212,168,75,0.12)' %}
+                {% set sev_label = 'Medium' %}
+            {% else %}
+                {% set sev_color = 'var(--signal-positive)' %}
+                {% set sev_bg = 'rgba(16,185,129,0.12)' %}
+                {% set sev_label = 'Low' %}
+            {% endif %}
+        {% else %}
+            {% set sev_color = 'var(--text-muted)' %}
+            {% set sev_bg = 'rgba(255,255,255,0.04)' %}
+            {% set sev_label = 'N/A' %}
+        {% endif %}
+
+        <div class="card" style="border-left: 3px solid {{ sev_color }};">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: var(--space-3); margin-bottom: var(--space-4);">
+                <!-- Timestamp -->
+                <div style="display: flex; align-items: center; gap: var(--space-3);">
+                    <span style="font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-secondary);">
+                        {{ scan.timestamp[:19].replace('T', ' ') if scan.timestamp else '—' }}
+                    </span>
+                </div>
+
+                <!-- Badges -->
+                <div style="display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center;">
+                    <!-- Delta badge -->
+                    {% if scan.is_delta %}
+                    <span style="font-size: 0.6875rem; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-sm); background: rgba(99,102,241,0.18); color: #818cf8; border: 1px solid rgba(99,102,241,0.35); letter-spacing: 0.04em;">
+                        NEW
+                    </span>
+                    {% else %}
+                    <span style="font-size: 0.6875rem; padding: 2px 8px; border-radius: var(--radius-sm); background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid var(--border-hairline);">
+                        Unchanged
+                    </span>
+                    {% endif %}
+
+                    <!-- Severity badge -->
+                    <span style="font-size: 0.6875rem; font-weight: 600; padding: 2px 8px; border-radius: var(--radius-sm); background: {{ sev_bg }}; color: {{ sev_color }}; border: 1px solid {{ sev_color }}; opacity: 0.9;">
+                        {% if sev is not none %}Severity {{ "%.1f"|format(sev) }} — {{ sev_label }}{% else %}No Score{% endif %}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Collapsible raw summary -->
+            <details>
+                <summary style="cursor: pointer; font-size: 0.875rem; color: var(--text-secondary); user-select: none; list-style: none; display: flex; align-items: center; gap: var(--space-2);">
+                    <svg class="icon-svg" viewBox="0 0 24 24" style="width:14px;height:14px;transition:transform .2s;">
+                        <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                    <span>View full scan text</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted); margin-left: var(--space-2);">
+                        ({{ (scan.raw_summary or '')|length }} chars)
+                    </span>
+                </summary>
+                <div style="margin-top: var(--space-4); padding: var(--space-4); background: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border-hairline);">
+                    <pre style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary); white-space: pre-wrap; word-break: break-word; margin: 0; line-height: 1.6;">{{ scan.raw_summary or '(empty)' }}</pre>
+                </div>
+            </details>
+        </div>
+        {% endfor %}
+    </div>
+
+    {% else %}
+    <!-- Empty state -->
+    <div class="card" style="text-align: center; padding: var(--space-12) var(--space-6);">
+        <svg class="icon-svg" viewBox="0 0 24 24" style="width: 40px; height: 40px; margin: 0 auto var(--space-4); color: var(--text-muted);">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="2" y1="12" x2="22" y2="12" />
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+        </svg>
+        <p style="color: var(--text-muted); font-size: 0.875rem;">No geopolitical scans found{% if only_deltas %} matching the current filter{% endif %}.</p>
+        {% if only_deltas %}
+        <a href="/geo-history" class="btn btn-ghost" style="margin-top: var(--space-4); font-size: 0.875rem;">Show all scans</a>
+        {% endif %}
+    </div>
+    {% endif %}
+
+</div>
+
+<style>
+    details[open] > summary svg {
+        transform: rotate(90deg);
+    }
+    details > summary::-webkit-details-marker {
+        display: none;
+    }
+</style>
+{% endblock %}

@@ -499,6 +499,18 @@
 
 </div>
 
+<!-- Risk Score vs Geo-Risk Trend Chart -->
+<div class="card" style="margin-bottom:1.5rem;" id="risk-trend-card">
+    <div class="card-header">
+        <h3 class="card-title">Risk Score Trend</h3>
+        <span style="font-size:0.75rem;color:var(--text-muted);">Last 30 days</span>
+    </div>
+    <div class="card-body">
+        <canvas id="riskTrendChart" height="80"></canvas>
+        <p id="risk-trend-empty" style="display:none;color:var(--text-muted);font-size:0.875rem;text-align:center;padding:1.5rem 0;">No analysis history available for risk trend.</p>
+    </div>
+</div>
+
 <!-- Discovery History -->
 {% if discovery_history %}
 <div class="card" style="margin-bottom:1.5rem;">
@@ -536,6 +548,17 @@
     </div>
 </div>
 {% endif %}
+
+<!-- Corporate Actions Timeline (#43) -->
+<div class="card" style="margin-bottom:1.5rem;" id="corporate-actions-card">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h3 class="card-title">Corporate Actions</h3>
+        <span style="font-size:0.75rem;color:var(--text-muted);">Splits &amp; Dividends</span>
+    </div>
+    <div class="card-body" id="corp-actions-content">
+        <p style="color:var(--text-muted);font-size:0.875rem;">Loading…</p>
+    </div>
+</div>
 
 <!-- Notes -->
 <div class="card" style="margin-bottom:1.5rem;">
@@ -1126,5 +1149,106 @@
         .catch(() => {});
 
     loadPriceChart();
+
+    // Corporate Actions loader (#43)
+    (function() {
+        var ticker = '{{ ticker }}';
+        fetch('/api/stock/' + ticker + '/corporate-actions')
+            .then(r => r.json())
+            .then(data => {
+                var el = document.getElementById('corp-actions-content');
+                if (!el) return;
+                var actions = data.actions || [];
+                if (actions.length === 0) {
+                    el.innerHTML = '<p style="color:var(--text-muted);font-size:0.875rem;">No corporate actions on record. Run a refresh to fetch from yfinance.</p>';
+                    return;
+                }
+                var rows = actions.map(function(a) {
+                    var typeLabel = a.action_type === 'split' ? '📊 Split' :
+                                   a.action_type === 'dividend' ? '💰 Dividend' :
+                                   a.action_type === 'special_dividend' ? '💎 Special Div.' : a.action_type;
+                    var detail = a.action_type === 'split' ? (a.factor + ':1') :
+                                 a.amount ? ('$' + parseFloat(a.amount).toFixed(4) + '/share') : '';
+                    return '<tr><td style="font-family:var(--font-mono);font-size:0.8125rem;">' + a.action_date + '</td>' +
+                           '<td style="font-size:0.875rem;">' + typeLabel + '</td>' +
+                           '<td style="font-family:var(--font-mono);font-size:0.8125rem;">' + detail + '</td>' +
+                           '<td style="font-size:0.75rem;color:var(--text-muted);">' + (a.notes || '') + '</td></tr>';
+                }).join('');
+                el.innerHTML = '<table style="width:100%;border-collapse:collapse;">' +
+                    '<thead><tr>' +
+                    '<th style="text-align:left;padding:var(--space-2) var(--space-3);font-size:0.6875rem;color:var(--text-muted);">Date</th>' +
+                    '<th style="text-align:left;padding:var(--space-2) var(--space-3);font-size:0.6875rem;color:var(--text-muted);">Type</th>' +
+                    '<th style="text-align:left;padding:var(--space-2) var(--space-3);font-size:0.6875rem;color:var(--text-muted);">Detail</th>' +
+                    '<th style="text-align:left;padding:var(--space-2) var(--space-3);font-size:0.6875rem;color:var(--text-muted);">Notes</th>' +
+                    '</tr></thead><tbody>' + rows + '</tbody></table>';
+            })
+            .catch(function() {
+                var el = document.getElementById('corp-actions-content');
+                if (el) el.innerHTML = '<p style="color:var(--text-muted);font-size:0.875rem;">Could not load corporate actions.</p>';
+            });
+    })();
+
+    // Risk Score vs Geo-Risk Trend Chart
+    (function() {
+        var ticker = '{{ ticker }}';
+        fetch('/api/stock/' + ticker + '/risk-trend?days=30')
+            .then(function(r) { return r.json(); })
+            .then(function(resp) {
+                var data = resp.data || [];
+                if (data.length === 0) {
+                    document.getElementById('risk-trend-empty').style.display = '';
+                    document.getElementById('riskTrendChart').style.display = 'none';
+                    return;
+                }
+                var labels = data.map(function(d) { return d.timestamp ? d.timestamp.slice(0, 10) : ''; });
+                var riskScores = data.map(function(d) { return d.risk_score != null ? d.risk_score : null; });
+                var geoScores = data.map(function(d) { return d.geo_risk_score != null ? d.geo_risk_score : null; });
+
+                new Chart(document.getElementById('riskTrendChart'), {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Risk Score',
+                                data: riskScores,
+                                borderColor: '#d47272',
+                                backgroundColor: 'rgba(212,114,114,0.1)',
+                                pointRadius: 4,
+                                tension: 0.3,
+                                spanGaps: true
+                            },
+                            {
+                                label: 'Geo Risk Score',
+                                data: geoScores,
+                                borderColor: '#d4a84b',
+                                backgroundColor: 'rgba(212,168,75,0.1)',
+                                pointRadius: 4,
+                                tension: 0.3,
+                                spanGaps: true
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { labels: { color: '#888', boxWidth: 12 } }
+                        },
+                        scales: {
+                            x: { ticks: { color: '#888', maxRotation: 45 }, grid: { display: false } },
+                            y: {
+                                min: 0, max: 10,
+                                ticks: { color: '#888', stepSize: 2 },
+                                grid: { color: '#222' }
+                            }
+                        }
+                    }
+                });
+            })
+            .catch(function() {
+                document.getElementById('risk-trend-empty').style.display = '';
+                document.getElementById('riskTrendChart').style.display = 'none';
+            });
+    })();
 </script>
 {% endblock %}

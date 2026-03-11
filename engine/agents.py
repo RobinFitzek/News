@@ -6,6 +6,7 @@ No buy/sell signals — facts and context only.
 from clients.perplexity_client import pplx_client
 from clients.gemini_client import gemini_client
 from engine.quant_screener import quant_screener
+from engine.macro_tracker import macro_tracker
 import yfinance as yf
 from core.database import db
 import logging
@@ -163,6 +164,9 @@ Geopolitisches Umfeld:
 {analysis_result['geopolitical_context']}
 """
 
+        macro_block = macro_tracker.build_macro_context_block()
+        macro_section = f"\n{macro_block}\n" if macro_block else ""
+
         prompt = f"""Du bist ein Research-Analyst. Schreibe eine kurze Research-Notiz fuer {ticker}.
 
 Quantitative Daten:
@@ -173,7 +177,7 @@ Quantitative Daten:
 - Anomalien:
 {anomaly_text}
 - Quant Signal: {qm.get('signal', 'Neutral')} (Score: {qm.get('composite_score', 'N/A')}/100){insider_text}
-{geo_block}
+{geo_block}{macro_section}
 Aktuelle Nachrichten:
 {analysis_result.get('news', 'Keine Nachrichten verfuegbar')}
 

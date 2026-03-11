@@ -96,6 +96,106 @@
         </div>
     </div>
 
+    <!-- Auto-Trade Status Card (shown when auto-trade enabled) -->
+    <div id="auto-trade-card" style="display:none; margin-bottom:var(--space-8);">
+        <div class="card" style="border-left:3px solid var(--color-accent,#6366f1);">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:var(--space-5); flex-wrap:wrap; gap:var(--space-3);">
+                <div style="display:flex;align-items:center;gap:var(--space-3);">
+                    <span style="font-size:1rem;">⚡</span>
+                    <h3 style="margin:0;">Auto-Trade</h3>
+                    <span id="at-mode-badge" style="font-size:0.6875rem;padding:2px 8px;border-radius:999px;background:var(--surface-secondary);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">PAPER</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:var(--space-3);">
+                    <span id="at-pending-badge" style="display:none;font-size:0.75rem;padding:2px 10px;border-radius:999px;background:rgba(245,158,11,0.15);color:#f59e0b;cursor:pointer;" onclick="loadAutoPending()">
+                        ⏳ <span id="at-pending-count">0</span> pending
+                    </span>
+                    <a href="/settings#auto-trade" class="btn btn-ghost" style="font-size:0.75rem;">Configure</a>
+                </div>
+            </div>
+
+            <div class="grid grid-4" style="margin-bottom:var(--space-5);">
+                <div>
+                    <div style="font-size:0.625rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:var(--space-2);">Win Rate</div>
+                    <div id="at-win-rate" style="font-size:1.5rem;font-weight:300;font-family:var(--font-body);">—</div>
+                </div>
+                <div>
+                    <div style="font-size:0.625rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:var(--space-2);">Avg PnL</div>
+                    <div id="at-avg-pnl" style="font-size:1.5rem;font-weight:300;font-family:var(--font-body);">—</div>
+                </div>
+                <div>
+                    <div style="font-size:0.625rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:var(--space-2);">Total PnL</div>
+                    <div id="at-total-pnl" style="font-size:1.5rem;font-weight:300;font-family:var(--font-body);">—</div>
+                </div>
+                <div>
+                    <div style="font-size:0.625rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:var(--space-2);">Open / Max</div>
+                    <div id="at-open-count" style="font-size:1.5rem;font-weight:300;font-family:var(--font-body);">—</div>
+                </div>
+            </div>
+
+            <!-- Trust gate bar -->
+            <div id="at-trust-gate" style="padding:var(--space-3) var(--space-4);background:var(--surface-secondary);border-radius:var(--radius-md);font-size:0.75rem;color:var(--text-muted);">Loading…</div>
+        </div>
+    </div>
+
+    <!-- Auto-Trade Open Positions -->
+    <div id="auto-positions-section" style="display:none; margin-bottom:var(--space-8);">
+        <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-5);">
+                <h3 style="margin:0;">Auto-Trade Open Positions</h3>
+                <a href="/api/export/auto-trades" class="btn btn-ghost" style="font-size:0.75rem;">Export CSV</a>
+            </div>
+            <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;font-size:0.8125rem;" id="at-positions-table">
+                    <thead>
+                        <tr style="border-bottom:1px solid var(--border-light);">
+                            <th style="text-align:left;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Ticker</th>
+                            <th style="text-align:left;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Dir</th>
+                            <th style="text-align:left;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Entry Date</th>
+                            <th style="text-align:right;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Entry $</th>
+                            <th style="text-align:right;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Days</th>
+                            <th style="padding:var(--space-2) var(--space-3);"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="at-positions-body">
+                        <tr><td colspan="6" style="text-align:center;padding:var(--space-6);color:var(--text-muted);">Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Auto-Trade Log -->
+    <div id="auto-log-section" style="display:none; margin-bottom:var(--space-8);">
+        <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--space-5);">
+                <h3 style="margin:0;">Auto-Trade History</h3>
+                <div style="display:flex;gap:var(--space-2);align-items:center;">
+                    <span id="at-log-page-info" style="font-size:0.75rem;color:var(--text-muted);"></span>
+                    <button id="at-log-prev" class="btn btn-ghost" style="font-size:0.75rem;" onclick="loadAutoLog(autoLogPage-1)" disabled>←</button>
+                    <button id="at-log-next" class="btn btn-ghost" style="font-size:0.75rem;" onclick="loadAutoLog(autoLogPage+1)" disabled>→</button>
+                </div>
+            </div>
+            <div style="overflow-x:auto;">
+                <table style="width:100%;border-collapse:collapse;font-size:0.8125rem;">
+                    <thead>
+                        <tr style="border-bottom:1px solid var(--border-light);">
+                            <th style="text-align:left;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Date</th>
+                            <th style="text-align:left;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Ticker</th>
+                            <th style="text-align:left;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Dir</th>
+                            <th style="text-align:right;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Entry $</th>
+                            <th style="text-align:right;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Exit $</th>
+                            <th style="text-align:right;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">PnL %</th>
+                            <th style="text-align:left;padding:var(--space-2) var(--space-3);font-weight:500;color:var(--text-muted);font-size:0.6875rem;text-transform:uppercase;">Closed By</th>
+                        </tr>
+                    </thead>
+                    <tbody id="at-log-body">
+                        <tr><td colspan="7" style="text-align:center;padding:var(--space-6);color:var(--text-muted);">Loading…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <!-- Equity Curve Chart -->
     <div class="card" style="margin-bottom: var(--space-8);">
         <div
@@ -509,5 +609,199 @@
             document.getElementById('spy-correlation-content').innerHTML = html;
         })
         .catch(() => {});
+
+    // ── Auto-Trade UI ──────────────────────────────────────────────────
+    let autoLogPage = 1;
+
+    function daysSince(dateStr) {
+        if (!dateStr) return '—';
+        try {
+            const d = new Date(dateStr);
+            const diff = Math.floor((Date.now() - d.getTime()) / 86400000);
+            return diff === 0 ? 'today' : diff + 'd';
+        } catch { return '—'; }
+    }
+
+    function fmtDate(dateStr) {
+        if (!dateStr) return '—';
+        try { return new Date(dateStr).toLocaleDateString(); } catch { return dateStr; }
+    }
+
+    function pnlColor(pnl) {
+        if (pnl === null || pnl === undefined) return '';
+        return pnl >= 0 ? '#6bba7e' : '#d47272';
+    }
+
+    function closeReasonIcon(reason) {
+        return {take_profit: '✅', stop_loss: '❌', time_limit: '⏰', manual: '✋'}[reason] || '⚪';
+    }
+
+    function loadAutoStatus() {
+        fetch('/api/auto-trade/status', { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => {
+                if (!data.enabled) return; // card stays hidden
+
+                document.getElementById('auto-trade-card').style.display = 'block';
+                document.getElementById('auto-positions-section').style.display = 'block';
+                document.getElementById('auto-log-section').style.display = 'block';
+
+                const modeBadge = document.getElementById('at-mode-badge');
+                if (modeBadge) modeBadge.textContent = (data.mode || 'paper').toUpperCase();
+
+                const perf = data.performance || {};
+                const maxPos = 10; // fetched below via config but use summary as fallback
+
+                const winEl = document.getElementById('at-win-rate');
+                if (winEl) winEl.textContent = perf.win_rate_pct ? perf.win_rate_pct + '%' : '—';
+
+                const avgEl = document.getElementById('at-avg-pnl');
+                if (avgEl) {
+                    avgEl.textContent = perf.avg_pnl_pct !== undefined ? (perf.avg_pnl_pct >= 0 ? '+' : '') + perf.avg_pnl_pct + '%' : '—';
+                    avgEl.style.color = pnlColor(perf.avg_pnl_pct);
+                }
+
+                const totEl = document.getElementById('at-total-pnl');
+                if (totEl) {
+                    totEl.textContent = perf.total_pnl_pct !== undefined ? (perf.total_pnl_pct >= 0 ? '+' : '') + perf.total_pnl_pct + '%' : '—';
+                    totEl.style.color = pnlColor(perf.total_pnl_pct);
+                }
+
+                const openEl = document.getElementById('at-open-count');
+                if (openEl) openEl.textContent = (perf.open_positions || 0) + ' open';
+
+                const pendingCount = data.pending_count || 0;
+                const pendBadge = document.getElementById('at-pending-badge');
+                if (pendBadge) {
+                    if (pendingCount > 0) {
+                        pendBadge.style.display = 'inline';
+                        document.getElementById('at-pending-count').textContent = pendingCount;
+                    } else {
+                        pendBadge.style.display = 'none';
+                    }
+                }
+
+                // Trust gate bar
+                const tg = data.trust_gate || {};
+                const tgEl = document.getElementById('at-trust-gate');
+                if (tgEl) {
+                    const closed = tg.closed || 0;
+                    const needed = tg.needed_trades || 20;
+                    const pct = Math.min(100, Math.round((closed / needed) * 100));
+                    const trusted = tg.trusted;
+                    tgEl.innerHTML = `
+                        <div style="display:flex;justify-content:space-between;font-size:0.6875rem;margin-bottom:4px;">
+                            <span>${closed}/${needed} trades · Win rate: ${tg.win_rate_pct || 0}%</span>
+                            <span style="color:${trusted ? '#6bba7e' : 'var(--text-muted)'};">${trusted ? '🔓 Unlocked' : '🔒 Locked'}</span>
+                        </div>
+                        <div style="height:4px;background:var(--border-light);border-radius:2px;overflow:hidden;">
+                            <div style="height:100%;width:${pct}%;background:${trusted ? '#6bba7e' : '#f59e0b'};"></div>
+                        </div>`;
+                }
+
+                loadAutoPositions();
+                loadAutoLog(1);
+            })
+            .catch(() => {});
+    }
+
+    function loadAutoPositions() {
+        fetch('/api/auto-trade/positions', { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => {
+                const tbody = document.getElementById('at-positions-body');
+                if (!tbody) return;
+                const positions = data.positions || [];
+                if (positions.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:var(--space-6);color:var(--text-muted);">No open positions</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = positions.map(p => `
+                    <tr style="border-bottom:1px solid var(--border-light);">
+                        <td style="padding:var(--space-3);font-weight:500;">${p.ticker}</td>
+                        <td style="padding:var(--space-3);color:${p.direction === 'LONG' ? '#6bba7e' : '#d47272'};">${p.direction}</td>
+                        <td style="padding:var(--space-3);color:var(--text-muted);">${fmtDate(p.entry_date)}</td>
+                        <td style="padding:var(--space-3);text-align:right;font-family:var(--font-mono);">$${parseFloat(p.entry_price).toFixed(2)}</td>
+                        <td style="padding:var(--space-3);text-align:right;color:var(--text-muted);">${daysSince(p.entry_date)}</td>
+                        <td style="padding:var(--space-3);text-align:right;">
+                            <button class="btn btn-ghost" style="font-size:0.6875rem;padding:2px 8px;"
+                                onclick="closeAutoPosition(${p.id}, '${p.ticker}')">✕ Close</button>
+                        </td>
+                    </tr>`).join('');
+            })
+            .catch(() => {});
+    }
+
+    function closeAutoPosition(id, ticker) {
+        if (!confirm('Force-close ' + ticker + ' auto-trade position at current price?')) return;
+        fetch('/api/auto-trade/close/' + id, { method: 'POST', credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    loadAutoStatus();
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(() => alert('Request failed'));
+    }
+
+    function loadAutoLog(page) {
+        page = Math.max(1, page || 1);
+        fetch('/api/auto-trade/log?page=' + page, { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => {
+                autoLogPage = page;
+                const tbody = document.getElementById('at-log-body');
+                if (!tbody) return;
+                const trades = data.trades || [];
+
+                if (trades.length === 0 && page === 1) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:var(--space-6);color:var(--text-muted);">No closed trades yet</td></tr>';
+                } else {
+                    tbody.innerHTML = trades.map(t => {
+                        const pnl = t.pnl_pct !== null ? (t.pnl_pct * 100) : null;
+                        const pnlStr = pnl !== null ? (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '%' : '—';
+                        const icon = closeReasonIcon(t.close_reason);
+                        const rowBg = pnl === null ? '' : pnl >= 0 ? 'rgba(107,186,126,0.04)' : 'rgba(212,114,114,0.04)';
+                        return `<tr style="border-bottom:1px solid var(--border-light);background:${rowBg};">
+                            <td style="padding:var(--space-3);color:var(--text-muted);font-size:0.75rem;">${fmtDate(t.exit_date)}</td>
+                            <td style="padding:var(--space-3);font-weight:500;">${t.ticker}</td>
+                            <td style="padding:var(--space-3);color:${t.direction === 'LONG' ? '#6bba7e' : '#d47272'};">${t.direction}</td>
+                            <td style="padding:var(--space-3);text-align:right;font-family:var(--font-mono);">$${parseFloat(t.entry_price).toFixed(2)}</td>
+                            <td style="padding:var(--space-3);text-align:right;font-family:var(--font-mono);">${t.exit_price ? '$' + parseFloat(t.exit_price).toFixed(2) : '—'}</td>
+                            <td style="padding:var(--space-3);text-align:right;font-family:var(--font-mono);color:${pnlColor(pnl)};font-weight:500;">${pnlStr}</td>
+                            <td style="padding:var(--space-3);color:var(--text-muted);">${icon} ${t.close_reason || '—'}</td>
+                        </tr>`;
+                    }).join('');
+                }
+
+                // Pagination controls
+                const pageInfo = document.getElementById('at-log-page-info');
+                if (pageInfo) pageInfo.textContent = `Page ${page} of ${data.pages || 1} (${data.total || 0} total)`;
+                const prevBtn = document.getElementById('at-log-prev');
+                const nextBtn = document.getElementById('at-log-next');
+                if (prevBtn) prevBtn.disabled = page <= 1;
+                if (nextBtn) nextBtn.disabled = page >= (data.pages || 1);
+            })
+            .catch(() => {});
+    }
+
+    function loadAutoPending() {
+        fetch('/api/auto-trade/pending-confirm', { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => {
+                const pending = data.pending || [];
+                if (pending.length === 0) { alert('No pending confirmations.'); return; }
+                const msg = pending.map(p =>
+                    `${p.ticker} ${p.direction} — $${parseFloat(p.proposed_entry_price || 0).toFixed(2)}\nToken: ${p.token}`
+                ).join('\n\n');
+                alert('Pending confirmations:\n\n' + msg);
+            })
+            .catch(() => {});
+    }
+
+    // Load auto-trade data on page load
+    loadAutoStatus();
 </script>
 {% endblock %}
