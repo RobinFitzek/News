@@ -10,6 +10,10 @@
             <h1>Watchlist</h1>
             <p>Monitor and track your target securities</p>
         </div>
+        <button class="btn btn-ghost" onclick="document.getElementById('csv-import-modal').style.display='flex'" style="font-size:0.875rem;">
+            <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;margin-right:4px;vertical-align:middle;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Import from CSV
+        </button>
     </header>
 
     <!-- Add Stock -->
@@ -201,6 +205,36 @@
         {% endif %}
     </div>
 </div>
+
+<!-- CSV Import Modal (#30) -->
+<div id="csv-import-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;">
+    <div style="background:var(--bg-primary);border:1px solid var(--border-default);border-radius:var(--radius-lg);width:min(520px,95vw);padding:var(--space-8);position:relative;">
+        <button onclick="document.getElementById('csv-import-modal').style.display='none'" style="position:absolute;top:var(--space-4);right:var(--space-4);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1.25rem;">✕</button>
+        <h3 style="margin:0 0 var(--space-2) 0;">Import Watchlist from CSV</h3>
+        <p style="color:var(--text-muted);font-size:0.875rem;margin:0 0 var(--space-6) 0;">Supports IBKR, Degiro, and Schwab position export files. The file must contain a <code>Symbol</code>, <code>Ticker</code>, <code>Security</code>, or <code>Asset</code> column.</p>
+
+        <!-- Step 1: File picker -->
+        <div id="csv-step-upload">
+            <label style="display:block;margin-bottom:var(--space-3);font-size:0.875rem;font-weight:500;">Choose CSV file</label>
+            <input type="file" id="csv-file-input" accept=".csv,.txt" style="width:100%;margin-bottom:var(--space-4);">
+            <button class="btn btn-primary" onclick="csvPreview()" style="width:100%;">Parse File</button>
+            <div id="csv-parse-error" style="color:#d47272;font-size:0.8125rem;margin-top:var(--space-3);display:none;"></div>
+        </div>
+
+        <!-- Step 2: Preview -->
+        <div id="csv-step-preview" style="display:none;">
+            <p style="font-size:0.875rem;margin:0 0 var(--space-3) 0;" id="csv-preview-summary"></p>
+            <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border-hairline);border-radius:var(--radius-sm);padding:var(--space-3);margin-bottom:var(--space-5);">
+                <div id="csv-preview-list" style="display:flex;flex-wrap:wrap;gap:var(--space-2);"></div>
+            </div>
+            <div style="display:flex;gap:var(--space-3);">
+                <button class="btn btn-ghost" onclick="csvReset()" style="flex:1;">← Back</button>
+                <button class="btn btn-primary" onclick="csvImport()" style="flex:2;" id="csv-confirm-btn">Import All</button>
+            </div>
+            <div id="csv-import-status" style="font-size:0.8125rem;margin-top:var(--space-3);display:none;"></div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -239,5 +273,81 @@
                 .catch(function () { });
         });
     })();
+</script>
+<script>
+    // CSV Import (#30)
+    var _csvTickers = [];
+
+    function csvPreview() {
+        var fileInput = document.getElementById('csv-file-input');
+        var errEl = document.getElementById('csv-parse-error');
+        errEl.style.display = 'none';
+        if (!fileInput.files || !fileInput.files[0]) {
+            errEl.textContent = 'Please select a CSV file.';
+            errEl.style.display = 'block';
+            return;
+        }
+        var fd = new FormData();
+        fd.append('file', fileInput.files[0]);
+        fd.append('preview', '1');
+        fetch('/api/watchlist/import', { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function(r) { return r.ok ? r.json() : r.json().then(function(e) { throw new Error(e.detail || 'Parse error'); }); })
+            .then(function(data) {
+                _csvTickers = data.tickers || [];
+                document.getElementById('csv-preview-summary').textContent = 'Found ' + _csvTickers.length + ' ticker(s):';
+                var list = document.getElementById('csv-preview-list');
+                list.innerHTML = '';
+                _csvTickers.forEach(function(t) {
+                    var span = document.createElement('span');
+                    span.style.cssText = 'font-family:var(--font-mono);font-size:0.8125rem;background:var(--bg-secondary);border:1px solid var(--border-hairline);padding:2px 8px;border-radius:var(--radius-sm);';
+                    span.textContent = t;
+                    list.appendChild(span);
+                });
+                document.getElementById('csv-step-upload').style.display = 'none';
+                document.getElementById('csv-step-preview').style.display = 'block';
+            })
+            .catch(function(e) {
+                errEl.textContent = e.message;
+                errEl.style.display = 'block';
+            });
+    }
+
+    function csvReset() {
+        document.getElementById('csv-step-preview').style.display = 'none';
+        document.getElementById('csv-step-upload').style.display = 'block';
+        document.getElementById('csv-import-status').style.display = 'none';
+    }
+
+    function csvImport() {
+        var status = document.getElementById('csv-import-status');
+        var btn = document.getElementById('csv-confirm-btn');
+        btn.disabled = true;
+        btn.textContent = 'Importing…';
+        // Get CSRF token from any existing form on the page
+        var csrfToken = (document.querySelector('input[name="csrf_token"]') || {}).value || '';
+        var fd = new FormData();
+        var blob = new Blob([_csvTickers.join('\n')], {type: 'text/plain'});
+        fd.append('file', blob, 'tickers.csv');
+        fd.append('csrf_token', csrfToken);
+        fetch('/api/watchlist/import', { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                status.style.display = 'block';
+                status.style.color = '#6bba7e';
+                status.textContent = 'Added ' + (data.added || []).length + ' ticker(s). Skipped ' + (data.skipped || []).length + ' (already in watchlist).';
+                btn.disabled = false;
+                btn.textContent = 'Import All';
+                if ((data.added || []).length > 0) {
+                    setTimeout(function() { window.location.reload(); }, 1500);
+                }
+            })
+            .catch(function() {
+                status.style.display = 'block';
+                status.style.color = '#d47272';
+                status.textContent = 'Import failed. Please try again.';
+                btn.disabled = false;
+                btn.textContent = 'Import All';
+            });
+    }
 </script>
 {% endblock %}

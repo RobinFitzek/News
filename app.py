@@ -4105,6 +4105,193 @@ async def api_sector_screen(request: Request, username: str = Depends(require_au
     }
 
 
+# ==================== WATCHLIST CSV IMPORT (#30) ====================
+
+@app.post("/api/watchlist/import")
+async def watchlist_import_csv(
+    request: Request,
+    username: str = Depends(require_auth),
+):
+    """Import tickers from a broker CSV file (IBKR / Degiro / Schwab).
+
+    Accepts multipart/form-data with:
+      - file: the CSV file
+      - preview: "1" to only parse and return tickers without importing
+      - csrf_token: CSRF token (required when preview != "1")
+    """
+    import csv
+    import io
+    from fastapi import UploadFile, File as FastAPIFile
+
+    form = await request.form()
+    preview_mode = form.get("preview", "0") == "1"
+
+    if not preview_mode:
+        csrf.verify_token(request, form.get("csrf_token", ""))
+
+    uploaded = form.get("file")
+    if uploaded is None or not hasattr(uploaded, "read"):
+        raise HTTPException(status_code=400, detail="No CSV file provided")
+
+    raw_bytes = await uploaded.read()
+    try:
+        content = raw_bytes.decode("utf-8-sig")  # strip BOM if present
+    except UnicodeDecodeError:
+        content = raw_bytes.decode("latin-1")
+
+    reader = csv.DictReader(io.StringIO(content))
+    if reader.fieldnames is None:
+        raise HTTPException(status_code=400, detail="Could not parse CSV header")
+
+    fieldnames_lower = {f.strip().lower(): f for f in reader.fieldnames}
+
+    def pick(row: dict, *candidates: str):
+        for cand in candidates:
+            if cand in fieldnames_lower:
+                val = row.get(fieldnames_lower[cand], "").strip()
+                if val:
+                    return val
+        return ""
+
+    tickers = []
+    seen: set = set()
+    # Max realistic ticker length: 12 chars covers most global exchanges (e.g. BRK.B = 5, longest US ~5, LSE up to 12)
+    MAX_TICKER_LEN = 12
+    for row in reader:
+        # IBKR / Schwab: "Symbol"; Degiro newer formats also export "Symbol"
+        # Degiro older format uses "Produkt" (product description) — not a usable ticker, skipped
+        ticker = pick(row, "symbol", "ticker", "stock symbol", "security", "asset")
+        if not ticker:
+            continue
+        # Clean up: strip exchange suffix (e.g. "AAPL.US" -> "AAPL")
+        ticker = ticker.split(".")[0].upper()
+        if not ticker or len(ticker) > MAX_TICKER_LEN:
+            continue
+        if ticker not in seen:
+            seen.add(ticker)
+            tickers.append(ticker)
+
+    if not tickers:
+        raise HTTPException(status_code=400, detail="No recognizable ticker symbols found in CSV")
+
+    if preview_mode:
+        return {"tickers": tickers, "count": len(tickers)}
+
+    # Import tickers into watchlist
+    added, skipped = [], []
+    for t in tickers:
+        try:
+            existing = [w["ticker"] for w in db.get_watchlist(active_only=False)]
+            if t in existing:
+                skipped.append(t)
+            else:
+                db.add_to_watchlist(t, "")
+                added.append(t)
+        except Exception:
+            skipped.append(t)
+
+    return {"added": added, "skipped": skipped, "total": len(tickers)}
+
+
+# ==================== EXPORT (#36) ====================
+
+@app.get("/api/analysis/export.csv")
+async def export_analyses_csv(request: Request, username: str = Depends(require_auth)):
+    """Export all analysis_history rows as CSV (#36)."""
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+
+    analyses = db.get_analysis_history(limit=5000)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "ID", "Ticker", "Signal", "Confidence", "Timestamp",
+        "Recommendation", "Fundamental", "Technical", "Geo_Risk_Score",
+    ])
+    for a in analyses:
+        writer.writerow([
+            a.get("id", ""), a.get("ticker", ""), a.get("signal", ""),
+            a.get("confidence", ""), a.get("timestamp", ""),
+            (a.get("recommendation", "") or "")[:300],
+            (a.get("fundamental", "") or "")[:300],
+            (a.get("technical", "") or "")[:300],
+            a.get("geo_risk_score", ""),
+        ])
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=analysis_history.csv"},
+    )
+
+
+@app.get("/api/portfolio/export.csv")
+async def export_portfolio_csv(request: Request, username: str = Depends(require_auth)):
+    """Export paper trades with entry/exit and FIFO-based P&L as CSV (#36)."""
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+    from engine.portfolio_manager import portfolio_manager
+
+    trades = db.get_trades()
+    fifo_rows = {r["trade_id"]: r for r in portfolio_manager.calculate_fifo_pnl()}
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Date", "Type", "Ticker", "Shares", "Price", "Fees",
+        "Total", "FIFO_Cost_Basis", "Proceeds", "Realized_PnL", "Realized_PnL_Pct", "Notes",
+    ])
+    for t in trades:
+        tid = t.get("id")
+        fifo = fifo_rows.get(tid, {})
+        total = (t["amount"] * t["price"]) + t["fees"] if t["type"] == "BUY" else (t["amount"] * t["price"]) - t["fees"]
+        writer.writerow([
+            t["date"], t["type"], t["ticker"], t["amount"], t["price"], t["fees"],
+            round(total, 4),
+            fifo.get("fifo_cost_basis", ""),
+            fifo.get("proceeds", ""),
+            fifo.get("realized_pnl", ""),
+            fifo.get("realized_pnl_pct", ""),
+            t.get("notes", ""),
+        ])
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=portfolio_trades.csv"},
+    )
+
+
+@app.get("/report/weekly/pdf")
+async def report_weekly_pdf(request: Request, username: str = Depends(require_auth)):
+    """Render the weekly HTML report to PDF via WeasyPrint (#36)."""
+    from fastapi.responses import Response
+    from engine.report_generator import ReportGenerator
+
+    rg = ReportGenerator()
+    result = rg.generate_weekly_report()
+    html = result.get("html_content", "")
+    if not html:
+        raise HTTPException(status_code=500, detail=result.get("error", "Report generation failed"))
+
+    try:
+        from weasyprint import HTML as WeasyHTML
+        pdf_bytes = WeasyHTML(string=html).write_pdf()
+    except ImportError:
+        raise HTTPException(
+            status_code=501,
+            detail="PDF export requires weasyprint. Run: pip install weasyprint",
+        )
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=weekly_report.pdf"},
+    )
+
+
 # ==================== DATA FRESHNESS ====================
 
 @app.get("/api/data-freshness")
