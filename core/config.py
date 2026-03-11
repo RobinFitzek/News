@@ -113,6 +113,9 @@ DEFAULT_SETTINGS = {
     "active_hours_end": "22:00",
     "timezone": "Europe/Berlin",
     
+    # Site URL for email action links (e.g. auto-trade confirm/skip)
+    "site_url": "",
+
     # Notifications
     "email_enabled": False,
     "email_recipient": "",

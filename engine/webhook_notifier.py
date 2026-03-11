@@ -53,6 +53,35 @@ class TelegramNotifier:
             logger.error(f"Telegram send error: {e}")
             return False
 
+    def send_with_keyboard(self, message: str, buttons: list, parse_mode: str = "Markdown") -> bool:
+        """Send a Telegram message with an inline keyboard.
+
+        buttons is a list of rows, each row a list of dicts:
+          [[{"text": "✅ Approve", "callback_data": "at_approve:<token>"},
+            {"text": "❌ Skip",    "callback_data": "at_skip:<token>"}]]
+        """
+        if not self.enabled or not self.is_configured():
+            return False
+        try:
+            url = f"https://api.telegram.org/bot{self.token}/sendMessage"
+            payload = {
+                "chat_id": self.chat_id,
+                "text": message,
+                "parse_mode": parse_mode,
+                "disable_web_page_preview": True,
+                "reply_markup": {"inline_keyboard": buttons},
+            }
+            resp = requests.post(url, json=payload, timeout=10)
+            if resp.ok:
+                logger.info(f"Telegram keyboard message sent to {self.chat_id}")
+                return True
+            else:
+                logger.warning(f"Telegram keyboard API error: {resp.status_code} {resp.text[:200]}")
+                return False
+        except Exception as e:
+            logger.error(f"Telegram keyboard send error: {e}")
+            return False
+
     def test(self, token: str = None, chat_id: str = None) -> tuple:
         """Send a test message. Returns (success: bool, message: str)."""
         tok = token or self.token
@@ -182,6 +211,10 @@ class WebhookNotifier:
         sent |= self.telegram.send(message)
         sent |= self.discord.send(message)
         return sent
+
+    def send_with_inline_keyboard(self, message: str, buttons: list) -> bool:
+        """Send Telegram message with inline keyboard buttons (Telegram-only)."""
+        return self.telegram.send_with_keyboard(message, buttons)
 
     def any_configured(self) -> bool:
         return (

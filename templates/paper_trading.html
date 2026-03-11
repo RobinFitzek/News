@@ -381,9 +381,11 @@
     let equityChart = null;
 
     function loadEquityCurve(days) {
-        fetch(`/api/paper-trading/equity-curve?days=${days}`)
-            .then(r => r.json())
-            .then(data => {
+        // Fetch portfolio curve and auto-trade curve in parallel
+        Promise.all([
+            fetch(`/api/paper-trading/equity-curve?days=${days}`).then(r => r.json()),
+            fetch(`/api/auto-trade/equity-curve?days=${days}`).then(r => r.json()).catch(() => []),
+        ]).then(function([data, autoData]) {
                 const chartEl = document.getElementById('equity-chart');
                 const emptyEl = document.getElementById('equity-empty');
 
@@ -400,37 +402,64 @@
                 const portfolioData = data.map(d => d.portfolio_return_pct);
                 const spyData = data.map(d => d.spy_return_pct);
 
+                // Build auto-trade dataset aligned to portfolio labels
+                var autoMap = {};
+                if (autoData && autoData.length) {
+                    autoData.forEach(function(d) { autoMap[d.date] = d.cumulative_pnl_pct; });
+                }
+                var autoPoints = labels.map(function(d) {
+                    return autoMap.hasOwnProperty(d) ? autoMap[d] : null;
+                });
+                var hasAutoData = autoPoints.some(function(v) { return v !== null; });
+
                 if (equityChart) {
                     equityChart.destroy();
+                }
+
+                var datasets = [
+                    {
+                        label: 'Portfolio',
+                        data: portfolioData,
+                        borderColor: '#ffffff',
+                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                    },
+                    {
+                        label: 'SPY',
+                        data: spyData,
+                        borderColor: 'rgba(255, 255, 255, 0.3)',
+                        borderWidth: 1,
+                        borderDash: [5, 5],
+                        fill: false,
+                        tension: 0.3,
+                        pointRadius: 0,
+                    }
+                ];
+                if (hasAutoData) {
+                    datasets.push({
+                        label: '⚡ Auto-Trade',
+                        data: autoPoints,
+                        borderColor: '#f97316',
+                        backgroundColor: 'rgba(249, 115, 22, 0.08)',
+                        borderWidth: 2,
+                        borderDash: [4, 3],
+                        fill: false,
+                        tension: 0.3,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        spanGaps: true,
+                    });
                 }
 
                 equityChart = new Chart(chartEl, {
                     type: 'line',
                     data: {
                         labels: labels,
-                        datasets: [
-                            {
-                                label: 'Portfolio',
-                                data: portfolioData,
-                                borderColor: '#ffffff',
-                                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                                borderWidth: 2,
-                                fill: true,
-                                tension: 0.3,
-                                pointRadius: 0,
-                                pointHoverRadius: 4,
-                            },
-                            {
-                                label: 'SPY',
-                                data: spyData,
-                                borderColor: 'rgba(255, 255, 255, 0.3)',
-                                borderWidth: 1,
-                                borderDash: [5, 5],
-                                fill: false,
-                                tension: 0.3,
-                                pointRadius: 0,
-                            }
-                        ]
+                        datasets: datasets,
                     },
                     options: {
                         responsive: true,
@@ -487,6 +516,7 @@
             })
             .catch(err => console.error('Equity curve error:', err));
     }
+
 
     // Range buttons
     document.querySelectorAll('.equity-range').forEach(btn => {

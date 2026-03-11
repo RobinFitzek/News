@@ -650,9 +650,9 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 [x] create_pending_confirmation() + confirm_trade() in auto_paper_trader.py
 [x] POST /api/auto-trade/confirm/<token>, /skip/<token>
 [x] Scheduler: expire pending after 5 min (via run_auto_paper_exit)
-[ ] Telegram inline keyboard for Approve/Skip callbacks
-[ ] Email signed-URL confirm/skip links
-[ ] Dashboard signal card Auto-Execute button + state machine
+[x] Telegram inline keyboard for Approve/Skip callbacks
+[x] Email signed-URL confirm/skip links
+[x] Dashboard signal card Auto-Execute button + state machine
 ```
 
 **Phase 5 — Risk guards:**
@@ -679,10 +679,10 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Phase 7 — Observability:**
 ```
 [x] GET /api/export/auto-trades CSV
-[ ] Auto-trade line on equity curve chart
-[ ] Weekly letter auto-trade digest
-[ ] Dashboard auto-trade summary widget
-[ ] Telegram /autostatus command
+[x] Auto-trade line on equity curve chart
+[x] Weekly letter auto-trade digest
+[x] Dashboard auto-trade summary widget
+[x] Telegram /autostatus command
 ```
 
 ---
