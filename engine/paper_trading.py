@@ -95,12 +95,13 @@ class PaperTrader:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_paper_trades_status ON paper_trades(status)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_paper_snapshots_date ON paper_snapshots(snapshot_date)')
 
-        # Migrations: add slippage/commission columns
+        # Migrations: add slippage/commission columns + broker_value (Phase 6)
         migrations = [
             ("paper_settings", "slippage_pct", "REAL DEFAULT 0.1"),
             ("paper_settings", "commission", "REAL DEFAULT 0.0"),
             ("paper_trades", "slippage_cost", "REAL DEFAULT 0"),
             ("paper_trades", "commission_cost", "REAL DEFAULT 0"),
+            ("paper_snapshots", "broker_value", "REAL"),
         ]
         for table, col, col_type in migrations:
             try:

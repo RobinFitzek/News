@@ -2,23 +2,33 @@
 *.db
 *.db-shm
 *.db-wal
+*.db.backup
+*.sqlite
+*.sqlite3
 
 # Python
 __pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
+*.pyd
 venv/
 .venv/
 
 # Logs
 logs/*.log
+*.log
 
 # Environment
 .env
+.env.*
 
 # IDE
 .vscode/
 .idea/
+
+# Claude Code
+.claude/settings.local.json
 
 # OS
 .DS_Store
@@ -26,3 +36,15 @@ Thumbs.db
 
 # Certs
 certs/
+*.pem
+*.key
+*.crt
+__pycache__/
+*.pyc
+.claude/
+app.log
+logs/
+*.log
+core/__pycache__/
+engine/__pycache__/
+clients/__pycache__/

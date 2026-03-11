@@ -994,7 +994,336 @@ class Database:
         """, (service, encrypted_key, datetime.now()))
         conn.commit()
         conn.close()
+
+    # === Custom API Providers ===
+    def create_api_provider(self, name: str, provider_type: str, base_url: str,
+                            api_key: str, model: str, pipeline_role: str = None,
+                            monthly_budget_eur: float = 5.0, adapter_type: str = 'openai_compatible',
+                            extra_config: str = '{}', is_builtin: int = 0) -> Optional[int]:
+        """Create a custom API provider entry."""
+        try:
+            encrypted_key = encryption.encrypt(api_key) if api_key else None
+            normalized_budget = 5.0 if monthly_budget_eur is None else float(monthly_budget_eur)
+
+            cursor = self.execute("""
+                INSERT INTO api_providers
+                (name, provider_type, base_url, api_key, model, pipeline_role,
+                 monthly_budget_eur, enabled, adapter_type, extra_config, is_builtin, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+            """, (
+                (name or '').strip(),
+                (provider_type or 'llm').strip(),
+                (base_url or '').strip(),
+                encrypted_key,
+                (model or '').strip(),
+                (pipeline_role or '').strip() or None,
+                normalized_budget,
+                (adapter_type or 'openai_compatible').strip(),
+                extra_config or '{}',
+                int(is_builtin),
+                datetime.now(),
+            ))
+            return cursor.lastrowid if cursor else None
+        except Exception as e:
+            self.logger.error(f"Failed to create API provider: {e}")
+            return None
+
+    def _enrich_provider_row(self, row: dict, include_secret: bool = False) -> dict:
+        """Enrich a raw provider row with decrypted key and boolean fields."""
+        encrypted = row.get('api_key')
+        row['has_api_key'] = bool(encrypted)
+        if include_secret:
+            row['api_key'] = encryption.decrypt(encrypted) if encrypted else None
+        else:
+            row.pop('api_key', None)
+        row['enabled'] = bool(row.get('enabled'))
+        row['is_builtin'] = bool(row.get('is_builtin'))
+        row.setdefault('adapter_type', 'openai_compatible')
+        row.setdefault('extra_config', '{}')
+        return row
+
+    def get_api_providers(self, include_secrets: bool = False) -> List[Dict]:
+        """Return all providers sorted by name."""
+        rows = self.query("""
+            SELECT id, name, provider_type, base_url, api_key, model, pipeline_role,
+                   monthly_budget_eur, enabled, adapter_type, extra_config, is_builtin,
+                   created_at, updated_at
+            FROM api_providers
+            ORDER BY enabled DESC, is_builtin DESC, name ASC
+        """)
+        return [self._enrich_provider_row(dict(row), include_secret=include_secrets) for row in rows]
+
+    def get_api_provider(self, provider_id: int, include_secret: bool = False) -> Optional[Dict]:
+        """Get one provider by id."""
+        row = self.query_one("""
+            SELECT id, name, provider_type, base_url, api_key, model, pipeline_role,
+                   monthly_budget_eur, enabled, adapter_type, extra_config, is_builtin,
+                   created_at, updated_at
+            FROM api_providers
+            WHERE id = ?
+        """, (provider_id,))
+        if not row:
+            return None
+        return self._enrich_provider_row(dict(row), include_secret=include_secret)
+
+    def get_api_provider_by_name(self, name: str, include_secret: bool = False) -> Optional[Dict]:
+        """Get one provider by name."""
+        row = self.query_one("""
+            SELECT id, name, provider_type, base_url, api_key, model, pipeline_role,
+                   monthly_budget_eur, enabled, adapter_type, extra_config, is_builtin,
+                   created_at, updated_at
+            FROM api_providers
+            WHERE name = ?
+        """, (name,))
+        if not row:
+            return None
+        return self._enrich_provider_row(dict(row), include_secret=include_secret)
+
+    def update_api_provider(self, provider_id: int, name: str, provider_type: str,
+                            base_url: str, model: str, pipeline_role: str = None,
+                            monthly_budget_eur: float = 5.0, api_key: str = None,
+                            adapter_type: str = None, extra_config: str = None) -> bool:
+        """Update a provider. If api_key is empty/None, keep existing key."""
+        try:
+            normalized_budget = 5.0 if monthly_budget_eur is None else float(monthly_budget_eur)
+
+            params = [
+                (name or '').strip(),
+                (provider_type or 'llm').strip(),
+                (base_url or '').strip(),
+                (model or '').strip(),
+                (pipeline_role or '').strip() or None,
+                normalized_budget,
+                datetime.now(),
+            ]
+
+            set_clause = """name = ?, provider_type = ?, base_url = ?, model = ?,
+                        pipeline_role = ?, monthly_budget_eur = ?, updated_at = ?"""
+
+            if adapter_type is not None:
+                set_clause += ", adapter_type = ?"
+                params.append((adapter_type or 'openai_compatible').strip())
+
+            if extra_config is not None:
+                set_clause += ", extra_config = ?"
+                params.append(extra_config)
+
+            if api_key is not None and str(api_key).strip() != '':
+                encrypted_key = encryption.encrypt(str(api_key).strip())
+                set_clause += ", api_key = ?"
+                params.append(encrypted_key)
+
+            params.append(int(provider_id))
+            self.execute(f"""
+                UPDATE api_providers SET {set_clause} WHERE id = ?
+            """, tuple(params))
+
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to update API provider {provider_id}: {e}")
+            return False
+
+    def get_api_provider_for_role(self, pipeline_role: str) -> Optional[Dict]:
+        """Get provider for role: first check ai_stage_assignments, then fall back to pipeline_role column."""
+        # Check stage assignments table first
+        assignment = self.query_one("""
+            SELECT provider_id, fallback_provider_id FROM ai_stage_assignments
+            WHERE stage_name = ? AND enabled = 1
+        """, (pipeline_role,))
+        if assignment and assignment.get('provider_id'):
+            provider = self.get_api_provider(assignment['provider_id'], include_secret=True)
+            if provider and provider.get('enabled'):
+                return provider
+            # Try fallback
+            if assignment.get('fallback_provider_id'):
+                fallback = self.get_api_provider(assignment['fallback_provider_id'], include_secret=True)
+                if fallback and fallback.get('enabled'):
+                    return fallback
+
+        # Legacy: check pipeline_role column
+        row = self.query_one("""
+            SELECT id, name, provider_type, base_url, api_key, model, pipeline_role,
+                   monthly_budget_eur, enabled, adapter_type, extra_config, is_builtin,
+                   created_at, updated_at
+            FROM api_providers
+            WHERE enabled = 1 AND pipeline_role = ?
+            ORDER BY updated_at DESC, id DESC
+            LIMIT 1
+        """, (pipeline_role,))
+        if not row:
+            return None
+        return self._enrich_provider_row(dict(row), include_secret=True)
+
+    # === AI Stage Assignments ===
+    def get_stage_assignments(self) -> List[Dict]:
+        """Get all stage assignments with provider details."""
+        stages = [
+            'stage2_news', 'stage3_synthesis', 'discovery',
+            'insider_context', 'cycle_news', 'cycle_synthesis'
+        ]
+        result = []
+        for stage in stages:
+            row = self.query_one("""
+                SELECT stage_name, provider_id, fallback_provider_id, enabled
+                FROM ai_stage_assignments WHERE stage_name = ?
+            """, (stage,))
+            if row:
+                item = dict(row)
+            else:
+                item = {'stage_name': stage, 'provider_id': None, 'fallback_provider_id': None, 'enabled': 1}
+            # Attach provider names
+            if item.get('provider_id'):
+                p = self.get_api_provider(item['provider_id'])
+                item['provider_name'] = p['name'] if p else None
+            else:
+                item['provider_name'] = None
+            if item.get('fallback_provider_id'):
+                f = self.get_api_provider(item['fallback_provider_id'])
+                item['fallback_provider_name'] = f['name'] if f else None
+            else:
+                item['fallback_provider_name'] = None
+            result.append(item)
+        return result
+
+    def set_stage_assignment(self, stage_name: str, provider_id: int = None,
+                             fallback_provider_id: int = None, enabled: int = 1) -> bool:
+        """Set or update which provider handles a pipeline stage."""
+        try:
+            self.execute("""
+                INSERT INTO ai_stage_assignments (stage_name, provider_id, fallback_provider_id, enabled, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(stage_name) DO UPDATE SET
+                    provider_id = excluded.provider_id,
+                    fallback_provider_id = excluded.fallback_provider_id,
+                    enabled = excluded.enabled,
+                    updated_at = excluded.updated_at
+            """, (stage_name, provider_id, fallback_provider_id, enabled, datetime.now()))
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to set stage assignment for {stage_name}: {e}")
+            return False
+
+    def set_all_stages_to_provider(self, provider_id: int, fallback_provider_id: int = None) -> bool:
+        """Assign a single provider to ALL pipeline stages."""
+        stages = [
+            'stage2_news', 'stage3_synthesis', 'discovery',
+            'insider_context', 'cycle_news', 'cycle_synthesis'
+        ]
+        for stage in stages:
+            if not self.set_stage_assignment(stage, provider_id, fallback_provider_id):
+                return False
+        return True
+
+    def delete_api_provider(self, provider_id: int):
+        """Delete a custom provider."""
+        self.execute("DELETE FROM api_providers WHERE id = ?", (provider_id,))
+
+    def log_provider_call(self, provider_id: int, model: str,
+                          input_tokens: int = 0, output_tokens: int = 0,
+                          estimated_cost: float = 0.0):
+        """Log provider call into shared api_cost_log."""
+        month = datetime.now().strftime('%Y-%m')
+        today = datetime.now().strftime('%Y-%m-%d')
+        self.log_api_cost(
+            api=f"provider:{provider_id}",
+            model=model or 'unknown',
+            input_tokens=int(input_tokens or 0),
+            output_tokens=int(output_tokens or 0),
+            estimated_cost=float(estimated_cost or 0.0),
+            month=month,
+            date=today
+        )
+
+    def get_api_provider_usage(self, provider_id: int, monthly_budget_eur: float = 5.0) -> Dict:
+        """Get lightweight usage numbers for custom provider dashboard/status cards."""
+        today = datetime.now().strftime('%Y-%m-%d')
+        month = datetime.now().strftime('%Y-%m')
+        api_key = f"provider:{provider_id}"
+
+        used_today = self.get_api_request_count(api_key, today)
+        spent_usd = self.get_api_spending(api_key, month)
+
+        monthly_budget_eur = 5.0 if monthly_budget_eur is None else float(monthly_budget_eur)
+
+        # Free/unlimited mode: explicit 0 budget means "do not enforce budget-based cap"
+        if monthly_budget_eur <= 0:
+            daily_limit = 999999
+        else:
+            daily_limit = max(1, int((monthly_budget_eur * 100) / 30))
+
+        return {
+            'used_today': used_today,
+            'daily_limit': daily_limit,
+            'remaining': max(0, daily_limit - used_today),
+            'spent_eur': round(spent_usd, 4),
+        }
+
+    def get_enabled_api_provider_cards(self) -> List[Dict]:
+        """Return enabled custom providers with usage for dashboard/API status."""
+        cards = []
+        for provider in self.get_api_providers(include_secrets=False):
+            if not provider.get('enabled'):
+                continue
+            usage = self.get_api_provider_usage(
+                provider['id'],
+                monthly_budget_eur=provider.get('monthly_budget_eur', 5.0)
+            )
+            cards.append({
+                'id': provider['id'],
+                'name': provider['name'],
+                'model': provider.get('model', ''),
+                'pipeline_role': provider.get('pipeline_role'),
+                'used_today': usage['used_today'],
+                'daily_limit': usage['daily_limit'],
+                'remaining': usage['remaining'],
+                'is_configured': provider.get('has_api_key', False),
+            })
+        return cards
     
+    # === System Alerts ===
+    def raise_system_alert(self, alert_key: str, title: str, message: str,
+                           severity: str = 'error', service: str = None,
+                           action_url: str = None, action_label: str = None):
+        """Register or update a system alert (shown as banner on dashboard)."""
+        try:
+            self.execute("""
+                INSERT INTO system_alerts (alert_key, severity, title, message, service, action_url, action_label, created_at, dismissed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)
+                ON CONFLICT(alert_key) DO UPDATE SET
+                    severity = excluded.severity,
+                    title = excluded.title,
+                    message = excluded.message,
+                    service = excluded.service,
+                    action_url = excluded.action_url,
+                    action_label = excluded.action_label,
+                    created_at = CURRENT_TIMESTAMP,
+                    dismissed_at = NULL
+            """, (alert_key, severity, title, message, service, action_url, action_label))
+        except Exception as e:
+            self.logger.error(f"Failed to raise system alert: {e}")
+
+    def clear_system_alert(self, alert_key: str):
+        """Clear a system alert (service recovered)."""
+        try:
+            self.execute("DELETE FROM system_alerts WHERE alert_key = ?", (alert_key,))
+        except Exception as e:
+            self.logger.error(f"Failed to clear system alert: {e}")
+
+    def dismiss_system_alert(self, alert_key: str):
+        """Dismiss an alert (hide banner but keep record)."""
+        try:
+            self.execute(
+                "UPDATE system_alerts SET dismissed_at = CURRENT_TIMESTAMP WHERE alert_key = ?",
+                (alert_key,))
+        except Exception as e:
+            self.logger.error(f"Failed to dismiss system alert: {e}")
+
+    def get_active_system_alerts(self) -> List[Dict]:
+        """Get all active (non-dismissed) system alerts."""
+        return self.query(
+            "SELECT * FROM system_alerts WHERE dismissed_at IS NULL ORDER BY severity, created_at DESC"
+        )
+
     # === Watchlist ===
     def get_watchlist(self, active_only: bool = True) -> List[Dict]:
         conn = self._get_conn()

@@ -391,6 +391,15 @@ class InvestmentScheduler:
             replace_existing=True
         )
 
+        # Broker P&L Snapshot — every 15 min, market hours only, non-paper modes (Phase 6)
+        self.scheduler.add_job(
+            self.run_broker_pnl_snapshot,
+            IntervalTrigger(minutes=15),
+            id='broker_pnl_snapshot',
+            name='Broker P&L Snapshot',
+            replace_existing=True
+        )
+
         # Price alert check (every 15 min during market hours Mon–Fri)
         self.scheduler.add_job(
             self.check_price_alerts,
@@ -478,7 +487,10 @@ class InvestmentScheduler:
         """Stop the scheduler"""
         if not self.is_running:
             return
-        self.scheduler.shutdown()
+        self.scheduler.shutdown(wait=False)
+        # Create a fresh scheduler instance — the old executor's thread pool
+        # is permanently destroyed after shutdown() and cannot accept new jobs.
+        self.scheduler = BackgroundScheduler()
         self.is_running = False
         try:
             from clients.telegram_bot import telegram_bot
@@ -487,17 +499,52 @@ class InvestmentScheduler:
             pass
         print("Scheduler stopped")
     
+    @staticmethod
+    def _relative_time(dt) -> str:
+        """Return human-readable countdown like '2h 15m' or '45m'"""
+        from datetime import datetime, timezone
+        if dt is None:
+            return None
+        now = datetime.now(timezone.utc)
+        diff = (dt.astimezone(timezone.utc) - now).total_seconds()
+        if diff < 0:
+            return 'now'
+        days = int(diff // 86400)
+        hours = int((diff % 86400) // 3600)
+        minutes = int((diff % 3600) // 60)
+        if days > 0:
+            return f"{days}d {hours}h"
+        if hours > 0:
+            return f"{hours}h {minutes}m"
+        return f"{minutes}m"
+
     def get_status(self) -> dict:
         """Get scheduler status"""
+        from datetime import datetime, timezone
         jobs = []
         if self.is_running:
             for job in self.scheduler.get_jobs():
+                nrt = job.next_run_time
+                # compute seconds until next run for sorting and 'soon' flag
+                if nrt is not None:
+                    now = datetime.now(timezone.utc)
+                    secs = (nrt.astimezone(timezone.utc) - now).total_seconds()
+                else:
+                    secs = float('inf')
                 jobs.append({
                     "id": job.id,
                     "name": job.name,
-                    "next_run": str(job.next_run_time) if job.next_run_time else None
+                    "next_run": str(nrt) if nrt else None,
+                    "next_run_relative": self._relative_time(nrt),
+                    "next_run_formatted": nrt.strftime("%d.%m  %H:%M") if nrt else None,
+                    "soon": secs < 3600,
+                    "_secs": secs,
                 })
-        
+        # sort soonest first
+        jobs.sort(key=lambda j: j["_secs"])
+        for j in jobs:
+            del j["_secs"]
+
         return {
             "is_running": self.is_running,
             "is_scanning": self.is_scanning,
@@ -749,6 +796,26 @@ class InvestmentScheduler:
                 print(f"Broker Sync: {synced} positions synced from {mode.upper()}")
         except Exception as e:
             print(f"(Error) Broker sync failed: {e}")
+
+    def run_broker_pnl_snapshot(self):
+        """Store broker account equity in today's paper_snapshot row (Phase 6)."""
+        mode = (db.get_setting("auto_trade_mode") or "paper").lower()
+        if mode == "paper":
+            return
+        if not self.is_market_open():
+            return
+        try:
+            from clients.broker_client import get_broker_client
+            account = get_broker_client().get_account()
+            broker_equity = account.get("equity", 0)
+            today = datetime.now().strftime('%Y-%m-%d')
+            db.execute(
+                "UPDATE paper_snapshots SET broker_value = ? WHERE snapshot_date = ?",
+                (broker_equity, today)
+            )
+            print(f"Broker P&L Snapshot: equity ${broker_equity:,.2f} stored for {today}")
+        except Exception as e:
+            print(f"(Error) Broker P&L snapshot failed: {e}")
 
     def retrain_meta_labeler(self):
         """Retrain the Random Forest meta-labeler on graded signal outcomes."""
