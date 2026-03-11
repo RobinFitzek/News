@@ -827,6 +827,11 @@ async def save_settings(request: Request, username: str = Depends(require_auth))
     db.set_setting("scan_interval_hours", int(form.get("scan_interval_hours", 2)))
     db.set_setting("active_hours_start", form.get("active_hours_start", "08:00"))
     db.set_setting("active_hours_end", form.get("active_hours_end", "22:00"))
+    try:
+        trigger_pct = float(form.get("intraday_trigger_pct", 3.0))
+        db.set_setting("intraday_trigger_pct", max(0.5, min(20.0, trigger_pct)))
+    except (ValueError, TypeError):
+        pass
     
     # Email settings
     db.set_setting("email_enabled", form.get("email_enabled") == "on")
@@ -2952,6 +2957,14 @@ async def save_webhook_settings(
         db.set_setting("telegram_bot_token", form.get("telegram_bot_token", ""))
     if form.get("telegram_chat_id"):
         db.set_setting("telegram_chat_id", form.get("telegram_chat_id", ""))
+    bot_enabled = form.get("telegram_bot_enabled") == "on"
+    db.set_setting("telegram_bot_enabled", bot_enabled)
+    # Restart the bot polling thread to pick up the new setting
+    try:
+        from clients.telegram_bot import telegram_bot
+        telegram_bot.restart()
+    except Exception:
+        pass
     db.set_setting("discord_enabled", form.get("discord_enabled") == "on")
     if form.get("discord_webhook_url"):
         db.set_setting("discord_webhook_url", form.get("discord_webhook_url", ""))

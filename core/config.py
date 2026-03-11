@@ -174,6 +174,12 @@ DEFAULT_SETTINGS = {
 
     # Multi-Currency
     "display_currency": "USD",
+
+    # Intraday Breakout Auto-Trigger (#15)
+    "intraday_trigger_pct": 3.0,
+
+    # Two-way Telegram Bot (#14)
+    "telegram_bot_enabled": False,
 }
 
 # Web Server

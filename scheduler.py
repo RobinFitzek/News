@@ -457,13 +457,25 @@ class InvestmentScheduler:
         self.scheduler.start()
         self.is_running = True
         print(f"Scheduler started: Daily every {self.interval_hours}h, Weekly Sun 20:00, Monthly 28th 18:00")
-    
+
+        # Start two-way Telegram bot (if enabled)
+        try:
+            from clients.telegram_bot import telegram_bot
+            telegram_bot.start()
+        except Exception as e:
+            print(f"(Warning) Telegram bot failed to start: {e}")
+
     def stop(self):
         """Stop the scheduler"""
         if not self.is_running:
             return
         self.scheduler.shutdown()
         self.is_running = False
+        try:
+            from clients.telegram_bot import telegram_bot
+            telegram_bot.stop()
+        except Exception:
+            pass
         print("Scheduler stopped")
     
     def get_status(self) -> dict:
@@ -627,8 +639,9 @@ class InvestmentScheduler:
             if triggered:
                 print(f"Price alerts: {triggered} triggered out of {len(alerts)} active")
 
-            # Also scan watchlist for ±3% intraday breakouts → auto-analysis
-            self._check_intraday_breakouts()
+            # Also scan watchlist for intraday breakouts → auto-analysis
+            trigger_pct = float(db.get_setting('intraday_trigger_pct') or 3.0)
+            self._check_intraday_breakouts(threshold_pct=trigger_pct)
         except Exception as e:
             print(f"(Error) Price alert check failed: {e}")
 
