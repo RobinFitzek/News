@@ -553,7 +553,7 @@ async def api_signal_accuracy(username: str = Depends(require_auth)):
 
 @app.get("/api/paper-trading/auto")
 async def api_auto_paper_trading(username: str = Depends(require_auth)):
-    """Provides automated paper trading tracking."""
+    """Provides automated paper trading tracking (legacy endpoint)."""
     from engine.auto_paper_trader import auto_paper_trader
     try:
         return {
@@ -563,6 +563,148 @@ async def api_auto_paper_trading(username: str = Depends(require_auth)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+# ==================== AUTO-TRADE API ====================
+
+@app.get("/api/auto-trade/status")
+async def api_auto_trade_status(username: str = Depends(require_auth)):
+    from engine.auto_paper_trader import auto_paper_trader
+    try:
+        return auto_paper_trader.get_status()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/auto-trade/trust-gate")
+async def api_auto_trade_trust_gate(username: str = Depends(require_auth)):
+    from engine.auto_paper_trader import auto_paper_trader
+    try:
+        return auto_paper_trader.get_trust_gate()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/auto-trade/positions")
+async def api_auto_trade_positions(username: str = Depends(require_auth)):
+    from engine.auto_paper_trader import auto_paper_trader
+    try:
+        return {"positions": auto_paper_trader.get_open_positions()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/auto-trade/log")
+async def api_auto_trade_log(
+    page: int = 1,
+    username: str = Depends(require_auth)
+):
+    from engine.auto_paper_trader import auto_paper_trader
+    try:
+        trades = auto_paper_trader.get_trade_log(limit=20, page=page)
+        total = auto_paper_trader.get_trade_log_count()
+        return {"trades": trades, "total": total, "page": page, "pages": max(1, (total + 19) // 20)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/auto-trade/close/{trade_id}")
+async def api_auto_trade_close(
+    trade_id: int,
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    from engine.auto_paper_trader import auto_paper_trader
+    try:
+        result = auto_paper_trader.manual_close(trade_id)
+        audit_log.log("auto_trade_manual_close", username=username,
+                      ip=request.client.host, details=f"trade_id={trade_id}")
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/auto-trade/toggle")
+async def api_auto_trade_toggle(
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    from core.database import db as _db
+    current = _db.get_setting("auto_trade_enabled") or False
+    _db.set_setting("auto_trade_enabled", not current)
+    audit_log.log("auto_trade_toggle", username=username, ip=request.client.host,
+                  details=f"enabled={not current}")
+    return {"enabled": not current}
+
+@app.get("/api/auto-trade/pending-confirm")
+async def api_auto_trade_pending(username: str = Depends(require_auth)):
+    from engine.auto_paper_trader import auto_paper_trader
+    try:
+        return {"pending": auto_paper_trader.get_pending_confirmations()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/auto-trade/confirm/{token}")
+async def api_auto_trade_confirm(
+    token: str,
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    from engine.auto_paper_trader import auto_paper_trader
+    result = auto_paper_trader.confirm_trade(token)
+    if result.get("success"):
+        audit_log.log("auto_trade_confirmed", username=username,
+                      ip=request.client.host, details=f"token={token[:8]}…")
+    return result
+
+@app.post("/api/auto-trade/skip/{token}")
+async def api_auto_trade_skip(
+    token: str,
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    from engine.auto_paper_trader import auto_paper_trader
+    result = auto_paper_trader.skip_trade(token)
+    audit_log.log("auto_trade_skipped", username=username,
+                  ip=request.client.host, details=f"token={token[:8]}…")
+    return result
+
+@app.get("/api/auto-trade/risk-gate-status")
+async def api_auto_trade_risk_gate(username: str = Depends(require_auth)):
+    from engine.auto_paper_trader import auto_paper_trader
+    try:
+        return auto_paper_trader.get_risk_gate_status()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/export/auto-trades")
+async def export_auto_trades(username: str = Depends(require_auth)):
+    """CSV export of all auto paper trades."""
+    import csv, io
+    from fastapi.responses import StreamingResponse
+    from core.database import db as _db
+
+    rows = _db.query("""
+        SELECT id, ticker, direction, entry_date, entry_price,
+               exit_date, exit_price, pnl_pct, close_reason, status, blocked_reason
+        FROM auto_paper_trades
+        ORDER BY entry_date DESC
+    """)
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id", "ticker", "direction", "entry_date", "entry_price",
+                     "exit_date", "exit_price", "pnl_pct", "close_reason", "status", "blocked_reason"])
+    for row in (rows or []):
+        pnl = round(row['pnl_pct'] * 100, 2) if row['pnl_pct'] is not None else ""
+        writer.writerow([
+            row['id'], row['ticker'], row['direction'],
+            row['entry_date'], row['entry_price'],
+            row['exit_date'] or "", row['exit_price'] or "",
+            pnl, row['close_reason'] or "",
+            row['status'], row['blocked_reason'] or ""
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=auto_trades.csv"}
+    )
 
 # ==================== TRUTH BANNER ====================
 
@@ -944,11 +1086,31 @@ async def save_settings(request: Request, username: str = Depends(require_auth))
     except (ValueError, TypeError):
         db.set_setting("gemini_monthly_budget", 5.0)
     
+    # Auto-Trading settings
+    db.set_setting("auto_trade_enabled", form.get("auto_trade_enabled") == "on")
+    db.set_setting("auto_trade_mode", form.get("auto_trade_mode", "paper"))
+    db.set_setting("auto_trade_signal_filter", form.get("auto_trade_signal_filter", "STRONG"))
+    db.set_setting("auto_trade_require_confirm", form.get("auto_trade_require_confirm") == "on")
+    for key, default, lo, hi in [
+        ("auto_trade_take_profit_pct",    8.0,  1.0,  50.0),
+        ("auto_trade_stop_loss_pct",      4.0,  1.0,  25.0),
+        ("auto_trade_max_days_open",      30,   1,    90),
+        ("auto_trade_position_size_pct",  5.0,  1.0,  20.0),
+        ("auto_trade_max_open_positions", 10,   1,    50),
+        ("auto_trade_min_trust_trades",   20,   5,    200),
+        ("auto_trade_min_trust_win_rate", 55.0, 40.0, 80.0),
+    ]:
+        try:
+            val = float(form.get(key, default))
+            db.set_setting(key, max(lo, min(hi, val)))
+        except (ValueError, TypeError):
+            pass
+
     # Reload settings in services
     scheduler.reload_settings()
     notifications.reload_settings()
     budget_tracker.invalidate_cache()
-    
+
     return RedirectResponse(url="/settings?saved=1", status_code=303)
 
 

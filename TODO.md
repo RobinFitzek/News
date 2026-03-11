@@ -620,48 +620,48 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 
 **Phase 1 — Configurable core:**
 ```
-[ ] Add 10 auto_trade_* settings to core/config.py DEFAULT_SETTINGS
-[ ] Update auto_paper_trader.py: read all params from DB
-[ ] Add position_size_pct calculation + max_positions guard
-[ ] Add dedup guard (skip if ticker already open)
-[ ] Add get_trade_log() and manual_close() methods
-[ ] Wire process_new_signals() + check_open_positions() into scheduler
+[x] Add 10 auto_trade_* settings to core/config.py DEFAULT_SETTINGS
+[x] Update auto_paper_trader.py: read all params from DB
+[x] Add position_size_pct calculation + max_positions guard
+[x] Add dedup guard (skip if ticker already open)
+[x] Add get_trade_log() and manual_close() methods
+[x] Wire process_new_signals() + check_open_positions() into scheduler
 ```
 
 **Phase 2 — Settings UI:**
 ```
-[ ] Auto-Trade section in settings.html (all controls above)
-[ ] Mode selector with trust gate lock on broker options
-[ ] POST /settings/save-auto-trade
-[ ] GET /api/auto-trade/trust-gate
+[x] Auto-Trade section in settings.html (all controls above)
+[x] Mode selector with trust gate lock on broker options
+[x] POST /settings/save (extended with auto_trade_* params)
+[x] GET /api/auto-trade/trust-gate
 ```
 
 **Phase 3 — Paper trading page:**
 ```
-[ ] Auto-trade status card (mode, trust gate, open count, perf)
-[ ] Open auto-positions table with [×] close button
-[ ] Closed trade log table (paginated, color-coded)
-[ ] All /api/auto-trade/* endpoints (status, positions, log, close, toggle)
+[x] Auto-trade status card (mode, trust gate, open count, perf)
+[x] Open auto-positions table with [×] close button
+[x] Closed trade log table (paginated, color-coded)
+[x] All /api/auto-trade/* endpoints (status, positions, log, close, toggle)
 ```
 
 **Phase 4 — Confirmation flow:**
 ```
-[ ] auto_trade_pending table (DB migration)
-[ ] create_pending_confirmation() + confirm_trade() in auto_paper_trader.py
-[ ] POST /api/auto-trade/propose, /confirm/<token>, /skip/<token>
+[x] auto_trade_pending table (DB migration)
+[x] create_pending_confirmation() + confirm_trade() in auto_paper_trader.py
+[x] POST /api/auto-trade/confirm/<token>, /skip/<token>
+[x] Scheduler: expire pending after 5 min (via run_auto_paper_exit)
 [ ] Telegram inline keyboard for Approve/Skip callbacks
 [ ] Email signed-URL confirm/skip links
 [ ] Dashboard signal card Auto-Execute button + state machine
-[ ] Scheduler: expire pending after 5 min
 ```
 
 **Phase 5 — Risk guards:**
 ```
-[ ] _run_risk_gate(ticker, size_usd) method
-[ ] Gate checks: global loss, position concentration, sector, dedup, signal age
-[ ] Log blocked entries to auto_paper_trades (status='blocked', blocked_reason col)
-[ ] Gate summary in confirmation notification
-[ ] GET /api/auto-trade/risk-gate-status
+[x] _run_risk_gate(ticker, size_usd) method
+[x] Gate checks: global loss, position concentration, sector, dedup
+[x] Log blocked entries to auto_paper_trades (status='blocked', blocked_reason col)
+[x] Gate summary in confirmation notification
+[x] GET /api/auto-trade/risk-gate-status
 ```
 
 **Phase 6 — Real broker (⚠️ Opus):**
@@ -678,10 +678,10 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 
 **Phase 7 — Observability:**
 ```
+[x] GET /api/export/auto-trades CSV
 [ ] Auto-trade line on equity curve chart
 [ ] Weekly letter auto-trade digest
 [ ] Dashboard auto-trade summary widget
-[ ] GET /api/export/auto-trades CSV
 [ ] Telegram /autostatus command
 ```
 

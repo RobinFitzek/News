@@ -717,9 +717,10 @@ class InvestmentScheduler:
             print(f"(Error) Auto paper entry failed: {e}")
 
     def run_auto_paper_exit(self):
-        """Check open paper trades for exit conditions."""
+        """Check open paper trades for exit conditions and expire stale pending confirmations."""
         try:
             from engine.auto_paper_trader import auto_paper_trader
+            auto_paper_trader.expire_pending()
             exited = auto_paper_trader.check_open_positions()
             print(f"Auto Paper Trader: Exited {exited} positions.")
         except Exception as e:
