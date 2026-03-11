@@ -693,6 +693,31 @@
             </div>
             <div id="extended-hours-list"></div>
         </div>
+        {% endfor %}
+    </div>
+
+    <!-- Scheduled Jobs (if running) -->
+    {% if scheduler_status.jobs %}
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">Scheduled Jobs</div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 0.8125rem;">
+            <thead>
+                <tr style="border-bottom: 1px solid var(--border-hairline);">
+                    <th style="text-align: left; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em;">Job</th>
+                    <th style="text-align: right; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em;">In</th>
+                    <th style="text-align: right; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em;">Next Run</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in scheduler_status.jobs %}
+                <tr style="border-bottom: 1px solid var(--border-hairline); {% if job.soon %}background: rgba(16,185,129,0.04);{% endif %}">
+                    <td style="padding: var(--space-2) var(--space-3); color: var(--text-primary); font-weight: 500;">{{ job.name }}</td>
+                    <td style="padding: var(--space-2) var(--space-3); text-align: right; font-family: var(--font-mono); font-size: 0.75rem; {% if job.soon %}color: #10b981; font-weight: 600;{% else %}color: var(--text-muted);{% endif %}">{{ job.next_run_relative or '—' }}</td>
+                    <td style="padding: var(--space-2) var(--space-3); text-align: right; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">{{ job.next_run_formatted or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
 
     <!-- 52-Week Range (AJAX) -->

@@ -165,6 +165,13 @@ class EnhancedPerplexityClient:
                 self.logger.info(f"API call successful. Usage: {today_count}/{daily_limit} (${cost:.4f})")
                 print(f"  Perplexity: {today_count}/{daily_limit} today (${cost:.4f})")
 
+                # Clear any auth alert on success
+                try:
+                    from core.database import db
+                    db.clear_system_alert('perplexity_auth')
+                except Exception:
+                    pass
+
                 return content
 
             except requests.exceptions.Timeout:
@@ -187,8 +194,28 @@ class EnhancedPerplexityClient:
 
                 if status_code == 401:
                     print("  Perplexity API key invalid")
+                    try:
+                        from core.database import db
+                        db.raise_system_alert(
+                            'perplexity_auth',
+                            'Perplexity API Key Invalid',
+                            'The Perplexity API key is rejected (401 Unauthorized). News analysis is disabled until you update the key.',
+                            severity='error', service='perplexity',
+                            action_url='/settings', action_label='Update API Key')
+                    except Exception:
+                        pass
                 elif status_code == 403:
                     print("  Perplexity API access forbidden")
+                    try:
+                        from core.database import db
+                        db.raise_system_alert(
+                            'perplexity_auth',
+                            'Perplexity API Access Forbidden',
+                            'The Perplexity API returned 403 Forbidden. Check your plan or API key permissions.',
+                            severity='error', service='perplexity',
+                            action_url='/settings', action_label='Check API Key')
+                    except Exception:
+                        pass
                 elif status_code and status_code >= 500:
                     if attempt < max_retries - 1:
                         time.sleep(retry_delay * (attempt + 1))

@@ -22,11 +22,13 @@ from core.csrf import csrf
 from core.rate_limit import limiter
 from core.audit_log import audit_log
 from scheduler import scheduler
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from fastapi.responses import JSONResponse
 from engine.agents import swarm
 from clients.perplexity_client import pplx_client
 from clients.gemini_client import gemini_client
+from clients.custom_provider_client import custom_provider_client
+from clients.provider_registry import provider_registry, PROVIDER_SHORTCUTS, STAGE_INFO
 from core.budget_tracker import budget_tracker
 from engine.learning_optimizer import learning_optimizer
 from engine.staleness_tracker import staleness_tracker
@@ -43,7 +45,19 @@ templates = Jinja2Templates(env=jinja_env)
 
 # Configure rate limiter
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+async def _custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    """Redirect back with a friendly error instead of a raw JSON 429 page."""
+    referer = request.headers.get("referer", "/")
+    # Strip to path + query only (no external redirects)
+    from urllib.parse import urlparse, urlencode, parse_qs, urlunparse
+    parsed = urlparse(referer)
+    safe_back = parsed.path or "/"
+    msg = "Too+many+requests+%E2%80%94+please+wait+a+moment+before+trying+again"
+    sep = "&" if "?" in safe_back else "?"
+    return RedirectResponse(url=f"{safe_back}{sep}error={msg}", status_code=303)
+
+app.add_exception_handler(RateLimitExceeded, _custom_rate_limit_handler)
 
 # Mount static files directory
 from pathlib import Path
@@ -1157,38 +1171,88 @@ async def clear_kill_switch(request: Request, username: str = Depends(require_au
 
 @app.post("/settings/save")
 async def save_settings(request: Request, username: str = Depends(require_auth)):
-    """Save settings"""
+    """Save settings - supports per-section saving via _section marker"""
     form = await request.form()
     csrf.verify_token(request, form.get("csrf_token"))
 
+    # Determine which section(s) are being saved
+    section = form.get("_section", "")
+    save_all = not section
+
     # Scheduler settings
-    db.set_setting("scan_interval_hours", int(form.get("scan_interval_hours", 2)))
-    db.set_setting("active_hours_start", form.get("active_hours_start", "08:00"))
-    db.set_setting("active_hours_end", form.get("active_hours_end", "22:00"))
-    try:
-        trigger_pct = float(form.get("intraday_trigger_pct", 3.0))
-        db.set_setting("intraday_trigger_pct", max(0.5, min(20.0, trigger_pct)))
-    except (ValueError, TypeError):
-        pass
-    
+    if save_all or section == "scheduler":
+        db.set_setting("scan_interval_hours", int(form.get("scan_interval_hours", 2)))
+        db.set_setting("active_hours_start", form.get("active_hours_start", "08:00"))
+        db.set_setting("active_hours_end", form.get("active_hours_end", "22:00"))
+        try:
+            trigger_pct = float(form.get("intraday_trigger_pct", 3.0))
+            db.set_setting("intraday_trigger_pct", max(0.5, min(20.0, trigger_pct)))
+        except (ValueError, TypeError):
+            pass
+
+        # Auto-Discovery settings
+        db.set_setting("discovery_enabled", form.get("discovery_enabled") == "on")
+        db.set_setting("discovery_daily_time", form.get("discovery_daily_time", "06:00"))
+        db.set_setting("discovery_weekly_day", form.get("discovery_weekly_day", "wed"))
+        db.set_setting("discovery_weekly_time", form.get("discovery_weekly_time", "12:00"))
+        try:
+            db.set_setting("discovery_promotion_threshold", int(form.get("discovery_promotion_threshold", 55)))
+        except (ValueError, TypeError):
+            pass
+        try:
+            db.set_setting("discovery_max_promote_per_run", int(form.get("discovery_max_promote_per_run", 5)))
+        except (ValueError, TypeError):
+            pass
+        try:
+            db.set_setting("discovery_max_watchlist_size", int(form.get("discovery_max_watchlist_size", 50)))
+        except (ValueError, TypeError):
+            pass
+        all_strategies = ['volume_spike', 'breakout', 'oversold', 'sector_rotation', 'insider_buy', 'value_screen']
+        enabled_strategies = [s for s in all_strategies if form.get(f"strategy_{s}") == "on"]
+        if enabled_strategies:
+            db.set_setting("discovery_strategies", enabled_strategies)
+
+
     # Email settings
-    db.set_setting("email_enabled", form.get("email_enabled") == "on")
-    db.set_setting("email_recipient", form.get("email_recipient", ""))
-    db.set_setting("email_smtp_host", form.get("email_smtp_host", "smtp.gmail.com"))
-    db.set_setting("email_smtp_port", int(form.get("email_smtp_port", 587)))
-    db.set_setting("email_smtp_user", form.get("email_smtp_user", ""))
-    if form.get("email_smtp_password"):
-        db.set_setting("email_smtp_password", form.get("email_smtp_password"))
-    
-    db.set_setting("notify_on_strong_signals", form.get("notify_on_strong_signals") == "on")
-    db.set_setting("daily_summary_enabled", form.get("daily_summary_enabled") == "on")
-    db.set_setting("daily_summary_time", form.get("daily_summary_time", "20:00"))
-    
+    if save_all or section == "notifications":
+        db.set_setting("email_enabled", form.get("email_enabled") == "on")
+        db.set_setting("email_recipient", form.get("email_recipient", ""))
+        db.set_setting("email_smtp_host", form.get("email_smtp_host", "smtp.gmail.com"))
+        try:
+            db.set_setting("email_smtp_port", int(form.get("email_smtp_port") or 587))
+        except (ValueError, TypeError):
+            db.set_setting("email_smtp_port", 587)
+        db.set_setting("email_smtp_user", form.get("email_smtp_user", ""))
+        if form.get("email_smtp_password"):
+            db.set_setting("email_smtp_password", form.get("email_smtp_password"))
+        db.set_setting("notify_on_strong_signals", form.get("notify_on_strong_signals") == "on")
+        db.set_setting("daily_summary_enabled", form.get("daily_summary_enabled") == "on")
+        db.set_setting("daily_summary_time", form.get("daily_summary_time", "20:00"))
+
     # Analysis settings
-    db.set_setting("include_news", form.get("include_news") == "on")
-    db.set_setting("include_fundamental", form.get("include_fundamental") == "on")
-    db.set_setting("include_technical", form.get("include_technical") == "on")
-    db.set_setting("analysis_variant", form.get("analysis_variant", "balanced"))
+    if save_all or section == "analysis":
+        db.set_setting("include_news", form.get("include_news") == "on")
+        db.set_setting("include_fundamental", form.get("include_fundamental") == "on")
+        db.set_setting("include_technical", form.get("include_technical") == "on")
+        db.set_setting("analysis_variant", form.get("analysis_variant", "balanced"))
+
+        # Monthly API budgets (EUR)
+        try:
+            pplx_budget = float(form.get("perplexity_monthly_budget", 5.0))
+            db.set_setting("perplexity_monthly_budget", max(0, min(100, pplx_budget)))
+        except (ValueError, TypeError):
+            db.set_setting("perplexity_monthly_budget", 5.0)
+        try:
+            gemini_budget = float(form.get("gemini_monthly_budget", 5.0))
+            db.set_setting("gemini_monthly_budget", max(0, min(100, gemini_budget)))
+        except (ValueError, TypeError):
+            db.set_setting("gemini_monthly_budget", 5.0)
+
+        # Learning system settings
+        try:
+            db.set_setting("learning_verification_days", int(form.get("learning_verification_days", 90)))
+        except (ValueError, TypeError):
+            pass
 
     # Portfolio rule thresholds
     try:
@@ -1239,11 +1303,23 @@ async def save_settings(request: Request, username: str = Depends(require_auth))
     except (ValueError, TypeError):
         pass
 
-    # Learning system settings
-    try:
-        db.set_setting("learning_verification_days", int(form.get("learning_verification_days", 90)))
-    except (ValueError, TypeError):
-        pass
+    # Authentication lockout policy
+    if save_all or section == "security":
+        try:
+            max_failed = int(form.get("auth_max_failed_attempts", 5))
+            db.set_setting("auth_max_failed_attempts", max(3, min(20, max_failed)))
+        except (ValueError, TypeError):
+            pass
+        try:
+            attempt_window = int(form.get("auth_attempt_window_minutes", 15))
+            db.set_setting("auth_attempt_window_minutes", max(5, min(120, attempt_window)))
+        except (ValueError, TypeError):
+            pass
+        try:
+            lockout_minutes = int(form.get("auth_lockout_minutes", 15))
+            db.set_setting("auth_lockout_minutes", max(1, min(240, lockout_minutes)))
+        except (ValueError, TypeError):
+            pass
 
     # Auto-Discovery settings
     db.set_setting("discovery_enabled", form.get("discovery_enabled") == "on")
@@ -1410,12 +1486,213 @@ async def save_api_keys(request: Request, username: str = Depends(require_auth))
     if form.get("perplexity_key"):
         db.set_api_key("perplexity", form.get("perplexity_key"))
         pplx_client.api_key = form.get("perplexity_key")
-    
+        db.clear_system_alert('perplexity_auth')
+
     if form.get("gemini_key"):
         db.set_api_key("gemini", form.get("gemini_key"))
         gemini_client.reload_api_key(form.get("gemini_key"))
-    
+        db.clear_system_alert('gemini_auth')
+
     return RedirectResponse(url="/settings?saved=1", status_code=303)
+
+
+@app.get("/api/providers")
+async def api_get_providers(request: Request, username: str = Depends(require_auth)):
+    """List custom API providers and usage stats."""
+    providers = db.get_api_providers(include_secrets=False)
+    enriched = []
+    for provider in providers:
+        usage = db.get_api_provider_usage(
+            provider_id=provider['id'],
+            monthly_budget_eur=provider.get('monthly_budget_eur', 5.0),
+        )
+        item = dict(provider)
+        item.update(usage)
+        enriched.append(item)
+    return {"providers": enriched}
+
+
+@app.post("/api/providers")
+async def api_create_provider(request: Request, username: str = Depends(require_auth)):
+    """Create a custom OpenAI-compatible provider."""
+    payload = await request.json()
+
+    name = (payload.get('name') or '').strip()
+    provider_type = (payload.get('provider_type') or 'llm').strip()
+    base_url = (payload.get('base_url') or '').strip()
+    api_key = (payload.get('api_key') or '').strip()
+    model = (payload.get('model') or '').strip()
+    pipeline_role = (payload.get('pipeline_role') or '').strip() or None
+    adapter_type = (payload.get('adapter_type') or 'openai_compatible').strip()
+    monthly_budget_raw = payload.get('monthly_budget_eur', 5.0)
+    monthly_budget_eur = 5.0 if monthly_budget_raw is None else float(monthly_budget_raw)
+
+    if not name or not base_url or not model:
+        raise HTTPException(status_code=400, detail="name, base_url, model required")
+
+    provider_id = db.create_api_provider(
+        name=name,
+        provider_type=provider_type,
+        base_url=base_url,
+        api_key=api_key,
+        model=model,
+        pipeline_role=pipeline_role,
+        monthly_budget_eur=monthly_budget_eur,
+        adapter_type=adapter_type,
+    )
+    if not provider_id:
+        raise HTTPException(status_code=400, detail="Could not create provider (name may already exist)")
+
+    return {"id": provider_id, "status": "ok"}
+
+
+@app.put("/api/providers/{provider_id}")
+async def api_update_provider(provider_id: int, request: Request, username: str = Depends(require_auth)):
+    """Update an existing custom OpenAI-compatible provider."""
+    payload = await request.json()
+
+    existing = db.get_api_provider(provider_id, include_secret=False)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    name = (payload.get('name') or '').strip()
+    provider_type = (payload.get('provider_type') or 'llm').strip()
+    base_url = (payload.get('base_url') or '').strip()
+    api_key = (payload.get('api_key') or '').strip()
+    model = (payload.get('model') or '').strip()
+    pipeline_role = (payload.get('pipeline_role') or '').strip() or None
+    adapter_type = (payload.get('adapter_type') or 'openai_compatible').strip()
+    monthly_budget_raw = payload.get('monthly_budget_eur', 5.0)
+    monthly_budget_eur = 5.0 if monthly_budget_raw is None else float(monthly_budget_raw)
+
+    if not name or not base_url or not model:
+        raise HTTPException(status_code=400, detail="name, base_url, model required")
+
+    ok = db.update_api_provider(
+        provider_id=provider_id,
+        name=name,
+        provider_type=provider_type,
+        base_url=base_url,
+        model=model,
+        pipeline_role=pipeline_role,
+        monthly_budget_eur=monthly_budget_eur,
+        api_key=api_key if api_key else None,
+        adapter_type=adapter_type,
+    )
+
+    if not ok:
+        raise HTTPException(status_code=400, detail="Could not update provider")
+
+    return {"id": provider_id, "status": "ok"}
+
+
+@app.delete("/api/providers/{provider_id}")
+async def api_delete_provider(provider_id: int, request: Request, username: str = Depends(require_auth)):
+    """Delete a custom provider."""
+    db.delete_api_provider(provider_id)
+    return {"status": "ok"}
+
+
+@app.post("/api/providers/{provider_id}/test")
+async def api_test_provider(provider_id: int, request: Request, username: str = Depends(require_auth)):
+    """Test provider connectivity with a lightweight completion call."""
+    result = provider_registry.test_provider(provider_id)
+    if result.get("status") == "error" and result.get("error") == "provider_not_found":
+        raise HTTPException(status_code=404, detail="Provider not found")
+    return result
+
+# ==================== API KEY PEEK ====================
+
+@app.get("/api/api-key/peek/{service}")
+async def peek_api_key(service: str, request: Request, username: str = Depends(require_auth)):
+    """Return masked API key (first 4 + last 4 chars visible) — looks up by provider name."""
+    # Try provider by name first (works for any provider)
+    provider = db.get_api_provider_by_name(service, include_secret=True)
+    key = provider.get("api_key") if provider else None
+    # Fallback: legacy api_keys table for perplexity/gemini
+    if not key and service in ('perplexity', 'gemini'):
+        key = db.get_api_key(service)
+    if not key:
+        return {"service": service, "masked": None, "configured": False}
+    if len(key) <= 8:
+        masked = key[:2] + '*' * (len(key) - 2)
+    else:
+        masked = key[:4] + '*' * (len(key) - 8) + key[-4:]
+    return {"service": service, "masked": masked, "configured": True}
+
+# ==================== STAGE ASSIGNMENT API ====================
+
+@app.get("/api/stage-assignments")
+async def api_get_stage_assignments(request: Request, username: str = Depends(require_auth)):
+    """Get current pipeline stage → provider assignments."""
+    assignments_list = db.get_stage_assignments()
+    assignments = {a['stage_name']: a for a in assignments_list}
+    providers = db.get_api_providers(include_secrets=False)
+    return {"assignments": assignments, "providers": providers, "stage_info": STAGE_INFO}
+
+
+@app.post("/api/stage-assignments")
+async def api_set_stage_assignments(request: Request, username: str = Depends(require_auth)):
+    """Save pipeline stage → provider assignments."""
+    payload = await request.json()
+    mode = payload.get("mode", "per_stage")
+    if mode == "one_for_all":
+        provider_id = payload.get("provider_id")
+        fallback_id = payload.get("fallback_provider_id") or None
+        if provider_id:
+            db.set_all_stages_to_provider(int(provider_id), int(fallback_id) if fallback_id else None)
+    else:
+        for stage_name, data in payload.get("stages", {}).items():
+            pid = data.get("provider_id")
+            fid = data.get("fallback_provider_id")
+            db.set_stage_assignment(
+                stage_name,
+                int(pid) if pid else None,
+                int(fid) if fid else None,
+                bool(data.get("enabled", True)),
+            )
+    return {"status": "ok"}
+
+
+# ==================== SYSTEM ALERTS API ====================
+
+@app.post("/api/system-alert/dismiss")
+async def dismiss_system_alert(request: Request, username: str = Depends(require_auth)):
+    """Dismiss a system alert banner"""
+    data = await request.json()
+    alert_key = data.get('alert_key')
+    if alert_key:
+        db.dismiss_system_alert(alert_key)
+    return {"ok": True}
+
+@app.post("/api/system-alert/raise")
+async def raise_system_alert(request: Request, username: str = Depends(require_auth)):
+    """Programmatic endpoint for services to raise alerts"""
+    data = await request.json()
+    alert_key = data.get('alert_key')
+    title = data.get('title')
+    message = data.get('message')
+    if not alert_key or not title or not message:
+        raise HTTPException(status_code=400, detail="alert_key, title, message required")
+    db.raise_system_alert(
+        alert_key=alert_key,
+        title=title,
+        message=message,
+        severity=data.get('severity', 'error'),
+        service=data.get('service'),
+        action_url=data.get('action_url'),
+        action_label=data.get('action_label'),
+    )
+    return {"ok": True}
+
+@app.post("/api/system-alert/clear")
+async def clear_system_alert(request: Request, username: str = Depends(require_auth)):
+    """Programmatic endpoint for services to clear resolved alerts"""
+    data = await request.json()
+    alert_key = data.get('alert_key')
+    if alert_key:
+        db.clear_system_alert(alert_key)
+    return {"ok": True}
 
 # ==================== HISTORY ====================
 
@@ -1445,16 +1722,15 @@ async def geo_history_page(
         "limit": limit,
     })
 
-@app.get("/analysis/{analysis_id}", response_class=HTMLResponse)
+@app.get("/analysis/{analysis_id}")
 async def analysis_detail(request: Request, analysis_id: int, username: str = Depends(require_auth)):
-    """Single analysis detail"""
-    # Get analysis by ID
+    """Redirect legacy analysis detail URL to unified stock detail page."""
     conn = db._get_conn()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM analysis_history WHERE id = ?", (analysis_id,))
+    cursor.execute("SELECT ticker FROM analysis_history WHERE id = ?", (analysis_id,))
     row = cursor.fetchone()
     conn.close()
-    
+
     if not row:
         raise HTTPException(status_code=404, detail="Analysis not found")
 
@@ -1514,7 +1790,6 @@ async def stop_scheduler(
     return RedirectResponse(url="/", status_code=303)
 
 @app.post("/scheduler/run-now")
-@limiter.limit("3/hour")
 async def run_scan_now(
     request: Request,
     csrf_token: str = Form(...),
@@ -1527,12 +1802,9 @@ async def run_scan_now(
         # Log the scan attempt
         audit_log.log("manual_scan_triggered", username=username, ip=request.client.host, details={"source": "web_dashboard"})
 
-        # Check if APIs are configured
-        pplx_key = db.get_api_key("perplexity")
-        gemini_key = db.get_api_key("gemini")
-
-        if not gemini_key:
-            return RedirectResponse(url="/?message=error&detail=Gemini+API+not+configured", status_code=303)
+        # Check if any AI provider is configured
+        if not provider_registry.get_all_providers_with_status():
+            return RedirectResponse(url="/?message=error&detail=No+AI+provider+configured.+Add+one+in+Settings.", status_code=303)
 
         # Check watchlist
         watchlist = db.get_watchlist(active_only=True)
@@ -2492,6 +2764,18 @@ async def api_status(request: Request, username: str = Depends(require_auth)):
         "stale_analyses": stale_count,
     }
 
+@app.get("/api/scan-progress")
+async def api_scan_progress(request: Request, username: str = Depends(require_auth)):
+    """Real-time scan progress for dashboard status bar"""
+    from engine.scan_progress import scan_progress
+    return scan_progress.get_state()
+
+@app.get("/api/discovery-status")
+async def api_discovery_status(request: Request, username: str = Depends(require_auth)):
+    """Real-time discovery run status for discoveries page polling"""
+    from engine.auto_discovery import discovery_status
+    return discovery_status.get()
+
 @app.get("/api/budget")
 async def api_budget_status(request: Request, username: str = Depends(require_auth)):
     """API endpoint for budget status (used by dashboard AJAX)"""
@@ -3037,28 +3321,30 @@ async def health_check():
     except Exception as e:
         db_error = str(e)
     
-    # API connectivity
-    perplexity_configured = bool(db.get_api_key("perplexity"))
-    gemini_configured = bool(db.get_api_key("gemini"))
-    
+    # API connectivity — check any provider is configured
+    configured_providers = db.get_api_providers(include_secrets=False)
+    enabled_providers = [p for p in configured_providers if p.get("enabled")]
+    any_ai_configured = len(enabled_providers) > 0
+
     # Disk space
     disk = psutil.disk_usage('/')
     disk_warning = disk.percent > 80
-    
+
     # Learning system
     learning_stats = learning_optimizer.get_learning_stats()
-    
+
     status = {
-        "status": "healthy" if (db_healthy and perplexity_configured and gemini_configured and not disk_warning) else "degraded",
+        "status": "healthy" if (db_healthy and not disk_warning) else "degraded",
         "timestamp": datetime.now().isoformat(),
         "checks": {
             "database": {
                 "healthy": db_healthy,
                 "error": db_error if not db_healthy else None
             },
-            "api_keys": {
-                "perplexity": perplexity_configured,
-                "gemini": gemini_configured
+            "ai_providers": {
+                "count": len(enabled_providers),
+                "healthy": any_ai_configured,
+                "names": [p.get("name") for p in enabled_providers],
             },
             "scheduler": {
                 "running": scheduler.is_running,
@@ -4309,11 +4595,11 @@ def run_server():
 
     if ENABLE_HTTPS:
         if not CERT_FILE.exists() or not KEY_FILE.exists():
-            print("❌ HTTPS enabled but certificates not found!")
+            print("[ERROR] HTTPS enabled but certificates not found!")
             print(f"   Expected: {CERT_FILE} and {KEY_FILE}")
             return
 
-        print(f"🔒 HTTPS server starting on https://{WEB_HOST}:{WEB_PORT}")
+        print(f"[HTTPS] Server starting on https://{WEB_HOST}:{WEB_PORT}")
         uvicorn.run(
             app,
             host=WEB_HOST,
@@ -4323,8 +4609,8 @@ def run_server():
             log_level="warning"
         )
     else:
-        print(f"⚠️  HTTP server starting on http://{WEB_HOST}:{WEB_PORT}")
-        print("⚠️  Enable HTTPS in .env for secure connections!")
+        print(f"[WARNING] HTTP server starting on http://{WEB_HOST}:{WEB_PORT}")
+        print("[WARNING] Enable HTTPS in .env for secure connections!")
         uvicorn.run(app, host=WEB_HOST, port=WEB_PORT, log_level="warning")
 
 if __name__ == "__main__":

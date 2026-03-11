@@ -1,0 +1,1237 @@
+{% extends "base.html" %}
+
+{% block title %}System Architecture — Stockholm{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* ═══════════════════════════════════════════════════════
+       ARCHITECTURE PAGE — Editorial Pipeline Visualization
+       Nordisch Klar · Warm · Lesbar · Zeitlos
+       ═══════════════════════════════════════════════════════ */
+
+    .arch-page {
+        padding: var(--space-12) var(--space-8) var(--space-20);
+        max-width: 1640px;
+        margin: 0 auto;
+        min-height: 100vh;
+        position: relative;
+    }
+
+    /* ─── Hero ─────────────────────────────────────────── */
+    .arch-hero {
+        text-align: center;
+        margin-bottom: var(--space-16);
+        animation: page-reveal 0.8s var(--ease-dramatic, cubic-bezier(0.16, 1, 0.3, 1)) both;
+    }
+
+    .arch-hero-overline {
+        font-family: var(--font-mono, 'JetBrains Mono', monospace);
+        font-size: 0.6875rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--text-muted, #6b6560);
+        margin-bottom: var(--space-4);
+    }
+
+    .arch-hero h1 {
+        font-family: var(--font-display, 'Source Serif 4', serif);
+        font-size: clamp(2.25rem, 5vw, 3.75rem);
+        font-weight: 300;
+        color: var(--text-primary, #e8e4de);
+        letter-spacing: -0.025em;
+        margin: 0 0 var(--space-4);
+        line-height: 1.1;
+    }
+
+    .arch-hero-subtitle {
+        font-family: var(--font-body, 'DM Sans', sans-serif);
+        font-size: var(--text-base, 0.9375rem);
+        color: var(--text-secondary, #9a9590);
+        max-width: 540px;
+        margin: 0 auto var(--space-8);
+        line-height: 1.6;
+    }
+
+    /* ─── Legend ────────────────────────────────────────── */
+    .arch-legend {
+        display: flex;
+        justify-content: center;
+        gap: var(--space-3);
+        flex-wrap: wrap;
+    }
+
+    .arch-legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--font-mono, monospace);
+        font-size: 0.6875rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-muted, #6b6560);
+        padding: 6px 14px;
+        border: 1px solid var(--border-hairline, rgba(232,228,222,0.1));
+        background: var(--bg-secondary, #111114);
+        transition: all 0.25s ease;
+    }
+
+    .arch-legend-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        flex-shrink: 0;
+    }
+
+    /* ─── Pipeline Grid ────────────────────────────────── */
+    .arch-pipeline {
+        position: relative;
+    }
+
+    .arch-pipeline-inner {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: var(--space-5);
+        position: relative;
+        min-height: 400px;
+    }
+
+    /* Flow arrows between columns */
+    .arch-flow-arrows {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    /* ─── Layer Column ─────────────────────────────────── */
+    .arch-layer {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        position: relative;
+        z-index: 1;
+        opacity: 0;
+        animation: layer-enter 0.7s var(--ease-dramatic, cubic-bezier(0.16, 1, 0.3, 1)) both;
+    }
+
+    .arch-layer:nth-child(1) { animation-delay: 0.1s; }
+    .arch-layer:nth-child(2) { animation-delay: 0.22s; }
+    .arch-layer:nth-child(3) { animation-delay: 0.34s; }
+    .arch-layer:nth-child(4) { animation-delay: 0.46s; }
+    .arch-layer:nth-child(5) { animation-delay: 0.58s; }
+
+    @keyframes layer-enter {
+        from { opacity: 0; transform: translateY(24px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .layer-header {
+        padding: var(--space-4) var(--space-5);
+        margin-bottom: var(--space-3);
+        border-left: 2px solid var(--layer-color, #666);
+        display: flex;
+        align-items: baseline;
+        gap: var(--space-3);
+    }
+
+    .layer-header-name {
+        font-family: var(--font-mono, monospace);
+        font-size: 0.6875rem;
+        font-weight: 500;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--layer-color, #888);
+    }
+
+    .layer-header-count {
+        font-family: var(--font-mono, monospace);
+        font-size: 0.625rem;
+        color: var(--text-ghost, #3d3935);
+        letter-spacing: 0.05em;
+    }
+
+    .layer-header-num {
+        font-family: var(--font-display, 'Source Serif 4', serif);
+        font-size: 0.75rem;
+        font-weight: 400;
+        color: var(--text-ghost, #3d3935);
+        margin-right: 2px;
+        font-style: italic;
+    }
+
+    .layer-nodes {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    /* ─── Node Card ────────────────────────────────────── */
+    .arch-node {
+        position: relative;
+        padding: var(--space-4) var(--space-5);
+        background: var(--bg-secondary, #111114);
+        border: 1px solid transparent;
+        border-left: 2px solid rgba(255,255,255,0.03);
+        cursor: pointer;
+        transition: all 0.3s var(--ease-smooth, cubic-bezier(0.25, 0.1, 0.25, 1));
+        opacity: 0;
+        animation: node-enter 0.5s var(--ease-dramatic, cubic-bezier(0.16, 1, 0.3, 1)) both;
+        user-select: none;
+    }
+
+    @keyframes node-enter {
+        from { opacity: 0; transform: translateY(12px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .arch-node:hover {
+        background: var(--bg-tertiary, #16161a);
+        border-color: var(--border-hairline, rgba(232,228,222,0.1));
+        border-left-color: var(--node-color);
+        border-left-width: 2px;
+    }
+
+    .arch-node:active {
+        transform: scale(0.985);
+    }
+
+    .arch-node.active-node {
+        background: var(--bg-tertiary, #16161a);
+        border-color: var(--border-light, rgba(232,228,222,0.18));
+        border-left-color: var(--node-color);
+        border-left-width: 2px;
+        box-shadow: inset 0 0 40px -20px var(--node-color-bg);
+    }
+
+    .arch-node.dimmed {
+        opacity: 0.25;
+        transition: opacity 0.2s ease;
+    }
+
+    .arch-node-label {
+        font-family: var(--font-body, 'DM Sans', sans-serif);
+        font-size: var(--text-sm, 0.8125rem);
+        font-weight: 500;
+        color: var(--text-primary, #e8e4de);
+        margin-bottom: 3px;
+        line-height: 1.3;
+    }
+
+    .arch-node-meta {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        flex-wrap: wrap;
+    }
+
+    .arch-node-file {
+        font-family: var(--font-mono, monospace);
+        font-size: 0.625rem;
+        color: var(--text-ghost, #3d3935);
+        letter-spacing: 0.02em;
+    }
+
+    .arch-node-sep {
+        color: var(--text-ghost, #3d3935);
+        font-size: 0.5rem;
+    }
+
+    .arch-node-api {
+        font-family: var(--font-mono, monospace);
+        font-size: 0.625rem;
+        color: var(--node-color);
+        opacity: 0.6;
+        letter-spacing: 0.02em;
+    }
+
+    /* Subtle glow line at top of each node on hover */
+    .arch-node::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, var(--node-color) 0%, transparent 100%);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+
+    .arch-node:hover::before,
+    .arch-node.active-node::before {
+        opacity: 0.3;
+    }
+
+    /* ─── SVG Connections ──────────────────────────────── */
+    .arch-connections {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        overflow: visible;
+    }
+
+    .arch-connections path {
+        fill: none;
+        stroke: rgba(232, 228, 222, 0.06);
+        stroke-width: 1;
+        transition: stroke 0.3s ease, stroke-width 0.3s ease, opacity 0.3s ease;
+    }
+
+    .arch-connections path.edge-dashed {
+        stroke-dasharray: 5 4;
+    }
+
+    .arch-connections path.edge-highlighted {
+        stroke: var(--edge-color, rgba(232, 228, 222, 0.25));
+        stroke-width: 1.5;
+        opacity: 1;
+    }
+
+    .arch-connections path.edge-dimmed {
+        opacity: 0.3;
+    }
+
+    /* ─── Click hint ───────────────────────────────────── */
+    .arch-click-hint {
+        text-align: center;
+        margin-bottom: var(--space-8);
+        font-family: var(--font-body, 'DM Sans', sans-serif);
+        font-size: var(--text-sm, 0.8125rem);
+        color: var(--text-ghost, #3d3935);
+        letter-spacing: 0.02em;
+        animation: hint-pulse 3s ease-in-out infinite;
+        transition: opacity 0.5s ease;
+    }
+
+    .arch-click-hint.hidden {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    @keyframes hint-pulse {
+        0%, 100% { opacity: 0.4; }
+        50% { opacity: 0.8; }
+    }
+
+    /* ─── Modal Overlay ────────────────────────────────── */
+    .arch-modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(10, 10, 12, 0.88);
+        backdrop-filter: blur(30px);
+        -webkit-backdrop-filter: blur(30px);
+        z-index: 9999;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.35s var(--ease-smooth, ease);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .arch-modal-overlay.active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .arch-modal {
+        width: 92%;
+        max-width: 1100px;
+        height: 82vh;
+        max-height: 700px;
+        background: var(--bg-secondary, #111114);
+        border: 1px solid var(--border-hairline, rgba(232,228,222,0.1));
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        transform: scale(0.96) translateY(16px);
+        transition: transform 0.4s var(--ease-dramatic, cubic-bezier(0.16, 1, 0.3, 1));
+    }
+
+    .arch-modal-overlay.active .arch-modal {
+        transform: scale(1) translateY(0);
+    }
+
+    /* Modal Header */
+    .modal-header {
+        padding: var(--space-8) var(--space-8) var(--space-5);
+        border-bottom: 1px solid var(--border-hairline, rgba(232,228,222,0.1));
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        gap: var(--space-6);
+        position: relative;
+        flex-wrap: wrap;
+    }
+
+    .modal-title-group {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .node-type-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        font-family: var(--font-mono, monospace);
+        font-size: 0.625rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: var(--space-3);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .badge-data { background: rgba(56, 152, 255, 0.08); color: #8bb4f7; border-color: rgba(56, 152, 255, 0.15); }
+    .badge-quant { background: rgba(181, 105, 255, 0.08); color: #d0a5ff; border-color: rgba(181, 105, 255, 0.15); }
+    .badge-ai { background: rgba(255, 184, 77, 0.08); color: #ffd699; border-color: rgba(255, 184, 77, 0.15); }
+    .badge-exec { background: rgba(46, 204, 113, 0.08); color: #8bedb4; border-color: rgba(46, 204, 113, 0.15); }
+    .badge-risk { background: rgba(255, 77, 77, 0.08); color: #ff9999; border-color: rgba(255, 77, 77, 0.15); }
+
+    .node-title {
+        font-family: var(--font-display, 'Source Serif 4', serif);
+        font-size: clamp(1.5rem, 3vw, 2.5rem);
+        font-weight: 300;
+        color: var(--text-primary, #eee);
+        margin: 0 0 0.35rem 0;
+        letter-spacing: -0.02em;
+    }
+
+    .node-file {
+        font-family: var(--font-mono, monospace);
+        color: var(--text-ghost, #3d3935);
+        font-size: 0.75rem;
+    }
+
+    .node-file span { color: var(--text-ghost, #3d3935); }
+
+    /* Modal Tabs */
+    .modal-tabs {
+        display: flex;
+        gap: 2px;
+        background: var(--bg-primary, #0c0c0e);
+        padding: 3px;
+        border: 1px solid var(--border-hairline, rgba(232,228,222,0.1));
+        flex-shrink: 0;
+    }
+
+    .modal-tab {
+        padding: 8px 18px;
+        color: var(--text-muted, #6b6560);
+        font-family: var(--font-mono, monospace);
+        font-size: 0.6875rem;
+        font-weight: 400;
+        letter-spacing: 0.03em;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: none;
+        background: none;
+        white-space: nowrap;
+    }
+
+    .modal-tab:hover { color: var(--text-secondary, #9a9590); }
+
+    .modal-tab.active {
+        background: var(--bg-tertiary, #16161a);
+        color: var(--text-primary, #e8e4de);
+    }
+
+    /* Modal Body */
+    .modal-body {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .modal-stage {
+        position: absolute;
+        inset: 0;
+        padding: var(--space-8);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+        overflow-y: auto;
+        display: flex;
+        gap: var(--space-8);
+    }
+
+    .modal-stage.active {
+        opacity: 1;
+        pointer-events: all;
+    }
+
+    .stage-text {
+        flex: 1;
+        font-family: var(--font-body, 'DM Sans', sans-serif);
+        font-size: var(--text-base, 0.9375rem);
+        line-height: 1.7;
+        color: var(--text-secondary, #9a9590);
+        max-width: 520px;
+    }
+
+    .stage-text p { margin-bottom: 1.25rem; }
+    .stage-text strong { color: var(--text-primary, #eee); font-weight: 500; }
+    .stage-text h3 {
+        font-family: var(--font-display, 'Source Serif 4', serif);
+        font-size: 1.25rem;
+        font-weight: 400;
+        color: var(--text-primary, #eee);
+        margin: 0 0 var(--space-4);
+        letter-spacing: -0.01em;
+    }
+    .stage-text code {
+        font-family: var(--font-mono, monospace);
+        font-size: 0.8125rem;
+        background: var(--bg-primary, #0c0c0e);
+        padding: 2px 6px;
+        border: 1px solid var(--border-hairline, rgba(232,228,222,0.1));
+    }
+
+    .stage-visual {
+        flex: 1.2;
+        background: var(--bg-primary, #0c0c0e);
+        border: 1px solid var(--border-hairline, rgba(232,228,222,0.1));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+        min-height: 200px;
+    }
+
+    /* Terminal styling */
+    .mock-terminal {
+        width: 100%;
+        height: 100%;
+        padding: var(--space-6);
+        font-family: var(--font-mono, monospace);
+        font-size: 0.8rem;
+        color: #a8c7fa;
+        background: var(--bg-primary, #0c0c0e);
+        white-space: pre-wrap;
+        overflow-y: auto;
+        line-height: 1.65;
+    }
+
+    .term-keyword { color: #ff7b72; }
+    .term-string { color: #a5d6ff; }
+    .term-comment { color: #8b949e; }
+    .term-function { color: #d2a8ff; }
+
+    /* Math visuals */
+    .math-viz-container {
+        width: 100%;
+        height: 100%;
+        position: relative;
+        background: var(--bg-primary, #0c0c0e);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+    }
+
+    .bell-curve {
+        width: 80%;
+        height: 50%;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        position: relative;
+    }
+
+    .curve-path {
+        position: absolute;
+        bottom: 0;
+        width: 100%;
+        height: 100%;
+        background: url('data:image/svg+xml;utf8,<svg preserveAspectRatio="none" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><path d="M0,100 C20,100 35,0 50,0 C65,0 80,100 100,100" fill="none" stroke="rgba(181, 105, 255, 0.7)" stroke-width="2"/></svg>') no-repeat;
+        background-size: 100% 100%;
+    }
+
+    .z-score-line {
+        position: absolute;
+        bottom: 0;
+        width: 1px;
+        height: 80%;
+        background: #2ecc71;
+        left: 85%;
+        box-shadow: 0 0 12px #2ecc71;
+    }
+
+    .z-score-label {
+        position: absolute;
+        top: -28px;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #2ecc71;
+        font-family: var(--font-mono, monospace);
+        font-size: 0.75rem;
+        font-weight: 500;
+        background: rgba(0, 0, 0, 0.5);
+        padding: 3px 7px;
+        white-space: nowrap;
+    }
+
+    .math-formula {
+        margin-top: 2.5rem;
+        font-family: var(--font-display, 'Source Serif 4', serif);
+        font-size: 1.75rem;
+        font-style: italic;
+        color: var(--text-primary, #eee);
+        letter-spacing: 2px;
+    }
+
+    /* Close button */
+    .close-btn {
+        position: absolute;
+        top: var(--space-5);
+        right: var(--space-5);
+        background: transparent;
+        border: 1px solid var(--border-hairline, rgba(232,228,222,0.1));
+        color: var(--text-muted, #6b6560);
+        cursor: pointer;
+        padding: 10px;
+        transition: all 0.2s ease;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 0;
+    }
+
+    .close-btn:hover {
+        background: var(--bg-tertiary, #16161a);
+        color: var(--text-primary, #eee);
+        border-color: var(--border-light, rgba(232,228,222,0.18));
+    }
+
+    .close-btn svg {
+        width: 18px;
+        height: 18px;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    /* ─── Responsive ───────────────────────────────────── */
+    @media (max-width: 1280px) {
+        .arch-pipeline-inner {
+            grid-template-columns: repeat(5, minmax(220px, 1fr));
+            overflow-x: auto;
+            padding-bottom: var(--space-4);
+            -webkit-overflow-scrolling: touch;
+        }
+    }
+
+    @media (max-width: 1024px) {
+        .arch-page {
+            padding: var(--space-8) var(--space-5) var(--space-16);
+        }
+
+        .arch-pipeline-inner {
+            grid-template-columns: repeat(5, 240px);
+        }
+
+        .modal-header {
+            padding: var(--space-6);
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .modal-stage {
+            flex-direction: column;
+            padding: var(--space-6);
+        }
+
+        .stage-text { max-width: 100%; }
+        .stage-visual { min-height: 280px; }
+    }
+
+    @media (max-width: 768px) {
+        .arch-pipeline-inner {
+            grid-template-columns: 1fr;
+            gap: var(--space-6);
+        }
+
+        .arch-connections { display: none; }
+
+        .arch-hero { margin-bottom: var(--space-10); }
+
+        .layer-header {
+            border-left-width: 3px;
+            padding: var(--space-3) var(--space-4);
+        }
+
+        .modal-tabs {
+            flex-wrap: wrap;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="arch-page">
+    <!-- Hero Section -->
+    <div class="arch-hero">
+        <div class="arch-hero-overline">Stockholm Engine</div>
+        <h1>System Architecture</h1>
+        <p class="arch-hero-subtitle">
+            Five autonomous layers process market data through quantitative models,
+            AI intelligence, and risk management — operating as a unified pipeline.
+        </p>
+        <div class="arch-legend">
+            <div class="arch-legend-item">
+                <div class="arch-legend-dot" style="background:#5588ff; box-shadow: 0 0 6px #5588ff;"></div>
+                Data
+            </div>
+            <div class="arch-legend-item">
+                <div class="arch-legend-dot" style="background:#b569ff; box-shadow: 0 0 6px #b569ff;"></div>
+                Quant
+            </div>
+            <div class="arch-legend-item">
+                <div class="arch-legend-dot" style="background:#f39c12; box-shadow: 0 0 6px #f39c12;"></div>
+                AI
+            </div>
+            <div class="arch-legend-item">
+                <div class="arch-legend-dot" style="background:#2ecc71; box-shadow: 0 0 6px #2ecc71;"></div>
+                Execution
+            </div>
+            <div class="arch-legend-item">
+                <div class="arch-legend-dot" style="background:#ff4d4d; box-shadow: 0 0 6px #ff4d4d;"></div>
+                Risk
+            </div>
+        </div>
+    </div>
+
+    <!-- Click hint -->
+    <div class="arch-click-hint" id="arch-click-hint">Select any module to explore its architecture, mathematics &amp; parameters</div>
+
+    <!-- Pipeline Visualization -->
+    <div class="arch-pipeline">
+        <div class="arch-pipeline-inner" id="arch-pipeline">
+            <!-- Layers rendered by JS -->
+        </div>
+        <svg class="arch-connections" id="arch-connections"></svg>
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="arch-modal-overlay" id="arch-modal">
+    <div class="arch-modal">
+        <button class="close-btn" onclick="closeSidebar()">
+            <svg viewBox="0 0 24 24">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </button>
+
+        <div class="modal-header">
+            <div class="modal-title-group" id="modal-header-content"></div>
+            <div class="modal-tabs">
+                <div class="modal-tab active" onclick="switchTab(1)">Architecture</div>
+                <div class="modal-tab" onclick="switchTab(2)">Mathematics</div>
+                <div class="modal-tab" onclick="switchTab(3)">Parameters</div>
+            </div>
+        </div>
+
+        <div class="modal-body">
+            <div class="modal-stage active" id="modal-stage-1">
+                <div class="stage-text" id="stage-1-text"></div>
+                <div class="stage-visual" id="stage-1-visual"></div>
+            </div>
+            <div class="modal-stage" id="modal-stage-2">
+                <div class="stage-text" id="stage-2-text"></div>
+                <div class="stage-visual" id="stage-2-visual"></div>
+            </div>
+            <div class="modal-stage" id="modal-stage-3">
+                <div class="stage-text" id="stage-3-text">
+                    <h3>Configuration &amp; Limits</h3>
+                    <p>The system operates strictly within configuration boundaries defined in
+                        <code>core/config.py</code>. Adjustments to these hyperparameters fundamentally alter the
+                        aggression and risk-profile of the autonomous engine.</p>
+                    <p>This module triggers based on specific threshold mathematics that must be met to prevent
+                        hallucinated signals or false-positive technical breakouts.</p>
+                </div>
+                <div class="stage-visual" style="border: none;">
+                    <div class="mock-terminal" id="stage-3-terminal"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // ═══════════════════════════════════════════════════════
+    //  SYSTEM DATA — nodes, edges, colors
+    // ═══════════════════════════════════════════════════════
+
+    const systemNodes = [
+        // DATA LAYER
+        { id: 'data_financials', label: 'Financials Engine', group: 'data', level: 1, title: 'financial_statements.py', desc: '<p><strong>Core Function:</strong> Parses 10-K and 10-Q SEC filings directly to bypass simplified API aggregators.</p><p><strong>Algorithm:</strong> Extracts hard fundamental metrics (Revenue, Net Income, FCF, Debt/Equity) via robust regex and NLP. It computes historical compounding growth rates, strips out one-time accounting anomalies, and derives intrinsic value proxies using Discounted Cash Flow (DCF) models to identify deep value dislocations.</p>', file: 'engine/financial_statements.py', api: 'Yahoo Finance' },
+        { id: 'data_earnings', label: 'Earnings Tracker', group: 'data', level: 1, title: 'earnings_tracker.py', desc: '<p><strong>Core Function:</strong> Anticipates volatility shocks surrounding corporate earnings calls.</p><p><strong>Algorithm:</strong> Monitors the upcoming earnings calendar. It calculates historical surprise magnitudes, implied volatility (IV) crunches, and models post-earnings drift expectation (PEAD) based on historical 3-day post-announcement price dynamics.</p>', file: 'engine/earnings_tracker.py', api: 'Yahoo Finance' },
+        { id: 'data_insider', label: 'Insider Activity', group: 'data', level: 1, title: 'insider_tracker.py', desc: '<p><strong>Core Function:</strong> Tracks Form 4 SEC filings to piggyback on management conviction.</p><p><strong>Algorithm:</strong> Specifically filters for C-suite "cluster buying"\u2014where multiple executives buy simultaneously on the open market. It evaluates transaction size relative to their known compensation to mathematically isolate high-conviction insider accumulation from routine scheduled purchases.</p>', file: 'engine/insider_tracker.py', api: 'SEC EDGAR / FMP' },
+        { id: 'data_institutional', label: 'Institutional Flows', group: 'data', level: 1, title: 'institutional_tracker.py', desc: '<p><strong>Core Function:</strong> Monitors 13F and 13D filings for smart money footprint.</p><p><strong>Algorithm:</strong> Maps ownership changes across the top 50 hedge funds and institutions. By identifying structural distribution or accumulation phases over sequential quarters, it aligns the system with massive tectonic capital shifts rather than fighting them.</p>', file: 'engine/institutional_tracker.py', api: 'FMP' },
+        { id: 'data_options', label: 'Options Flow', group: 'data', level: 1, title: 'options_flow.py', desc: '<p><strong>Core Function:</strong> Detects unusual derivatives sweeping activity by analyzing the intraday tape.</p><p><strong>Algorithm:</strong> Calculates aggressive put/call skew, tracks deep Out-of-the-Money (OTM) volume spikes, and analyzes implied volatility (IV) percentiles. This acts as a leading indicator, sniffing out institutional hedging or directional bets before the underlying stock price moves.</p>', file: 'engine/options_flow.py', api: 'Options API' },
+        { id: 'auto_discovery', label: 'Auto Discovery', group: 'data', level: 1, title: 'auto_discovery.py', desc: '<p><strong>Core Function:</strong> Autonomous, continuous-scanning opportunistic engine.</p><p><strong>Algorithm:</strong> Sweeps the market across thousands of tickers daily, actively filtering for technical breakouts, extreme value dislocations (oversold conditions), and unusual volume spikes. It automatically promotes high-potential candidate tickers to the Quant Screener, eliminating manual stock-picking.</p>', file: 'engine/auto_discovery.py', api: 'Multiple' },
+
+        // QUANT LAYER
+        { id: 'quant_screener', label: 'Quant Screener', group: 'quant', level: 2, title: 'quant_screener.py', desc: '<p><strong>Core Function:</strong> Massive multi-factor quantitative screening engine.</p><p><strong>Algorithm:</strong> Grades stocks systematically across Growth, Value, Momentum, and Quality factors. It computes proprietary statistical Z-scores for each factor to objectively identify assets that are mathematical outliers compared to the SPY baseline and sector peers.</p>', file: 'engine/quant_screener.py', api: 'Internal Compute' },
+        { id: 'quant_structure', label: 'Market Structure', group: 'quant', level: 2, title: 'market_structure.py', desc: '<p><strong>Core Function:</strong> Analyzes deep supply and demand market liquidity dynamics.</p><p><strong>Algorithm:</strong> Computes high-density Volume Profile gaps, maps critical Support/Resistance supply zones, and identifies structural market regimes using directional climax indicators to empirically confirm if a stock is in accumulation or distribution phase.</p>', file: 'engine/market_structure.py', api: 'Internal Compute' },
+        { id: 'quant_mtf', label: 'Multi-Timeframe', group: 'quant', level: 2, title: 'multi_timeframe.py', desc: '<p><strong>Core Function:</strong> Prevents counter-trend value traps and false breakouts.</p><p><strong>Algorithm:</strong> Evaluates trend alignment across multiple timeframes (Daily, Weekly, Monthly) simultaneously. By mathematically verifying that short-term momentum aligns with long-term structural moving average ribbons, it filters out noise and increases signal win-rate.</p>', file: 'engine/multi_timeframe.py', api: 'Data Layer' },
+        { id: 'quant_patterns', label: 'Pattern Recognition', group: 'quant', level: 2, title: 'pattern_recognition.py', desc: '<p><strong>Core Function:</strong> Algorithmic geometry engine for classical chart patterns.</p><p><strong>Algorithm:</strong> Uses localized fractal pivot point detection to mathematically identify forming Bull Flags, Ascending Triangles, and Head & Shoulders formations. It calculates precise breakout triggers and statistical measured move targets to build conviction.</p>', file: 'engine/pattern_recognition.py', api: 'Internal Compute' },
+        { id: 'quant_harmonics', label: 'Harmonic Patterns', group: 'quant', level: 2, title: 'harmonic_patterns.py', desc: '<p><strong>Core Function:</strong> Advanced quantitative fractal geometry to find exact reversal pivots.</p><p><strong>Algorithm:</strong> Calculates high-precision recursive Fibonacci retracement and extension ratios (XABCD) across swing points to identify complex Harmonic patterns (Gartley, Bat, Butterfly). These pinpoint extremely probable reversal zones with tight stop-loss invalidation levels.</p>', file: 'engine/harmonic_patterns.py', api: 'Internal Compute' },
+        { id: 'quant_rs', label: 'Relative Strength', group: 'quant', level: 2, title: 'rs_ranking.py', desc: '<p><strong>Core Function:</strong> Isolates true underlying alpha and institutional sponsorship.</p><p><strong>Algorithm:</strong> Compares an asset\'s absolute momentum curve against the broader market index (SPY) and its specific sector ETF over multiple rolling timeframes (1m, 3m, 6m). Stocks diverging positively on red market days are flagged as super-performers.</p>', file: 'engine/rs_ranking.py', api: 'Data Layer' },
+
+        // AI INTELLIGENCE LAYER
+        { id: 'ai_swarm', label: 'Agent Swarm', group: 'ai', level: 3, title: 'agents.py', desc: '<p><strong>Core Function:</strong> Multi-agent LLM orchestration system that acts as an investment committee.</p><p><strong>Algorithm:</strong> Instantiates distinct, specialized persona agents (Fundamental Analyst, Technical Analyst, Sentiment Analyst) that independently review the ingested quant array. They then cross-examine each other in a structured logic debate to synthesize a comprehensive, cohesive master thesis.</p>', file: 'engine/agents.py', api: 'Perplexity / Gemini' },
+        { id: 'ai_perplexity', label: 'Perplexity Client', group: 'ai', level: 3, title: 'perplexity_client.py', desc: '<p><strong>Core Function:</strong> Real-time deep web retrieval client overcoming training data obsolescence.</p><p><strong>Algorithm:</strong> Bypasses typical LLM knowledge cutoffs by dynamically searching the live internet for immediate catalyst discovery, macro event correlation, and breaking news synthesis that raw quantitative models cannot foresee.</p>', file: 'clients/perplexity_client.py', api: 'Perplexity API' },
+        { id: 'ai_gemini', label: 'Gemini Client', group: 'ai', level: 3, title: 'gemini_client.py', desc: '<p><strong>Core Function:</strong> Heavy semantic reasoning and synthesis engine.</p><p><strong>Algorithm:</strong> Powered by Google GenAI (Flash/Pro), it utilizes massive context windows to ingest entire financial reports, historical agent outputs, and complex numeric arrays in parallel to generate the final analytical narratives and predictive confidence scoring.</p>', file: 'clients/gemini_client.py', api: 'Google GenAI' },
+        { id: 'ai_crosscheck', label: 'AI Crosscheck', group: 'ai', level: 3, title: 'ai_crosscheck.py', desc: '<p><strong>Core Function:</strong> Independent secondary AI verification layer to fight hallucination.</p><p><strong>Algorithm:</strong> After the primary Agent Swarm generates a thesis, this isolated module receives the output masked and acts as an adversarial "Red Team". It explicitly searches for logical fallacies, confirmation bias, and hallucinations, returning a strict PASS/FAIL.</p>', file: 'engine/ai_crosscheck.py', api: 'Gemini Flash' },
+        { id: 'ai_sentiment', label: 'Sentiment Analyzer', group: 'ai', level: 3, title: 'sentiment_analyzer.py', desc: '<p><strong>Core Function:</strong> Natural Language Processing (NLP) sentiment aggregation.</p><p><strong>Algorithm:</strong> Parses hundreds of news headlines, financial tweets, and Reddit mentions, mapping the raw text to proprietary sentiment scores (-100 to +100). It acts as a contrarian indicator, fading extreme retail exuberance or deep institutional fear.</p>', file: 'engine/sentiment_analyzer.py', api: 'Data Layer' },
+        { id: 'ai_meta', label: 'Meta Labeler', group: 'ai', level: 3, title: 'meta_labeler.py', desc: '<p><strong>Core Function:</strong> Machine learning predictive confidence filter.</p><p><strong>Algorithm:</strong> A trained Random Forest classifier that doesn\'t predict stock price, but rather predicts <em>whether the primary AI system will be correct</em>. It acts as a final filter, suppressing signals in hostile macro environments where the system historically underperforms.</p>', file: 'engine/meta_labeler.py', api: 'Internal ML' },
+
+        // EXECUTION LAYER
+        { id: 'exec_pipeline', label: 'Analysis Pipeline', group: 'exec', level: 4, title: 'pipeline.py', desc: '<p><strong>Core Function:</strong> The central nervous system and traffic controller of the application.</p><p><strong>Algorithm:</strong> Strictly enforces the Directed Acyclic Graph (DAG) execution sequence, routing data from ingestion, through quantitative models, pushing it into the AI swarm, catching exceptions, and finally saving the structured outputs accurately to SQLite.</p>', file: 'engine/pipeline.py', api: 'Internal' },
+        { id: 'exec_cycle', label: 'Cycle Processor', group: 'exec', level: 4, title: 'cycle_processor.py', desc: '<p><strong>Core Function:</strong> The autonomous operational heartbeat.</p><p><strong>Algorithm:</strong> Manages the continuous 24/7 loop. It wakes up the system during market hours, paces API requests to stay strictly within configured budget constraints, handles retry mechanisms, and sleeps the system when the market closes to preserve resources.</p>', file: 'engine/cycle_processor.py', api: 'System' },
+        { id: 'exec_paper', label: 'Auto Paper Trader', group: 'exec', level: 4, title: 'auto_paper_trader.py', desc: '<p><strong>Core Function:</strong> Automated forward-testing simulation environment.</p><p><strong>Algorithm:</strong> When the AI generates a confident "Buy" signal, this engine executes a virtual trade using live precise market data. It calculates bid/ask spread and realistic execution slippage to rigorously track if the AI\'s predictive signals generate real-world Alpha.</p>', file: 'engine/auto_paper_trader.py', api: 'DB' },
+        { id: 'exec_learning', label: 'Learning Optimizer', group: 'exec', level: 4, title: 'learning_optimizer.py', desc: '<p><strong>Core Function:</strong> Self-correcting feedback optimization loop.</p><p><strong>Algorithm:</strong> Continuously measures the system\'s prediction accuracy over a trailing 90-day window. If accuracy drops below baseline, it mathematically adjusts internal system weights (e.g., favoring technicals over fundamentals) to adapt to shifting market realities dynamically.</p>', file: 'engine/learning_optimizer.py', api: 'DB' },
+        { id: 'exec_strategy', label: 'Strategy Engine', group: 'exec', level: 4, title: 'strategy_engine.py', desc: '<p><strong>Core Function:</strong> Macroeconomic regime and tactical mapper.</p><p><strong>Algorithm:</strong> Identifies the current market environment (e.g., High-Volatility vs Low-Volatility, Risk-On vs Risk-Off) and assigns the optimal trading approach (Mean Reversion vs Trend Following) to ensure the system trades the right style at the right time.</p>', file: 'engine/strategy_engine.py', api: 'Internal' },
+
+        // RISK LAYER
+        { id: 'risk_profiler', label: 'Risk Profiler', group: 'risk', level: 5, title: 'risk_profiler.py', desc: '<p><strong>Core Function:</strong> Overarching portfolio vulnerability assessor.</p><p><strong>Algorithm:</strong> Continuously calculates the aggregate Beta exposure of all active positions against the S&P 500. It monitors sector concentration limits, computes covariance matrices, and ensures the system isn\'t overexposed to a single hidden macroeconomic risk vector.</p>', file: 'engine/risk_profiler.py', api: 'Internal Compute' },
+        { id: 'risk_sizing', label: 'Position Sizing', group: 'risk', level: 5, title: 'position_sizing.py', desc: '<p><strong>Core Function:</strong> Dynamic capital allocation equity protector.</p><p><strong>Algorithm:</strong> Applies the modified Kelly Criterion combined with Average True Range (ATR) volatility scaling to determine the mathematically optimal number of shares to purchase. High conviction + low volatility yields a larger size, preventing account blow-ups.</p>', file: 'engine/position_sizing.py', api: 'Internal Compute' },
+        { id: 'risk_mcpt', label: 'MCPT Validator', group: 'risk', level: 5, title: 'mcpt_validator.py', desc: '<p><strong>Core Function:</strong> Strategy validation via Monte Carlo Permutation Testing.</p><p><strong>Algorithm:</strong> Takes the system\'s historical track record and scrambles the trade outcomes and timing 10,000 times to generate a true p-value. This definitively proves whether the strategy possesses genuine statistical edge or if the observed returns are merely the result of luck.</p>', file: 'engine/mcpt_validator.py', api: 'Internal Compute' },
+        { id: 'risk_var', label: 'VaR Calculator', group: 'risk', level: 5, title: 'var_calculator.py', desc: '<p><strong>Core Function:</strong> Financial catastrophe tail-risk quantification.</p><p><strong>Algorithm:</strong> Uses both Historical and Parametric simulation methods to calculate the Value at Risk (VaR), estimating the maximum statistically probable loss of the entire portfolio over a specific timeframe (e.g., 99% confidence 1-day VaR).</p>', file: 'engine/var_calculator.py', api: 'Internal Compute' },
+        { id: 'risk_drawdown', label: 'Drawdown Tracker', group: 'risk', level: 5, title: 'drawdown_tracker.py', desc: '<p><strong>Core Function:</strong> Hard equity curve protector and circuit breaker.</p><p><strong>Algorithm:</strong> Continuously monitors the peak-to-trough distance of the portfolio balance. If the system hits maximum predefined global loss limits (e.g., -10%), it mechanically trips the "Kill Switch", liquidating exposure and pausing autonomous execution until manual human review.</p>', file: 'engine/drawdown_tracker.py', api: 'Internal Compute' },
+    ];
+
+    const systemEdges = [
+        { from: 'data_financials', to: 'quant_screener' },
+        { from: 'data_earnings', to: 'quant_screener' },
+        { from: 'data_insider', to: 'quant_screener' },
+        { from: 'data_options', to: 'quant_structure' },
+        { from: 'data_institutional', to: 'quant_structure' },
+        { from: 'auto_discovery', to: 'quant_screener' },
+        { from: 'quant_structure', to: 'quant_patterns' },
+        { from: 'quant_mtf', to: 'quant_patterns' },
+        { from: 'quant_patterns', to: 'quant_harmonics' },
+        { from: 'quant_screener', to: 'ai_swarm' },
+        { from: 'quant_patterns', to: 'ai_swarm' },
+        { from: 'quant_rs', to: 'ai_swarm' },
+        { from: 'data_insider', to: 'ai_sentiment' },
+        { from: 'ai_perplexity', to: 'ai_swarm', dashes: true },
+        { from: 'ai_gemini', to: 'ai_swarm', dashes: true },
+        { from: 'ai_swarm', to: 'ai_crosscheck' },
+        { from: 'ai_sentiment', to: 'ai_meta' },
+        { from: 'ai_crosscheck', to: 'ai_meta' },
+        { from: 'ai_swarm', to: 'exec_pipeline' },
+        { from: 'ai_meta', to: 'exec_pipeline' },
+        { from: 'exec_pipeline', to: 'exec_paper' },
+        { from: 'exec_cycle', to: 'exec_pipeline', color: { opacity: 0.3 } },
+        { from: 'exec_paper', to: 'exec_learning' },
+        { from: 'exec_learning', to: 'exec_strategy', dashes: true },
+        { from: 'exec_strategy', to: 'exec_pipeline' },
+        { from: 'exec_pipeline', to: 'risk_profiler' },
+        { from: 'exec_paper', to: 'risk_mcpt' },
+        { from: 'risk_profiler', to: 'risk_sizing' },
+        { from: 'risk_profiler', to: 'risk_var' },
+        { from: 'risk_var', to: 'risk_drawdown' },
+        { from: 'exec_learning', to: 'ai_swarm', dashes: true, color: { color: '#ffb84d' } },
+        { from: 'risk_drawdown', to: 'exec_cycle', dashes: true, color: { color: '#ff4d4d' } },
+    ];
+
+    const colors = {
+        data:  { background: 'rgba(56, 152, 255, 0.15)', border: '#5588ff', highlight: { border: '#fff', background: 'rgba(56, 152, 255, 0.8)' } },
+        quant: { background: 'rgba(181, 105, 255, 0.15)', border: '#b569ff', highlight: { border: '#fff', background: 'rgba(181, 105, 255, 0.8)' } },
+        ai:    { background: 'rgba(243, 156, 18, 0.15)', border: '#f39c12', highlight: { border: '#fff', background: 'rgba(243, 156, 18, 0.9)' } },
+        exec:  { background: 'rgba(46, 204, 113, 0.15)', border: '#2ecc71', highlight: { border: '#fff', background: 'rgba(46, 204, 113, 0.8)' } },
+        risk:  { background: 'rgba(255, 77, 77, 0.15)', border: '#ff4d4d', highlight: { border: '#fff', background: 'rgba(255, 77, 77, 0.8)' } }
+    };
+
+    const layerMeta = {
+        data:  { name: 'Data Ingestion',    num: '01' },
+        quant: { name: 'Quant Analysis',    num: '02' },
+        ai:    { name: 'AI Intelligence',   num: '03' },
+        exec:  { name: 'Execution',         num: '04' },
+        risk:  { name: 'Risk Management',   num: '05' },
+    };
+
+    const layerOrder = ['data', 'quant', 'ai', 'exec', 'risk'];
+
+
+    // ═══════════════════════════════════════════════════════
+    //  RENDER PIPELINE
+    // ═══════════════════════════════════════════════════════
+
+    let activeNodeId = null;
+
+    document.addEventListener('DOMContentLoaded', function () {
+        renderPipeline();
+        // Delay connection drawing to allow layout to settle
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                renderConnections();
+            });
+        });
+    });
+
+    function renderPipeline() {
+        const container = document.getElementById('arch-pipeline');
+        let nodeDelay = 0;
+
+        layerOrder.forEach(function (group) {
+            const meta = layerMeta[group];
+            const nodes = systemNodes.filter(function (n) { return n.group === group; });
+            const color = colors[group].border;
+
+            const layer = document.createElement('div');
+            layer.className = 'arch-layer';
+            layer.setAttribute('data-layer', group);
+            layer.style.setProperty('--layer-color', color);
+
+            // Header
+            layer.innerHTML = '<div class="layer-header">' +
+                '<span class="layer-header-num">' + meta.num + '</span>' +
+                '<span class="layer-header-name">' + meta.name + '</span>' +
+                '<span class="layer-header-count">' + nodes.length + ' modules</span>' +
+                '</div>';
+
+            var nodesWrap = document.createElement('div');
+            nodesWrap.className = 'layer-nodes';
+
+            nodes.forEach(function (n) {
+                var card = document.createElement('div');
+                card.className = 'arch-node';
+                card.setAttribute('data-id', n.id);
+                card.style.setProperty('--node-color', color);
+                card.style.setProperty('--node-color-bg', colors[group].background);
+                card.style.animationDelay = (0.3 + nodeDelay * 0.05) + 's';
+                nodeDelay++;
+
+                card.innerHTML =
+                    '<div class="arch-node-label">' + n.label + '</div>' +
+                    '<div class="arch-node-meta">' +
+                        '<span class="arch-node-file">' + n.title + '</span>' +
+                        '<span class="arch-node-sep">\u00b7</span>' +
+                        '<span class="arch-node-api">' + n.api + '</span>' +
+                    '</div>';
+
+                card.addEventListener('click', function () {
+                    openSidebar(n);
+                    setActiveNode(n.id);
+                    var hint = document.getElementById('arch-click-hint');
+                    if (hint) hint.classList.add('hidden');
+                });
+
+                card.addEventListener('mouseenter', function () { highlightConnections(n.id); });
+                card.addEventListener('mouseleave', function () { clearHighlights(); });
+
+                nodesWrap.appendChild(card);
+            });
+
+            layer.appendChild(nodesWrap);
+            container.appendChild(layer);
+        });
+    }
+
+
+    // ═══════════════════════════════════════════════════════
+    //  RENDER SVG CONNECTIONS
+    // ═══════════════════════════════════════════════════════
+
+    function renderConnections() {
+        var svg = document.getElementById('arch-connections');
+        var pipeline = document.getElementById('arch-pipeline');
+        if (!svg || !pipeline) return;
+
+        var rect = pipeline.getBoundingClientRect();
+        svg.setAttribute('width', rect.width);
+        svg.setAttribute('height', rect.height);
+        svg.setAttribute('viewBox', '0 0 ' + rect.width + ' ' + rect.height);
+        svg.innerHTML = '';
+
+        // Arrow marker
+        var defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+        defs.innerHTML = '<marker id="arrow" markerWidth="6" markerHeight="4" refX="5" refY="2" orient="auto">' +
+            '<path d="M0,0 L6,2 L0,4" fill="rgba(232,228,222,0.15)" />' +
+            '</marker>';
+        svg.appendChild(defs);
+
+        systemEdges.forEach(function (edge) {
+            var sourceEl = document.querySelector('[data-id="' + edge.from + '"]');
+            var targetEl = document.querySelector('[data-id="' + edge.to + '"]');
+            if (!sourceEl || !targetEl) return;
+
+            var sr = sourceEl.getBoundingClientRect();
+            var tr = targetEl.getBoundingClientRect();
+
+            var x1 = sr.right - rect.left;
+            var y1 = sr.top + sr.height / 2 - rect.top;
+            var x2 = tr.left - rect.left;
+            var y2 = tr.top + tr.height / 2 - rect.top;
+
+            var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            var d;
+
+            // Same-column connections (intra-layer)
+            var sourceNode = systemNodes.find(function (n) { return n.id === edge.from; });
+            var targetNode = systemNodes.find(function (n) { return n.id === edge.to; });
+
+            if (sourceNode && targetNode && sourceNode.level === targetNode.level) {
+                // Curve outward to the right
+                var midY = (y1 + y2) / 2;
+                var bulge = 40;
+                x1 = sr.right - rect.left;
+                x2 = tr.right - rect.left;
+                d = 'M' + x1 + ',' + y1 + ' C' + (x1 + bulge) + ',' + y1 + ' ' + (x2 + bulge) + ',' + y2 + ' ' + x2 + ',' + y2;
+            }
+            // Backward connections (right-to-left feedback loops)
+            else if (x2 < x1) {
+                var drop = 50;
+                var yBottom = Math.max(y1, y2) + drop;
+                d = 'M' + x1 + ',' + y1 +
+                    ' C' + (x1 + 60) + ',' + (yBottom) +
+                    ' ' + (x2 - 60) + ',' + (yBottom) +
+                    ' ' + x2 + ',' + y2;
+            }
+            // Normal left-to-right
+            else {
+                var dx = (x2 - x1) * 0.4;
+                d = 'M' + x1 + ',' + y1 + ' C' + (x1 + dx) + ',' + y1 + ' ' + (x2 - dx) + ',' + y2 + ' ' + x2 + ',' + y2;
+            }
+
+            path.setAttribute('d', d);
+            path.setAttribute('data-from', edge.from);
+            path.setAttribute('data-to', edge.to);
+            path.setAttribute('marker-end', 'url(#arrow)');
+
+            if (edge.dashes) path.classList.add('edge-dashed');
+            if (edge.color && edge.color.color) {
+                path.style.stroke = edge.color.color;
+                path.style.opacity = '0.2';
+                path.setAttribute('data-edge-color', edge.color.color);
+            }
+
+            svg.appendChild(path);
+        });
+    }
+
+    // Debounced resize handler
+    var resizeTimer;
+    window.addEventListener('resize', function () {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(renderConnections, 150);
+    });
+
+
+    // ═══════════════════════════════════════════════════════
+    //  INTERACTIONS — hover highlights, active node
+    // ═══════════════════════════════════════════════════════
+
+    function highlightConnections(nodeId) {
+        // Dim all other nodes
+        document.querySelectorAll('.arch-node').forEach(function (el) {
+            if (el.getAttribute('data-id') !== nodeId) el.classList.add('dimmed');
+            else el.classList.remove('dimmed');
+        });
+
+        // Find connected nodes
+        var connected = {};
+        connected[nodeId] = true;
+        systemEdges.forEach(function (e) {
+            if (e.from === nodeId) connected[e.to] = true;
+            if (e.to === nodeId) connected[e.from] = true;
+        });
+
+        // Un-dim connected nodes
+        Object.keys(connected).forEach(function (id) {
+            var el = document.querySelector('[data-id="' + id + '"]');
+            if (el) el.classList.remove('dimmed');
+        });
+
+        // Highlight connected edges
+        document.querySelectorAll('.arch-connections path').forEach(function (p) {
+            var from = p.getAttribute('data-from');
+            var to = p.getAttribute('data-to');
+            if (from === nodeId || to === nodeId) {
+                p.classList.add('edge-highlighted');
+                p.classList.remove('edge-dimmed');
+                var edgeColor = p.getAttribute('data-edge-color');
+                if (edgeColor) {
+                    p.style.setProperty('--edge-color', edgeColor);
+                } else {
+                    p.style.setProperty('--edge-color', 'rgba(232, 228, 222, 0.3)');
+                }
+            } else {
+                p.classList.add('edge-dimmed');
+                p.classList.remove('edge-highlighted');
+            }
+        });
+    }
+
+    function clearHighlights() {
+        document.querySelectorAll('.arch-node').forEach(function (el) { el.classList.remove('dimmed'); });
+        document.querySelectorAll('.arch-connections path').forEach(function (p) {
+            p.classList.remove('edge-highlighted');
+            p.classList.remove('edge-dimmed');
+        });
+    }
+
+    function setActiveNode(nodeId) {
+        document.querySelectorAll('.arch-node.active-node').forEach(function (el) { el.classList.remove('active-node'); });
+        var el = document.querySelector('[data-id="' + nodeId + '"]');
+        if (el) el.classList.add('active-node');
+        activeNodeId = nodeId;
+    }
+
+
+    // ═══════════════════════════════════════════════════════
+    //  MODAL — open, close, tabs, content generators
+    // ═══════════════════════════════════════════════════════
+
+    function openSidebar(data) {
+        var modal = document.getElementById('arch-modal');
+        var header = document.getElementById('modal-header-content');
+
+        var badgeClass = 'badge-' + data.group;
+        var groupName = data.group.toUpperCase() + ' LAYER';
+        if (data.group === 'exec') groupName = 'EXECUTION LAYER';
+
+        header.innerHTML =
+            '<div class="node-type-badge ' + badgeClass + '">' + groupName + '</div>' +
+            '<h2 class="node-title">' + data.title.replace('.py', '') + '</h2>' +
+            '<div class="node-file"><span>Location:</span> ' + data.file + ' <span style="margin:0 8px;">\u00b7</span> <span>API:</span> ' + data.api + '</div>';
+
+        document.getElementById('stage-1-text').innerHTML = data.desc;
+
+        // Stage 1 visual — glowing node representation
+        var c = colors[data.group];
+        document.getElementById('stage-1-visual').innerHTML =
+            '<div style="width:120px; height:120px; background:' + c.background + '; border:1px solid ' + c.border + '; display:flex; align-items:center; justify-content:center; text-align:center; padding:20px; box-shadow:0 0 60px ' + c.background + ';">' +
+            '<span style="font-family:var(--font-mono, monospace); color:#fff; font-size:0.85rem; line-height:1.4;">' + data.label + '</span></div>';
+
+        generateMathContent(data);
+        generateTerminalContent(data);
+
+        switchTab(1);
+        modal.classList.add('active');
+    }
+
+    function closeSidebar() {
+        document.getElementById('arch-modal').classList.remove('active');
+        document.querySelectorAll('.arch-node.active-node').forEach(function (el) { el.classList.remove('active-node'); });
+        activeNodeId = null;
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeSidebar();
+    });
+
+    document.getElementById('arch-modal').addEventListener('click', function (e) {
+        if (e.target === this) closeSidebar();
+    });
+
+    function switchTab(tabIndex) {
+        var tabs = document.querySelectorAll('.modal-tab');
+        tabs.forEach(function (tab, i) {
+            if (i === tabIndex - 1) tab.classList.add('active');
+            else tab.classList.remove('active');
+        });
+        var stages = document.querySelectorAll('.modal-stage');
+        stages.forEach(function (stage, i) {
+            if (i === tabIndex - 1) stage.classList.add('active');
+            else stage.classList.remove('active');
+        });
+    }
+
+    function generateMathContent(data) {
+        var textEl = document.getElementById('stage-2-text');
+        var vizEl = document.getElementById('stage-2-visual');
+
+        if (data.id === 'quant_screener') {
+            textEl.innerHTML =
+                '<h3>Z-Score Normalization</h3>' +
+                '<p>The Quant Screener does not rely on absolute values (which can be distorted by market caps). Instead, it calculates the statistical <strong>Z-Score</strong> of a stock\u2019s metrics compared to a rolling mean of its sector.</p>' +
+                '<p>A Z-Score tells us exactly how many standard deviations (\u03c3) a data point is from the mean (\u03bc).</p>' +
+                '<p>By filtering exclusively for stocks with an aggregate Z-Score > <strong>+2.0</strong>, the system mathematically isolates the top 2.28% of equities exhibiting extreme anomaly characteristics.</p>';
+            vizEl.innerHTML =
+                '<div class="math-viz-container">' +
+                '<div class="bell-curve"><div class="curve-path"></div>' +
+                '<div class="z-score-line"></div>' +
+                '<div class="z-score-label" style="left:85%;">Z = +2.0</div>' +
+                '<div class="z-score-label" style="left:50%;color:#777;background:none;">\u03bc (Mean)</div></div>' +
+                '<div class="math-formula">Z = (X \u2212 \u03bc) / \u03c3</div></div>';
+        } else if (data.group === 'risk') {
+            textEl.innerHTML =
+                '<h3>Kelly Position Sizing</h3>' +
+                '<p>Position sizing relies on the Kelly Criterion to maximize logarithmic wealth growth while computationally avoiding the risk of ruin.</p>' +
+                '<p>The formula calculates the fraction of the portfolio (<strong>f*</strong>) to risk based on the probability of winning (<strong>p</strong>), probability of losing (<strong>q</strong>), and the win/loss ratio (<strong>b</strong>).</p>' +
+                '<p>Stockholm utilizes a "Half-Kelly" constraint to ensure survival during black swan volatility events.</p>';
+            vizEl.innerHTML =
+                '<div class="math-viz-container">' +
+                '<div class="math-formula">f* = p \u2212 (q / b)</div>' +
+                '<p style="color:var(--text-muted);font-family:var(--font-mono);margin-top:1.5rem;font-size:0.8rem;line-height:1.8;">f* = Recommended position size<br>p = Win probability<br>q = Loss probability (1\u2212p)<br>b = Profit/Loss ratio</p></div>';
+        } else {
+            textEl.innerHTML =
+                '<h3>Proprietary Logic Matrix</h3>' +
+                '<p>This module utilizes asynchronous processing and localized memory management to execute its logic. It relies on deterministic state evaluation.</p>' +
+                '<p>Inputs are sanitized, transformed, and cross-referenced against historical vector spaces before an actionable output is returned to the Analysis Pipeline.</p>';
+            var c = colors[data.group];
+            vizEl.innerHTML =
+                '<div class="math-viz-container" style="background:transparent;">' +
+                '<svg width="160" height="160" viewBox="0 0 100 100">' +
+                '<circle cx="50" cy="50" r="40" fill="none" stroke="' + c.border + '" stroke-width="1" stroke-dasharray="8 4" opacity="0.4"><animateTransform attributeName="transform" type="rotate" from="0 50 50" to="360 50 50" dur="20s" repeatCount="indefinite" /></circle>' +
+                '<circle cx="50" cy="50" r="28" fill="none" stroke="' + c.border + '" stroke-width="1" opacity="0.6"><animateTransform attributeName="transform" type="rotate" from="360 50 50" to="0 50 50" dur="14s" repeatCount="indefinite" /></circle>' +
+                '<path d="M50 18 L50 82 M18 50 L82 50 M26 26 L74 74 M26 74 L74 26" stroke="' + c.border + '" stroke-width="0.5" opacity="0.2"/></svg></div>';
+        }
+    }
+
+    function generateTerminalContent(data) {
+        var term = document.getElementById('stage-3-terminal');
+        var code = '';
+
+        if (data.id === 'quant_screener') {
+            code = '<span class="term-comment"># Active Parameters from core/config.py for ' + data.title + '</span>\n\n';
+            code += '<span class="term-keyword">class</span> <span class="term-function">QuantConfig</span>:\n';
+            code += '    GROWTH_WEIGHT = <span class="term-string">0.35</span>\n';
+            code += '    VALUE_WEIGHT = <span class="term-string">0.25</span>\n';
+            code += '    MOMENTUM_WEIGHT = <span class="term-string">0.30</span>\n';
+            code += '    QUALITY_WEIGHT = <span class="term-string">0.10</span>\n\n';
+            code += '    <span class="term-comment"># Statistical threshold for outlier classification</span>\n';
+            code += '    MIN_Z_SCORE_THRESHOLD = <span class="term-string">2.0</span>\n\n';
+            code += '<span class="term-keyword">def</span> <span class="term-function">calculate_composite</span>(ticker: str, metrics: dict):\n';
+            code += '    <span class="term-comment"># Injecting live stream data...</span>\n';
+            code += '    composite = (metrics[<span class="term-string">\'growth\'</span>] * GROWTH_WEIGHT) + \\\n';
+            code += '                (metrics[<span class="term-string">\'value\'</span>] * VALUE_WEIGHT) + \\\n';
+            code += '                (metrics[<span class="term-string">\'mom\'</span>] * MOMENTUM_WEIGHT)\n';
+            code += '    <span class="term-keyword">return</span> composite\n\n';
+            code += '<span class="term-comment">>> Waiting for realtime ingestion...</span>';
+        } else if (data.group === 'ai') {
+            code = '<span class="term-comment"># LLM Agent Configuration for ' + data.title + '</span>\n\n';
+            code += '<span class="term-keyword">import</span> google.genai <span class="term-keyword">as</span> genai\n\n';
+            code += 'MODEL_PRIMARY = <span class="term-string">"gemini-2.5-flash"</span>\n';
+            code += 'TEMPERATURE = <span class="term-string">0.1</span> <span class="term-comment"># High determinism</span>\n';
+            code += 'TOP_P = <span class="term-string">0.8</span>\n\n';
+            code += 'SYSTEM_PROMPT = <span class="term-string">"""\n    You are an elite quantitative analyst.\n    Your mandate is to ruthlessly critique the provided multi-factor thesis.\n    Reject any logic relying on emotional retail exuberance.\n"""</span>\n\n';
+            code += '<span class="term-comment">>> Agent Swarm currently dormant. Awaiting cycle initiation.</span>';
+        } else {
+            code = '<span class="term-comment"># System Configuration block for ' + data.title + '</span>\n\n';
+            code += 'MAX_RETRIES = <span class="term-string">3</span>\n';
+            code += 'TIMEOUT_MS = <span class="term-string">15000</span>\n';
+            code += 'LOG_LEVEL = <span class="term-string">"DEBUG"</span>\n\n';
+            code += '<span class="term-keyword">def</span> <span class="term-function">execute_module</span>(data_payload):\n';
+            code += '    <span class="term-keyword">try</span>:\n';
+            code += '        result = process(data_payload)\n';
+            code += '        <span class="term-keyword">return</span> result\n';
+            code += '    <span class="term-keyword">except</span> Exception <span class="term-keyword">as</span> e:\n';
+            code += '        logger.error(<span class="term-string">f"Module failure: {e}"</span>)\n';
+            code += '        rollback_state()\n';
+        }
+
+        term.innerHTML = code;
+    }
+</script>
+{% endblock %}
