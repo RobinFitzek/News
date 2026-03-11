@@ -113,10 +113,10 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Description:** Parse FOMC meeting dates, ECB decisions, and rate announcements. Flag all portfolio positions before and after events. Inject rate-change context into Stage 3 prompt alongside geopolitical context.
 **Effort:** L · **Impact:** High (rate decisions move every sector)
 ```
-[ ] Scrape/hardcode FOMC/ECB calendar for current year
-[ ] Add macro_events table to DB
-[ ] Inject upcoming rate events into Stage 3 prompt (like geo_block)
-[ ] Alert if rate decision within 48h and portfolio has rate-sensitive tickers
+[x] Scrape/hardcode FOMC/ECB calendar for current year
+[x] Add macro_events table to DB
+[x] Inject upcoming rate events into Stage 3 prompt (like geo_block)
+[x] Alert if rate decision within 48h and portfolio has rate-sensitive tickers
 ```
 
 ### 10. Short squeeze probability scorer
@@ -125,9 +125,9 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Note:** The system already fetches short interest data (`/api/short-interest/{ticker}`).
 **Effort:** M · **Impact:** Medium
 ```
-[ ] Add squeeze_score calculation to quant screener
-[ ] Register as anomaly type when score >= 70
-[ ] Display in Stage 3 Bear Case context
+[x] Add squeeze_score calculation to quant screener
+[x] Register as anomaly type when score >= 70
+[x] Display in Stage 3 Bear Case context
 ```
 
 ---
@@ -158,10 +158,10 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Description:** Sunday-evening Gemini call that reads the week's analyses, geo events, and learning stats, then writes a 1-page "weekly letter" covering: portfolio changes, market regime shift, top risks, and top opportunities. Sent via existing email infrastructure.
 **Effort:** M · **Impact:** High (synthesis of all subsystems into human-readable narrative)
 ```
-[ ] Add weekly_letter job to scheduler (Sunday ~19:00)
-[ ] Build Gemini prompt from DB: last 7d analyses, geo scans, learning stats
-[ ] Format as HTML email using existing email template
-[ ] Add toggle in Settings (weekly_letter_enabled)
+[x] Add weekly_letter job to scheduler (Sunday ~19:00)
+[x] Build Gemini prompt from DB: last 7d analyses, geo scans, learning stats
+[x] Format as HTML email using existing email template
+[x] Add toggle in Settings (weekly_letter_enabled)
 ```
 
 ---
@@ -203,10 +203,10 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Description:** Allow trades to be logged in EUR/GBP/CHF/SEK. Track FX impact on portfolio returns separately from stock performance. Show currency-adjusted P&L.
 **Effort:** L · **Impact:** Medium (important for European users with mixed currency holdings)
 ```
-[ ] Add currency column to portfolio_trades table
-[ ] Add FX rate fetching (yfinance has EUR/USD etc.)
-[ ] Separate FX P&L from stock P&L in portfolio summary
-[ ] Show currency exposure in portfolio page
+[x] Add currency column to portfolio_trades table
+[x] Add FX rate fetching (yfinance has EUR/USD etc.)
+[x] Separate FX P&L from stock P&L in portfolio summary
+[x] Show currency exposure in portfolio page
 ```
 
 ### 17. DB backup rotation

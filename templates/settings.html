@@ -294,6 +294,21 @@
                         </div>
                     </div>
                 </div>
+
+                <div style="padding-top: var(--space-5); border-top: 1px solid var(--border-light); margin-top: var(--space-5);">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-size: 0.8125rem; font-weight: 500; color: var(--text-primary);">Weekly AI Letter</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-1);">Receive an AI-generated investment summary every Sunday evening</div>
+                        </div>
+                        <label class="checkbox-wrapper">
+                            <input type="checkbox" name="weekly_letter_enabled"
+                                {% if settings.weekly_letter_enabled %}checked{% endif %}>
+                            <div class="checkbox-custom"></div>
+                            <span class="checkbox-label">Enable</span>
+                        </label>
+                    </div>
+                </div>
             </div>
         </div>
 

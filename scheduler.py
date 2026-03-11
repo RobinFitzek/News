@@ -154,6 +154,30 @@ class InvestmentScheduler:
         finally:
             self.is_scanning = False
     
+    def run_macro_event_check(self):
+        """Check for upcoming rate events and alert on rate-sensitive portfolio holdings."""
+        try:
+            from engine.macro_tracker import macro_tracker
+            events = macro_tracker.get_upcoming_events(days_ahead=2)
+            for event in events:
+                if event['days_until'] <= 1:
+                    exposed = macro_tracker.check_portfolio_rate_exposure()
+                    if exposed:
+                        tickers = [h['ticker'] for h in exposed]
+                        msg = (
+                            f"Rate Event Tomorrow: {event['type']} decision on {event['date']}. "
+                            f"Rate-sensitive holdings: {', '.join(tickers)}"
+                        )
+                        try:
+                            from engine.webhook_notifier import webhook_notifier
+                            webhook_notifier.reload()
+                            webhook_notifier.send_custom(title="Macro Rate Alert", message=msg, level="warning")
+                        except Exception:
+                            pass
+                        print(f"[MACRO] {msg}")
+        except Exception as e:
+            print(f"(Error) Macro event check failed: {e}")
+
     def run_geopolitical_scan(self):
         """Run global geopolitical scan and alert on high-severity events"""
         import re
@@ -303,6 +327,16 @@ class InvestmentScheduler:
             replace_existing=True
         )
 
+        # Weekly AI letter (Sunday 19:00)
+        self.scheduler.add_job(
+            self.run_weekly_letter,
+            CronTrigger(day_of_week='sun', hour=19, minute=0,
+                       timezone=self.timezone),
+            id='weekly_letter',
+            name='Weekly AI Letter',
+            replace_existing=True
+        )
+
         # Discovery hit rate check (daily at 21:00)
         self.scheduler.add_job(
             self.check_hit_rates,
@@ -381,6 +415,15 @@ class InvestmentScheduler:
             IntervalTrigger(hours=6),
             id='geopolitical_scan',
             name='Geopolitical Scan',
+            replace_existing=True
+        )
+
+        # Macro event check (daily at 08:00 — alerts on rate decisions within 48h)
+        self.scheduler.add_job(
+            self.run_macro_event_check,
+            CronTrigger(hour=8, minute=0, timezone=self.timezone),
+            id='macro_event_check',
+            name='Macro Event Check',
             replace_existing=True
         )
 
@@ -473,6 +516,17 @@ class InvestmentScheduler:
                 print("Weekly report generated and sent")
         except Exception as e:
             print(f"(Error) Weekly report failed: {e}")
+
+    def run_weekly_letter(self):
+        """Generate and send AI weekly investment letter."""
+        try:
+            enabled = db.get_setting('weekly_letter_enabled')
+            if not enabled:
+                return
+            from engine.weekly_letter import weekly_letter_generator
+            weekly_letter_generator.generate_and_send()
+        except Exception as e:
+            print(f"(Error) Weekly letter failed: {e}")
 
     def check_hit_rates(self):
         """Check discovery hit rates and log outcomes. Also flags stale data."""

@@ -168,6 +168,12 @@ DEFAULT_SETTINGS = {
 
     # Alert Deduplication
     "alert_cooldown_hours": 24,
+
+    # Weekly AI Letter
+    "weekly_letter_enabled": False,
+
+    # Multi-Currency
+    "display_currency": "USD",
 }
 
 # Web Server

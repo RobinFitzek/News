@@ -511,6 +511,11 @@ async def api_geopolitical(username: str = Depends(require_auth)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/macro/events")
+async def api_macro_events(days: int = 14, username: str = Depends(require_auth)):
+    from engine.macro_tracker import macro_tracker
+    return {"events": macro_tracker.get_upcoming_events(days_ahead=days)}
+
 @app.get("/api/geopolitical/exposure")
 async def api_geopolitical_exposure(username: str = Depends(require_auth)):
     """Return per-ticker geopolitical exposure from the latest analysis"""
@@ -1716,10 +1721,12 @@ async def add_trade(
     date: str = Form(None),
     fees: float = Form(0.0),
     notes: str = Form(""),
+    currency: str = Form("USD"),
     username: str = Depends(require_auth)
 ):
     """Add a trade to portfolio"""
     csrf.verify_token(request, csrf_token)
+    currency = currency.upper()
     db.add_trade(
         ticker=ticker,
         trade_type=type,
@@ -1727,7 +1734,8 @@ async def add_trade(
         price=price,
         date=date,
         fees=fees,
-        notes=notes
+        notes=notes,
+        currency=currency,
     )
     return RedirectResponse(url="/portfolio?added=1", status_code=303)
 

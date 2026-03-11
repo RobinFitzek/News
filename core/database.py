@@ -1496,6 +1496,21 @@ class Database:
             (from_currency.upper(), to_currency.upper(), rate, datetime.now().isoformat())
         )
 
+    def get_fx_rate(self, base: str, quote: str = 'USD') -> Optional[float]:
+        """Get cached FX rate from fx_snapshots (valid for 4 hours)."""
+        row = self.query_one("""
+            SELECT rate FROM fx_snapshots
+            WHERE from_currency=? AND to_currency=?
+            AND fetched_at >= datetime('now', '-4 hours')
+            ORDER BY fetched_at DESC
+            LIMIT 1
+        """, (base.upper(), quote.upper()))
+        return float(row['rate']) if row else None
+
+    def set_fx_rate(self, base: str, quote: str, rate: float):
+        """Store an FX rate in the snapshot cache."""
+        self.save_fx_snapshot(base, quote, rate)
+
     def get_currency_exposure(self) -> list:
         """Return currency exposure summary from portfolio_trades."""
         rows = self.query("""
