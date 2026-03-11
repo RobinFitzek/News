@@ -391,6 +391,15 @@ class InvestmentScheduler:
             replace_existing=True
         )
 
+        # Broker P&L Snapshot — every 15 min, market hours only, non-paper modes (Phase 6)
+        self.scheduler.add_job(
+            self.run_broker_pnl_snapshot,
+            IntervalTrigger(minutes=15),
+            id='broker_pnl_snapshot',
+            name='Broker P&L Snapshot',
+            replace_existing=True
+        )
+
         # Price alert check (every 15 min during market hours Mon–Fri)
         self.scheduler.add_job(
             self.check_price_alerts,
@@ -749,6 +758,26 @@ class InvestmentScheduler:
                 print(f"Broker Sync: {synced} positions synced from {mode.upper()}")
         except Exception as e:
             print(f"(Error) Broker sync failed: {e}")
+
+    def run_broker_pnl_snapshot(self):
+        """Store broker account equity in today's paper_snapshot row (Phase 6)."""
+        mode = (db.get_setting("auto_trade_mode") or "paper").lower()
+        if mode == "paper":
+            return
+        if not self.is_market_open():
+            return
+        try:
+            from clients.broker_client import get_broker_client
+            account = get_broker_client().get_account()
+            broker_equity = account.get("equity", 0)
+            today = datetime.now().strftime('%Y-%m-%d')
+            db.execute(
+                "UPDATE paper_snapshots SET broker_value = ? WHERE snapshot_date = ?",
+                (broker_equity, today)
+            )
+            print(f"Broker P&L Snapshot: equity ${broker_equity:,.2f} stored for {today}")
+        except Exception as e:
+            print(f"(Error) Broker P&L snapshot failed: {e}")
 
     def retrain_meta_labeler(self):
         """Retrain the Random Forest meta-labeler on graded signal outcomes."""

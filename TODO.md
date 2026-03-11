@@ -584,7 +584,7 @@ class OrderManager:
 **Scheduler:**
 ```
 [x] Broker position sync every 5 min (market hours only, uses _is_market_open())
-[ ] Broker P&L snapshot every 15 min → store in paper_snapshots (add broker_value col)
+[x] Broker P&L snapshot every 15 min → store in paper_snapshots (add broker_value col)
 ```
 
 **Trust gate enforcement:**
@@ -692,10 +692,10 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** The system tracks equities and geopolitics but not the macro backbone. Yield curve shape (2y/10y spread), VIX term structure (VIX/VIX3M), put/call ratio, credit spreads (HYG vs LQD), DXY. All free via yfinance tickers. These are leading indicators for regime changes and would make `market_regime.py` much more powerful.
 **Effort:** L · **Impact:** High (macro context for every signal)
 ```
-[ ] Create engine/macro_tracker.py: fetch ^TNX, ^IRX, ^VIX, HYG, LQD, DXY via yfinance
-[ ] Compute: 2y/10y spread (inverted = recession signal), VIX term structure slope, HYG/LQD credit spread
-[ ] Store daily snapshot in new macro_snapshots table
-[ ] Inject macro context into Stage 3 Gemini prompt (alongside geo_block)
+[x] Create engine/macro_tracker.py: fetch ^TNX, ^IRX, ^VIX, HYG, LQD, DXY via yfinance
+[x] Compute: 2y/10y spread (inverted = recession signal), VIX term structure slope, HYG/LQD credit spread
+[x] Store daily snapshot in new macro_snapshots table
+[x] Inject macro context into Stage 3 Gemini prompt (alongside geo_block)
 [ ] Add /macro page with charts: yield curve, VIX term, credit spread over 90d
 [ ] Add macro badge to dashboard (e.g., "Yield curve inverted — recession watch")
 ```
@@ -705,11 +705,11 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** `earnings_tracker.py` exists but doesn't drive the pipeline. Should: auto-flag tickers with earnings in next 5 days, show implied move (options IV) vs historical earnings move, suppress STRONG_BUY signals within 48h of earnings unless explicitly overridden. Post-earnings drift (stocks that gap tend to continue 3-5 days) is an underused pattern.
 **Effort:** M · **Impact:** High (biggest single-day risk event for any position)
 ```
-[ ] Pull earnings dates from yfinance calendar or earningswhispers.com scrape
-[ ] Add earnings_date column to watchlist
-[ ] In pipeline: warn Stage 3 when earnings within 5 days (inject as risk factor)
-[ ] Suppress STRONG_BUY for earnings-imminent tickers unless risk_score < 5
-[ ] Track post-earnings drift: after earnings, flag ticker for re-analysis at +1d, +3d, +5d
+[x] Pull earnings dates from yfinance calendar or earningswhispers.com scrape
+[x] Add earnings_date column to watchlist
+[x] In pipeline: warn Stage 3 when earnings within 5 days (inject as risk factor)
+[x] Suppress STRONG_BUY for earnings-imminent tickers unless risk_score < 5
+[x] Track post-earnings drift: after earnings, flag ticker for re-analysis at +1d, +3d, +5d
 [ ] Show earnings countdown badge on watchlist and stock_detail
 ```
 
@@ -844,10 +844,10 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** `python cli.py analyze AAPL --strategy balanced` should run a full 3-stage analysis and print results to terminal without starting the web server. Useful for scripting, cron jobs outside APScheduler, CI testing, or quick ad-hoc checks.
 **Effort:** M · **Impact:** Medium (developer/power user usability)
 ```
-[ ] Create cli.py using argparse or click
-[ ] Commands: analyze <TICKER>, scan (run full pipeline), geo (latest geo scan), watchlist (list)
-[ ] Reuse existing engine/ and clients/ directly — no HTTP layer
-[ ] Output: colored terminal table (rich library) or plain JSON with --json flag
+[x] Create cli.py using argparse or click
+[x] Commands: analyze <TICKER>, scan (run full pipeline), geo (latest geo scan), watchlist (list)
+[x] Reuse existing engine/ and clients/ directly — no HTTP layer
+[x] Output: colored terminal table (rich library) or plain JSON with --json flag
 [ ] Add to README as usage example
 ```
 
@@ -913,12 +913,12 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** Distinct from the generic `scenario_analyzer.py`: predefine 5-6 named geo scenarios (China blockades Taiwan, OPEC production cut -20%, Russia expands conflict, US-Iran escalation, EU energy crisis) with estimated sector impact vectors. When the geo scanner detects a relevant event, automatically run the matching scenario against the current portfolio and show estimated P&L impact. Scenario definitions are static config — the hard part (correlations, sector exposures) already exists.
 **Effort:** M · **Impact:** High (most useful during actual crises, which is when it matters most)
 ```
-[ ] Create engine/geo_scenario.py with 6 hardcoded scenarios as dicts:
+[x] Create engine/geo_scenario.py with 6 hardcoded scenarios as dicts:
     { name, keywords, sector_impacts: {energy: +0.15, tech: -0.10, ...}, historical_analog }
-[ ] Scenario runner: cross with portfolio sector weights → estimated portfolio impact %
-[ ] Auto-trigger: when geo scan severity >= 8, find matching scenario by keyword overlap, run it
+[x] Scenario runner: cross with portfolio sector weights → estimated portfolio impact %
+[x] Auto-trigger: when geo scan severity >= 8, find matching scenario by keyword overlap, run it
 [ ] Show scenario result card on dashboard when triggered: "Taiwan scenario match — estimated portfolio impact: -4.2%"
-[ ] Manual trigger: POST /api/scenarios/run?name=taiwan_blockade
+[x] Manual trigger: POST /api/scenarios/run?name=taiwan_blockade
 [ ] Add /scenarios page showing all presets with portfolio impact preview
 ```
 
@@ -975,13 +975,13 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** Splits, dividends, mergers, and spin-offs are currently not tracked. A position opened at $150 pre-split is worth different things pre/post 3:1 split — the paper trading P&L and cost basis math breaks silently. This is a correctness issue more than a feature, and becomes critical the moment real money is involved.
 **Effort:** M · **Impact:** High (correctness — silent P&L errors)
 ```
-[ ] Add corporate_actions table: ticker, action_type (split/dividend/merger), date, factor/amount
-[ ] Fetch splits from yfinance Ticker.splits and dividends from Ticker.dividends
-[ ] Weekly job: check for new corporate actions on all watchlist tickers
-[ ] Retroactively adjust cost basis in portfolio_trades for pre-split entries
-[ ] Add dividend income tracking: when ex-date passes, credit dividend to paper portfolio cash
+[x] Add corporate_actions table: ticker, action_type (split/dividend/merger), date, factor/amount
+[x] Fetch splits from yfinance Ticker.splits and dividends from Ticker.dividends
+[x] Weekly job: check for new corporate actions on all watchlist tickers
+[x] Retroactively adjust cost basis in portfolio_trades for pre-split entries
+[x] Add dividend income tracking: when ex-date passes, credit dividend to paper portfolio cash
 [ ] Show corporate action timeline on stock_detail.html
-[ ] Alert via webhook when a watchlist ticker announces a split or special dividend
+[x] Alert via webhook when a watchlist ticker announces a split or special dividend
 ```
 
 ---
@@ -1047,10 +1047,10 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** The Random Forest meta-labeler is trained and predicts signal confidence — but which features does it weight most heavily? Surfacing `feature_importances_` (e.g., "RSI weight 23%, momentum_3m 18%, D/E ratio 12%") on the Learning page tells which of the 20+ quant metrics are actually predictive vs noise. Already have the trained model — this is a one-liner in sklearn, plus a UI to display it.
 **Effort:** XS · **Impact:** Medium (insight into which quant metrics matter)
 ```
-[ ] After model.fit() in meta_labeler.py, extract feature_importances_ with feature names
-[ ] Store as JSON in learning_stats or a separate model_metadata table
-[ ] Add GET /api/learning/feature-importance endpoint
-[ ] Add feature importance bar chart to learning.html (sorted descending)
+[x] After model.fit() in meta_labeler.py, extract feature_importances_ with feature names
+[x] Store as JSON in learning_stats or a separate model_metadata table
+[x] Add GET /api/learning/feature-importance endpoint
+[x] Add feature importance bar chart to learning.html (sorted descending)
 [ ] Show "Top 3 predictive features" summary card on dashboard learning section
 ```
 
@@ -1063,10 +1063,10 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** The scheduler currently runs on US market holidays (Memorial Day, 4th July, Thanksgiving, Christmas, etc.) and burns Perplexity/Gemini budget analyzing stocks with zero price movement. A simple calendar check before each scan cycle prevents ~10 wasted API calls/year and avoids misleading "no news" analyses on closed-market days.
 **Effort:** XS · **Impact:** Low (operational correctness, minor cost saving)
 ```
-[ ] Add US market holiday list for current year to scheduler.py (or use pandas_market_calendars / hardcoded set)
-[ ] Wrap run_daily_cycle() with: if today in market_holidays: skip and log "Market closed — skipping cycle"
-[ ] Also skip intraday breakout check (#15) and price alert check on holidays
-[ ] Add holiday_skip_enabled setting (default True) in Settings UI
+[x] Add US market holiday list for current year to scheduler.py (or use pandas_market_calendars / hardcoded set)
+[x] Wrap run_daily_cycle() with: if today in market_holidays: skip and log "Market closed — skipping cycle"
+[x] Also skip intraday breakout check (#15) and price alert check on holidays
+[x] Add holiday_skip_enabled setting (default True) in Settings UI
 ```
 
 ---
