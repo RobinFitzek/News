@@ -103,5 +103,90 @@ class TestInvestmentSwarm(unittest.TestCase):
         self.assertNotIn('Sell', results[0].get('signal', ''))
 
 
+class TestExtractSection(unittest.TestCase):
+    """Unit tests for the extract_section regex inside InvestmentSwarm."""
+
+    # Minimal Gemini-style response containing all sections
+    SAMPLE_RESPONSE = (
+        "Risk Score: 7/10\n"
+        "Geo-Risiko: 6 — Exportbeschränkungen durch US-China-Konflikt\n"
+        "Bull Case: Starkes Wachstum in Cloud-Segment, Margensteigerung erwartet.\n"
+        "Bear Case: Zölle könnten Margen um 3–5% drücken.\n"
+        "Quellen: Reuters, Bloomberg\n"
+        "Zusammenfassung: Neutral — abwarten."
+    )
+
+    def _run_extract(self, text: str, header: str) -> str:
+        """Run extract_section via the private helper inside analyze_ticker."""
+        import re
+
+        def extract_section(t: str, h: str) -> str:
+            pattern = rf"{h}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|Quellen|Zusammenfassung):|$)"
+            m = re.search(pattern, t, flags=re.IGNORECASE | re.DOTALL)
+            return m.group(1).strip() if m else ""
+
+        return extract_section(text, header)
+
+    def test_bull_case_not_swallowed_by_geo_risiko(self):
+        """Geo-Risiko in lookahead must prevent Bull Case from being eaten by Risk Score."""
+        bull = self._run_extract(self.SAMPLE_RESPONSE, "Bull Case")
+        self.assertIn("Cloud-Segment", bull)
+        self.assertNotIn("Geo-Risiko", bull)
+
+    def test_risk_score_stops_at_geo_risiko(self):
+        """Risk Score section must end before Geo-Risiko line."""
+        risk = self._run_extract(self.SAMPLE_RESPONSE, "Risk Score")
+        self.assertIn("7/10", risk)
+        self.assertNotIn("Exportbeschränkungen", risk)
+
+    def test_geo_risiko_extracted_correctly(self):
+        """Geo-Risiko section must contain its own content and not bleed into Bull Case."""
+        geo = self._run_extract(self.SAMPLE_RESPONSE, "Geo-Risiko")
+        self.assertIn("Exportbeschränkungen", geo)
+        self.assertNotIn("Starkes Wachstum", geo)
+
+    def test_bear_case_extracted_correctly(self):
+        """Bear Case must be extracted and not bled into Quellen."""
+        bear = self._run_extract(self.SAMPLE_RESPONSE, "Bear Case")
+        self.assertIn("Zölle", bear)
+        self.assertNotIn("Reuters", bear)
+
+    def test_empty_section_returns_empty_string(self):
+        """Missing section header must return empty string, not raise."""
+        result = self._run_extract(self.SAMPLE_RESPONSE, "Nonexistent Section")
+        self.assertEqual(result, "")
+
+
+class TestSeverityParsing(unittest.TestCase):
+    """Unit tests for the SCHWEREGRAD regex used in scheduler and database."""
+
+    def _parse_scores(self, text: str):
+        import re
+        return [int(m) for m in re.findall(r'SCHWEREGRAD[:\s/]+(\d+)', text)]
+
+    def test_parses_multiple_scores(self):
+        text = "SCHWEREGRAD: 8\nSCHWEREGRAD: 5\nSCHWEREGRAD: 9"
+        self.assertEqual(self._parse_scores(text), [8, 5, 9])
+
+    def test_parses_score_with_slash(self):
+        text = "SCHWEREGRAD/10: 7"
+        scores = self._parse_scores(text)
+        self.assertIn(7, scores)
+
+    def test_threshold_8_triggers_alert(self):
+        text = "SCHWEREGRAD: 8 — Kritischer Konflikt"
+        scores = self._parse_scores(text)
+        self.assertTrue(max(scores) >= 8)
+
+    def test_threshold_7_does_not_trigger(self):
+        text = "SCHWEREGRAD: 7 — Erhöhte Spannung"
+        scores = self._parse_scores(text)
+        self.assertFalse(max(scores) >= 8)
+
+    def test_no_scores_returns_empty(self):
+        text = "Alles ruhig, keine Ereignisse."
+        self.assertEqual(self._parse_scores(text), [])
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -148,6 +148,16 @@
                     <input type="time" name="active_hours_end" value="{{ settings.active_hours_end }}">
                 </div>
             </div>
+            <div class="grid grid-3" style="margin-top: var(--space-4);">
+                <div>
+                    <label>Intraday Breakout Trigger (%)</label>
+                    <input type="number" name="intraday_trigger_pct"
+                        value="{{ settings.intraday_trigger_pct|default(3.0) }}"
+                        min="0.5" max="20" step="0.5"
+                        title="Auto-trigger re-analysis when a watchlist ticker moves ±N% intraday">
+                    <small style="color:var(--text-muted);">±% move to auto-trigger analysis</small>
+                </div>
+            </div>
         </div>
 
         <!-- Auto-Discovery Settings -->
@@ -550,6 +560,21 @@
                         </div>
                     </div>
                 </div>
+
+                <div style="padding-top: var(--space-5); border-top: 1px solid var(--border-light); margin-top: var(--space-5);">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-size: 0.8125rem; font-weight: 500; color: var(--text-primary);">Weekly AI Letter</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-1);">Receive an AI-generated investment summary every Sunday evening</div>
+                        </div>
+                        <label class="checkbox-wrapper">
+                            <input type="checkbox" name="weekly_letter_enabled"
+                                {% if settings.weekly_letter_enabled %}checked{% endif %}>
+                            <div class="checkbox-custom"></div>
+                            <span class="checkbox-label">Enable</span>
+                        </label>
+                    </div>
+                </div>
             </div>
 
         </div>
@@ -587,6 +612,17 @@
                     <input type="text" name="telegram_chat_id" value="{{ settings.telegram_chat_id|default('') }}"
                         placeholder="-100...">
                 </div>
+            </div>
+            <div style="margin-bottom:var(--space-4); padding: var(--space-3) var(--space-4); background: var(--bg-secondary); border-radius: var(--radius-md);">
+                <label class="checkbox-wrapper">
+                    <input type="checkbox" name="telegram_bot_enabled" {% if settings.telegram_bot_enabled %}checked{% endif %}>
+                    <div class="checkbox-custom"></div>
+                    <span class="checkbox-label">Enable Two-way Bot (respond to commands)</span>
+                </label>
+                <p style="font-size:0.7rem; color:var(--text-muted); margin: var(--space-2) 0 0 2rem; line-height:1.4;">
+                    When enabled the bot polls for messages and responds to:
+                    <code>/analyze AAPL</code>, <code>/watchlist</code>, <code>/toppicks</code>, <code>/geo</code>, <code>/status</code>
+                </p>
             </div>
             <div style="display:flex;gap:0.5rem;">
                 <button type="submit" class="btn btn-primary">Save Telegram</button>
@@ -1109,6 +1145,217 @@
             </div>
         </div>
 
+        <!-- Auto-Trading -->
+        <div class="card" style="margin-bottom: var(--space-8);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-5);">
+                <h3 style="margin: 0;">Auto-Trading</h3>
+                <label class="toggle-switch" title="Enable automatic trade execution">
+                    <input type="checkbox" name="auto_trade_enabled" id="auto-trade-toggle"
+                        {% if settings.auto_trade_enabled %}checked{% endif %}
+                        onchange="toggleAutoTradeSettings()">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+
+            <div id="auto-trade-warning" style="display:{% if settings.auto_trade_enabled %}flex{% else %}none{% endif %}; align-items:flex-start; gap:var(--space-3); padding:var(--space-3) var(--space-4); background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:var(--radius-md); margin-bottom:var(--space-5);">
+                <span style="flex-shrink:0;">⚠️</span>
+                <span style="font-size:0.75rem; color:var(--text-secondary); line-height:1.5;">
+                    This feature enters trades automatically. <strong>Use Paper mode until you trust the signals.</strong>
+                    Broker modes are locked until the trust gate is met (20+ closed trades, ≥55% win rate).
+                </span>
+            </div>
+
+            <div id="auto-trade-settings" class="{% if not settings.auto_trade_enabled %}section-disabled{% endif %}">
+
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:var(--space-6); margin-bottom:var(--space-6);">
+                    <!-- Mode selector -->
+                    <div>
+                        <label>Execution Mode</label>
+                        <div style="display:flex; flex-direction:column; gap:var(--space-2); margin-top:var(--space-2);">
+                            {% set at_mode = settings.auto_trade_mode|default('paper') %}
+                            <label style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-size:0.8125rem;">
+                                <input type="radio" name="auto_trade_mode" value="paper"
+                                    {% if at_mode == 'paper' %}checked{% endif %}>
+                                Paper only
+                                <span style="font-size:0.7rem;color:var(--text-muted);">— safe, no real money</span>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-size:0.8125rem;">
+                                <input type="radio" name="auto_trade_mode" value="alpaca"
+                                    {% if at_mode == 'alpaca' %}checked{% endif %}>
+                                Alpaca API
+                                <span id="alpaca-lock" style="font-size:0.75rem;color:var(--text-muted);" title="Requires trust gate">🔒</span>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-size:0.8125rem;">
+                                <input type="radio" name="auto_trade_mode" value="ibkr"
+                                    {% if at_mode == 'ibkr' %}checked{% endif %}>
+                                Interactive Brokers
+                                <span id="ibkr-lock" style="font-size:0.75rem;color:var(--text-muted);" title="Requires trust gate">🔒</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Trust gate display -->
+                    <div>
+                        <label>Trust Gate</label>
+                        <div id="trust-gate-display" style="margin-top:var(--space-2); font-size:0.75rem; color:var(--text-muted);">Loading…</div>
+                    </div>
+                </div>
+
+                <!-- Signal filter -->
+                <div style="margin-bottom:var(--space-5);">
+                    <label>Signal Filter</label>
+                    <div style="display:flex; gap:var(--space-5); margin-top:var(--space-2);">
+                        {% set at_filter = settings.auto_trade_signal_filter|default('STRONG') %}
+                        <label style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-size:0.8125rem;">
+                            <input type="radio" name="auto_trade_signal_filter" value="STRONG"
+                                {% if at_filter == 'STRONG' %}checked{% endif %}>
+                            STRONG only (STRONG_BUY / STRONG_SELL)
+                        </label>
+                        <label style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-size:0.8125rem;">
+                            <input type="radio" name="auto_trade_signal_filter" value="ALL"
+                                {% if at_filter == 'ALL' %}checked{% endif %}>
+                            All signals (BUY / SELL / STRONG_*)
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Risk parameters -->
+                <div class="grid grid-3" style="gap:var(--space-5); margin-bottom:var(--space-5);">
+                    <div>
+                        <label>Take-Profit %</label>
+                        <input type="number" name="auto_trade_take_profit_pct"
+                            value="{{ settings.auto_trade_take_profit_pct|default(8.0) }}" min="1" max="50" step="0.5">
+                        <div style="margin-top:var(--space-2);font-size:0.6875rem;color:var(--text-muted);">Auto-close when gain reaches this %</div>
+                    </div>
+                    <div>
+                        <label>Stop-Loss %</label>
+                        <input type="number" name="auto_trade_stop_loss_pct"
+                            value="{{ settings.auto_trade_stop_loss_pct|default(4.0) }}" min="1" max="25" step="0.5">
+                        <div style="margin-top:var(--space-2);font-size:0.6875rem;color:var(--text-muted);">Auto-close when loss exceeds this %</div>
+                    </div>
+                    <div>
+                        <label>Max Days Open</label>
+                        <input type="number" name="auto_trade_max_days_open"
+                            value="{{ settings.auto_trade_max_days_open|default(30) }}" min="1" max="90" step="1">
+                        <div style="margin-top:var(--space-2);font-size:0.6875rem;color:var(--text-muted);">Force-close after N calendar days</div>
+                    </div>
+                    <div>
+                        <label>Position Size %</label>
+                        <input type="number" name="auto_trade_position_size_pct"
+                            value="{{ settings.auto_trade_position_size_pct|default(5.0) }}" min="1" max="20" step="0.5">
+                        <div style="margin-top:var(--space-2);font-size:0.6875rem;color:var(--text-muted);">% of paper portfolio per trade</div>
+                    </div>
+                    <div>
+                        <label>Max Open Positions</label>
+                        <input type="number" name="auto_trade_max_open_positions"
+                            value="{{ settings.auto_trade_max_open_positions|default(10) }}" min="1" max="50" step="1">
+                        <div style="margin-top:var(--space-2);font-size:0.6875rem;color:var(--text-muted);">Cap on concurrent auto-trade positions</div>
+                    </div>
+                </div>
+
+                <!-- Confirmation toggle -->
+                <div style="display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-4);border:1px solid var(--border-light);border-radius:var(--radius-md);margin-bottom:var(--space-5);">
+                    <label class="toggle-switch" style="flex-shrink:0;margin-top:2px;">
+                        <input type="checkbox" name="auto_trade_require_confirm"
+                            {% if settings.auto_trade_require_confirm|default(true) %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div>
+                        <div style="font-size:0.8125rem;font-weight:500;">Require confirmation before each trade</div>
+                        <div style="font-size:0.6875rem;color:var(--text-muted);margin-top:var(--space-1);">
+                            Sends a Telegram / email notification with <strong>Approve · Skip</strong>.
+                            Proposals expire in 5 minutes. Turn off for fully-automatic execution.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trust gate thresholds -->
+                <div class="grid grid-2" style="gap:var(--space-5);">
+                    <div>
+                        <label>Trust Gate — Min Closed Trades</label>
+                        <input type="number" name="auto_trade_min_trust_trades"
+                            value="{{ settings.auto_trade_min_trust_trades|default(20) }}" min="5" max="200" step="5">
+                        <div style="margin-top:var(--space-2);font-size:0.6875rem;color:var(--text-muted);">Broker modes unlock only after this many closed paper trades</div>
+                    </div>
+                    <div>
+                        <label>Trust Gate — Min Win Rate %</label>
+                        <input type="number" name="auto_trade_min_trust_win_rate"
+                            value="{{ settings.auto_trade_min_trust_win_rate|default(55.0) }}" min="40" max="80" step="1">
+                        <div style="margin-top:var(--space-2);font-size:0.6875rem;color:var(--text-muted);">Minimum win rate required to unlock broker modes</div>
+                    </div>
+                </div>
+
+                <!-- Broker credentials — Alpaca -->
+                <div id="alpaca-credentials" style="display:none; margin-top:var(--space-5); padding:var(--space-4); background:var(--bg-secondary); border:1px solid var(--border-light); border-radius:var(--radius-md);">
+                    <div style="font-size:0.75rem; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:var(--space-4);">Alpaca API Credentials</div>
+                    <div class="grid grid-2" style="gap:var(--space-5); margin-bottom:var(--space-4);">
+                        <div>
+                            <label>API Key</label>
+                            <input type="text" name="auto_trade_alpaca_api_key"
+                                value="{{ settings.auto_trade_alpaca_api_key|default('') }}"
+                                placeholder="PKXXXXXXXXXXXXXXXX" autocomplete="off">
+                        </div>
+                        <div>
+                            <label>API Secret</label>
+                            <input type="password" name="auto_trade_alpaca_secret"
+                                value="{{ settings.auto_trade_alpaca_secret|default('') }}"
+                                placeholder="••••••••••••" autocomplete="new-password">
+                        </div>
+                    </div>
+                    <div>
+                        <label>Base URL</label>
+                        <input type="text" name="auto_trade_alpaca_base_url"
+                            value="{{ settings.auto_trade_alpaca_base_url|default('https://paper-api.alpaca.markets') }}"
+                            placeholder="https://paper-api.alpaca.markets">
+                        <div style="margin-top:var(--space-2);font-size:0.6875rem;color:var(--text-muted);">Use <code>https://paper-api.alpaca.markets</code> for paper, <code>https://api.alpaca.markets</code> for live.</div>
+                    </div>
+                </div>
+
+                <!-- Broker credentials — IBKR -->
+                <div id="ibkr-credentials" style="display:none; margin-top:var(--space-5); padding:var(--space-4); background:var(--bg-secondary); border:1px solid var(--border-light); border-radius:var(--radius-md);">
+                    <div style="font-size:0.75rem; font-weight:600; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:var(--space-4);">Interactive Brokers TWS / Gateway</div>
+                    <div class="grid grid-3" style="gap:var(--space-5);">
+                        <div>
+                            <label>TWS Host</label>
+                            <input type="text" name="auto_trade_ibkr_host"
+                                value="{{ settings.auto_trade_ibkr_host|default('127.0.0.1') }}"
+                                placeholder="127.0.0.1">
+                        </div>
+                        <div>
+                            <label>TWS Port</label>
+                            <input type="number" name="auto_trade_ibkr_port"
+                                value="{{ settings.auto_trade_ibkr_port|default('7497') }}"
+                                min="1000" max="65535">
+                            <div style="margin-top:var(--space-2);font-size:0.6875rem;color:var(--text-muted);">7497 = TWS live, 7496 = TWS paper, 4002 = Gateway</div>
+                        </div>
+                        <div>
+                            <label>Client ID</label>
+                            <input type="number" name="auto_trade_ibkr_client_id"
+                                value="{{ settings.auto_trade_ibkr_client_id|default('1') }}"
+                                min="1" max="999">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin trust override -->
+                <div style="margin-top:var(--space-5);display:flex;align-items:flex-start;gap:var(--space-3);padding:var(--space-3) var(--space-4);background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);border-radius:var(--radius-md);">
+                    <label class="toggle-switch" style="flex-shrink:0;margin-top:2px;">
+                        <input type="checkbox" name="auto_trade_trust_override" id="trust-override-toggle"
+                            {% if settings.auto_trade_trust_override %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <div>
+                        <div style="font-size:0.8125rem;font-weight:500;">Admin override — bypass trust gate</div>
+                        <div style="font-size:0.6875rem;color:var(--text-muted);margin-top:var(--space-1);">
+                            Allows switching to broker mode even if trust gate is not met. For development/testing only.
+                        </div>
+                    </div>
+                </div>
+                <div id="trust-gate-block-msg" style="display:none; margin-top:var(--space-3); font-size:0.75rem; color:var(--signal-negative); padding:var(--space-2) var(--space-4); background:rgba(239,68,68,0.08); border-radius:var(--radius-sm);"></div>
+
+            </div><!-- /#auto-trade-settings -->
+        </div>
+
         <!-- Spacer for sticky footer -->
         <div class="sticky-footer-spacer"></div>
 
@@ -1164,9 +1411,101 @@
         }
     }
 
+    function toggleAutoTradeSettings() {
+        const toggle = document.getElementById('auto-trade-toggle');
+        const container = document.getElementById('auto-trade-settings');
+        const warning = document.getElementById('auto-trade-warning');
+        if (toggle.checked) {
+            container.classList.remove('section-disabled');
+            warning.style.display = 'flex';
+        } else {
+            container.classList.add('section-disabled');
+            warning.style.display = 'none';
+        }
+    }
+
+    function updateBrokerCredentialPanels() {
+        const mode = document.querySelector('input[name="auto_trade_mode"]:checked');
+        const alpacaDiv = document.getElementById('alpaca-credentials');
+        const ibkrDiv = document.getElementById('ibkr-credentials');
+        if (!mode) return;
+        if (alpacaDiv) alpacaDiv.style.display = mode.value === 'alpaca' ? '' : 'none';
+        if (ibkrDiv) ibkrDiv.style.display = mode.value === 'ibkr' ? '' : 'none';
+    }
+
+    // Attach change listener to mode radios
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('input[name="auto_trade_mode"]').forEach(function (radio) {
+            radio.addEventListener('change', updateBrokerCredentialPanels);
+        });
+        updateBrokerCredentialPanels();
+    });
+
+    // Trust gate enforcement on form submit
+    (function () {
+        var _trustData = null;
+        fetch('/api/auto-trade/trust-gate', { credentials: 'same-origin' })
+            .then(r => r.json()).then(d => { _trustData = d; }).catch(() => {});
+
+        document.addEventListener('DOMContentLoaded', function () {
+            var form = document.querySelector('form[action="/settings/save"]') || document.querySelector('form');
+            if (!form) return;
+            form.addEventListener('submit', function (e) {
+                var mode = document.querySelector('input[name="auto_trade_mode"]:checked');
+                if (!mode || mode.value === 'paper') return; // paper is always allowed
+                var override = document.getElementById('trust-override-toggle');
+                if (override && override.checked) return; // admin bypass
+                if (_trustData && !_trustData.trusted) {
+                    e.preventDefault();
+                    var msg = document.getElementById('trust-gate-block-msg');
+                    if (msg) {
+                        msg.style.display = '';
+                        msg.textContent = '\u26a0\ufe0f Trust gate not met (' + (_trustData.trades_remaining || 0) + ' more trades needed, ' + (_trustData.win_rate_pct || 0) + '% win rate). Enable Admin Override or switch to Paper mode.';
+                    }
+                    window.scrollTo({ top: document.getElementById('trust-gate-block-msg').getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
+                }
+            });
+        });
+    })();
+
+    function loadTrustGate() {
+        fetch('/api/auto-trade/trust-gate', { credentials: 'same-origin' })
+            .then(r => r.json())
+            .then(data => {
+                const el = document.getElementById('trust-gate-display');
+                if (!el) return;
+                const pct = data.win_rate_pct || 0;
+                const closed = data.closed || 0;
+                const needed = data.needed_trades || 20;
+                const progress = Math.min(100, Math.round((closed / needed) * 100));
+                const trusted = data.trusted;
+
+                // Update lock icons
+                const lockIcon = trusted ? '🔓' : '🔒';
+                document.querySelectorAll('#alpaca-lock, #ibkr-lock').forEach(el => el.textContent = lockIcon);
+
+                el.innerHTML = `
+                    <div style="margin-bottom:var(--space-2);">
+                        <div style="display:flex;justify-content:space-between;font-size:0.6875rem;color:var(--text-muted);margin-bottom:4px;">
+                            <span>${closed} / ${needed} trades</span>
+                            <span>Win rate: ${pct}%</span>
+                        </div>
+                        <div style="height:6px;background:var(--border-light);border-radius:3px;overflow:hidden;">
+                            <div style="height:100%;width:${progress}%;background:${trusted ? 'var(--color-success,#22c55e)' : 'var(--color-warning,#f59e0b)'};transition:width 0.4s;"></div>
+                        </div>
+                    </div>
+                    <div style="font-size:0.6875rem;color:${trusted ? 'var(--color-success,#22c55e)' : 'var(--text-muted)'};">
+                        ${trusted ? '🔓 Trust gate met — broker modes available' : `🔒 Need ${data.trades_remaining} more trade${data.trades_remaining === 1 ? '' : 's'} + ≥${data.needed_win_rate}% win rate`}
+                    </div>`;
+            })
+            .catch(() => {});
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         toggleEmailSettings();
         toggleDiscoverySettings();
+        loadTrustGate();
+        updateBrokerCredentialPanels();
     });
 
     function updateVariantSelection(radioInput) {

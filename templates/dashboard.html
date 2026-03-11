@@ -318,6 +318,38 @@
         </div>
     </div>
 
+    <!-- ─── GEOPOLITISCHES RADAR ───────────────────────── -->
+
+    <div class="dash-section-label">Geopolitik</div>
+    <div class="card" style="margin-bottom: var(--space-6);" id="geo-radar-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-4);">
+            <div style="display: flex; align-items: center; gap: var(--space-3);">
+                <h3 style="margin: 0;">Geopolitisches Radar</h3>
+                <span id="geo-scan-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px; display: none;"></span>
+            </div>
+            <div id="geo-scan-timestamp" style="font-size: 0.6875rem; color: var(--text-muted);"></div>
+        </div>
+
+        <!-- Exposure Heatmap -->
+        <div id="geo-exposure-section" style="display: none; margin-bottom: var(--space-5);">
+            <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-3);">Portfolio Exposure</div>
+            <div id="geo-exposure-grid" style="display: flex; flex-wrap: wrap; gap: var(--space-2);"></div>
+        </div>
+
+        <!-- Full Scan Summary (collapsible) -->
+        <details id="geo-scan-details">
+            <summary style="cursor: pointer; font-size: 0.8125rem; color: var(--text-secondary); list-style: none; display: flex; align-items: center; gap: var(--space-2);">
+                <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" fill="none" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+                Aktuelle Ereignisse anzeigen
+            </summary>
+            <div id="geo-scan-content" style="margin-top: var(--space-4); font-size: 0.8125rem; color: var(--text-secondary); white-space: pre-wrap; font-family: var(--font-mono); line-height: 1.6; padding: var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">Lade...</div>
+        </details>
+
+        <div id="geo-scan-empty" style="display: none; font-size: 0.8125rem; color: var(--text-muted); padding: var(--space-4) 0;">
+            Kein Geo-Scan verfügbar. Wird beim nächsten Scheduler-Lauf (alle 6h) aktualisiert.
+        </div>
+    </div>
+
     <!-- ─── LAYER 4: AUTO-DISCOVERY STATS ───────────────── -->
 
     {% if discovery_stats %}
@@ -533,6 +565,8 @@
             </div>
         </div>
         <div id="auto-paper-open" style="font-size: 0.8125rem; color: var(--text-secondary);"></div>
+        <!-- This-week summary widget (#Phase 7) -->
+        <div id="auto-paper-week" style="display:none; margin-top:var(--space-3); padding:var(--space-2) var(--space-4); background:var(--bg-secondary); border-left:2px solid rgba(249,115,22,0.5); font-size:0.8125rem; color:var(--text-secondary);"></div>
     </div>
 
     <!-- Confidence Calibration (AJAX) -->
@@ -785,6 +819,56 @@
         </div>
     </div>
 
+    <!-- Budget Health Card (#29) -->
+    <div class="card" style="margin-bottom: var(--space-6);" id="budget-health-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-4);">
+            <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em;">API Budget Health</div>
+            <a href="/settings" style="font-size:0.75rem; color:var(--text-muted);">Configure</a>
+        </div>
+        <div id="budget-health-content" style="display:grid; grid-template-columns: 1fr 1fr; gap:var(--space-4);">
+            <div style="padding:var(--space-3) var(--space-4); background:var(--bg-secondary); border:1px solid var(--border-hairline);">
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:var(--space-2);">Perplexity</div>
+                <div id="budget-pplx-bar" style="background:var(--bg-tertiary); border-radius:3px; height:6px; margin-bottom:var(--space-2);">
+                    <div id="budget-pplx-fill" style="height:6px; border-radius:3px; background:#6bba7e; width:0%;"></div>
+                </div>
+                <div id="budget-pplx-text" style="font-size:0.8125rem; color:var(--text-secondary);">Loading…</div>
+            </div>
+            <div style="padding:var(--space-3) var(--space-4); background:var(--bg-secondary); border:1px solid var(--border-hairline);">
+                <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:var(--space-2);">Gemini</div>
+                <div id="budget-gemini-bar" style="background:var(--bg-tertiary); border-radius:3px; height:6px; margin-bottom:var(--space-2);">
+                    <div id="budget-gemini-fill" style="height:6px; border-radius:3px; background:#6bba7e; width:0%;"></div>
+                </div>
+                <div id="budget-gemini-text" style="font-size:0.8125rem; color:var(--text-secondary);">Loading…</div>
+            </div>
+        </div>
+        <div id="budget-health-footer" style="margin-top:var(--space-3); font-size:0.75rem; color:var(--text-muted);"></div>
+    </div>
+    <script>
+    (function() {
+        fetch('/api/budget/status').then(function(r) { return r.json(); }).then(function(d) {
+            function renderBar(fillId, textId, spent, cap, label) {
+                var pct = cap > 0 ? Math.min(100, spent / cap * 100) : 0;
+                var fill = document.getElementById(fillId);
+                var text = document.getElementById(textId);
+                if (!fill || !text) return;
+                fill.style.width = pct.toFixed(1) + '%';
+                fill.style.background = pct >= 80 ? '#d47272' : pct >= 60 ? '#f59e0b' : '#6bba7e';
+                text.textContent = label + ': €' + spent.toFixed(2) + ' / €' + cap.toFixed(2) + ' (' + pct.toFixed(0) + '%)';
+                if (pct >= 80) text.style.color = '#d47272';
+            }
+            if (d.perplexity) renderBar('budget-pplx-fill', 'budget-pplx-text', d.perplexity.spent_eur, d.perplexity.monthly_budget_eur, 'Perplexity');
+            if (d.gemini) renderBar('budget-gemini-fill', 'budget-gemini-text', d.gemini.spent_eur, d.gemini.monthly_budget_eur, 'Gemini');
+            var footer = document.getElementById('budget-health-footer');
+            if (footer) {
+                var parts = [];
+                if (d.perplexity) parts.push(d.perplexity.days_left + 'd remaining in month');
+                if (d.avg_cost_per_analysis_usd != null) parts.push('avg $' + d.avg_cost_per_analysis_usd.toFixed(4) + '/call (7d)');
+                footer.textContent = parts.join(' · ');
+            }
+        }).catch(function() {});
+    })();
+    </script>
+
     <!-- Scheduled Jobs (if running) -->
     {% if scheduler_status.jobs %}
     <div class="card" style="margin-bottom: var(--space-6);">
@@ -884,9 +968,16 @@
                             {% endif %}
                         </td>
                         <td style="color: var(--text-muted); font-size: var(--text-sm);">{{ a.timestamp }}</td>
-                        <td>
+                        <td style="white-space:nowrap;">
                             <a href="/analysis/{{ a.id }}" class="btn btn-ghost"
                                 style="padding: var(--space-2) var(--space-3); font-size: 0.6875rem;">Details</a>
+                            {% if a.signal in ('STRONG_BUY', 'STRONG_SELL', 'BUY', 'SELL') %}
+                            <button
+                                class="btn btn-secondary auto-execute-btn"
+                                data-analysis-id="{{ a.id }}"
+                                style="padding: var(--space-2) var(--space-3); font-size: 0.6875rem; display:none;"
+                                title="Queue as auto-trade proposal">⚡ Auto</button>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}
@@ -1253,6 +1344,69 @@
                 openHtml += ` <span style="margin-left: var(--space-2);">${openTickers}${s.open_positions > 5 ? '...' : ''}</span>`;
             }
             document.getElementById('auto-paper-open').innerHTML = openHtml;
+
+            // This-week mini-widget: fetch equity curve for last 7 days
+            fetch('/api/auto-trade/equity-curve?days=7')
+                .then(r => r.json())
+                .then(function(wData) {
+                    var weekEl = document.getElementById('auto-paper-week');
+                    if (!weekEl) return;
+                    // Count trades opened/closed this week
+                    var closedThisWeek = (wData && wData.length) ? wData.length : 0;
+                    var weekPnl = (wData && wData.length) ? wData[wData.length - 1].cumulative_pnl_pct : 0;
+                    var openNow = s.open_positions;
+                    var sign = weekPnl >= 0 ? '+' : '';
+                    if (closedThisWeek > 0 || openNow > 0) {
+                        weekEl.innerHTML = '⚡ <strong>Auto this week:</strong> '
+                            + openNow + ' open &nbsp;·&nbsp; '
+                            + closedThisWeek + ' closed &nbsp;·&nbsp; '
+                            + '<span style="color:' + (weekPnl >= 0 ? 'var(--signal-positive)' : 'var(--signal-negative)') + ';">'
+                            + sign + weekPnl.toFixed(1) + '%</span>';
+                        weekEl.style.display = '';
+                    }
+                })
+                .catch(() => {});
+        })
+        .catch(() => { });
+
+    // Auto-Execute button: show only when auto-trade is enabled
+    fetch('/api/auto-trade/status')
+        .then(r => r.json())
+        .then(function(data) {
+            if (!data || !data.enabled) return;
+            document.querySelectorAll('.auto-execute-btn').forEach(function(btn) {
+                btn.style.display = '';
+                btn.addEventListener('click', function() {
+                    var analysisId = this.dataset.analysisId;
+                    var origText = this.textContent;
+                    this.disabled = true;
+                    this.textContent = '⏳ Pending…';
+                    fetch('/api/auto-trade/propose', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({analysis_id: parseInt(analysisId)})
+                    })
+                    .then(r => r.json())
+                    .then(function(res) {
+                        if (res.queued) {
+                            btn.textContent = '✅ Queued';
+                            btn.style.color = 'var(--signal-positive)';
+                        } else {
+                            btn.textContent = '❌ ' + (res.reason || 'Blocked');
+                            btn.style.color = 'var(--signal-negative)';
+                            setTimeout(function() {
+                                btn.textContent = origText;
+                                btn.style.color = '';
+                                btn.disabled = false;
+                            }, 4000);
+                        }
+                    })
+                    .catch(function() {
+                        btn.textContent = origText;
+                        btn.disabled = false;
+                    });
+                });
+            });
         })
         .catch(() => { });
 
@@ -1370,5 +1524,104 @@
             }
         })
         .catch(() => { });
+
+    // ── Geopolitisches Radar ──────────────────────────────────────────────
+    (function loadGeoRadar() {
+        const EXPOSURE_COLORS = {
+            'HOCH': { bg: 'rgba(220,38,38,0.15)', border: 'rgba(220,38,38,0.4)', text: '#fca5a5' },
+            'MITTEL': { bg: 'rgba(234,179,8,0.12)', border: 'rgba(234,179,8,0.35)', text: '#fde68a' },
+            'GERING': { bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.35)', text: '#6ee7b7' },
+            'KEINE': { bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.1)', text: 'var(--text-muted)' },
+        };
+
+        fetch('/api/geopolitical', { credentials: 'same-origin' })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                const scanContent = document.getElementById('geo-scan-content');
+                const scanEmpty = document.getElementById('geo-scan-empty');
+                const scanBadge = document.getElementById('geo-scan-badge');
+                const scanTs = document.getElementById('geo-scan-timestamp');
+                const details = document.getElementById('geo-scan-details');
+
+                if (!data || !data.scan) {
+                    if (scanContent) scanContent.style.display = 'none';
+                    if (scanEmpty) scanEmpty.style.display = 'block';
+                    return;
+                }
+
+                const scan = data.scan;
+                if (scanContent) scanContent.textContent = scan.raw_summary || '';
+                if (scanTs) scanTs.textContent = 'Aktualisiert: ' + (scan.timestamp || '').replace('T', ' ').slice(0, 16);
+
+                // Severity badge
+                if (scan.severity_avg !== null && scan.severity_avg !== undefined) {
+                    const avg = parseFloat(scan.severity_avg).toFixed(1);
+                    if (scanBadge) {
+                        scanBadge.textContent = 'Ø Schweregrad ' + avg + '/10';
+                        scanBadge.style.display = '';
+                        if (avg >= 7) {
+                            scanBadge.style.background = 'rgba(220,38,38,0.2)';
+                            scanBadge.style.color = '#fca5a5';
+                            scanBadge.style.border = '1px solid rgba(220,38,38,0.4)';
+                        } else if (avg >= 4) {
+                            scanBadge.style.background = 'rgba(234,179,8,0.15)';
+                            scanBadge.style.color = '#fde68a';
+                            scanBadge.style.border = '1px solid rgba(234,179,8,0.3)';
+                        } else {
+                            scanBadge.style.background = 'rgba(16,185,129,0.12)';
+                            scanBadge.style.color = '#6ee7b7';
+                            scanBadge.style.border = '1px solid rgba(16,185,129,0.3)';
+                        }
+                    }
+                }
+            })
+            .catch(() => {
+                const scanEmpty = document.getElementById('geo-scan-empty');
+                if (scanEmpty) scanEmpty.style.display = 'block';
+            });
+
+        fetch('/api/geopolitical/exposure', { credentials: 'same-origin' })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+                if (!data || !data.exposures || data.exposures.length === 0) return;
+                const hasAny = data.exposures.some(e => e.geopolitical_context);
+                if (!hasAny) return;
+
+                const section = document.getElementById('geo-exposure-section');
+                const grid = document.getElementById('geo-exposure-grid');
+                if (!section || !grid) return;
+                section.style.display = '';
+
+                data.exposures.forEach(e => {
+                    const ctx = e.geopolitical_context || '';
+                    const expMatch = ctx.match(/EXPOSURE:\s*(HOCH|MITTEL|GERING|KEINE)/i);
+                    const geoScore = e.geo_risk_score;
+                    const level = expMatch ? expMatch[1].toUpperCase() : (ctx ? 'KEINE' : null);
+                    if (!level) return;
+
+                    const colors = EXPOSURE_COLORS[level] || EXPOSURE_COLORS['KEINE'];
+                    const chip = document.createElement('div');
+                    chip.title = ctx.slice(0, 200);
+                    chip.style.cssText = [
+                        'padding: 4px 10px',
+                        'border-radius: 4px',
+                        'font-size: 0.75rem',
+                        'font-weight: 500',
+                        'cursor: default',
+                        'border: 1px solid ' + colors.border,
+                        'background: ' + colors.bg,
+                        'color: ' + colors.text,
+                        'display: flex',
+                        'align-items: center',
+                        'gap: 6px'
+                    ].join(';');
+
+                    const geoStr = (geoScore !== null && geoScore !== undefined) ? ' <span style="opacity:0.65;font-size:0.6875rem;">Geo:' + geoScore + '</span>' : '';
+                    chip.innerHTML = '<span>' + e.ticker + '</span><span style="opacity:0.65;font-size:0.6875rem;">' + level + '</span>' + geoStr;
+                    grid.appendChild(chip);
+                });
+            })
+            .catch(() => { });
+    })();
 </script>
 {% endblock %}

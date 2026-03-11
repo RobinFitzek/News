@@ -160,6 +160,83 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(nvda_holding['shares'], 10)
 
 
+class TestGeopoliticalScan(unittest.TestCase):
+    """Tests for geopolitical scan save/retrieve and deduplication."""
+
+    def setUp(self):
+        self.temp_db = tempfile.NamedTemporaryFile(delete=False, suffix='.db')
+        self.temp_db.close()
+        self.db = Database(Path(self.temp_db.name))
+
+    def tearDown(self):
+        try:
+            os.unlink(self.temp_db.name)
+        except Exception:
+            pass
+
+    def test_save_geopolitical_scan_returns_id(self):
+        """save_geopolitical_scan must return a positive integer row id."""
+        summary = "SCHWEREGRAD: 7 — Konflikte in Region X\nSCHWEREGRAD: 5 — Sanktionen verhängt"
+        scan_id = self.db.save_geopolitical_scan(summary)
+        self.assertIsInstance(scan_id, int)
+        self.assertGreater(scan_id, 0)
+
+    def test_save_geopolitical_scan_extracts_severity(self):
+        """severity_avg column must reflect the mean of all SCHWEREGRAD scores."""
+        summary = "SCHWEREGRAD: 6\nSCHWEREGRAD: 8"
+        self.db.save_geopolitical_scan(summary)
+        row = self.db.query_one(
+            "SELECT severity_avg FROM geopolitical_events ORDER BY id DESC LIMIT 1"
+        )
+        self.assertIsNotNone(row)
+        self.assertAlmostEqual(row['severity_avg'], 7.0)
+
+    def test_save_geopolitical_scan_no_scores_null_severity(self):
+        """When no SCHWEREGRAD found, severity_avg must be NULL/None."""
+        self.db.save_geopolitical_scan("Alles ruhig, keine Ereignisse.")
+        row = self.db.query_one(
+            "SELECT severity_avg FROM geopolitical_events ORDER BY id DESC LIMIT 1"
+        )
+        self.assertIsNotNone(row)
+        self.assertIsNone(row['severity_avg'])
+
+    def test_is_delta_new_content(self):
+        """First scan and a scan with different content must both have is_delta=1."""
+        self.db.save_geopolitical_scan("Ereignis A: SCHWEREGRAD: 5")
+        self.db.save_geopolitical_scan("Ereignis B (neues Ereignis): SCHWEREGRAD: 6")
+        rows = self.db.query("SELECT is_delta FROM geopolitical_events ORDER BY id")
+        self.assertEqual(rows[0]['is_delta'], 1)
+        self.assertEqual(rows[1]['is_delta'], 1)
+
+    def test_is_delta_duplicate_content(self):
+        """Identical content saved twice must set is_delta=0 on the second row."""
+        summary = "SCHWEREGRAD: 7 — Konflikt in Region X"
+        self.db.save_geopolitical_scan(summary)
+        self.db.save_geopolitical_scan(summary)  # exact duplicate
+        rows = self.db.query("SELECT is_delta FROM geopolitical_events ORDER BY id")
+        self.assertEqual(rows[0]['is_delta'], 1)
+        self.assertEqual(rows[1]['is_delta'], 0)
+
+    def test_get_latest_geopolitical_scan_returns_recent(self):
+        """get_latest_geopolitical_scan must return the most recent scan within 24 h."""
+        self.db.save_geopolitical_scan("SCHWEREGRAD: 5 — Aktuell")
+        result = self.db.get_latest_geopolitical_scan()
+        self.assertIsNotNone(result)
+        self.assertIn('raw_summary', result)
+
+    def test_get_latest_geopolitical_scan_ignores_old(self):
+        """Scans older than 24 h must not be returned by get_latest_geopolitical_scan."""
+        # Insert a row with a timestamp 25 hours in the past
+        with self.db._get_transaction() as conn:
+            conn.execute(
+                "INSERT INTO geopolitical_events (raw_summary, severity_avg, timestamp) "
+                "VALUES (?, ?, datetime('now', '-25 hours'))",
+                ("Alter Scan SCHWEREGRAD: 4", 4.0)
+            )
+        result = self.db.get_latest_geopolitical_scan()
+        self.assertIsNone(result)
+
+
 class TestDatabasePerformance(unittest.TestCase):
     """Test database performance under load"""
 

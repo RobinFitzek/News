@@ -113,6 +113,9 @@ DEFAULT_SETTINGS = {
     "active_hours_end": "22:00",
     "timezone": "Europe/Berlin",
     
+    # Site URL for email action links (e.g. auto-trade confirm/skip)
+    "site_url": "",
+
     # Notifications
     "email_enabled": False,
     "email_recipient": "",
@@ -162,6 +165,51 @@ DEFAULT_SETTINGS = {
     "discovery_max_promote_per_run": 5,
     "discovery_max_watchlist_size": 50,
     "discovery_strategies": ["volume_spike", "breakout", "oversold", "sector_rotation", "insider_buy", "value_screen"],
+
+    # Market Holiday Skip
+    "holiday_skip_enabled": True,
+
+    # Alert Deduplication
+    "alert_cooldown_hours": 24,
+
+    # Weekly AI Letter
+    "weekly_letter_enabled": False,
+
+    # Multi-Currency
+    "display_currency": "USD",
+
+    # Intraday Breakout Auto-Trigger (#15)
+    "intraday_trigger_pct": 3.0,
+
+    # Two-way Telegram Bot (#14)
+    "telegram_bot_enabled": False,
+
+    # Auto-Trading (#21)
+    "auto_trade_enabled": False,
+    "auto_trade_mode": "paper",              # "paper" | "alpaca" | "ibkr"
+    "auto_trade_signal_filter": "STRONG",    # "STRONG" = STRONG_BUY/SELL only, "ALL" = BUY/SELL too
+    "auto_trade_take_profit_pct": 8.0,
+    "auto_trade_stop_loss_pct": 4.0,
+    "auto_trade_max_days_open": 30,
+    "auto_trade_position_size_pct": 5.0,
+    "auto_trade_max_open_positions": 10,
+    "auto_trade_require_confirm": True,
+    "auto_trade_min_trust_trades": 20,
+    "auto_trade_min_trust_win_rate": 55.0,
+
+    # Phase 6 — Broker credentials (Alpaca)
+    "auto_trade_alpaca_api_key": "",
+    "auto_trade_alpaca_secret": "",
+    "auto_trade_alpaca_base_url": "https://paper-api.alpaca.markets",
+
+    # Phase 6 — Broker credentials (IBKR)
+    "auto_trade_ibkr_host": "127.0.0.1",
+    "auto_trade_ibkr_port": "7497",
+    "auto_trade_ibkr_client_id": "1",
+
+    # Phase 6 — Trust gate admin override + sync timestamp
+    "auto_trade_trust_override": False,
+    "broker_last_sync": "",
 }
 
 # Web Server

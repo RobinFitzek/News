@@ -424,6 +424,59 @@ Aktuelle News, Marktstimmung, Risiken, Analystentrend, kommende Events."""
         result = self._call_api(system_prompt, query)
         return {"ticker": ticker, "raw": result, "type": "quick_scan"}
 
+    def get_geopolitical_scan(self) -> Optional[str]:
+        """Scan for active geopolitical events with global market impact (ticker-independent)"""
+        system_prompt = """Du bist ein geopolitischer Analyst. Identifiziere aktuelle Ereignisse mit globaler Marktwirkung.
+
+Format fuer jedes Ereignis:
+EREIGNIS_TYP / BESCHREIBUNG / REGIONEN / SCHWEREGRAD (1-10) / MARKTRELEVANZ"""
+
+        query = """Aktuelle geopolitische Ereignisse mit Marktrelevanz:
+1. Aktive Konflikte und Kriege
+2. Sanktionen und Handelskonflikte
+3. Politische Instabilitaet (Wahlen, Staatsstreiche, Regierungskrisen)
+4. Energie- und Ressourcengeopolitik (OPEC, Pipelines, Seltene Erden)
+
+Fuer jedes Ereignis: Beschreibung, betroffene Regionen, Schweregrad (1-10), moegliche Marktauswirkungen."""
+
+        geo_domains = [
+            "reuters.com",
+            "bbc.com",
+            "ft.com",
+            "aljazeera.com",
+            "apnews.com"
+        ]
+
+        result = self._call_api(system_prompt, query, domains=geo_domains, recency="day")
+        return result
+
+    def get_ticker_geopolitical_exposure(self, ticker: str, geo_events_summary: str) -> Optional[str]:
+        """Assess how a specific company is exposed to current geopolitical events"""
+        system_prompt = """Du bist ein geopolitischer Risikoanalyst fuer Einzelaktien.
+Bewerte die spezifische Betroffenheit eines Unternehmens durch aktuelle geopolitische Ereignisse.
+
+Format:
+EXPOSURE: [HOCH/MITTEL/GERING/KEINE]
+RICHTUNG: [BULLISH/BEARISH/GEMISCHT]
+BEGRUENDUNG: [2-3 Saetze zur spezifischen Betroffenheit]"""
+
+        query = f"""Gegeben diese geopolitischen Ereignisse:
+{geo_events_summary}
+
+Wie stark ist {ticker} betroffen? Beruecksichtige: Umsatzgeografie, Lieferketten, Rohstoffabhaengigkeiten, Kundenmärkte, regulatorisches Umfeld."""
+
+        combined_domains = [
+            "reuters.com",
+            "ft.com",
+            "finance.yahoo.com",
+            "bloomberg.com",
+            "seekingalpha.com",
+            "marketwatch.com"
+        ]
+
+        result = self._call_api(system_prompt, query, domains=combined_domains, recency="day")
+        return result
+
     def discover_trending_stocks(self, sector: str = None, focus: str = "balanced", limit: int = 5) -> Dict:
         """Discover new interesting stocks using Perplexity's real-time internet access"""
         focus_guidance = {

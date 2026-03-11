@@ -11,6 +11,9 @@
             <p>Track your investments and trading activity</p>
         </div>
         <div style="display: flex; gap: var(--space-3);">
+            <a href="/api/portfolio/export.csv" class="btn btn-ghost" style="font-size: 0.875rem;">
+                Export CSV (FIFO P&amp;L)
+            </a>
             <a href="/portfolio/export" class="btn btn-secondary">
                 Export CSV
             </a>
@@ -78,10 +81,23 @@
                 </div>
             </div>
 
-            <div class="grid grid-2" style="margin-bottom: var(--space-5);">
+            <div class="grid grid-3" style="margin-bottom: var(--space-5);">
                 <div>
                     <label>Transaction Fees</label>
                     <input type="number" name="fees" step="any" value="0.0" placeholder="0.00">
+                </div>
+                <div>
+                    <label>Currency</label>
+                    <select name="currency">
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                        <option value="GBP">GBP</option>
+                        <option value="CHF">CHF</option>
+                        <option value="SEK">SEK</option>
+                        <option value="NOK">NOK</option>
+                        <option value="DKK">DKK</option>
+                        <option value="JPY">JPY</option>
+                    </select>
                 </div>
                 <div>
                     <label>Date (Optional)</label>
@@ -207,6 +223,8 @@
                         <th>Shares</th>
                         <th>Avg Price</th>
                         <th>Total Cost</th>
+                        <th>Current Value</th>
+                        <th>P&amp;L</th>
                         <th>Realized G/L</th>
                         <th style="width: 100px;"></th>
                     </tr>
@@ -216,10 +234,27 @@
                     <tr>
                         <td>
                             <span style="font-family: var(--font-mono); font-weight: 500; font-size: var(--text-base);">{{ h.ticker }}</span>
+                            {% if h.trade_currency and h.trade_currency != h.display_currency %}
+                            <span style="font-size: 0.6rem; color: var(--text-muted); margin-left: 4px;">{{ h.trade_currency }}</span>
+                            {% endif %}
                         </td>
                         <td style="font-family: var(--font-mono);">{{ h.shares }}</td>
                         <td style="font-family: var(--font-mono);">${{ "{:,.2f}".format(h.avg_price) }}</td>
                         <td style="font-family: var(--font-mono);">${{ "{:,.2f}".format(h.total_cost) }}</td>
+                        <td style="font-family: var(--font-mono);">
+                            {% if h.current_value_display is defined %}
+                            {{ h.display_currency }} {{ "{:,.2f}".format(h.current_value_display) }}
+                            {% elif h.current_value is defined %}
+                            ${{ "{:,.2f}".format(h.current_value) }}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>
+                            {% if h.pnl_display is defined %}
+                            <span style="font-family: var(--font-mono); font-weight: 500; color: {% if h.pnl_display >= 0 %}var(--signal-positive){% else %}var(--signal-negative){% endif %};">
+                                {% if h.pnl_display >= 0 %}+{% endif %}{{ h.display_currency }} {{ "{:,.2f}".format(h.pnl_display) }}
+                            </span>
+                            {% else %}—{% endif %}
+                        </td>
                         <td>
                             <span style="font-family: var(--font-mono); font-weight: 500;">
                                 {% if h.realized_gain >= 0 %}+{% endif %}${{ "{:,.2f}".format(h.realized_gain) }}

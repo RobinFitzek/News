@@ -91,4 +91,95 @@ class AuthManager:
         session_id = request.cookies.get("session_id")
         return self.validate_session(session_id)
 
+    # === TOTP / 2FA (#33) ===
+
+    def generate_totp_secret(self) -> str:
+        """Generate a new TOTP secret key."""
+        try:
+            import pyotp
+            return pyotp.random_base32()
+        except ImportError:
+            raise RuntimeError("pyotp is not installed. Run: pip install pyotp")
+
+    def get_totp_uri(self, username: str, secret: str, issuer: str = "Stockholm") -> str:
+        """Return a provisioning URI for QR code generation."""
+        import pyotp
+        totp = pyotp.TOTP(secret)
+        return totp.provisioning_uri(name=username, issuer_name=issuer)
+
+    def generate_qr_code_base64(self, uri: str) -> str:
+        """Generate a QR code PNG as base64 string for embedding in HTML."""
+        try:
+            import qrcode
+            import io
+            import base64
+            img = qrcode.make(uri)
+            buf = io.BytesIO()
+            img.save(buf, format='PNG')
+            return base64.b64encode(buf.getvalue()).decode('utf-8')
+        except ImportError:
+            raise RuntimeError("qrcode[pil] is not installed. Run: pip install 'qrcode[pil]'")
+
+    def verify_totp(self, secret: str, code: str) -> bool:
+        """Verify a TOTP code against the secret. Allows 1 window drift."""
+        try:
+            import pyotp
+            totp = pyotp.TOTP(secret)
+            return totp.verify(code, valid_window=1)
+        except Exception:
+            return False
+
+    def generate_backup_codes(self, count: int = 8) -> list:
+        """Generate N one-time backup codes."""
+        import secrets as _secrets
+        return [_secrets.token_hex(4).upper() for _ in range(count)]
+
+    def save_totp_for_user(self, username: str, secret: str, backup_codes: list):
+        """Enable TOTP for a user in the database."""
+        import json
+        db.execute(
+            "UPDATE users SET totp_secret = ?, totp_enabled = 1, backup_codes = ? WHERE username = ?",
+            (secret, json.dumps(backup_codes), username)
+        )
+
+    def disable_totp_for_user(self, username: str):
+        """Disable TOTP for a user."""
+        db.execute(
+            "UPDATE users SET totp_secret = NULL, totp_enabled = 0, backup_codes = NULL WHERE username = ?",
+            (username,)
+        )
+
+    def get_user_totp_info(self, username: str) -> dict:
+        """Return TOTP status for a user."""
+        row = db.query_one(
+            "SELECT totp_enabled, totp_secret, backup_codes FROM users WHERE username = ?",
+            (username,)
+        )
+        if not row:
+            return {'enabled': False}
+        return {
+            'enabled': bool(row.get('totp_enabled')),
+            'has_secret': bool(row.get('totp_secret')),
+        }
+
+    def use_backup_code(self, username: str, code: str) -> bool:
+        """Try to use a backup code. Returns True and removes the code if valid."""
+        import json
+        row = db.query_one("SELECT backup_codes FROM users WHERE username = ?", (username,))
+        if not row or not row.get('backup_codes'):
+            return False
+        try:
+            codes = json.loads(row['backup_codes'])
+        except Exception:
+            return False
+        code_upper = code.upper().strip()
+        if code_upper in codes:
+            codes.remove(code_upper)
+            db.execute(
+                "UPDATE users SET backup_codes = ? WHERE username = ?",
+                (json.dumps(codes), username)
+            )
+            return True
+        return False
+
 auth_manager = AuthManager()

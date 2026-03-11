@@ -160,8 +160,28 @@ class PortfolioManager:
             'reason': reason,
         }
 
+    def get_fx_rate(self, currency: str, target: str = 'USD') -> float:
+        """Fetch live FX rate via yfinance, with 4-hour DB cache."""
+        if currency == target:
+            return 1.0
+        cached = db.get_fx_rate(currency, target)
+        if cached:
+            return cached
+        try:
+            import yfinance as yf
+            pair = f"{currency}{target}=X"
+            rate = yf.Ticker(pair).fast_info.last_price
+            if rate and rate > 0:
+                db.set_fx_rate(currency, target, float(rate))
+                return float(rate)
+        except Exception as e:
+            logger.warning(f"FX rate fetch failed {currency}/{target}: {e}")
+        return 1.0
+
     def _enrich_with_prices(self, holdings: List[Dict]) -> List[Dict]:
-        """Add current price, value, sector, and P&L to each holding."""
+        """Add current price, value, sector, P&L, and FX-converted display values to each holding."""
+        display_currency = db.get_setting('display_currency') or 'USD'
+
         for h in holdings:
             ticker = h['ticker']
             price_data = self._get_current_price(ticker)
@@ -183,6 +203,20 @@ class PortfolioManager:
                 h['sector'] = 'Unknown'
                 h['pnl_pct'] = 0.0
                 h['pnl_value'] = 0.0
+
+            # FX display conversion
+            trade_currency = h.get('currency', 'USD') or 'USD'
+            if trade_currency != display_currency:
+                fx = self.get_fx_rate(trade_currency, display_currency)
+                h['current_value_display'] = round(h.get('current_value', 0) * fx, 2)
+                h['pnl_display'] = round(h.get('pnl_value', 0) * fx, 2)
+                h['fx_rate'] = fx
+            else:
+                h['current_value_display'] = h.get('current_value', 0)
+                h['pnl_display'] = h.get('pnl_value', 0)
+                h['fx_rate'] = 1.0
+            h['display_currency'] = display_currency
+            h['trade_currency'] = trade_currency
 
         return holdings
 
@@ -522,6 +556,68 @@ class PortfolioManager:
             logger.warning(f"Could not fetch price for {ticker}: {e}")
 
         return None
+
+    def calculate_fifo_pnl(self) -> List[Dict]:
+        """Calculate realized P&L for each sell trade using FIFO cost basis.
+
+        Returns a list of dicts, one per SELL trade, with:
+          trade_id, date, ticker, shares, sell_price, fees,
+          fifo_cost_basis, proceeds, realized_pnl, realized_pnl_pct
+        """
+        trades = db.get_trades()
+        # get_trades returns DESC by default — we need chronological (ASC) order
+        trades_asc = list(reversed(trades))
+
+        # lots[ticker] = list of {'shares': float, 'price': float} oldest-first
+        lots: Dict[str, List[Dict]] = {}
+        results: List[Dict] = []
+
+        for trade in trades_asc:
+            ticker = trade['ticker']
+            if ticker not in lots:
+                lots[ticker] = []
+
+            if trade['type'] == 'BUY':
+                lots[ticker].append({'shares': trade['amount'], 'price': trade['price']})
+
+            elif trade['type'] == 'SELL':
+                shares_to_sell = trade['amount']
+                fifo_cost = 0.0
+                remaining = shares_to_sell
+
+                i = 0
+                while remaining > 0 and i < len(lots.get(ticker, [])):
+                    lot = lots[ticker][i]
+                    if lot['shares'] <= remaining:
+                        fifo_cost += lot['shares'] * lot['price']
+                        remaining -= lot['shares']
+                        lot['shares'] = 0
+                    else:
+                        fifo_cost += remaining * lot['price']
+                        lot['shares'] -= remaining
+                        remaining = 0
+                    i += 1
+                # Remove exhausted lots
+                lots[ticker] = [l for l in lots[ticker] if l['shares'] > 0]
+
+                proceeds = (trade['amount'] * trade['price']) - trade.get('fees', 0.0)
+                realized_pnl = proceeds - fifo_cost
+                results.append({
+                    'trade_id': trade.get('id'),
+                    'date': trade['date'],
+                    'ticker': ticker,
+                    'shares': trade['amount'],
+                    'sell_price': trade['price'],
+                    'fees': trade.get('fees', 0.0),
+                    'fifo_cost_basis': round(fifo_cost, 4),
+                    'proceeds': round(proceeds, 2),
+                    'realized_pnl': round(realized_pnl, 2),
+                    'realized_pnl_pct': round(
+                        (realized_pnl / fifo_cost * 100) if fifo_cost > 0 else 0.0, 2
+                    ),
+                })
+
+        return results
 
 
 # Singleton

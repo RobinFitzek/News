@@ -1,7 +1,7 @@
 """
 Alert Deduplication & Priority Management
 Prevents alert fatigue by deduplicating repeated alerts and adding priority ranking.
-Users can acknowledge alerts to dismiss them without deleting.
+Uses direction-change + score-delta + geo-event gates to reduce alert fatigue.
 """
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
@@ -11,12 +11,112 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Signal direction groups for flip detection
+_BUY_SIGNALS = {'STRONG_BUY', 'BUY', 'OPPORTUNITY'}
+_SELL_SIGNALS = {'STRONG_SELL', 'SELL', 'CAUTION'}
+
+
+def _signal_direction(signal: str) -> str:
+    """Return 'buy', 'sell', or 'neutral' for a signal string."""
+    s = (signal or '').upper()
+    if s in _BUY_SIGNALS:
+        return 'buy'
+    if s in _SELL_SIGNALS:
+        return 'sell'
+    return 'neutral'
+
 
 class AlertManager:
     """Manage alerts with deduplication and acknowledgment."""
 
     def __init__(self):
         self.dedup_window_hours = 24  # Don't re-alert within 24 hours
+
+    def _get_cooldown_hours(self) -> int:
+        """Get configured alert cooldown hours (default 24)."""
+        try:
+            val = db.get_setting('alert_cooldown_hours')
+            return int(val) if val is not None else 24
+        except Exception:
+            return 24
+
+    def _get_watchlist_alert_state(self, ticker: str) -> Dict:
+        """Fetch last alert state for a ticker from watchlist table."""
+        try:
+            row = db.query_one(
+                "SELECT last_alert_signal, last_alert_score, last_alert_geo_event_id, last_alerted_at FROM watchlist WHERE ticker = ?",
+                (ticker.upper(),)
+            )
+            return row or {}
+        except Exception:
+            return {}
+
+    def update_watchlist_alert_state(self, ticker: str, signal: str, score: int, geo_event_id: Optional[int] = None):
+        """Update last-alert tracking columns in watchlist after sending an alert."""
+        try:
+            db.execute(
+                """UPDATE watchlist
+                   SET last_alert_signal = ?, last_alert_score = ?,
+                       last_alert_geo_event_id = ?, last_alerted_at = ?
+                   WHERE ticker = ?""",
+                (signal, score, geo_event_id, datetime.now().isoformat(), ticker.upper())
+            )
+        except Exception as e:
+            logger.warning(f"Could not update watchlist alert state for {ticker}: {e}")
+
+    def should_send_ticker_alert(self, ticker: str, new_signal: str, new_score: int) -> bool:
+        """
+        Smart dedup gate for stock signal alerts.
+
+        Allows re-alerting when ANY of:
+          1. Direction flipped (buy ↔ sell ↔ neutral)
+          2. |risk_score_delta| >= 2
+          3. A new geo event has occurred since the last alert
+          4. Cooldown window has expired
+
+        Returns True if the alert should be sent.
+        """
+        cooldown_hours = self._get_cooldown_hours()
+        state = self._get_watchlist_alert_state(ticker)
+
+        last_signal = state.get('last_alert_signal') or ''
+        last_score = state.get('last_alert_score')
+        last_alerted_at = state.get('last_alerted_at')
+        last_geo_id = state.get('last_alert_geo_event_id')
+
+        # If never alerted before, allow
+        if not last_alerted_at:
+            return True
+
+        # Cooldown expired — allow
+        try:
+            last_dt = datetime.fromisoformat(last_alerted_at)
+            elapsed_hours = (datetime.now() - last_dt).total_seconds() / 3600
+            if elapsed_hours >= cooldown_hours:
+                return True
+        except Exception:
+            return True
+
+        # Direction flip — allow
+        if _signal_direction(new_signal) != _signal_direction(last_signal):
+            return True
+
+        # Score delta >= 2 — allow
+        if last_score is not None and abs(new_score - int(last_score)) >= 2:
+            return True
+
+        # New geo event since last alert — allow
+        try:
+            latest_geo = db.query_one(
+                "SELECT id FROM geopolitical_events ORDER BY id DESC LIMIT 1"
+            )
+            if latest_geo and (last_geo_id is None or latest_geo['id'] > last_geo_id):
+                return True
+        except Exception:
+            pass
+
+        # None of the gates passed — suppress
+        return False
 
     def generate_alert_hash(self, alert: Dict) -> str:
         """Generate unique hash for alert deduplication."""
@@ -25,11 +125,25 @@ class AlertManager:
         return hashlib.sha256(key.encode()).hexdigest()[:16]
 
     def should_alert(self, alert: Dict) -> bool:
-        """Check if we should show this alert (not a duplicate)."""
+        """Check if we should show this alert (not a duplicate).
+
+        For stock signal alerts, applies direction + score-delta + geo smart dedup.
+        """
+        ticker = alert.get('ticker', '')
+        signal = alert.get('signal', alert.get('type', ''))
+        score = alert.get('risk_score', alert.get('score', 5))
+
+        # Smart dedup for stock-signal alerts when ticker is known
+        if ticker and signal and signal not in ('GEOPOLITICAL_ALERT', 'GEO', 'SYSTEM'):
+            if not self.should_send_ticker_alert(ticker, signal, int(score)):
+                alert['is_repeated'] = True
+                alert['suppressed_by'] = 'smart_dedup'
+                return False
+
         alert_hash = self.generate_alert_hash(alert)
-        
+
         try:
-            # Check if we've sent this alert recently
+            # Check if we've sent this alert recently (legacy hash dedup)
             recent = db.query_one("""
                 SELECT id, timestamp, acknowledged
                 FROM alerts
@@ -40,23 +154,19 @@ class AlertManager:
             """, (alert_hash, (datetime.now() - timedelta(hours=self.dedup_window_hours)).isoformat()))
 
             if recent:
-                # Alert exists within dedup window
                 if recent['acknowledged'] == 1:
-                    # User acknowledged it, don't re-alert
                     return False
                 else:
-                    # Alert exists but not acknowledged - still show but mark as repeated
                     alert['is_repeated'] = True
                     alert['first_seen'] = recent['timestamp']
                     return True
-            
-            # New alert
+
             alert['is_repeated'] = False
             return True
 
         except Exception as e:
             logger.error(f"Error checking alert deduplication: {e}")
-            return True  # Default to showing alert if error
+            return True
 
     def store_alert(self, alert: Dict):
         """Store alert in database with deduplication hash."""
