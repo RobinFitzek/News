@@ -965,6 +965,13 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 [ ] Show API key management section in settings.html with copy button
 [ ] Document example: curl /api/watchlist -H "Authorization: Bearer sk_..."
 ```
+42.5. External Plugin Manager UI in Settings  
+    - Files: UI components, settings API  
+    - Description: Create a user-friendly interface for managing external plugins in the settings area.  
+    - Effort: 5  
+    - Impact: Medium  
+    - Dependencies: Requires completion of the new settings design.  
+    - Checklist: [ ] 
 
 ---
 
