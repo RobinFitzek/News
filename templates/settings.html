@@ -85,50 +85,67 @@
                     </svg>
                     <span>Appearance</span>
                 </button>
+                <button type="button" class="settings-nav-item" data-panel="panel-autotrading" onclick="switchSettingsPanel('panel-autotrading')">
+                    <svg class="settings-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    </svg>
+                    <span>Auto-Trading</span>
+                </button>
             </div>
         </nav>
 
-    <!-- API Keys -->
-    <div class="card" style="margin-bottom: var(--space-8);">
-        <h3 style="margin: 0 0 var(--space-5) 0;">API Keys</h3>
-        <p style="font-size: 0.8125rem; color: var(--text-muted); margin-bottom: var(--space-5);">
-            API keys are securely stored in the local database
-        </p>
-        <form action="/settings/api-keys" method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <div class="grid grid-2" style="margin-bottom: var(--space-5);">
-                <div>
-                    <label>Perplexity API Key</label>
-                    <input type="password" name="perplexity_key"
-                        placeholder="{% if api_keys.perplexity %}••••••••••••{% else %}pplx-xxx...{% endif %}">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        {% if api_keys.perplexity %}
-                        <span style="color: var(--text-primary);">Configured</span>
-                        {% else %}
-                        <span>Not configured</span>
-                        {% endif %}
-                        · <a href="https://perplexity.ai/settings" target="_blank"
-                            style="color: var(--text-secondary);">Get API Key</a>
+        <!-- ═══ PANEL: API CONNECTIONS ════════════════════ -->
+        <div id="panel-api" class="settings-panel active">
+            <!-- API Keys -->
+            <div class="card" style="margin-bottom: var(--space-8);">
+                <h3 style="margin: 0 0 var(--space-5) 0;">API Keys</h3>
+                <p style="font-size: 0.8125rem; color: var(--text-muted); margin-bottom: var(--space-5);">
+                    API keys are securely stored in the local database
+                </p>
+                <form action="/settings/api-keys" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="grid grid-2" style="margin-bottom: var(--space-5);">
+                        <div>
+                            <label>Perplexity API Key</label>
+                            <input type="password" name="perplexity_key"
+                                placeholder="{% if api_keys.perplexity %}••••••••••••{% else %}pplx-xxx...{% endif %}">
+                            <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                                {% if api_keys.perplexity %}
+                                <span style="color: var(--text-primary);">Configured</span>
+                                {% else %}
+                                <span>Not configured</span>
+                                {% endif %}
+                                · <a href="https://perplexity.ai/settings" target="_blank"
+                                    style="color: var(--text-secondary);">Get API Key</a>
+                            </div>
+                        </div>
+                        <div>
+                            <label>Gemini API Key</label>
+                            <input type="password" name="gemini_key"
+                                placeholder="{% if api_keys.gemini %}••••••••••••{% else %}AIzaSy...{% endif %}">
+                            <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                                {% if api_keys.gemini %}
+                                <span style="color: var(--text-primary);">Configured</span>
+                                {% else %}
+                                <span>Not configured</span>
+                                {% endif %}
+                                · <a href="https://ai.google.dev" target="_blank" style="color: var(--text-secondary);">Get Free
+                                    API Key</a>
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <div>
-                    <label>Gemini API Key</label>
-                    <input type="password" name="gemini_key"
-                        placeholder="{% if api_keys.gemini %}••••••••••••{% else %}AIzaSy...{% endif %}">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        {% if api_keys.gemini %}
-                        <span style="color: var(--text-primary);">Configured</span>
-                        {% else %}
-                        <span>Not configured</span>
-                        {% endif %}
-                        · <a href="https://ai.google.dev" target="_blank" style="color: var(--text-secondary);">Get Free
-                            API Key</a>
+                    <div class="panel-save">
+                        <button type="submit" class="btn btn-primary">Save API Keys</button>
                     </div>
                 </form>
+            </div>
+        </div>
 
-    <!-- Main Settings Form -->
-    <form action="/settings/save" method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <!-- ═══ PANEL: SCHEDULER ══════════════════════════ -->
+        <div id="panel-scheduler" class="settings-panel">
+        <form action="/settings/save" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="_section" value="scheduler">
 
         <!-- Scheduler Settings -->
         <div class="card" style="margin-bottom: var(--space-8);">
@@ -283,29 +300,182 @@
                 </div>
             </div>
         </div>
-
-        <!-- Email Settings -->
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <div
-                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
-                <h3 style="margin: 0;">Email Notifications</h3>
-                <label class="checkbox-wrapper">
-                    <input type="checkbox" id="email-toggle" name="email_enabled" {% if settings.email_enabled
-                        %}checked{% endif %} onchange="toggleEmailSettings()">
-                    <div class="checkbox-custom"></div>
-                    <span class="checkbox-label">Enable Notifications</span>
-                </label>
+            <div class="panel-save">
+                <button type="submit" class="btn btn-primary">Save Scheduler Settings</button>
             </div>
+        </form>
+        </div>
 
-            <div id="email-settings-container">
-                <div class="grid grid-2" style="margin-bottom: var(--space-5);">
-                    <div>
-                        <label>Recipient Email</label>
-                        <input type="email" name="email_recipient" value="{{ settings.email_recipient }}"
-                            placeholder="your@email.com">
+        <!-- ═══ PANEL: NOTIFICATIONS ═════════════════════ -->
+        <div id="panel-notifications" class="settings-panel">
+        <form action="/settings/save" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="_section" value="notifications">
+
+            <!-- Email Settings -->
+            <div class="card" style="margin-bottom: var(--space-8);">
+                <div
+                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
+                    <h3 style="margin: 0;">Email Notifications</h3>
+                    <label class="checkbox-wrapper">
+                        <input type="checkbox" id="email-toggle" name="email_enabled" {% if settings.email_enabled
+                            %}checked{% endif %} onchange="toggleEmailSettings()">
+                        <div class="checkbox-custom"></div>
+                        <span class="checkbox-label">Enable Notifications</span>
+                    </label>
+                </div>
+
+                <div id="email-settings-container">
+                    <div class="grid grid-2" style="margin-bottom: var(--space-5);">
+                        <div>
+                            <label>Recipient Email</label>
+                            <input type="email" name="email_recipient" value="{{ settings.email_recipient }}"
+                                placeholder="your@email.com">
+                        </div>
+                        <div>
+                            <label>Daily Summary Time</label>
+                            <input type="time" name="daily_summary_time" value="{{ settings.daily_summary_time|default('20:00') }}">
+                        </div>
                     </div>
-                </form>
+                    <div class="grid grid-2" style="margin-bottom: var(--space-5);">
+                        <div>
+                            <label>SMTP Host</label>
+                            <input type="text" name="email_smtp_host" value="{{ settings.email_smtp_host }}"
+                                placeholder="smtp.gmail.com">
+                        </div>
+                        <div>
+                            <label>SMTP Port</label>
+                            <input type="number" name="email_smtp_port" value="{{ settings.email_smtp_port }}">
+                        </div>
+                    </div>
+                    <div class="grid grid-2" style="margin-bottom: var(--space-5);">
+                        <div>
+                            <label>SMTP User</label>
+                            <input type="email" name="email_smtp_user" value="{{ settings.email_smtp_user }}">
+                        </div>
+                        <div>
+                            <label>SMTP Password</label>
+                            <input type="password" name="email_smtp_password"
+                                placeholder="{% if settings.email_smtp_password %}••••••••{% else %}App password{% endif %}">
+                        </div>
+                    </div>
+                    <div style="padding-top: var(--space-4); border-top: 1px solid var(--border-light); display: flex; gap: var(--space-6);">
+                        <label class="checkbox-wrapper">
+                            <input type="checkbox" name="notify_on_strong_signals" {% if settings.notify_on_strong_signals %}checked{% endif %}>
+                            <div class="checkbox-custom"></div>
+                            <span class="checkbox-label">Notify on strong signals</span>
+                        </label>
+                        <label class="checkbox-wrapper">
+                            <input type="checkbox" name="daily_summary_enabled" {% if settings.daily_summary_enabled %}checked{% endif %}>
+                            <div class="checkbox-custom"></div>
+                            <span class="checkbox-label">Send daily summary</span>
+                        </label>
+                    </div>
+                </div>
             </div>
+            <div class="panel-save">
+                <button type="submit" class="btn btn-primary">Save Notification Settings</button>
+            </div>
+        </form>
+
+        <!-- Telegram & Discord -->
+        <form action="/settings/save-webhooks" method="POST" style="margin-bottom: var(--space-6);">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="card" style="margin-bottom: var(--space-4);">
+                <h3 style="margin: 0 0 var(--space-4) 0;">Telegram</h3>
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-4); line-height: 1.5;">
+                    Get instant stock alerts on Telegram. Create a bot via <a href="https://t.me/BotFather" target="_blank" style="color:var(--text-secondary);">@BotFather</a>, then message your bot and get your chat ID.</p>
+                <div class="grid grid-3" style="gap:var(--space-4); margin-bottom:var(--space-4);">
+                    <label class="checkbox-wrapper" style="align-self:center;">
+                        <input type="checkbox" name="telegram_enabled" {% if settings.telegram_enabled %}checked{% endif %}>
+                        <div class="checkbox-custom"></div>
+                        <span class="checkbox-label">Enable Telegram Alerts</span>
+                    </label>
+                    <div>
+                        <label>Bot Token</label>
+                        <input type="password" name="telegram_bot_token" placeholder="{% if settings.telegram_bot_token %}••••••••{% else %}123456789:ABC-...{% endif %}">
+                    </div>
+                    <div>
+                        <label>Chat ID</label>
+                        <input type="text" name="telegram_chat_id" value="{{ settings.telegram_chat_id|default('') }}" placeholder="-100...">
+                    </div>
+                </div>
+                <div style="margin-bottom:var(--space-4); padding: var(--space-3) var(--space-4); background: var(--bg-secondary); border-radius: var(--radius-md);">
+                    <label class="checkbox-wrapper">
+                        <input type="checkbox" name="telegram_bot_enabled" {% if settings.telegram_bot_enabled %}checked{% endif %}>
+                        <div class="checkbox-custom"></div>
+                        <span class="checkbox-label">Enable Two-way Bot (respond to commands)</span>
+                    </label>
+                </div>
+                <div style="display:flex;gap:0.5rem;">
+                    <button type="submit" class="btn btn-primary">Save Telegram</button>
+                    <button type="submit" formaction="/settings/test-telegram" class="btn btn-secondary">Test</button>
+                </div>
+                {% if request.query_params.get('telegram_ok') %}<p style="color:var(--signal-positive);margin-top:0.5rem;">✓ Telegram connected!</p>{% elif request.query_params.get('telegram_error') %}<p style="color:var(--signal-negative);margin-top:0.5rem;">✗ Telegram error: {{ request.query_params.get('msg','') }}</p>{% endif %}
+            </div>
+            <div class="card">
+                <h3 style="margin: 0 0 var(--space-4) 0;">Discord</h3>
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-4); line-height: 1.5;">
+                    Create a webhook in any Discord channel via Server Settings → Integrations → Webhooks.</p>
+                <div class="grid grid-2" style="gap:var(--space-4); margin-bottom:var(--space-4);">
+                    <label class="checkbox-wrapper" style="align-self:center;">
+                        <input type="checkbox" name="discord_enabled" {% if settings.discord_enabled %}checked{% endif %}>
+                        <div class="checkbox-custom"></div>
+                        <span class="checkbox-label">Enable Discord Alerts</span>
+                    </label>
+                    <div>
+                        <label>Webhook URL</label>
+                        <input type="password" name="discord_webhook_url" placeholder="{% if settings.discord_webhook_url %}••••••••{% else %}https://discord.com/api/webhooks/...{% endif %}">
+                    </div>
+                </div>
+                <div style="display:flex;gap:0.5rem;">
+                    <button type="submit" class="btn btn-primary">Save Discord</button>
+                    <button type="submit" formaction="/settings/test-discord" class="btn btn-secondary">Test</button>
+                </div>
+                {% if request.query_params.get('discord_ok') %}<p style="color:var(--signal-positive);margin-top:0.5rem;">✓ Discord connected!</p>{% elif request.query_params.get('discord_error') %}<p style="color:var(--signal-negative);margin-top:0.5rem;">✗ Discord error: {{ request.query_params.get('msg','') }}</p>{% endif %}
+            </div>
+        </form>
+
+        <!-- Weekly Report -->
+        <form action="/settings/save-report" method="POST" style="margin-bottom: var(--space-6);">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5);">
+                    <div>
+                        <h3 style="margin: 0 0 var(--space-1) 0;">Weekly Report</h3>
+                        <p style="margin: 0; font-size: var(--text-sm);">Portfolio, discoveries, earnings &amp; sector digest — sent via email/webhook</p>
+                    </div>
+                    <div style="display: flex; gap: var(--space-2);">
+                        <a href="/api/report/preview" target="_blank" class="btn btn-ghost" style="font-size: 0.75rem;">Preview</a>
+                        <button type="button" onclick="sendReportNow()" class="btn btn-secondary" style="font-size: 0.75rem;" id="send-report-btn">Send Now</button>
+                    </div>
+                </div>
+                <div class="grid grid-3" style="gap: var(--space-5); margin-bottom: var(--space-5);">
+                    <label class="checkbox-wrapper" style="align-self: center;">
+                        <input type="checkbox" name="weekly_report_auto_send" {% if settings.weekly_report_auto_send == '1' %}checked{% endif %}>
+                        <div class="checkbox-custom"></div>
+                        <span class="checkbox-label">Auto-send weekly report</span>
+                    </label>
+                    <div>
+                        <label>Send On</label>
+                        <select name="weekly_report_day">
+                            {% for day in ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] %}
+                            <option value="{{ day }}" {% if settings.weekly_report_day == day %}selected{% endif %}>{{ day }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label>Send At</label>
+                        <input type="time" name="weekly_report_time" value="{{ settings.weekly_report_time|default('08:00') }}">
+                    </div>
+                </div>
+                <div style="display: flex; gap: var(--space-2); align-items: center;">
+                    <button type="submit" class="btn btn-primary">Save Report Settings</button>
+                    <span id="report-send-status" style="font-size: 0.75rem; color: var(--text-muted);"></span>
+                </div>
+            </div>
+        </form>
+        </div>
 
             <!-- ═══ PANEL: PORTFOLIO ════════════════════════ -->
             <div id="panel-portfolio" class="settings-panel">
@@ -512,207 +682,19 @@
                             Toggle between Stockholm Dark and Light modes
                         </div>
                         <label class="checkbox-wrapper">
-                            <input type="checkbox" name="notify_on_strong_signals" {% if
-                                settings.notify_on_strong_signals %}checked{% endif %}>
+                            <input type="checkbox" id="light-mode-toggle" onclick="document.documentElement.classList.toggle('light-mode', this.checked)">
                             <div class="checkbox-custom"></div>
                             <span class="checkbox-label">Light mode</span>
                         </label>
                     </div>
                 </div>
-
-                <div class="grid grid-2" style="margin-bottom: var(--space-5);">
-                    <div>
-                        <label>SMTP Host</label>
-                        <input type="text" name="email_smtp_host" value="{{ settings.email_smtp_host }}"
-                            placeholder="smtp.gmail.com">
-                    </div>
-                    <div>
-                        <label>SMTP Port</label>
-                        <input type="number" name="email_smtp_port" value="{{ settings.email_smtp_port }}">
-                    </div>
-                </div>
-
-                <div class="grid grid-2" style="margin-bottom: var(--space-5);">
-                    <div>
-                        <label>SMTP User</label>
-                        <input type="email" name="email_smtp_user" value="{{ settings.email_smtp_user }}">
-                    </div>
-                    <div>
-                        <label>SMTP Password</label>
-                        <input type="password" name="email_smtp_password"
-                            placeholder="{% if settings.email_smtp_password %}••••••••{% else %}App password{% endif %}">
-                    </div>
-                </div>
-
-                <div style="padding-top: var(--space-5); border-top: 1px solid var(--border-light);">
-                    <div class="grid grid-2">
-                        <div style="display: flex; align-items: center;">
-                            <label class="checkbox-wrapper">
-                                <input type="checkbox" name="daily_summary_enabled" {% if settings.daily_summary_enabled
-                                    %}checked{% endif %}>
-                                <div class="checkbox-custom"></div>
-                                <span class="checkbox-label">Send Daily Summary</span>
-                            </label>
-                        </div>
-                        <div>
-                            <label>Summary Time</label>
-                            <input type="time" name="daily_summary_time" value="{{ settings.daily_summary_time }}">
-                        </div>
-                    </div>
-                </div>
-
-                <div style="padding-top: var(--space-5); border-top: 1px solid var(--border-light); margin-top: var(--space-5);">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <div style="font-size: 0.8125rem; font-weight: 500; color: var(--text-primary);">Weekly AI Letter</div>
-                            <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-1);">Receive an AI-generated investment summary every Sunday evening</div>
-                        </div>
-                        <label class="checkbox-wrapper">
-                            <input type="checkbox" name="weekly_letter_enabled"
-                                {% if settings.weekly_letter_enabled %}checked{% endif %}>
-                            <div class="checkbox-custom"></div>
-                            <span class="checkbox-label">Enable</span>
-                        </label>
-                    </div>
-                </div>
             </div>
 
-        </div>
-
-        <!-- Webhook Settings (Telegram / Discord) -->
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <div
-                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
-                <h3 style="margin: 0;">Telegram &amp; Discord Alerts</h3>
-            </div>
-            <!-- Note: webhook settings use their own form -->
-        </div>
-    </form>
-
-    <form action="/settings/save-webhooks" method="POST" style="margin-bottom: var(--space-8);">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <div class="card" style="margin-bottom: var(--space-4);">
-            <h3 style="margin: 0 0 var(--space-4) 0;">📲 Telegram</h3>
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-4); line-height: 1.5;">
-                Get instant stock alerts on Telegram. Create a bot via <a href="https://t.me/BotFather" target="_blank"
-                    style="color:var(--text-secondary);">@BotFather</a>, then message your bot and get your chat ID.</p>
-            <div class="grid grid-3" style="gap:var(--space-4); margin-bottom:var(--space-4);">
-                <label class="checkbox-wrapper" style="align-self:center;">
-                    <input type="checkbox" name="telegram_enabled" {% if settings.telegram_enabled %}checked{% endif %}>
-                    <div class="checkbox-custom"></div>
-                    <span class="checkbox-label">Enable Telegram Alerts</span>
-                </label>
-                <div>
-                    <label>Bot Token</label>
-                    <input type="password" name="telegram_bot_token"
-                        placeholder="{% if settings.telegram_bot_token %}••••••••{% else %}123456789:ABC-...{% endif %}">
-                </div>
-                <div>
-                    <label>Chat ID</label>
-                    <input type="text" name="telegram_chat_id" value="{{ settings.telegram_chat_id|default('') }}"
-                        placeholder="-100...">
-                </div>
-            </div>
-            <div style="margin-bottom:var(--space-4); padding: var(--space-3) var(--space-4); background: var(--bg-secondary); border-radius: var(--radius-md);">
-                <label class="checkbox-wrapper">
-                    <input type="checkbox" name="telegram_bot_enabled" {% if settings.telegram_bot_enabled %}checked{% endif %}>
-                    <div class="checkbox-custom"></div>
-                    <span class="checkbox-label">Enable Two-way Bot (respond to commands)</span>
-                </label>
-                <p style="font-size:0.7rem; color:var(--text-muted); margin: var(--space-2) 0 0 2rem; line-height:1.4;">
-                    When enabled the bot polls for messages and responds to:
-                    <code>/analyze AAPL</code>, <code>/watchlist</code>, <code>/toppicks</code>, <code>/geo</code>, <code>/status</code>
-                </p>
-            </div>
-            <div style="display:flex;gap:0.5rem;">
-                <button type="submit" class="btn btn-primary">Save Telegram</button>
-                <button type="submit" formaction="/settings/test-telegram" class="btn btn-secondary">Test</button>
-            </div>
-            {% if request.query_params.get('telegram_ok') %}
-            <p style="color:var(--signal-positive);margin-top:0.5rem;">✓ Telegram connected!</p>
-            {% elif request.query_params.get('telegram_error') %}
-            <p style="color:var(--signal-negative);margin-top:0.5rem;">✗ Telegram error: {{
-                request.query_params.get('msg','') }}</p>
-            {% endif %}
-        </div>
-        <div class="card">
-            <h3 style="margin: 0 0 var(--space-4) 0;">🎮 Discord</h3>
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-4); line-height: 1.5;">
-                Create a webhook in any Discord channel via Server Settings &rarr; Integrations &rarr; Webhooks.</p>
-            <div class="grid grid-2" style="gap:var(--space-4); margin-bottom:var(--space-4);">
-                <label class="checkbox-wrapper" style="align-self:center;">
-                    <input type="checkbox" name="discord_enabled" {% if settings.discord_enabled %}checked{% endif %}>
-                    <div class="checkbox-custom"></div>
-                    <span class="checkbox-label">Enable Discord Alerts</span>
-                </label>
-                <div>
-                    <label>Webhook URL</label>
-                    <input type="password" name="discord_webhook_url"
-                        placeholder="{% if settings.discord_webhook_url %}••••••••{% else %}https://discord.com/api/webhooks/...{% endif %}">
-                </div>
-            </div>
-            <div style="display:flex;gap:0.5rem;">
-                <button type="submit" class="btn btn-primary">Save Discord</button>
-                <button type="submit" formaction="/settings/test-discord" class="btn btn-secondary">Test</button>
-            </div>
-            {% if request.query_params.get('discord_ok') %}
-            <p style="color:var(--signal-positive);margin-top:0.5rem;">✓ Discord connected!</p>
-            {% elif request.query_params.get('discord_error') %}
-            <p style="color:var(--signal-negative);margin-top:0.5rem;">✗ Discord error: {{
-                request.query_params.get('msg','') }}</p>
-            {% endif %}
-        </div>
-    </form>
-
-    <!-- Weekly Report -->
-    <form action="/settings/save-report" method="POST" style="margin-bottom: var(--space-8);">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <div class="card">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5);">
-                <div>
-                    <h3 style="margin: 0 0 var(--space-1) 0;">Weekly Report</h3>
-                    <p style="margin: 0; font-size: var(--text-sm);">Portfolio, discoveries, earnings &amp; sector digest — sent via email/webhook</p>
-                </div>
-                <div style="display: flex; gap: var(--space-2);">
-                    <a href="/api/report/preview" target="_blank" class="btn btn-ghost" style="font-size: 0.75rem;">Preview</a>
-                    <button type="button" onclick="sendReportNow()" class="btn btn-secondary" style="font-size: 0.75rem;" id="send-report-btn">Send Now</button>
-                </div>
-            </div>
-
-            <div class="grid grid-3" style="gap: var(--space-5); margin-bottom: var(--space-5);">
-                <label class="checkbox-wrapper" style="align-self: center;">
-                    <input type="checkbox" name="weekly_report_auto_send"
-                        {% if settings.weekly_report_auto_send == '1' %}checked{% endif %}>
-                    <div class="checkbox-custom"></div>
-                    <span class="checkbox-label">Auto-send weekly report</span>
-                </label>
-                <div>
-                    <label>Send On</label>
-                    <select name="weekly_report_day">
-                        {% for day in ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'] %}
-                        <option value="{{ day }}" {% if settings.weekly_report_day == day %}selected{% endif %}>{{ day }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <label>Send At</label>
-                    <input type="time" name="weekly_report_time"
-                        value="{{ settings.weekly_report_time|default('08:00') }}">
-                </div>
-            </div>
-
-            <div style="display: flex; gap: var(--space-2); align-items: center;">
-                <button type="submit" class="btn btn-primary">Save Report Settings</button>
-                <span id="report-send-status" style="font-size: 0.75rem; color: var(--text-muted);"></span>
-            </div>
-        </div>
-    </form>
-
-    <!-- Reopen main form for remaining settings -->
-    <form action="/settings/save" method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-
-        <!-- Analysis Settings -->
+        <!-- ═══ PANEL: ANALYSIS ════════════════════════ -->
+        <div id="panel-analysis" class="settings-panel">
+        <form action="/settings/save" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="_section" value="analysis">
 
         <div class="card" style="margin-bottom: var(--space-8);">
             <h3 style="margin: 0 0 var(--space-6) 0;">Analysis Configuration</h3>
@@ -878,131 +860,6 @@
             </div>
         </div>
 
-        <!-- Portfolio Rules -->
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <h3 style="margin: 0 0 var(--space-5) 0;">Portfolio Rules</h3>
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
-                Rule-based alerts for position sizing, stop-losses, and concentration risk. No AI opinions.
-            </p>
-
-            <div class="grid grid-2" style="gap: var(--space-5); margin-bottom: var(--space-5);">
-                <div>
-                    <label>Max Position Size (%)</label>
-                    <input type="number" name="portfolio_max_position_pct"
-                        value="{{ settings.portfolio_max_position_pct|default(10.0) }}" min="1" max="100" step="1">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        Alert when any single position exceeds this % of portfolio
-                    </div>
-                </div>
-                <div>
-                    <label>Stop-Loss Threshold (%)</label>
-                    <input type="number" name="portfolio_stop_loss_pct"
-                        value="{{ settings.portfolio_stop_loss_pct|default(15.0) }}" min="1" max="50" step="1">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        Alert when a position drops this % from entry price
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid grid-2" style="gap: var(--space-5);">
-                <div>
-                    <label>Max Sector Concentration (%)</label>
-                    <input type="number" name="portfolio_max_sector_pct"
-                        value="{{ settings.portfolio_max_sector_pct|default(30.0) }}" min="5" max="100" step="5">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        Alert when any sector exceeds this % of portfolio
-                    </div>
-                </div>
-                <div>
-                    <label>Rebalance Drift Threshold (%)</label>
-                    <input type="number" name="portfolio_rebalance_drift_pct"
-                        value="{{ settings.portfolio_rebalance_drift_pct|default(5.0) }}" min="1" max="25" step="1">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        Suggest rebalancing when allocation drifts beyond this %
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid grid-3" style="gap: var(--space-5); margin-top: var(--space-5);">
-                <label class="checkbox-wrapper" style="padding-top: var(--space-6);">
-                    <input type="checkbox" name="portfolio_risk_guard_enabled" {% if
-                        settings.portfolio_risk_guard_enabled|default(true) %}checked{% endif %}>
-                    <div class="checkbox-custom"></div>
-                    <span class="checkbox-label">Enable Global Risk Guard</span>
-                </label>
-                <div>
-                    <label>Global Loss Limit (%)</label>
-                    <input type="number" name="portfolio_global_loss_limit_pct"
-                        value="{{ settings.portfolio_global_loss_limit_pct|default(10.0) }}" min="1" max="50"
-                        step="0.5">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        Suspend new analysis cycles when portfolio loss exceeds this value
-                    </div>
-                </div>
-                <div>
-                    <label>Risk Cooldown (Hours)</label>
-                    <input type="number" name="portfolio_risk_cooldown_hours"
-                        value="{{ settings.portfolio_risk_cooldown_hours|default(24) }}" min="0" max="168" step="1">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        Keep guard active for this duration after trigger
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Ticker Risk Overrides -->
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <h3 style="margin: 0 0 var(--space-5) 0;">Ticker Risk Overrides</h3>
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
-                Optional per-stock override for stop-loss and max position limits.
-            </p>
-
-            <div class="grid grid-3" style="gap: var(--space-4); margin-bottom: var(--space-5);">
-                <div>
-                    <label>Ticker</label>
-                    <input type="text" name="ticker" placeholder="AAPL">
-                </div>
-                <div>
-                    <label>Stop-Loss Override (%)</label>
-                    <input type="number" name="stop_loss_pct" min="1" max="50" step="0.5" placeholder="z.B. 8">
-                </div>
-                <div>
-                    <label>Max Position Override (%)</label>
-                    <input type="number" name="max_position_pct" min="1" max="100" step="0.5" placeholder="z.B. 6">
-                </div>
-                <div style="grid-column: span 3; display: flex; justify-content: flex-end;">
-                    <button type="submit" formaction="/settings/risk-override" formmethod="post"
-                        class="btn btn-secondary">
-                        Save Override
-                    </button>
-                </div>
-            </div>
-
-            {% if risk_overrides and risk_overrides|length > 0 %}
-            <div style="display: grid; gap: var(--space-3);">
-                {% for override in risk_overrides %}
-                <div
-                    style="display: flex; align-items: center; justify-content: space-between; padding: var(--space-3); border: 1px solid var(--border-light); border-radius: var(--radius-md);">
-                    <div style="font-size: 0.8125rem; color: var(--text-secondary);">
-                        <strong style="color: var(--text-primary);">{{ override.ticker }}</strong>
-                        · Stop-Loss: {{ override.stop_loss_pct if override.stop_loss_pct is not none else '-' }}%
-                        · Max Position: {{ override.max_position_pct if override.max_position_pct is not none else '-'
-                        }}%
-                    </div>
-                    <button type="submit" formaction="/settings/risk-override/delete/{{ override.ticker }}"
-                        formmethod="post" class="btn btn-ghost" style="font-size: 0.75rem;">
-                        Remove
-                    </button>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <div style="font-size: 0.75rem; color: var(--text-muted);">
-                No overrides configured.
-            </div>
-            {% endif %}
-        </div>
-
         <!-- Learning System -->
         <div class="card" style="margin-bottom: var(--space-8);">
             <h3 style="margin: 0 0 var(--space-5) 0;">Learning System</h3>
@@ -1025,127 +882,21 @@
             </div>
         </div>
 
-        <!-- Session Management -->
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <div
-                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); gap: var(--space-3); flex-wrap: wrap;">
-                <div>
-                    <h3 style="margin: 0 0 var(--space-1) 0;">Active Sessions</h3>
-                    <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0;">Review active devices and end
-                        all other sessions.</p>
-                </div>
-                <button type="submit" formaction="/settings/sessions/logout-others" formmethod="post"
-                    class="btn btn-secondary" style="font-size: 0.75rem;">
-                    Logout Other Sessions
-                </button>
+        
+
+            <div class="panel-save">
+                <button type="submit" class="btn btn-primary">Save Analysis Settings</button>
             </div>
+        </form>
+        </div><!-- /#panel-analysis -->
 
-            {% if sessions and sessions|length > 0 %}
-            <div style="display: grid; gap: var(--space-3);">
-                {% for s in sessions %}
-                <div
-                    style="padding: var(--space-3); border: 1px solid var(--border-light); border-radius: var(--radius-md); display: flex; justify-content: space-between; align-items: center; gap: var(--space-3);">
-                    <div style="font-size: 0.75rem; color: var(--text-secondary); line-height: 1.5;">
-                        <div style="font-weight: 500; color: var(--text-primary); font-family: var(--font-mono);">
-                            {% if s.session_id == current_session_id %}Current Session{% else %}Session{% endif %}
-                        </div>
-                        <div>Last Activity: {{ s.last_activity }}</div>
-                        <div>Expires: {{ s.expires_at }}</div>
-                        <div>IP: {{ s.ip_address if s.ip_address else 'unknown' }}</div>
-                        <div>User-Agent: {{ (s.user_agent or 'unknown')[:90] }}{% if s.user_agent and
-                            s.user_agent|length > 90 %}...{% endif %}</div>
-                    </div>
-                    <div>
-                        {% if s.session_id == current_session_id %}
-                        <span class="badge badge-success">Current</span>
-                        {% else %}
-                        <div style="display: flex; align-items: center; gap: var(--space-2);">
-                            <span class="badge badge-secondary">Other</span>
-                            <button type="submit" formaction="/settings/sessions/logout/{{ s.session_id }}"
-                                formmethod="post" class="btn btn-ghost" style="font-size: 0.6875rem;">
-                                Logout
-                            </button>
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <div style="font-size: 0.75rem; color: var(--text-muted);">No active sessions found.</div>
-            {% endif %}
-        </div>
+        <!-- ═══ PANEL: AUTOTRADING ═════════════════════ -->
+        <div id="panel-autotrading" class="settings-panel">
+        <form action="/settings/save" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="_section" value="autotrading">
 
-        <!-- Price Alerts -->
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <h3 style="margin: 0 0 var(--space-5) 0;">Price Alerts</h3>
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
-                Set up alerts when stocks reach specific price levels. Alerts are checked during scheduled scans.
-            </p>
-            <div class="grid grid-4" style="gap: var(--space-4); margin-bottom: var(--space-5);">
-                <div>
-                    <label>Ticker</label>
-                    <input type="text" id="alert-ticker" placeholder="AAPL" style="text-transform: uppercase;">
-                </div>
-                <div>
-                    <label>Alert Type</label>
-                    <select id="alert-type">
-                        <option value="target_price">Target Price</option>
-                        <option value="support_break">Support Break</option>
-                    </select>
-                </div>
-                <div>
-                    <label>Price</label>
-                    <input type="number" id="alert-threshold" step="0.01" placeholder="150.00">
-                </div>
-                <div>
-                    <label>Direction</label>
-                    <select id="alert-direction">
-                        <option value="above">Above</option>
-                        <option value="below">Below</option>
-                    </select>
-                </div>
-            </div>
-            <button type="button" class="btn btn-secondary" onclick="createAlert()" style="margin-bottom: var(--space-5);">Add Price Alert</button>
-            <div id="active-alerts"></div>
-        </div>
-
-        <!-- Authentication Security -->
-        <div class="card" style="margin-bottom: var(--space-8);">
-            <h3 style="margin: 0 0 var(--space-5) 0;">Authentication Security</h3>
-            <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
-                Configure login backoff/lockout behavior to reduce brute-force risk.
-            </p>
-
-            <div class="grid grid-3" style="gap: var(--space-5);">
-                <div>
-                    <label>Max Failed Attempts</label>
-                    <input type="number" name="auth_max_failed_attempts"
-                        value="{{ settings.auth_max_failed_attempts|default(5) }}" min="3" max="20" step="1">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        Failed attempts before temporary lockout
-                    </div>
-                </div>
-                <div>
-                    <label>Attempt Window (Minutes)</label>
-                    <input type="number" name="auth_attempt_window_minutes"
-                        value="{{ settings.auth_attempt_window_minutes|default(15) }}" min="5" max="120" step="1">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        Count failed attempts inside this rolling window
-                    </div>
-                </div>
-                <div>
-                    <label>Lockout Duration (Minutes)</label>
-                    <input type="number" name="auth_lockout_minutes"
-                        value="{{ settings.auth_lockout_minutes|default(15) }}" min="1" max="240" step="1">
-                    <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                        How long login stays locked after threshold is hit
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Auto-Trading -->
+<!-- Auto-Trading -->
         <div class="card" style="margin-bottom: var(--space-8);">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-5);">
                 <h3 style="margin: 0;">Auto-Trading</h3>
@@ -1158,7 +909,7 @@
             </div>
 
             <div id="auto-trade-warning" style="display:{% if settings.auto_trade_enabled %}flex{% else %}none{% endif %}; align-items:flex-start; gap:var(--space-3); padding:var(--space-3) var(--space-4); background:rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.25); border-radius:var(--radius-md); margin-bottom:var(--space-5);">
-                <span style="flex-shrink:0;">⚠️</span>
+                
                 <span style="font-size:0.75rem; color:var(--text-secondary); line-height:1.5;">
                     This feature enters trades automatically. <strong>Use Paper mode until you trust the signals.</strong>
                     Broker modes are locked until the trust gate is met (20+ closed trades, ≥55% win rate).
@@ -1175,21 +926,21 @@
                             {% set at_mode = settings.auto_trade_mode|default('paper') %}
                             <label style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-size:0.8125rem;">
                                 <input type="radio" name="auto_trade_mode" value="paper"
-                                    {% if at_mode == 'paper' %}checked{% endif %}>
+                                    {% if at_mode == 'paper' %}checked{% endif %} style="width: auto; margin: 0;">
                                 Paper only
                                 <span style="font-size:0.7rem;color:var(--text-muted);">— safe, no real money</span>
                             </label>
                             <label style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-size:0.8125rem;">
                                 <input type="radio" name="auto_trade_mode" value="alpaca"
-                                    {% if at_mode == 'alpaca' %}checked{% endif %}>
+                                    {% if at_mode == 'alpaca' %}checked{% endif %} style="width: auto; margin: 0;">
                                 Alpaca API
-                                <span id="alpaca-lock" style="font-size:0.75rem;color:var(--text-muted);" title="Requires trust gate">🔒</span>
+                                <span id="alpaca-lock" style="font-size:0.75rem;color:var(--text-muted);" title="Requires trust gate"></span>
                             </label>
                             <label style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-size:0.8125rem;">
                                 <input type="radio" name="auto_trade_mode" value="ibkr"
-                                    {% if at_mode == 'ibkr' %}checked{% endif %}>
+                                    {% if at_mode == 'ibkr' %}checked{% endif %} style="width: auto; margin: 0;">
                                 Interactive Brokers
-                                <span id="ibkr-lock" style="font-size:0.75rem;color:var(--text-muted);" title="Requires trust gate">🔒</span>
+                                <span id="ibkr-lock" style="font-size:0.75rem;color:var(--text-muted);" title="Requires trust gate"></span>
                             </label>
                         </div>
                     </div>
@@ -1208,12 +959,12 @@
                         {% set at_filter = settings.auto_trade_signal_filter|default('STRONG') %}
                         <label style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-size:0.8125rem;">
                             <input type="radio" name="auto_trade_signal_filter" value="STRONG"
-                                {% if at_filter == 'STRONG' %}checked{% endif %}>
+                                {% if at_filter == 'STRONG' %}checked{% endif %} style="width: auto; margin: 0;">
                             STRONG only (STRONG_BUY / STRONG_SELL)
                         </label>
                         <label style="display:flex;align-items:center;gap:var(--space-2);cursor:pointer;font-size:0.8125rem;">
                             <input type="radio" name="auto_trade_signal_filter" value="ALL"
-                                {% if at_filter == 'ALL' %}checked{% endif %}>
+                                {% if at_filter == 'ALL' %}checked{% endif %} style="width: auto; margin: 0;">
                             All signals (BUY / SELL / STRONG_*)
                         </label>
                     </div>
@@ -1356,15 +1107,14 @@
             </div><!-- /#auto-trade-settings -->
         </div>
 
-        <!-- Spacer for sticky footer -->
-        <div class="sticky-footer-spacer"></div>
-
-        <!-- Sticky Save Bar -->
-        <div class="sticky-footer">
-            <button type="submit" class="btn btn-primary">Save All Settings</button>
+            <div class="panel-save">
+                <button type="submit" class="btn btn-primary">Save Auto-Trading Settings</button>
+            </div>
+        </form>
         </div>
-    </form>
-</div>
+
+
+</div><!-- /.settings-layout -->
 
 <script>
     function updateSettingsNavIndicator() {
@@ -1460,7 +1210,7 @@
                     var msg = document.getElementById('trust-gate-block-msg');
                     if (msg) {
                         msg.style.display = '';
-                        msg.textContent = '\u26a0\ufe0f Trust gate not met (' + (_trustData.trades_remaining || 0) + ' more trades needed, ' + (_trustData.win_rate_pct || 0) + '% win rate). Enable Admin Override or switch to Paper mode.';
+                        msg.textContent = 'Trust gate not met (' + (_trustData.trades_remaining || 0) + ' more trades needed, ' + (_trustData.win_rate_pct || 0) + '% win rate). Enable Admin Override or switch to Paper mode.';
                     }
                     window.scrollTo({ top: document.getElementById('trust-gate-block-msg').getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
                 }
@@ -1481,7 +1231,7 @@
                 const trusted = data.trusted;
 
                 // Update lock icons
-                const lockIcon = trusted ? '🔓' : '🔒';
+                const lockIcon = '';
                 document.querySelectorAll('#alpaca-lock, #ibkr-lock').forEach(el => el.textContent = lockIcon);
 
                 el.innerHTML = `
@@ -1495,7 +1245,7 @@
                         </div>
                     </div>
                     <div style="font-size:0.6875rem;color:${trusted ? 'var(--color-success,#22c55e)' : 'var(--text-muted)'};">
-                        ${trusted ? '🔓 Trust gate met — broker modes available' : `🔒 Need ${data.trades_remaining} more trade${data.trades_remaining === 1 ? '' : 's'} + ≥${data.needed_win_rate}% win rate`}
+                        ${trusted ? 'Trust gate met — broker modes available' : `Need ${data.trades_remaining} more trade${data.trades_remaining === 1 ? '' : 's'} + ≥${data.needed_win_rate}% win rate`}
                     </div>`;
             })
             .catch(() => {});
@@ -1600,6 +1350,102 @@
 </script>
 
 <style>
+    /* ── Settings Layout ─────────────────────────────── */
+    .settings-layout {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        gap: var(--space-8);
+        align-items: start;
+    }
+    .settings-sidebar {
+        position: sticky;
+        top: var(--space-6);
+    }
+    .settings-search-wrap {
+        position: relative;
+        margin-bottom: var(--space-4);
+    }
+    .settings-search-icon {
+        position: absolute;
+        left: var(--space-3);
+        top: 50%;
+        transform: translateY(-50%);
+        width: 14px;
+        height: 14px;
+        color: var(--text-muted);
+        pointer-events: none;
+    }
+    .settings-search-input {
+        width: 100%;
+        padding: var(--space-2) var(--space-3) var(--space-2) 34px;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-light);
+        border-radius: var(--radius-sm);
+        color: var(--text-primary);
+        font-size: 0.8125rem;
+        box-sizing: border-box;
+        outline: none;
+    }
+    .settings-search-input:focus {
+        border-color: var(--border-default);
+    }
+    .settings-search-clear {
+        position: absolute;
+        right: var(--space-2);
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--text-muted);
+        padding: var(--space-1);
+    }
+    .settings-nav {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-1);
+    }
+    .settings-nav-indicator {
+        position: absolute;
+        left: 0;
+        width: 2px;
+        background: var(--text-primary);
+        border-radius: 1px;
+        transition: top 0.2s ease, height 0.2s ease;
+        pointer-events: none;
+    }
+    .settings-nav-item {
+        display: flex;
+        align-items: center;
+        gap: var(--space-3);
+        padding: var(--space-2) var(--space-3);
+        background: none;
+        border: none;
+        border-radius: var(--radius-sm);
+        color: var(--text-muted);
+        font-size: 0.8125rem;
+        cursor: pointer;
+        width: 100%;
+        text-align: left;
+        transition: color var(--duration-fast), background var(--duration-fast);
+    }
+    .settings-nav-item:hover { background: var(--bg-hover); color: var(--text-secondary); }
+    .settings-nav-item.active { color: var(--text-primary); }
+    .settings-nav-icon { width: 15px; height: 15px; flex-shrink: 0; }
+    .settings-panel { display: none; }
+    .settings-panel.active { display: block; }
+    .panel-save {
+        display: flex;
+        justify-content: flex-end;
+        padding-top: var(--space-4);
+        margin-top: var(--space-2);
+    }
+    @media (max-width: 768px) {
+        .settings-layout { grid-template-columns: 1fr; }
+        .settings-sidebar { position: static; }
+    }
+
     /* Clickable Variant Cards Styling */
     .variant-card {
         display: flex;

@@ -1321,71 +1321,35 @@ async def save_settings(request: Request, username: str = Depends(require_auth))
         except (ValueError, TypeError):
             pass
 
-    # Auto-Discovery settings
-    db.set_setting("discovery_enabled", form.get("discovery_enabled") == "on")
-    db.set_setting("discovery_daily_time", form.get("discovery_daily_time", "06:00"))
-    db.set_setting("discovery_weekly_day", form.get("discovery_weekly_day", "wed"))
-    db.set_setting("discovery_weekly_time", form.get("discovery_weekly_time", "12:00"))
-    try:
-        db.set_setting("discovery_promotion_threshold", int(form.get("discovery_promotion_threshold", 55)))
-    except (ValueError, TypeError):
-        pass
-    try:
-        db.set_setting("discovery_max_promote_per_run", int(form.get("discovery_max_promote_per_run", 5)))
-    except (ValueError, TypeError):
-        pass
-    try:
-        db.set_setting("discovery_max_watchlist_size", int(form.get("discovery_max_watchlist_size", 50)))
-    except (ValueError, TypeError):
-        pass
+    if save_all or section == "autotrading":
+        # Auto-Trading settings
+        db.set_setting("auto_trade_enabled", form.get("auto_trade_enabled") == "on")
+        db.set_setting("auto_trade_mode", form.get("auto_trade_mode", "paper"))
+        db.set_setting("auto_trade_signal_filter", form.get("auto_trade_signal_filter", "STRONG"))
+        db.set_setting("auto_trade_require_confirm", form.get("auto_trade_require_confirm") == "on")
+        for key, default, lo, hi in [
+            ("auto_trade_take_profit_pct",    8.0,  1.0,  50.0),
+            ("auto_trade_stop_loss_pct",      4.0,  1.0,  25.0),
+            ("auto_trade_max_days_open",      30,   1,    90),
+            ("auto_trade_position_size_pct",  5.0,  1.0,  20.0),
+            ("auto_trade_max_open_positions", 10,   1,    50),
+            ("auto_trade_min_trust_trades",   20,   5,    200),
+            ("auto_trade_min_trust_win_rate", 55.0, 40.0, 80.0),
+        ]:
+            try:
+                val = float(form.get(key, default))
+                db.set_setting(key, max(lo, min(hi, val)))
+            except (ValueError, TypeError):
+                pass
 
-    # Strategy toggles
-    all_strategies = ['volume_spike', 'breakout', 'oversold', 'sector_rotation', 'insider_buy', 'value_screen']
-    enabled_strategies = [s for s in all_strategies if form.get(f"strategy_{s}") == "on"]
-    if enabled_strategies:
-        db.set_setting("discovery_strategies", enabled_strategies)
-
-    # Monthly API budgets (EUR)
-    try:
-        pplx_budget = float(form.get("perplexity_monthly_budget", 5.0))
-        db.set_setting("perplexity_monthly_budget", max(0, min(100, pplx_budget)))
-    except (ValueError, TypeError):
-        db.set_setting("perplexity_monthly_budget", 5.0)
-
-    try:
-        gemini_budget = float(form.get("gemini_monthly_budget", 5.0))
-        db.set_setting("gemini_monthly_budget", max(0, min(100, gemini_budget)))
-    except (ValueError, TypeError):
-        db.set_setting("gemini_monthly_budget", 5.0)
-    
-    # Auto-Trading settings
-    db.set_setting("auto_trade_enabled", form.get("auto_trade_enabled") == "on")
-    db.set_setting("auto_trade_mode", form.get("auto_trade_mode", "paper"))
-    db.set_setting("auto_trade_signal_filter", form.get("auto_trade_signal_filter", "STRONG"))
-    db.set_setting("auto_trade_require_confirm", form.get("auto_trade_require_confirm") == "on")
-    for key, default, lo, hi in [
-        ("auto_trade_take_profit_pct",    8.0,  1.0,  50.0),
-        ("auto_trade_stop_loss_pct",      4.0,  1.0,  25.0),
-        ("auto_trade_max_days_open",      30,   1,    90),
-        ("auto_trade_position_size_pct",  5.0,  1.0,  20.0),
-        ("auto_trade_max_open_positions", 10,   1,    50),
-        ("auto_trade_min_trust_trades",   20,   5,    200),
-        ("auto_trade_min_trust_win_rate", 55.0, 40.0, 80.0),
-    ]:
-        try:
-            val = float(form.get(key, default))
-            db.set_setting(key, max(lo, min(hi, val)))
-        except (ValueError, TypeError):
-            pass
-
-    # Phase 6 — Broker credentials
-    db.set_setting("auto_trade_alpaca_api_key", form.get("auto_trade_alpaca_api_key", "").strip())
-    db.set_setting("auto_trade_alpaca_secret", form.get("auto_trade_alpaca_secret", "").strip())
-    db.set_setting("auto_trade_alpaca_base_url", form.get("auto_trade_alpaca_base_url", "https://paper-api.alpaca.markets").strip())
-    db.set_setting("auto_trade_ibkr_host", form.get("auto_trade_ibkr_host", "127.0.0.1").strip())
-    db.set_setting("auto_trade_ibkr_port", form.get("auto_trade_ibkr_port", "7497").strip())
-    db.set_setting("auto_trade_ibkr_client_id", form.get("auto_trade_ibkr_client_id", "1").strip())
-    db.set_setting("auto_trade_trust_override", form.get("auto_trade_trust_override") == "on")
+        # Phase 6 — Broker credentials
+        db.set_setting("auto_trade_alpaca_api_key", form.get("auto_trade_alpaca_api_key", "").strip())
+        db.set_setting("auto_trade_alpaca_secret", form.get("auto_trade_alpaca_secret", "").strip())
+        db.set_setting("auto_trade_alpaca_base_url", form.get("auto_trade_alpaca_base_url", "https://paper-api.alpaca.markets").strip())
+        db.set_setting("auto_trade_ibkr_host", form.get("auto_trade_ibkr_host", "127.0.0.1").strip())
+        db.set_setting("auto_trade_ibkr_port", form.get("auto_trade_ibkr_port", "7497").strip())
+        db.set_setting("auto_trade_ibkr_client_id", form.get("auto_trade_ibkr_client_id", "1").strip())
+        db.set_setting("auto_trade_trust_override", form.get("auto_trade_trust_override") == "on")
 
     # Reload settings in services
     scheduler.reload_settings()
