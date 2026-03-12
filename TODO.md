@@ -1078,6 +1078,164 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 
 ---
 
+## UI Features — Missing Pages & Views (Phase 4+)
+
+These features have backend API endpoints but no dedicated frontend pages. Listed by effort & impact.
+
+### 50. Dividend & Corporate Actions Ledger Page
+**File:** `app.py`, `templates/corporate_actions.html`
+**Description:** Show dividend history, stock splits, mergers, and other corporate actions for all watchlist stocks. Useful for tracking cost-basis adjustments and understanding portfolio events. Database table exists (`corporate_actions`), API endpoint works (`/api/stock/{ticker}/corporate-actions`), just need the UI page.
+**Dependencies:** `engine/corporate_actions.py`, database
+**Effort:** XS · **Impact:** Medium (financial accuracy)
+```
+[ ] Create GET /corporate-actions route in app.py
+[ ] Create templates/corporate_actions.html with table (date, ticker, action_type, details)
+[ ] Add navigation link in base.html
+[ ] Add filters: by ticker, by type (dividend/split/merger), by date range
+[ ] Show dividend sum by ticker for tax reporting
+```
+
+### 51. Watchlist Groups & Tags
+**File:** `app.py`, `templates/watchlist.html`, `core/database.py`
+**Description:** Current watchlist only supports tier (1/2/3). Add ability to tag stocks by strategy (e.g., "Tech Growth", "Dividend", "Value Turnaround", "Momentum"). Improves organization for traders managing >20 stocks. Database schema ready, just need UI.
+**Effort:** S · **Impact:** Medium (user experience)
+```
+[ ] Add watchlist_tags table: (tag_id, user, tag_name, color_hex, created_at)
+[ ] Add watchlist_stock_tags junction table: (stock_id, tag_id)
+[ ] Add tag management UI to /watchlist (add/delete/rename tags)
+[ ] Show tag filters in watchlist view (multi-select, color-coded)
+[ ] Save selected tags in localStorage for persistence
+```
+
+### 52. Dark Pool & Institutional Block Trade Activity Page
+**File:** `app.py`, `templates/dark_pool.html`
+**Description:** Show unusual institutional accumulation (block trades, dark pool activity) indicating insider confidence. API exists (`/api/stock/{ticker}/dark-pool-activity`), needs visualization. Good for identifying early institutional moves.
+**Dependencies:** `engine/institutional_tracker.py`
+**Effort:** S · **Impact:** Medium (signal generation)
+```
+[ ] Create GET /dark-pool route in app.py (list all stocks with recent block activity)
+[ ] Create GET /dark-pool/{ticker} route for ticker detail
+[ ] Create templates/dark_pool.html with time-series chart (cumulative blocks)
+[ ] Show volume vs typical, date, price at time of block
+[ ] Add filter: min block size (1M shares, 5M, 10M+)
+[ ] Add "Alert if block exceeds threshold" feature
+```
+
+### 53. Confidence Decay Visualization
+**File:** `templates/analysis_detail.html`, `app.py`
+**Description:** Add timeline showing when signal confidence drops over time. Shows "This analysis is 8 days old — confidence decayed from 92% → 71%. Recommend re-analysis." Helps traders know when signals become stale.
+**Dependencies:** `engine/staleness_tracker.py`
+**Effort:** S · **Impact:** Low (UX improvement)
+```
+[ ] Add staleness_metadata to analysis detail page
+[ ] Show confidence decay curve (analysis_date → today with 50% decay at 5 days)
+[ ] Add "Re-analyze" button if stale
+[ ] Show visual indicator (green/yellow/red) based on age
+[ ] Add to analysis history table: "Age" column with decay %
+```
+
+### 54. Economic Moat Scoring Dashboard
+**File:** `engine/moat_scorer.py`, `app.py`, `templates/moat_analysis.html`
+**Description:** Rank watchlist by competitive durability (brand strength, switching costs, network effects, cost advantages). Uses low-cost heuristics (P/E stability, gross margin consistency, free cash flow trends). Not ML-based, but useful for long-term investor focus.
+**Dependencies:** New `engine/moat_scorer.py`
+**Effort:** M · **Impact:** Medium (stock selection)
+```
+[ ] Create engine/moat_scorer.py with moat_score() function
+[ ] Score factors: P/E stability (3yr stddev), margin consistency, FCF trend, dividend history
+[ ] Combine into single 0-100 moat score
+[ ] Add GET /api/moat/{ticker} endpoint
+[ ] Create templates/moat_analysis.html (ranked list with breakdown)
+[ ] Show moat score on stock detail pages
+[ ] Add "Moat Score" column to watchlist view
+```
+
+### 55. Portfolio Anomaly Detection Dashboard
+**File:** `app.py`, `templates/portfolio_anomaly.html`
+**Description:** Detect when entire portfolio moves together vs idiosyncratic moves (e.g., "Market down 2%, my portfolio down 1% → good diversification" vs "Market flat, my portfolio down 3% → something wrong"). Helps traders spot portfolio-level risk.
+**Dependencies:** `engine/portfolio_analyzer.py`, real-time price data
+**Effort:** M · **Impact:** Medium (risk awareness)
+```
+[ ] Calculate daily portfolio correlation vs SPY
+[ ] Detect when beta > expected (systemic risk)
+[ ] Detect sector concentration (e.g., 60% in Tech)
+[ ] Create GET /api/portfolio/anomaly-detection endpoint
+[ ] Create templates/portfolio_anomaly.html
+[ ] Show: correlation chart, beta trend, sector concentration pie chart
+[ ] Alert if portfolio correlation > 0.9 or < 0.3 (unexpected)
+```
+
+### 56. Natural Language Q&A for Portfolio
+**File:** `app.py`, `engine/agents.py`
+**Description:** Ask questions like "What's my best performer?" or "Which tech stock lost the most?" and get instant answers. Uses Claude/Gemini to parse the question and query portfolio data.
+**Dependencies:** `clients/provider_registry.py` (Claude/Gemini access)
+**Effort:** M · **Impact:** Medium (user experience)
+```
+[ ] Create POST /api/portfolio/ask endpoint
+[ ] Parse user question with LLM: "get_best_performer" vs "get_sector_concentration" vs "get_loss_leaders"
+[ ] Query portfolio_history and construct answer
+[ ] Return formatted response + supporting data
+[ ] Add Q&A widget to dashboard sidebar or portfolio page
+[ ] Store questions in audit log for training
+```
+
+### 57. Real-time News & Sentiment Dashboard
+**File:** `app.py`, `templates/news_sentiment.html`
+**Description:** Continuous VADER sentiment scoring of news headlines (no LLM cost). Shows sentiment trend per ticker without burning API budget. Helps identify when macro narratives shift (e.g., "AI boom" → "AI bubble" shift).
+**Dependencies:** New `engine/news_sentiment.py`, RSS feeds or newsapi.org (free tier)
+**Effort:** M · **Impact:** Medium (narrative tracking)
+```
+[ ] Create engine/news_sentiment.py with VADER-based scorer
+[ ] Fetch news via newsapi.org or RSS feeds (free sources)
+[ ] Score each headline: positive/neutral/negative
+[ ] Track rolling 7-day sentiment trend per ticker
+[ ] Create GET /api/sentiment/{ticker} endpoint
+[ ] Create templates/news_sentiment.html (sentiment trend chart)
+[ ] Add "Sentiment Score" to stock detail page
+[ ] Alert if sentiment flips sharply (bullish → bearish)
+```
+
+### 58. Supply Chain Risk Mapper (Advanced)
+**File:** `app.py`, `engine/supply_chain_mapper.py`, `templates/supply_chain.html`
+**Description:** Map second-order exposure: "TSMC down → check exposure to NVDA, AMD, QCOM" and "China tariffs → check materials costs for auto suppliers". Complex but high signal value for institutional traders. Requires supply chain data (expensive sources or manual curation).
+**Dependencies:** Supply chain graph (manually curated or from commercial sources), `engine/supply_chain_mapper.py`
+**Effort:** L · **Impact:** High (institutional edge)
+```
+[ ] Curate supply chain relationships (TSMC → NVDA, AAPL, AMD, etc.)
+[ ] Store in database or JSON (supply_chain_relationships table)
+[ ] Create engine/supply_chain_mapper.py
+[ ] For each watchlist ticker, trace upstream/downstream exposure
+[ ] Create GET /api/supply-chain/{ticker} endpoint
+[ ] Create templates/supply_chain.html with network graph visualization
+[ ] Show: "If TSMC falls 5%, estimated NVDA impact: -2.3%"
+[ ] Add supply chain alerts to geopolitical scanner
+```
+
+### 59. Mobile PWA (Push Notifications & Offline)
+**File:** `static/service_worker.js`, `app.py`, `templates/base.html`
+**Description:** Convert app to Progressive Web App (PWA) with offline support and push notifications. Enables installing app on home screen and getting browser notifications for alerts.
+**Effort:** L · **Impact:** Medium (user experience)
+```
+[ ] Create service_worker.js for offline caching (cache analysis pages, watchlist)
+[ ] Add manifest.json (app name, icons, theme color)
+[ ] Implement push notifications via Web Push API
+[ ] Backend: store subscription endpoints, send push for signals
+[ ] Add "Install app" prompt in base.html
+[ ] Test on iOS (PWA support is limited) and Android
+```
+
+### 60. Watchlist Smart Sorting & Filtering
+**File:** `templates/watchlist.html`
+**Description:** Add sorting/filtering: by signal recency, by volatility, by sector, by performance (YTD, 1M), by tier. Current view is just a simple list. Makes watchlist management easier.
+**Effort:** XS · **Impact:** Low (UX improvement)
+```
+[ ] Add sort dropdowns: "By Tier", "By Performance", "By Signal Age", "By Volatility"
+[ ] Add filter toggles: "Show Only Tier 1", "Show Only Alerts", "Show Only Discovered"
+[ ] Save sort preference in localStorage
+[ ] Add "Quick Actions" column: Add Note, Archive, Remove
+```
+
+---
+
 ## Completed
 
 ```
