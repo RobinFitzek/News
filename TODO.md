@@ -245,9 +245,9 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Description:** The geopolitical scan already generates per-ticker exposure scores. Show a small colored badge (1–10 scale) directly in the watchlist table row, so you can immediately see which holdings are geo-exposed without clicking into each analysis. Data already in `analysis_history.geo_risk_score`.
 **Effort:** S · **Impact:** Medium (daily scan speed)
 ```
-[ ] Expose geo_risk_score in GET /api/watchlist response
-[ ] Add geo badge column to watchlist.html table
-[ ] Color-code: green <4, yellow 4-7, red >7
+[x] Expose geo_risk_score in GET /api/watchlist response
+[x] Add geo badge column to watchlist.html table
+[x] Color-code: green <4, yellow 4-7, red >7
 ```
 
 ---
@@ -716,14 +716,14 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 ### 24. Alternative sentiment — Reddit / Google Trends
 **File:** new `engine/sentiment_reddit.py`, `engine/sentiment_trends.py`
 **Description:** The system has no retail sentiment layer. Reddit (WSB, r/investing, r/stocks via PRAW) and Google Trends (pytrends) are especially predictive for retail-heavy stocks. A spike in search volume or Reddit mentions 1-2 days before a price move is a known leading signal.
-**Effort:** L · **Impact:** Medium (high alpha for small/mid cap, lower for blue chip)
+**Effort:** L · **Impact:** Medium (high alpha for small/mid cap, lower for blue cap)
 **Dependencies:** `praw` (Reddit), `pytrends` (Google Trends) — both free
 ```
-[ ] Create engine/sentiment_reddit.py: fetch top posts + comment counts for ticker via PRAW
-[ ] Create engine/sentiment_trends.py: pytrends relative search volume for ticker (7d)
-[ ] Add reddit_sentiment_score + trends_score to Stage 1 quant output
-[ ] Inject high-reddit-activity into Stage 3 prompt as anomaly
-[ ] Show sentiment badges on watchlist (retail interest: low/medium/high)
+[x] Create engine/sentiment_reddit.py: fetch top posts + comment counts for ticker via PRAW
+[x] Create engine/sentiment_trends.py: pytrends relative search volume for ticker (7d)
+[x] Add reddit_sentiment_score + trends_score to Stage 1 quant output
+[x] Inject high-reddit-activity into Stage 3 prompt as anomaly
+[x] Show sentiment badges on watchlist (retail interest: low/medium/high)
 ```
 
 ### 25. 13F institutional holdings tracker

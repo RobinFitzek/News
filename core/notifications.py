@@ -36,8 +36,8 @@ class NotificationService:
             return False
         
         if self.notify_strong_signals:
-            return signal in ["STRONG_BUY", "STRONG_SELL"]
-        return signal in ["STRONG_BUY", "STRONG_SELL", "BUY", "SELL"]
+            return signal in ["STRONG_BUY", "STRONG_SELL", "GEOPOLITICAL_ALERT"]
+        return signal in ["STRONG_BUY", "STRONG_SELL", "BUY", "SELL", "GEOPOLITICAL_ALERT"]
     
     def send_alert(self, ticker: str, signal: str, recommendation: str,
                    confidence: int = 0, risk_score: int = 5) -> bool:

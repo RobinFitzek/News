@@ -3341,7 +3341,7 @@ async def stock_detail_page(request: Request, ticker: str, username: str = Depen
     from engine.earnings_tracker import earnings_tracker
     from engine.financial_statements import financial_statements
     from engine.insider_tracker import insider_tracker
-    from engine.multi_timeframe import multi_timeframe_analyzer
+    from engine.multi_timeframe import multi_timeframe
     from engine.position_sizing import position_sizer
     from engine.dividend_tracker import dividend_tracker
 
@@ -3409,7 +3409,7 @@ async def stock_detail_page(request: Request, ticker: str, username: str = Depen
     # Discovery history for this ticker
     try:
         discovery_history = db.query("""
-            SELECT strategy, score, found_at, promoted
+            SELECT strategy, quant_score as score, found_at, promoted_at as promoted
             FROM discovered_stocks
             WHERE ticker = ?
             ORDER BY found_at DESC LIMIT 10

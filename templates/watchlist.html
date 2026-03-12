@@ -81,6 +81,7 @@
                         <th>Tier</th>
                         <th>Added</th>
                         <th title="Geopolitical risk score from latest analysis (1-10)">Geo Risk</th>
+                        <th title="Reddit and Google Trends sentiment">Sentiment</th>
                         <th title="Days since last analysis">Last Analyzed</th>
                         <th>Status</th>
                         <th style="width: 200px;"></th>
@@ -135,6 +136,23 @@
                                 {% else %}
                                     <span class="badge badge-danger" title="Geopolitical risk: {{ geo }}/10" style="font-family:var(--font-mono);">{{ geo }}</span>
                                 {% endif %}
+                            {% else %}
+                                <span style="color:var(--text-muted);font-size:0.8125rem;">—</span>
+                            {% endif %}
+                        </td>
+                        <!-- Sentiment Badges (#24) -->
+                        <td>
+                            {% set reddit = stock.reddit_sentiment_score %}
+                            {% set trends = stock.trends_score %}
+                            {% if reddit is not none and reddit > 0.5 %}
+                                <span class="badge badge-success" title="Reddit sentiment: {{ reddit }}/1.0" style="font-family:var(--font-mono);">📈</span>
+                            {% elif reddit is not none and reddit < -0.5 %}
+                                <span class="badge badge-danger" title="Reddit sentiment: {{ reddit }}/1.0" style="font-family:var(--font-mono);">📉</span>
+                            {% else %}
+                                <span style="color:var(--text-muted);font-size:0.8125rem;">—</span>
+                            {% endif %}
+                            {% if trends is not none and trends > 0.7 %}
+                                <span class="badge badge-success" title="Google Trends: {{ trends }}/1.0" style="font-family:var(--font-mono);">🔍</span>
                             {% else %}
                                 <span style="color:var(--text-muted);font-size:0.8125rem;">—</span>
                             {% endif %}

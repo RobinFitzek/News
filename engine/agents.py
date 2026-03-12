@@ -207,6 +207,8 @@ Quantitative Daten:
 - Anomalien:
 {anomaly_text}
 - Quant Signal: {qm.get('signal', 'Neutral')} (Score: {qm.get('composite_score', 'N/A')}/100){insider_text}
+- Reddit Sentiment: {qm.get('reddit_sentiment_score', 0.0)}/1.0
+- Google Trends Interest: {qm.get('trends_score', 0.0)}/1.0
 {geo_block}{macro_section}
 Aktuelle Nachrichten:
 {analysis_result.get('news', 'Keine Nachrichten verfuegbar')}

@@ -288,6 +288,42 @@ class QuantScreener:
                 'description': f"SHORT SQUEEZE RISK: score={squeeze['squeeze_score']}/100 ({squeeze['squeeze_level']})",
             })
 
+        # Alternative sentiment scores
+        try:
+            from engine.sentiment_reddit import reddit_sentiment_analyzer
+            reddit_sentiment = reddit_sentiment_analyzer.get_reddit_sentiment_score(ticker)
+            reddit_score = reddit_sentiment.get('sentiment_score', 0.0)
+            if reddit_score > 0.5:
+                anomalies.append({
+                    'metric': 'Reddit Sentiment',
+                    'value': reddit_score,
+                    'direction': 'positive',
+                    'description': f"REDITT SENTIMENT: score={reddit_score}/1.0 (bullish)",
+                })
+            elif reddit_score < -0.5:
+                anomalies.append({
+                    'metric': 'Reddit Sentiment',
+                    'value': reddit_score,
+                    'direction': 'negative',
+                    'description': f"REDITT SENTIMENT: score={reddit_score}/1.0 (bearish)",
+                })
+        except Exception as e:
+            logger.debug(f"Reddit sentiment analysis skipped: {e}")
+
+        try:
+            from engine.sentiment_trends import google_trends_analyzer
+            trends_sentiment = google_trends_analyzer.get_trends_sentiment(ticker)
+            trends_score = trends_sentiment.get('trends_score', 0.0)
+            if trends_score > 0.7:
+                anomalies.append({
+                    'metric': 'Google Trends Interest',
+                    'value': trends_score,
+                    'direction': 'positive',
+                    'description': f"GOOGLE TRENDS: score={trends_score}/1.0 (high interest)",
+                })
+        except Exception as e:
+            logger.debug(f"Google Trends analysis skipped: {e}")
+
         result = {
             'ticker': ticker,
             'composite_score': composite,
@@ -314,6 +350,8 @@ class QuantScreener:
             'anomalies': anomalies,
             'squeeze_score': squeeze['squeeze_score'],
             'squeeze_level': squeeze['squeeze_level'],
+            'reddit_sentiment_score': reddit_sentiment.get('sentiment_score', 0.0) if 'reddit_sentiment' in locals() else 0.0,
+            'trends_score': trends_sentiment.get('trends_score', 0.0) if 'trends_sentiment' in locals() else 0.0,
             'data': {
                 'name': info.get('longName', info.get('shortName', ticker)),
                 'sector': info.get('sector', 'Unknown'),

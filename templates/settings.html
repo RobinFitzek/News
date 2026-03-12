@@ -102,50 +102,6 @@
 
         <!-- ═══ PANEL: API CONNECTIONS ════════════════════ -->
         <div id="panel-api" class="settings-panel active">
-            <!-- API Keys -->
-            <div class="card" style="margin-bottom: var(--space-8);">
-                <h3 style="margin: 0 0 var(--space-5) 0;">API Keys</h3>
-                <p style="font-size: 0.8125rem; color: var(--text-muted); margin-bottom: var(--space-5);">
-                    API keys are securely stored in the local database
-                </p>
-                <form action="/settings/api-keys" method="POST">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <div class="grid grid-2" style="margin-bottom: var(--space-5);">
-                        <div>
-                            <label>Perplexity API Key</label>
-                            <input type="password" name="perplexity_key"
-                                placeholder="{% if api_keys.perplexity %}••••••••••••{% else %}pplx-xxx...{% endif %}">
-                            <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                                {% if api_keys.perplexity %}
-                                <span style="color: var(--text-primary);">Configured</span>
-                                {% else %}
-                                <span>Not configured</span>
-                                {% endif %}
-                                · <a href="https://perplexity.ai/settings" target="_blank"
-                                    style="color: var(--text-secondary);">Get API Key</a>
-                            </div>
-                        </div>
-                        <div>
-                            <label>Gemini API Key</label>
-                            <input type="password" name="gemini_key"
-                                placeholder="{% if api_keys.gemini %}••••••••••••{% else %}AIzaSy...{% endif %}">
-                            <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
-                                {% if api_keys.gemini %}
-                                <span style="color: var(--text-primary);">Configured</span>
-                                {% else %}
-                                <span>Not configured</span>
-                                {% endif %}
-                                · <a href="https://ai.google.dev" target="_blank" style="color: var(--text-secondary);">Get Free
-                                    API Key</a>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="panel-save">
-                        <button type="submit" class="btn btn-primary">Save API Keys</button>
-                    </div>
-                </form>
-            </div>
-
             <!-- AI Providers Card — unified open system -->
             <div class="card" style="margin-bottom: var(--space-6);">
                 <!-- Header: title + quick-add shortcuts -->
@@ -1937,13 +1893,16 @@
     .settings-nav-indicator {
         position: absolute;
         left: 0;
-        width: 2px;
-        background: var(--text-primary);
-        border-radius: 1px;
-        transition: top 0.2s ease, height 0.2s ease;
+        width: 100%;
+        background: var(--bg-hover);
+        border-radius: var(--radius-sm);
+        transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), height 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         pointer-events: none;
+        z-index: 0;
     }
     .settings-nav-item {
+        position: relative;
+        z-index: 1;
         display: flex;
         align-items: center;
         gap: var(--space-3);

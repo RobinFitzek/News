@@ -698,25 +698,18 @@
     <!-- Scheduled Jobs (if running) -->
     {% if scheduler_status.jobs %}
     <div class="card" style="margin-bottom: var(--space-6);">
-        <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">Scheduled Jobs</div>
-        <table style="width: 100%; border-collapse: collapse; font-size: 0.8125rem;">
-            <thead>
-                <tr style="border-bottom: 1px solid var(--border-hairline);">
-                    <th style="text-align: left; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em;">Job</th>
-                    <th style="text-align: right; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em;">In</th>
-                    <th style="text-align: right; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500; font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.08em;">Next Run</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for job in scheduler_status.jobs %}
-                <tr style="border-bottom: 1px solid var(--border-hairline); {% if job.soon %}background: rgba(16,185,129,0.04);{% endif %}">
-                    <td style="padding: var(--space-2) var(--space-3); color: var(--text-primary); font-weight: 500;">{{ job.name }}</td>
-                    <td style="padding: var(--space-2) var(--space-3); text-align: right; font-family: var(--font-mono); font-size: 0.75rem; {% if job.soon %}color: #10b981; font-weight: 600;{% else %}color: var(--text-muted);{% endif %}">{{ job.next_run_relative or '—' }}</td>
-                    <td style="padding: var(--space-2) var(--space-3); text-align: right; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">{{ job.next_run_formatted or '—' }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-3);">Scheduled Jobs</div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 0 var(--space-6);">
+            {% for job in scheduler_status.jobs %}
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 4px; border-bottom: 1px solid var(--border-hairline); font-size: 0.8125rem; {% if job.soon %}background: rgba(16,185,129,0.04);{% endif %}">
+                <div style="color: var(--text-primary); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: var(--space-3);">{{ job.name }}</div>
+                <div style="display: flex; gap: var(--space-4); text-align: right; flex-shrink: 0;">
+                    <div style="font-family: var(--font-mono); font-size: 0.75rem; width: 60px; {% if job.soon %}color: #10b981; font-weight: 600;{% else %}color: var(--text-secondary);{% endif %}">{{ job.next_run_relative or '—' }}</div>
+                    <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); width: 110px;">{{ job.next_run_formatted or '—' }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
     </div>
     {% endif %}
 
@@ -869,26 +862,6 @@
     })();
     </script>
 
-    <!-- Scheduled Jobs (if running) -->
-    {% if scheduler_status.jobs %}
-    <div class="card" style="margin-bottom: var(--space-6);">
-        <div
-            style="font-size: 0.5625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">
-            Scheduled Jobs</div>
-        <div class="grid grid-3">
-            {% for job in scheduler_status.jobs %}
-            <div
-                style="padding: var(--space-3) var(--space-4); background: var(--bg-secondary); border: 1px solid var(--border-hairline);">
-                <div
-                    style="font-weight: 500; margin-bottom: var(--space-1); color: var(--text-primary); font-size: 0.875rem;">
-                    {{ job.name }}</div>
-                <div style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">{{
-                    job.next_run }}</div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
 
     <!-- ─── RECENT ANALYSES ───────────────────────────────── -->
 

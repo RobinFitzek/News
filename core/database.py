@@ -1334,6 +1334,8 @@ class Database:
                    ah.signal        AS latest_signal,
                    ah.geo_risk_score AS geo_risk_score,
                    ah.risk_score    AS latest_risk_score,
+                   ah.reddit_sentiment_score AS reddit_sentiment_score,
+                   ah.trends_score AS trends_score,
                    ah.timestamp     AS last_analyzed_at,
                    CAST(
                        (julianday('now') - julianday(ah.timestamp))
@@ -1341,7 +1343,7 @@ class Database:
                    )                AS staleness_days
             FROM watchlist w
             LEFT JOIN (
-                SELECT ticker, signal, geo_risk_score, risk_score, timestamp,
+                SELECT ticker, signal, geo_risk_score, risk_score, reddit_sentiment_score, trends_score, timestamp,
                        ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY id DESC) AS rn
                 FROM analysis_history
             ) ah ON ah.ticker = w.ticker AND ah.rn = 1
