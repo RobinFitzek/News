@@ -92,6 +92,19 @@ class NotificationService:
         except Exception as e:
             logger.debug(f"Webhook send skipped: {e}")
 
+        # Plugin notifiers — fire regardless of email/webhook state
+        try:
+            from core.plugin_manager import plugin_manager
+            plugin_manager.run_notifiers({
+                "ticker": ticker,
+                "signal": signal,
+                "recommendation": recommendation,
+                "confidence": confidence,
+                "risk_score": risk_score,
+            })
+        except Exception as e:
+            logger.debug(f"Plugin notifiers skipped: {e}")
+
         # Update last-alert state for future dedup checks
         if sent:
             try:

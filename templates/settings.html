@@ -97,6 +97,12 @@
                     </svg>
                     <span>Auto-Trading</span>
                 </button>
+                <button type="button" class="settings-nav-item" data-panel="panel-plugins" onclick="switchSettingsPanel('panel-plugins')">
+                    <svg class="settings-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                    </svg>
+                    <span>Plugins</span>
+                </button>
             </div>
         </nav>
 
@@ -220,6 +226,79 @@
                 <div id="stage-save-feedback" style="display:none; margin-top: var(--space-3); font-size: 0.75rem; color: var(--signal-positive);">Saved.</div>
             </div>
 
+            <!-- Personal API Keys Card -->
+            <div class="card" style="margin-bottom: var(--space-6);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
+                    <div>
+                        <h3 style="margin: 0;">Personal API Keys</h3>
+                        <p style="margin: var(--space-1) 0 0; font-size: 0.75rem; color: var(--text-muted);">
+                            Bearer tokens for external tools — n8n, Obsidian, shell scripts, Raycast.
+                        </p>
+                    </div>
+                    <button type="button" class="btn btn-secondary" onclick="showGenerateKeyForm()">+ New Key</button>
+                </div>
+
+                <!-- Generate key form (hidden initially) -->
+                <div id="generate-key-form" style="display:none; background: var(--bg-subtle); border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: var(--space-4); margin-bottom: var(--space-4);">
+                    <div class="grid grid-2" style="gap: var(--space-3); margin-bottom: var(--space-3);">
+                        <div>
+                            <label class="form-label">Label</label>
+                            <input type="text" id="new-key-label" class="form-input" placeholder="e.g. n8n workflow, home script" />
+                        </div>
+                        <div>
+                            <label class="form-label">Scope</label>
+                            <select id="new-key-scope" class="form-select">
+                                <option value="read">Read-only</option>
+                                <option value="write">Read + Write</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: var(--space-2);">
+                        <button type="button" class="btn btn-primary" onclick="generateApiKey()">Generate</button>
+                        <button type="button" class="btn btn-ghost" onclick="hideGenerateKeyForm()">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Keys table -->
+                <div id="personal-keys-table">
+                    {% if personal_api_keys %}
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.8125rem;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border-light);">
+                                <th style="text-align: left; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500;">Label</th>
+                                <th style="text-align: left; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500;">Scope</th>
+                                <th style="text-align: left; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500;">Created</th>
+                                <th style="text-align: left; padding: var(--space-2) var(--space-3); color: var(--text-muted); font-weight: 500;">Last Used</th>
+                                <th style="text-align: right; padding: var(--space-2) var(--space-3);"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="personal-keys-tbody">
+                            {% for key in personal_api_keys %}
+                            <tr style="border-bottom: 1px solid var(--border-faint);" id="key-row-{{ key.id }}">
+                                <td style="padding: var(--space-2) var(--space-3);">{{ key.label }}</td>
+                                <td style="padding: var(--space-2) var(--space-3);">
+                                    <span style="font-size: 0.6875rem; padding: 2px 6px; border-radius: 4px; background: {% if key.scope == 'write' %}var(--signal-warning-bg, rgba(245,158,11,0.15)){% else %}var(--bg-subtle){% endif %}; color: {% if key.scope == 'write' %}var(--signal-warning, #f59e0b){% else %}var(--text-muted){% endif %};">{{ key.scope }}</span>
+                                </td>
+                                <td style="padding: var(--space-2) var(--space-3); color: var(--text-muted);">{{ key.created_at[:10] if key.created_at else '—' }}</td>
+                                <td style="padding: var(--space-2) var(--space-3); color: var(--text-muted);">{{ key.last_used_at[:10] if key.last_used_at else 'Never' }}</td>
+                                <td style="padding: var(--space-2) var(--space-3); text-align: right;">
+                                    <button type="button" class="btn btn-ghost" style="font-size: 0.6875rem; color: var(--signal-negative); padding: 2px 8px;" onclick="revokeApiKey({{ key.id }})">Revoke</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p id="no-keys-msg" style="color: var(--text-muted); font-size: 0.8125rem; margin: 0;">No API keys yet. Generate one to get started.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Usage example -->
+                <div style="margin-top: var(--space-5); padding: var(--space-3); background: var(--bg-code, #0d1117); border-radius: var(--radius-md);">
+                    <p style="font-size: 0.6875rem; color: var(--text-muted); margin: 0 0 var(--space-2);">Example usage:</p>
+                    <code style="font-size: 0.75rem; color: var(--text-secondary);">curl {{ request.base_url }}api/watchlist -H "Authorization: Bearer sk_..."</code>
+                </div>
+            </div>
         </div>
 
         <!-- ═══ PANEL: AUTO-DISCOVERY ════════════════════ -->
@@ -1308,8 +1387,145 @@
         </form>
         </div>
 
+        <!-- ═══ PANEL: PLUGINS ════════════════════════════ -->
+        <div id="panel-plugins" class="settings-panel">
+
+            <!-- Header card -->
+            <div class="card" style="margin-bottom: var(--space-6);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
+                    <div>
+                        <h3 style="margin: 0;">Plugin Manager</h3>
+                        <p style="margin: var(--space-1) 0 0; font-size: 0.75rem; color: var(--text-muted);">
+                            Extend Stockholm with local .py plugins. No external server required.
+                        </p>
+                    </div>
+                    <label for="plugin-file-input" class="btn btn-secondary" style="cursor: pointer;">
+                        + Install Plugin
+                        <input type="file" id="plugin-file-input" accept=".py" style="display:none" onchange="installPlugin(this)" />
+                    </label>
+                </div>
+
+                <!-- Plugin list -->
+                <div id="plugin-list-container">
+                    {% if plugins %}
+                    <div id="plugin-cards" style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        {% for plugin in plugins %}
+                        <div class="plugin-card" id="plugin-card-{{ plugin.id }}" data-plugin-id="{{ plugin.id }}" style="border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: var(--space-4);">
+                            <div style="display: flex; align-items: flex-start; gap: var(--space-3);">
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-1);">
+                                        <span class="plugin-type-badge plugin-type-{{ plugin.plugin_type }}" style="font-size: 0.6875rem; padding: 2px 7px; border-radius: 4px; font-weight: 500; text-transform: capitalize;">{{ plugin.plugin_type }}</span>
+                                        <strong style="font-size: 0.875rem;">{{ plugin.name }}</strong>
+                                        <span style="font-size: 0.6875rem; color: var(--text-muted);">v{{ plugin.version }}</span>
+                                        {% if plugin.author %}<span style="font-size: 0.6875rem; color: var(--text-muted);">· {{ plugin.author }}</span>{% endif %}
+                                    </div>
+                                    {% if plugin.description %}
+                                    <p style="margin: 0 0 var(--space-2); font-size: 0.8125rem; color: var(--text-secondary);">{{ plugin.description }}</p>
+                                    {% endif %}
+                                    <div style="display: flex; align-items: center; gap: var(--space-3); font-size: 0.75rem; color: var(--text-muted);">
+                                        <span>{{ plugin.filename }}</span>
+                                        {% if plugin.last_run_at %}<span>Last run: {{ plugin.last_run_at[:16] }}</span>{% endif %}
+                                        {% if plugin.last_error %}<span style="color: var(--signal-negative);" title="{{ plugin.last_error }}">⚠ Error</span>{% endif %}
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: var(--space-2); flex-shrink: 0;">
+                                    <label class="checkbox-wrapper" title="Enable/disable">
+                                        <input type="checkbox" {% if plugin.enabled %}checked{% endif %}
+                                               onchange="togglePlugin({{ plugin.id }}, this.checked)">
+                                        <div class="checkbox-custom"></div>
+                                    </label>
+                                    <button type="button" class="btn btn-ghost" style="font-size: 0.6875rem; padding: 4px 10px;" onclick="openPluginSettings({{ plugin.id }}, '{{ plugin.name | e }}')">Settings</button>
+                                    <button type="button" class="btn btn-ghost" style="font-size: 0.6875rem; padding: 4px 10px;" onclick="runPlugin({{ plugin.id }}, '{{ plugin.name | e }}')">Test</button>
+                                    <button type="button" class="btn btn-ghost" style="font-size: 0.6875rem; padding: 4px 10px; color: var(--signal-negative);" onclick="uninstallPlugin({{ plugin.id }}, '{{ plugin.name | e }}')">Remove</button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div id="plugin-empty-state" style="text-align: center; padding: var(--space-8) var(--space-4);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width: 40px; height: 40px; color: var(--text-muted); margin-bottom: var(--space-3);">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                        </svg>
+                        <p style="color: var(--text-muted); margin: 0; font-size: 0.875rem;">No plugins installed yet.</p>
+                        <p style="color: var(--text-muted); margin: var(--space-1) 0 0; font-size: 0.8125rem;">Upload a .py plugin file using the button above.</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Plugin contract / help card -->
+            <div class="card">
+                <details>
+                    <summary style="cursor: pointer; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); padding: var(--space-1) 0; user-select: none;">
+                        How to write a plugin
+                    </summary>
+                    <div style="margin-top: var(--space-4);">
+                        <p style="font-size: 0.8125rem; color: var(--text-muted); margin-bottom: var(--space-3);">
+                            A plugin is a single <code>.py</code> file you upload here. It must define these module-level constants and a <code>run()</code> function:
+                        </p>
+                        <pre style="font-size: 0.75rem; background: var(--bg-code, #0d1117); padding: var(--space-4); border-radius: var(--radius-md); overflow-x: auto; color: var(--text-secondary); line-height: 1.6;">PLUGIN_NAME        = "My Plugin"       # required
+PLUGIN_VERSION     = "1.0.0"           # optional
+PLUGIN_TYPE        = "notifier"        # required: notifier | analyzer | screener | exporter
+PLUGIN_DESCRIPTION = "What it does"   # optional
+PLUGIN_AUTHOR      = "You"            # optional
+
+PLUGIN_SETTINGS = {
+    "webhook_url": {"type": "string",   "label": "Webhook URL", "required": True},
+    "threshold":   {"type": "number",   "label": "Min confidence", "default": 70},
+    "api_key":     {"type": "password", "label": "API Key"},
+    "enabled":     {"type": "boolean",  "label": "Active", "default": True},
+}
+
+def run(context: dict, settings: dict) -> dict:
+    # context for 'notifier': ticker, signal, recommendation, confidence, risk_score
+    # context for 'analyzer': ticker, analysis_result
+    # context for 'screener': ticker, quant_data
+    # context for 'exporter': watchlist, portfolio
+    ...
+    return {"ok": True, "message": "Done"}</pre>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-3);">
+                            <strong>notifier</strong> plugins fire automatically when a STRONG_BUY or STRONG_SELL signal is detected.<br>
+                            <strong>analyzer</strong> plugins run after each Stage 3 analysis.<br>
+                            <strong>screener</strong> and <strong>exporter</strong> plugins are triggered manually via the Test button.
+                        </p>
+                    </div>
+                </details>
+            </div>
+
+        </div><!-- /#panel-plugins -->
 
 </div><!-- /.settings-layout -->
+
+<!-- Plugin Settings Modal -->
+<div id="plugin-settings-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+    <div style="background: var(--bg-card); border: 1px solid var(--border-default); border-radius: var(--radius-lg); padding: var(--space-6); width: 480px; max-width: calc(100vw - 2rem); max-height: 80vh; overflow-y: auto;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+            <h3 id="plugin-modal-title" style="margin: 0;">Plugin Settings</h3>
+            <button type="button" class="btn btn-ghost" onclick="closePluginSettings()">✕</button>
+        </div>
+        <div id="plugin-settings-fields" style="margin-bottom: var(--space-4);"></div>
+        <div style="display: flex; gap: var(--space-2); justify-content: flex-end;">
+            <button type="button" class="btn btn-ghost" onclick="closePluginSettings()">Cancel</button>
+            <button type="button" class="btn btn-primary" id="plugin-settings-save" onclick="savePluginSettings()">Save Settings</button>
+        </div>
+    </div>
+</div>
+
+<!-- One-time API key reveal modal -->
+<div id="api-key-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+    <div style="background: var(--bg-card); border: 1px solid var(--border-default); border-radius: var(--radius-lg); padding: var(--space-6); width: 520px; max-width: calc(100vw - 2rem);">
+        <h3 style="margin: 0 0 var(--space-2);">Your New API Key</h3>
+        <p style="font-size: 0.8125rem; color: var(--signal-warning, #f59e0b); margin-bottom: var(--space-4);">
+            Copy this key now — it will not be shown again.
+        </p>
+        <div style="display: flex; gap: var(--space-2); margin-bottom: var(--space-4);">
+            <input type="text" id="revealed-api-key" class="form-input" readonly style="font-family: monospace; font-size: 0.75rem;" />
+            <button type="button" class="btn btn-secondary" onclick="copyApiKey()">Copy</button>
+        </div>
+        <button type="button" class="btn btn-primary" onclick="closeApiKeyModal()">Done, I've saved it</button>
+    </div>
+</div>
 
 <script>
     function updateSettingsNavIndicator() {
@@ -1831,6 +2047,210 @@
         loadProviders();
         loadStageAssignments();
     });
+
+    // ──────────────────────────────────────────────────────────────
+    // Personal API Keys
+    // ──────────────────────────────────────────────────────────────
+
+    function showGenerateKeyForm() {
+        document.getElementById('generate-key-form').style.display = '';
+        document.getElementById('new-key-label').focus();
+    }
+
+    function hideGenerateKeyForm() {
+        document.getElementById('generate-key-form').style.display = 'none';
+        document.getElementById('new-key-label').value = '';
+    }
+
+    async function generateApiKey() {
+        const label = document.getElementById('new-key-label').value.trim();
+        const scope = document.getElementById('new-key-scope').value;
+        if (!label) { alert('Please enter a label for this key.'); return; }
+
+        const resp = await fetch('/api/personal-keys', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({label, scope})
+        });
+        if (!resp.ok) { const e = await resp.json(); alert('Error: ' + (e.detail || 'Unknown error')); return; }
+        const data = await resp.json();
+
+        hideGenerateKeyForm();
+
+        // Show one-time reveal modal
+        document.getElementById('revealed-api-key').value = data.raw_key;
+        const modal = document.getElementById('api-key-modal');
+        modal.style.display = 'flex';
+
+        // Reload the key list after closing
+        modal._newKeyData = data;
+    }
+
+    function copyApiKey() {
+        const input = document.getElementById('revealed-api-key');
+        input.select();
+        document.execCommand('copy');
+        const btn = input.nextElementSibling;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+    }
+
+    function closeApiKeyModal() {
+        const modal = document.getElementById('api-key-modal');
+        modal.style.display = 'none';
+        location.reload();  // reload to show the new key in the table
+    }
+
+    async function revokeApiKey(keyId) {
+        if (!confirm('Revoke this API key? Any scripts using it will stop working.')) return;
+        const resp = await fetch('/api/personal-keys/' + keyId, {method: 'DELETE'});
+        if (!resp.ok) { alert('Failed to revoke key'); return; }
+        const row = document.getElementById('key-row-' + keyId);
+        if (row) row.remove();
+        // Show empty state if no rows left
+        const tbody = document.getElementById('personal-keys-tbody');
+        if (tbody && !tbody.querySelector('tr')) {
+            const noMsg = document.getElementById('no-keys-msg');
+            if (noMsg) noMsg.style.display = '';
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Plugins
+    // ──────────────────────────────────────────────────────────────
+
+    let _pluginSettingsCurrentId = null;
+    let _pluginSettingsSchema = {};
+
+    async function installPlugin(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const resp = await fetch('/api/plugins/install', {method: 'POST', body: formData});
+        input.value = '';
+        if (!resp.ok) {
+            const e = await resp.json();
+            alert('Install failed: ' + (e.detail || 'Unknown error'));
+            return;
+        }
+        location.reload();
+    }
+
+    async function uninstallPlugin(pluginId, name) {
+        if (!confirm('Remove plugin "' + name + '"? The .py file will be deleted.')) return;
+        const resp = await fetch('/api/plugins/' + pluginId, {method: 'DELETE'});
+        if (!resp.ok) { alert('Failed to remove plugin'); return; }
+        const card = document.getElementById('plugin-card-' + pluginId);
+        if (card) card.remove();
+        // Check if container is now empty
+        const container = document.getElementById('plugin-cards');
+        if (container && !container.querySelector('.plugin-card')) {
+            location.reload();
+        }
+    }
+
+    async function togglePlugin(pluginId, enabled) {
+        const resp = await fetch('/api/plugins/' + pluginId + '/toggle', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({enabled})
+        });
+        if (!resp.ok) { alert('Failed to update plugin'); }
+    }
+
+    async function openPluginSettings(pluginId, name) {
+        _pluginSettingsCurrentId = pluginId;
+        document.getElementById('plugin-modal-title').textContent = name + ' — Settings';
+        document.getElementById('plugin-settings-fields').innerHTML = '<p style="color: var(--text-muted); font-size: 0.8125rem;">Loading...</p>';
+
+        const modal = document.getElementById('plugin-settings-modal');
+        modal.style.display = 'flex';
+
+        // Fetch plugin list to get current settings + schema
+        const resp = await fetch('/api/plugins');
+        if (!resp.ok) { document.getElementById('plugin-settings-fields').innerHTML = '<p style="color:var(--signal-negative)">Failed to load settings</p>'; return; }
+        const data = await resp.json();
+        const plugin = data.plugins.find(p => p.id === pluginId);
+        if (!plugin) { document.getElementById('plugin-settings-fields').innerHTML = '<p style="color:var(--signal-negative)">Plugin not found</p>'; return; }
+
+        _pluginSettingsSchema = plugin.settings_schema || {};
+        const currentSettings = {};
+        try { Object.assign(currentSettings, JSON.parse(plugin.settings || '{}')); } catch(e) {}
+
+        const fields = document.getElementById('plugin-settings-fields');
+        if (Object.keys(_pluginSettingsSchema).length === 0) {
+            fields.innerHTML = '<p style="color: var(--text-muted); font-size: 0.8125rem;">This plugin has no configurable settings.</p>';
+            return;
+        }
+
+        let html = '';
+        for (const [key, def] of Object.entries(_pluginSettingsSchema)) {
+            const val = currentSettings[key] !== undefined ? currentSettings[key] : (def.default !== undefined ? def.default : '');
+            const label = def.label || key;
+            const required = def.required ? ' *' : '';
+            const type = def.type || 'string';
+
+            html += '<div style="margin-bottom: var(--space-4);">';
+            html += '<label class="form-label">' + label + required + '</label>';
+            if (type === 'boolean') {
+                html += '<label class="checkbox-wrapper"><input type="checkbox" id="ps-' + key + '" ' + (val ? 'checked' : '') + '><div class="checkbox-custom"></div><span class="checkbox-label">Enabled</span></label>';
+            } else if (type === 'password') {
+                html += '<input type="password" id="ps-' + key + '" class="form-input" value="' + (val !== undefined ? String(val) : '') + '" autocomplete="new-password" />';
+            } else if (type === 'number') {
+                html += '<input type="number" id="ps-' + key + '" class="form-input" value="' + (val !== undefined ? String(val) : '') + '" />';
+            } else {
+                html += '<input type="text" id="ps-' + key + '" class="form-input" value="' + (val !== undefined ? String(val) : '') + '" />';
+            }
+            html += '</div>';
+        }
+        fields.innerHTML = html;
+    }
+
+    function closePluginSettings() {
+        document.getElementById('plugin-settings-modal').style.display = 'none';
+        _pluginSettingsCurrentId = null;
+    }
+
+    async function savePluginSettings() {
+        if (!_pluginSettingsCurrentId) return;
+        const settings = {};
+        for (const [key, def] of Object.entries(_pluginSettingsSchema)) {
+            const el = document.getElementById('ps-' + key);
+            if (!el) continue;
+            if (def.type === 'boolean') settings[key] = el.checked;
+            else if (def.type === 'number') settings[key] = parseFloat(el.value) || 0;
+            else settings[key] = el.value;
+        }
+        const resp = await fetch('/api/plugins/' + _pluginSettingsCurrentId + '/settings', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({settings})
+        });
+        if (resp.ok) {
+            closePluginSettings();
+        } else {
+            alert('Failed to save settings');
+        }
+    }
+
+    async function runPlugin(pluginId, name) {
+        const btn = event.target;
+        btn.textContent = 'Running...';
+        btn.disabled = true;
+
+        const resp = await fetch('/api/plugins/' + pluginId + '/run', {method: 'POST'});
+        btn.textContent = 'Test';
+        btn.disabled = false;
+
+        const result = await resp.json();
+        if (result.ok) {
+            alert('Plugin "' + name + '" ran OK:\n' + (result.message || 'No message'));
+        } else {
+            alert('Plugin "' + name + '" failed:\n' + (result.message || 'Unknown error'));
+        }
+    }
 </script>
 
 <style>
@@ -1998,5 +2418,14 @@
         opacity: 1;
         transform: scale(1);
     }
+
+    /* Plugin type badges */
+    .plugin-type-badge { background: var(--bg-subtle); color: var(--text-muted); }
+    .plugin-type-notifier { background: rgba(59, 130, 246, 0.12); color: #60a5fa; }
+    .plugin-type-analyzer { background: rgba(139, 92, 246, 0.12); color: #a78bfa; }
+    .plugin-type-screener { background: rgba(16, 185, 129, 0.12); color: #34d399; }
+    .plugin-type-exporter { background: rgba(245, 158, 11, 0.12); color: #fbbf24; }
+    .plugin-card { transition: border-color 0.15s; }
+    .plugin-card:hover { border-color: var(--border-default); }
 </style>
 {% endblock %}
