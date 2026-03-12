@@ -1158,6 +1158,8 @@ async def settings_page(request: Request, username: str = Depends(require_auth))
             "perplexity": bool(db.get_api_key("perplexity")),
             "gemini": bool(db.get_api_key("gemini"))
         },
+        "provider_shortcuts": PROVIDER_SHORTCUTS,
+        "stage_info": STAGE_INFO,
         "system_paused": system_paused,
     })
 

@@ -85,6 +85,12 @@
                     </svg>
                     <span>Appearance</span>
                 </button>
+                <button type="button" class="settings-nav-item" data-panel="panel-auto-discovery" onclick="switchSettingsPanel('panel-auto-discovery')">
+                    <svg class="settings-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+                    </svg>
+                    <span>Auto-Discovery</span>
+                </button>
                 <button type="button" class="settings-nav-item" data-panel="panel-autotrading" onclick="switchSettingsPanel('panel-autotrading')">
                     <svg class="settings-nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
@@ -139,6 +145,239 @@
                     </div>
                 </form>
             </div>
+
+            <!-- AI Providers Card — unified open system -->
+            <div class="card" style="margin-bottom: var(--space-6);">
+                <!-- Header: title + quick-add shortcuts -->
+                <div style="display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; margin-bottom: var(--space-4);">
+                    <h3 style="margin: 0; flex: 1; min-width: 120px;">AI Providers</h3>
+                    <div style="display: flex; flex-wrap: wrap; gap: var(--space-2);">
+                        {% for key, sc in provider_shortcuts.items() %}
+                        <button type="button" class="btn btn-secondary" style="font-size: 0.6875rem; padding: 4px 10px;"
+                            onclick="quickAdd('{{ key }}')">+ {{ sc.name }}</button>
+                        {% endfor %}
+                        <button type="button" class="btn btn-ghost" style="font-size: 0.6875rem; padding: 4px 10px;"
+                            onclick="quickAdd(null)">+ Custom</button>
+                    </div>
+                </div>
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
+                    Add any LLM or search API. Keys are stored encrypted. Click a shortcut to pre-fill the form.
+                </p>
+
+                <!-- Error Banner -->
+                <div id="api-error-banner" style="display:none; margin-bottom: var(--space-4); padding: var(--space-4) var(--space-5); background: var(--signal-negative-bg); border: 1px solid var(--signal-negative); color: var(--text-primary);">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap: var(--space-4); flex-wrap: wrap;">
+                        <div style="min-width: 260px; flex: 1;">
+                            <div style="font-weight: 600; color: var(--signal-negative);">API connection failed</div>
+                            <div id="api-error-banner-message" style="font-size: 0.8125rem; color: var(--text-secondary); margin-top: var(--space-1);"></div>
+                        </div>
+                        <div style="display:flex; gap: var(--space-2); align-items:center;">
+                            <a href="/logs?enable_dev_mode=1" class="btn btn-danger" style="font-size: 0.75rem; white-space: nowrap;">Open Logs</a>
+                            <button type="button" class="btn btn-secondary" style="font-size: 0.75rem;" onclick="hideApiErrorBanner()">Dismiss</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add / Edit Provider Form (hidden by default, shown by shortcut buttons or "Add" click) -->
+                <div id="add-provider-form" style="display: none; margin-bottom: var(--space-5); padding: var(--space-5); background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: var(--radius-md);">
+                    <div style="font-weight: 500; font-size: 0.875rem; margin-bottom: var(--space-4);" id="prov-form-title">Add Provider</div>
+                    <!-- Hidden adapter type — set by quickAdd or editProvider -->
+                    <input type="hidden" id="prov-adapter-type" value="openai_compatible">
+                    <div class="grid grid-2" style="gap: var(--space-4); margin-bottom: var(--space-4);">
+                        <div>
+                            <label>Provider Name</label>
+                            <input type="text" id="prov-name" placeholder="e.g. My Groq Setup">
+                        </div>
+                        <div>
+                            <label>Type</label>
+                            <select id="prov-type">
+                                <option value="llm">LLM (Text Generation)</option>
+                                <option value="search">Search (Web Intelligence)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-2" style="gap: var(--space-4); margin-bottom: var(--space-4);">
+                        <div>
+                            <label>Base URL</label>
+                            <input type="text" id="prov-url" placeholder="https://api.openai.com/v1">
+                        </div>
+                        <div>
+                            <label>API Key</label>
+                            <input type="password" id="prov-key" placeholder="sk-...">
+                        </div>
+                    </div>
+                    <div class="grid grid-2" style="gap: var(--space-4); margin-bottom: var(--space-4);">
+                        <div>
+                            <label>Model</label>
+                            <input type="text" id="prov-model" placeholder="gpt-4o-mini" list="prov-model-list">
+                            <datalist id="prov-model-list"></datalist>
+                        </div>
+                        <div>
+                            <label>Monthly Budget (EUR)</label>
+                            <input type="number" id="prov-budget" value="5.0" min="0" max="100" step="0.50">
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: var(--space-3);">
+                        <button type="button" class="btn btn-primary" onclick="saveProvider()" id="prov-save-btn">Save Provider</button>
+                        <button type="button" class="btn btn-ghost" onclick="cancelProviderForm()">Cancel</button>
+                    </div>
+                </div>
+
+                <!-- Provider List -->
+                <div id="providers-list">
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">Loading providers…</div>
+                </div>
+            </div>
+
+            <!-- Pipeline Stage Assignment Card -->
+            <div class="card" style="margin-bottom: var(--space-6);">
+                <h3 style="margin: 0 0 var(--space-2) 0;">Pipeline Stage Assignment</h3>
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
+                    Choose which AI handles each analysis stage. You can use one provider for everything or assign different providers per stage.
+                </p>
+
+                <!-- Mode Toggle -->
+                <div style="display: flex; gap: var(--space-2); margin-bottom: var(--space-5);">
+                    <button id="stage-mode-btn-unified" type="button" class="btn btn-primary" onclick="setStageMode('unified')">One AI for All</button>
+                    <button id="stage-mode-btn-per-stage" type="button" class="btn btn-ghost" onclick="setStageMode('per_stage')">Per Stage</button>
+                </div>
+
+                <!-- Unified Mode -->
+                <div id="stage-unified-panel">
+                    <div style="max-width: 320px;">
+                        <label>AI Provider (applied to all stages)</label>
+                        <select id="stage-unified-provider" style="margin-bottom: var(--space-4);">
+                            <option value="">— Select provider —</option>
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn-primary" onclick="saveStageAssignments()">Save</button>
+                </div>
+
+                <!-- Per-Stage Mode -->
+                <div id="stage-per-stage-panel" style="display:none;">
+                    <div class="grid grid-2" style="gap: var(--space-4); margin-bottom: var(--space-4);" id="stage-selectors">
+                        <div style="color: var(--text-muted); font-size: 0.75rem;">Loading stage config…</div>
+                    </div>
+                    <button type="button" class="btn btn-primary" onclick="saveStageAssignments()">Save Stage Assignments</button>
+                </div>
+
+                <div id="stage-save-feedback" style="display:none; margin-top: var(--space-3); font-size: 0.75rem; color: var(--signal-positive);">Saved.</div>
+            </div>
+
+        </div>
+
+        <!-- ═══ PANEL: AUTO-DISCOVERY ════════════════════ -->
+        <div id="panel-auto-discovery" class="settings-panel">
+        <form action="/settings/save" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="_section" value="discovery">
+
+            <!-- Auto-Discovery Settings -->
+            <div class="card" style="margin-bottom: var(--space-8);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-5); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
+                    <h3 style="margin: 0;">Auto-Discovery</h3>
+                    <label class="checkbox-wrapper">
+                        <input type="checkbox" id="discovery-toggle" name="discovery_enabled" {% if settings.discovery_enabled %}checked{% endif %} onchange="toggleDiscoverySettings()">
+                        <div class="checkbox-custom"></div>
+                        <span class="checkbox-label">Enable Discovery</span>
+                    </label>
+                </div>
+
+                <div id="discovery-settings-container">
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
+                        Automatically scan for new stock opportunities using free data sources. Discovered stocks are screened and promoted to your watchlist if they pass quality checks.
+                    </p>
+
+                    <!-- Schedule -->
+                    <div class="grid grid-3" style="gap: var(--space-5); margin-bottom: var(--space-6);">
+                        <div>
+                            <label>Daily Discovery Time</label>
+                            <input type="time" name="discovery_daily_time" value="{{ settings.discovery_daily_time|default('06:00') }}">
+                            <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                                Free strategies run daily at this time
+                            </div>
+                        </div>
+                        <div>
+                            <label>Weekly AI Day</label>
+                            <select name="discovery_weekly_day">
+                                {% for val, label in [('mon', 'Monday'), ('tue', 'Tuesday'), ('wed', 'Wednesday'), ('thu', 'Thursday'), ('fri', 'Friday'), ('sat', 'Saturday'), ('sun', 'Sunday')] %}
+                                <option value="{{ val }}" {% if settings.discovery_weekly_day|default('wed')==val %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                            <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                                Perplexity AI discovery day (~1 API call)
+                            </div>
+                        </div>
+                        <div>
+                            <label>Weekly AI Time</label>
+                            <input type="time" name="discovery_weekly_time" value="{{ settings.discovery_weekly_time|default('12:00') }}">
+                            <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                                Time for weekly AI-powered discovery
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Promotion Rules -->
+                    <div style="padding-top: var(--space-5); border-top: 1px solid var(--border-light); margin-bottom: var(--space-6);">
+                        <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">
+                            Promotion Rules
+                        </div>
+                        <div class="grid grid-3" style="gap: var(--space-5);">
+                            <div>
+                                <label>Promotion Threshold</label>
+                                <input type="number" name="discovery_promotion_threshold" value="{{ settings.discovery_promotion_threshold|default(55) }}" min="30" max="90" step="5">
+                                <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                                    Quant score needed to auto-promote (0-100)
+                                </div>
+                            </div>
+                            <div>
+                                <label>Max Promote Per Run</label>
+                                <input type="number" name="discovery_max_promote_per_run" value="{{ settings.discovery_max_promote_per_run|default(5) }}" min="1" max="20" step="1">
+                                <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                                    Limit stocks auto-added to watchlist per run
+                                </div>
+                            </div>
+                            <div>
+                                <label>Max Watchlist Size</label>
+                                <input type="number" name="discovery_max_watchlist_size" value="{{ settings.discovery_max_watchlist_size|default(50) }}" min="10" max="200" step="5">
+                                <div style="margin-top: var(--space-2); font-size: 0.6875rem; color: var(--text-muted);">
+                                    Stop auto-promoting if watchlist exceeds this
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Strategy Toggles -->
+                    <div style="padding-top: var(--space-5); border-top: 1px solid var(--border-light);">
+                        <div style="font-size: 0.625rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: var(--space-4);">
+                            Discovery Strategies
+                        </div>
+                        <div class="grid grid-3" style="gap: var(--space-3);">
+                            {% set active_strategies = settings.discovery_strategies|default(['volume_spike', 'breakout', 'oversold', 'sector_rotation', 'insider_buy', 'value_screen']) %}
+                            {% for strategy_val, strategy_label, strategy_desc in [
+                            ('volume_spike', 'Volume Spikes', 'Unusual volume activity'),
+                            ('breakout', 'Breakouts', '52-week highs, golden cross'),
+                            ('oversold', 'RSI Oversold', 'Quality stocks with RSI < 30'),
+                            ('sector_rotation', 'Sector Rotation', 'Hot sector momentum plays'),
+                            ('insider_buy', 'Insider Buying', 'Cluster insider purchases'),
+                            ('value_screen', 'Value Screen', 'Low P/E, high quality') ] %}
+                            <label class="checkbox-wrapper" style="align-items: flex-start;">
+                                <input type="checkbox" name="strategy_{{ strategy_val }}" {% if strategy_val in active_strategies %}checked{% endif %}>
+                                <div class="checkbox-custom" style="margin-top: 2px;"></div>
+                                <div>
+                                    <span class="checkbox-label">{{ strategy_label }}</span>
+                                    <div style="font-size: 0.6875rem; color: var(--text-muted); margin-top: 2px;">{{ strategy_desc }}</div>
+                                </div>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="panel-save">
+                <button type="submit" class="btn btn-primary">Save Discovery Settings</button>
+            </div>
+        </form>
         </div>
 
         <!-- ═══ PANEL: SCHEDULER ══════════════════════════ -->
@@ -1150,6 +1389,19 @@
         sessionStorage.setItem('settings-active-panel', panelId);
     }
 
+    function toggleEmailSettings() {
+        const toggle = document.getElementById('email-toggle');
+        const container = document.getElementById('email-settings-container');
+
+        if (toggle && container) {
+            if (toggle.checked) {
+                container.classList.remove('section-disabled');
+            } else {
+                container.classList.add('section-disabled');
+            }
+        }
+    }
+
     function toggleDiscoverySettings() {
         const toggle = document.getElementById('discovery-toggle');
         const container = document.getElementById('discovery-settings-container');
@@ -1347,6 +1599,282 @@
             });
     }
     loadAlerts();
+
+    // ─── Provider Shortcuts (injected from server) ───
+    var SHORTCUTS = {{ provider_shortcuts | tojson }};
+
+    // ─── Dynamic Providers ───
+    var editingProviderId = null;
+
+    function resetProviderForm() {
+        editingProviderId = null;
+        document.getElementById('prov-adapter-type').value = 'openai_compatible';
+        document.getElementById('prov-name').value = '';
+        document.getElementById('prov-type').value = 'llm';
+        document.getElementById('prov-url').value = '';
+        document.getElementById('prov-key').value = '';
+        document.getElementById('prov-key').placeholder = 'sk-…';
+        document.getElementById('prov-model').value = '';
+        document.getElementById('prov-budget').value = '5.0';
+        document.getElementById('prov-form-title').textContent = 'Add Provider';
+        document.getElementById('prov-save-btn').textContent = 'Save Provider';
+        document.getElementById('prov-model-list').innerHTML = '';
+    }
+
+    function quickAdd(shortcutKey) {
+        resetProviderForm();
+        if (shortcutKey && SHORTCUTS[shortcutKey]) {
+            var sc = SHORTCUTS[shortcutKey];
+            document.getElementById('prov-adapter-type').value = sc.adapter_type || 'openai_compatible';
+            document.getElementById('prov-name').value = sc.name || '';
+            document.getElementById('prov-type').value = sc.provider_type || 'llm';
+            document.getElementById('prov-url').value = sc.base_url || '';
+            document.getElementById('prov-key').placeholder = sc.key_placeholder || 'API Key…';
+            document.getElementById('prov-model').value = sc.model || '';
+            document.getElementById('prov-form-title').textContent = 'Add ' + sc.name;
+            var dl = document.getElementById('prov-model-list');
+            dl.innerHTML = '';
+            (sc.models || []).forEach(function(m) {
+                var opt = document.createElement('option'); opt.value = m; dl.appendChild(opt);
+            });
+        }
+        var form = document.getElementById('add-provider-form');
+        form.style.display = '';
+        document.getElementById('prov-name').focus();
+    }
+
+    function cancelProviderForm() {
+        document.getElementById('add-provider-form').style.display = 'none';
+        resetProviderForm();
+    }
+
+    function editProvider(providerId) {
+        fetch('/api/providers', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var provider = (data.providers || []).find(function(p) { return p.id === providerId; });
+            if (!provider) { alert('Provider not found'); return; }
+            resetProviderForm();
+            editingProviderId = provider.id;
+            document.getElementById('prov-adapter-type').value = provider.adapter_type || 'openai_compatible';
+            document.getElementById('prov-name').value = provider.name || '';
+            document.getElementById('prov-type').value = provider.provider_type || 'llm';
+            document.getElementById('prov-url').value = provider.base_url || '';
+            document.getElementById('prov-key').value = '';
+            document.getElementById('prov-model').value = provider.model || '';
+            document.getElementById('prov-budget').value = provider.monthly_budget_eur || 5.0;
+            document.getElementById('prov-form-title').textContent = 'Edit Provider';
+            document.getElementById('prov-save-btn').textContent = 'Update Provider';
+            var form = document.getElementById('add-provider-form');
+            if (form.style.display === 'none') form.style.display = '';
+            document.getElementById('prov-name').focus();
+        })
+        .catch(function() { alert('Could not load provider for editing'); });
+    }
+
+    function saveProvider() {
+        var budgetValue = parseFloat(document.getElementById('prov-budget').value);
+        if (isNaN(budgetValue)) budgetValue = 5.0;
+        var data = {
+            name: document.getElementById('prov-name').value,
+            provider_type: document.getElementById('prov-type').value,
+            base_url: document.getElementById('prov-url').value,
+            api_key: document.getElementById('prov-key').value,
+            model: document.getElementById('prov-model').value,
+            monthly_budget_eur: budgetValue,
+            adapter_type: document.getElementById('prov-adapter-type').value,
+        };
+        if (!data.name || !data.base_url || !data.model) { alert('Name, Base URL, and Model are required.'); return; }
+        var method = editingProviderId ? 'PUT' : 'POST';
+        var url = editingProviderId ? ('/api/providers/' + editingProviderId) : '/api/providers';
+        fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+            body: JSON.stringify(data) })
+        .then(function(r) { return r.json(); })
+        .then(function(resp) {
+            if (resp.id) {
+                hideApiErrorBanner();
+                cancelProviderForm();
+                loadProviders();
+                loadStageAssignments();
+            } else {
+                showApiErrorBanner(resp.detail || 'Could not save provider.');
+            }
+        })
+        .catch(function(e) { showApiErrorBanner('Failed to save provider: ' + e); });
+    }
+
+    function deleteProvider(id) {
+        if (!confirm('Remove this provider?')) return;
+        fetch('/api/providers/' + id, { method: 'DELETE', credentials: 'same-origin' })
+        .then(function() { loadProviders(); loadStageAssignments(); });
+    }
+
+    function testProvider(id) {
+        var btn = event.target;
+        btn.textContent = 'Testing…'; btn.disabled = true;
+        fetch('/api/providers/' + id + '/test', { method: 'POST', credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            btn.disabled = false;
+            if (data.status === 'ok') {
+                hideApiErrorBanner(); btn.textContent = 'OK'; btn.style.color = 'var(--signal-positive)';
+            } else {
+                btn.textContent = 'Failed'; btn.style.color = 'var(--signal-negative)';
+                var reason = data.message || data.error || 'Provider test failed.';
+                if (data.details && Array.isArray(data.details.attempted_endpoints) && data.details.attempted_endpoints.length > 0) {
+                    reason += ' Tried: ' + data.details.attempted_endpoints.join(' | ');
+                }
+                showApiErrorBanner(reason);
+            }
+            setTimeout(function() { btn.textContent = 'Test'; btn.style.color = ''; }, 3000);
+        })
+        .catch(function() {
+            btn.disabled = false; btn.textContent = 'Error';
+            showApiErrorBanner('Could not reach test endpoint. Check logs.');
+            setTimeout(function() { btn.textContent = 'Test'; }, 2000);
+        });
+    }
+
+    function showApiErrorBanner(message) {
+        var banner = document.getElementById('api-error-banner');
+        var msg = document.getElementById('api-error-banner-message');
+        if (!banner || !msg) return;
+        msg.textContent = message || 'Provider test failed.';
+        banner.style.display = '';
+    }
+
+    function hideApiErrorBanner() {
+        var banner = document.getElementById('api-error-banner');
+        if (banner) banner.style.display = 'none';
+    }
+
+    function loadProviders() {
+        fetch('/api/providers', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var list = document.getElementById('providers-list');
+            var providers = data.providers || [];
+            if (providers.length === 0) {
+                list.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);">No providers yet. Use a shortcut above or + Custom to add one.</div>';
+                return;
+            }
+            var html = '<div style="display:grid;gap:var(--space-3);">';
+            providers.forEach(function(p) {
+                var adapterBadge = p.adapter_type ? '<span style="font-family:var(--font-mono);font-size:0.625rem;padding:1px 5px;background:var(--bg-tertiary);border-radius:3px;">' + p.adapter_type.replace('_compatible','').replace(/_/g,' ') + '</span>' : '';
+                html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-4);border:1px solid var(--border-light);border-radius:var(--radius-md);">';
+                html += '<div style="display:flex;align-items:center;gap:var(--space-3);min-width:0;">';
+                html += '<div class="status-dot ' + (p.enabled ? 'active' : '') + '"></div>';
+                html += '<div style="min-width:0;">';
+                html += '<div style="font-weight:500;font-size:0.875rem;display:flex;align-items:center;gap:var(--space-2);">' + escHtml(p.name) + ' ' + adapterBadge + '</div>';
+                html += '<div style="font-size:0.6875rem;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escHtml(p.model) + (p.pipeline_role ? ' · ' + p.pipeline_role.replace(/_/g,' ') : '') + '</div>';
+                html += '</div></div>';
+                html += '<div style="display:flex;gap:var(--space-2);flex-shrink:0;">';
+                html += '<button type="button" onclick="editProvider(' + p.id + ')" class="btn btn-ghost" style="font-size:0.6875rem;">Edit</button>';
+                html += '<button type="button" onclick="testProvider(' + p.id + ')" class="btn btn-ghost" style="font-size:0.6875rem;">Test</button>';
+                html += '<button type="button" onclick="deleteProvider(' + p.id + ')" class="btn btn-ghost" style="font-size:0.6875rem;color:var(--signal-negative);">Remove</button>';
+                html += '</div></div>';
+            });
+            html += '</div>';
+            list.innerHTML = html;
+        })
+        .catch(function() {
+            document.getElementById('providers-list').innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);">Could not load providers.</div>';
+        });
+    }
+
+    function escHtml(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    // ─── Stage Assignment ───
+    var stageMode = 'unified';
+    var stageData = null;
+
+    function setStageMode(mode) {
+        stageMode = mode;
+        document.getElementById('stage-unified-panel').style.display = mode === 'unified' ? '' : 'none';
+        document.getElementById('stage-per-stage-panel').style.display = mode === 'per_stage' ? '' : 'none';
+        document.getElementById('stage-mode-btn-unified').className = mode === 'unified' ? 'btn btn-primary' : 'btn btn-ghost';
+        document.getElementById('stage-mode-btn-per-stage').className = mode === 'per_stage' ? 'btn btn-primary' : 'btn btn-ghost';
+    }
+
+    function loadStageAssignments() {
+        fetch('/api/stage-assignments', { credentials: 'same-origin' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            stageData = data;
+            var providers = data.providers || [];
+            var assignments = data.assignments || {};
+            var stageInfo = data.stage_info || {};
+
+            function providerOptions(currentId) {
+                var html = '<option value="">— none —</option>';
+                providers.forEach(function(p) {
+                    html += '<option value="' + p.id + '"' + (p.id == currentId ? ' selected' : '') + '>' + escHtml(p.name) + '</option>';
+                });
+                return html;
+            }
+
+            var uSel = document.getElementById('stage-unified-provider');
+            var ids = Object.values(assignments).map(function(a) { return a && a.provider_id; });
+            var unifiedId = (ids.length > 0 && ids.every(function(id) { return id === ids[0]; })) ? ids[0] : null;
+            uSel.innerHTML = providerOptions(unifiedId);
+
+            var detectedMode = unifiedId !== null ? 'unified' : 'per_stage';
+            setStageMode(detectedMode);
+
+            var selHtml = '';
+            Object.keys(stageInfo).forEach(function(stageName) {
+                var meta = stageInfo[stageName];
+                var asgn = assignments[stageName] || {};
+                selHtml += '<div>';
+                selHtml += '<label style="font-size:0.75rem;">' + escHtml(meta.label) + '</label>';
+                selHtml += '<div style="font-size:0.625rem;color:var(--text-muted);margin-bottom:var(--space-1);">' + escHtml(meta.description) + '</div>';
+                selHtml += '<select id="stage-sel-' + stageName + '" data-stage="' + stageName + '">';
+                selHtml += providerOptions(asgn.provider_id);
+                selHtml += '</select>';
+                selHtml += '</div>';
+            });
+            document.getElementById('stage-selectors').innerHTML = selHtml || '<div style="color:var(--text-muted);font-size:0.75rem;">No providers added yet.</div>';
+        })
+        .catch(function(e) { console.error('[StageAssign] load failed:', e); });
+    }
+
+    function saveStageAssignments() {
+        var payload;
+        if (stageMode === 'unified') {
+            var pid = document.getElementById('stage-unified-provider').value;
+            payload = { mode: 'one_for_all', provider_id: pid || null };
+        } else {
+            var stages = {};
+            document.querySelectorAll('#stage-selectors select[data-stage]').forEach(function(sel) {
+                stages[sel.dataset.stage] = { provider_id: sel.value || null, enabled: true };
+            });
+            payload = { mode: 'per_stage', stages: stages };
+        }
+        fetch('/api/stage-assignments', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin',
+            body: JSON.stringify(payload)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(resp) {
+            var fb = document.getElementById('stage-save-feedback');
+            fb.textContent = resp.status === 'ok' ? 'Saved.' : 'Error saving.';
+            fb.style.color = resp.status === 'ok' ? 'var(--signal-positive)' : 'var(--signal-negative)';
+            fb.style.display = '';
+            setTimeout(function() { fb.style.display = 'none'; }, 2500);
+        })
+        .catch(function() {
+            var fb = document.getElementById('stage-save-feedback');
+            fb.textContent = 'Error saving stage assignments.';
+            fb.style.color = 'var(--signal-negative)';
+            fb.style.display = '';
+        });
+    }
+
+    // Initialize on DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', function() {
+        loadProviders();
+        loadStageAssignments();
+    });
 </script>
 
 <style>
