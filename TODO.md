@@ -1261,3 +1261,698 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 [-] Real-time WebSocket price feed — yfinance polling is sufficient; adds complexity without meaningful gain
 [-] Options chain deep analysis — data quality from free sources is unreliable; high false-signal risk
 ```
+
+---
+
+## Design Rewrite — "Breathe" (Glasmorphic Design Language)
+
+> **Philosophy:** Three-dimensional glassmorphism rooted in Scandinavian restraint.
+> Inspired by Oxygen 16 "Breathe With You" — light that breathes, glass that floats,
+> data that speaks without shouting. Sharp edges. Clean structure. Everything earns its place.
+>
+> **Effort:** L (full design system rewrite) · **Impact:** Very High (complete visual identity)
+> **Status:** Spec complete — ready for implementation
+
+---
+
+### BREATHE-1 · Design Language Foundation
+
+Establish the complete token system before touching any component. This is the ground truth
+all later work references. Incomplete tokens will cascade into broken components.
+
+#### 1.1 CSS Token Architecture — `static/css/modern.css`
+
+- [ ] **Depth tokens** — Define the Z-space vocabulary used by every component layer:
+  - `--z-luminary: 0` — The light source (background)
+  - `--z-shell: 1` — The frosted site background
+  - `--z-void: 2` — Air between shell and cards
+  - `--z-glass: 3` — Primary card/panel layer
+  - `--z-elevated: 4` — Modals, dropdowns, tooltips
+  - `--z-overlay: 5` — Loading screen, full-screen overlays
+
+- [ ] **Glass material tokens** — Precision values for every glass surface:
+  - `--glass-blur-near: blur(8px)` · `--glass-blur-mid: blur(20px)` · `--glass-blur-far: blur(36px)`
+  - `--glass-saturation: saturate(160%)` — Color amplification through glass
+  - `--glass-tint-dark: rgba(255,255,255,0.05)` — Dark mode panel fill
+  - `--glass-tint-light: rgba(255,255,255,0.62)` — Light mode panel fill
+  - `--glass-border-highlight: rgba(255,255,255,0.14)` — Top/left specular rim
+  - `--glass-border-shadow: rgba(0,0,0,0.18)` — Bottom/right depth rim
+  - `--glass-specular: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 50%)` — Surface shine
+
+- [ ] **Glow tokens** — The Oxygen light color system:
+  - Signal glows: `--glow-positive: #6BFF9E` · `--glow-negative: #FF6B6B` · `--glow-neutral: #6BB8FF`
+  - Light sources dark: `--glow-gold: #FFD87A` (warm) · `--glow-ice: #A8D8FF` (cool)
+  - Light sources light: `--glow-amber: #FFB347` (warm) · `--glow-sky: #B8DAFF` (cool)
+  - `--glow-intensity: 0.6` — User-adjustable multiplier (controlled by Settings slider)
+  - `--glow-radius-near: 120px` · `--glow-radius-far: 400px`
+
+- [ ] **Motion tokens** — The Breathe timing manifesto:
+  - `--ease-breathe: cubic-bezier(0.34, 1.2, 0.64, 1)` — Spring overshoot, the signature curve
+  - `--ease-defuse: cubic-bezier(0.16, 1, 0.3, 1)` — Mercury dissolution (noise → form)
+  - `--ease-sink: cubic-bezier(0.4, 0, 1, 1)` — Elements settling into depth
+  - `--duration-diffuse: 600ms` · `--duration-breathe: 4000ms` · `--duration-float: 6000ms`
+  - `--parallax-strength: 8px` — Max card depth shift on mouse movement
+
+- [ ] **Typography tokens** — Add display weight precision to existing font stack:
+  - Enforce Source Serif 4 only for hero numbers and major section headers
+  - DM Sans for all body/UI — tighten tracking to `letter-spacing: -0.01em`
+  - JetBrains Mono for all financial data: tickers, percentages, timestamps, deltas
+  - Add `--text-display: clamp(3rem, 6vw, 5rem)` — KPI hero values scale to viewport
+
+#### 1.2 New Color Palette
+
+- [ ] **Dark Mode "The Deep"** — Void with ultraviolet undertone, not pure black:
+  - `--bg-primary: #080810` · `--bg-secondary: #0E0E1A` · `--bg-tertiary: #141426`
+  - `--text-primary: #EEE8DC` — Warm off-white, readable through smoke glass
+  - `--text-secondary: #9990A0` — Muted lavender-grey
+  - `--border-primary: rgba(255,255,255,0.07)` · `--border-highlight: rgba(255,255,255,0.14)`
+  - Signal: positive `#4EE88A` · negative `#E86060` · neutral `#60A8E8` — restrained, not neon
+
+- [ ] **Light Mode "The Breath"** — Nordic morning paper, warm cream:
+  - `--bg-primary: #F5F0E8` · `--bg-secondary: #EDE8DF` · `--bg-tertiary: #E4DFD4`
+  - `--text-primary: #18141E` — Near-black with violet depth
+  - `--text-secondary: #5C5468` — Muted plum-grey
+  - `--border-primary: rgba(0,0,0,0.07)` · `--border-highlight: rgba(255,255,255,0.80)` — bright frost edge
+  - Signal: positive `#0D7A3C` (forest) · negative `#A01818` (deep red) · neutral `#1456A0` (Nordic blue)
+
+---
+
+### BREATHE-2 · Three-Dimensional Layer Architecture
+
+The structural core. Every visual decision flows from this Z-space system.
+Implement in strict order — each layer must be visually confirmed before building the next.
+
+#### 2.1 Layer 0 — The Luminary (Background Light Source)
+
+The deepest layer. A living light source everything above floats inside.
+Fixed position — does not scroll with content.
+
+- [ ] **DOM structure** (`templates/base.html`):
+  - Insert `<div class="luminary" aria-hidden="true">` as first child of `<body>`
+  - `position: fixed; inset: 0; z-index: var(--z-luminary); pointer-events: none`
+
+- [ ] **Dual light orbs** — Two radial glow sources, slowly drifting:
+  - Primary orb: top-right position, `var(--glow-gold)` / `var(--glow-amber)` — 800px diameter
+    — dark: 25% opacity / light: 15% opacity
+  - Secondary orb: bottom-left, `var(--glow-ice)` / `var(--glow-sky)` — 600px diameter
+    — dark: 18% / light: 10%
+  - Both animated: `luminary-drift var(--duration-float) ease-in-out infinite alternate`
+  - Drift keyframes: ±80px translation along each orb's axis — slow breathing movement
+
+- [ ] **Parallax response** (`static/js/dashboard.js` — new `ParallaxManager` class):
+  - Listen to `mousemove` on `document`, shift orb positions by `mouseX * 0.04, mouseY * 0.04`
+  - Use `requestAnimationFrame` with lerp (linear interpolation factor 0.08) for silky motion
+  - Disable when `prefers-reduced-motion` is active or Settings Parallax toggle is OFF
+  - Auto-disable on touch devices via `'ontouchstart' in window` detection
+
+- [ ] **Particle field** — 40–60 SVG micro-dots drifting in the light:
+  - `<circle>` elements, radius 1–3px, scattered across luminary layer
+  - Opacity 0.06–0.15 in dark / 0.03–0.08 in light — barely visible texture
+  - Each drifts on a unique loop (8–20s) via `transform: translate` keyframes
+  - Particles near light orbs receive `filter: blur(1px)` for a soft corona effect
+  - Not interactive — pure ambient depth texture
+
+- [ ] **Glow bleed** — Luminary bleeds into upper layers via `mix-blend-mode: screen`
+  on Shell and glass layers so card positions affect their warm/cool tint
+
+#### 2.2 Layer 1 — The Shell (Frosted Site Background)
+
+The material quality of the site itself. Not a card — the entire page as a surface.
+
+- [ ] **DOM** (`templates/base.html`): `<div class="shell" aria-hidden="true">` above Luminary
+  - `position: fixed; inset: 0; z-index: var(--z-shell); pointer-events: none`
+
+- [ ] **Frosted material** (`static/css/modern.css`):
+  - `backdrop-filter: blur(2px) saturate(120%)` — Minimal, just enough for material feel
+  - Background: `rgba(var(--bg-primary-rgb), 0.88)` — Semi-transparent over Luminary
+  - SVG grain noise overlay at 3% opacity via `::before` pseudo — frosted texture vs. flat
+
+- [ ] **Refractive edge distortion** (`static/js/liquid-glass.js`):
+  - SVG `<filter id="shell-refraction">` using `feTurbulence` + `feDisplacementMap`
+  - Applied to a thin `::before` element along page edges (20px inset border zone)
+  - `feTurbulence`: `baseFrequency="0.65"` `numOctaves="3"` — fine grain, not noisy
+  - `feDisplacementMap`: `scale="8"` — subtle lens bend at viewport edge
+
+- [ ] **Ambient tint absorption** — Shell hue shifts slightly based on time of day:
+  - CSS custom property `--luminary-hue-offset` set by JS at page load
+  - Morning: `+6deg` toward amber; evening: `-4deg` toward cool blue
+  - Applied via `filter: hue-rotate(var(--luminary-hue-offset))` on Shell
+  - Transition: `60s linear` — imperceptibly gradual
+
+#### 2.3 Layer 2 — The Void (Space Between Shell and Cards)
+
+The invisible depth that gives the design its 3D quality — the perception of air.
+
+- [ ] **Shadow architecture** — Cards cast downward shadows into the Void:
+  - Base shadow: `0 8px 32px rgba(0,0,0,0.4), 0 2px 8px rgba(0,0,0,0.2)`
+  - Signal-tinted shadow: `0 16px 48px rgba(var(--card-glow-rgb), 0.15)` — subtle color bleed
+  - Ensures cards appear to genuinely float above the shell surface
+
+- [ ] **Micro-parallax on scroll** (`static/js/dashboard.js` — `ParallaxManager`):
+  - `IntersectionObserver` tracks cards entering viewport for baseline Y position
+  - On scroll: `translateY` shifts by `(scrollY - cardEntryY) * 0.06` — imperceptible depth
+  - Max shift: `var(--parallax-strength)` = 8px — grounded, not gimmicky
+  - Disable on mobile and when Parallax setting is OFF
+
+- [ ] **Liquid shimmer in gap zones** — Pure CSS sweep on Shell `::after`:
+  - Very faint gradient `rgba(255,255,255,0.02)` sweeps left-to-right across the page
+  - `shimmer-sweep 12s linear infinite` — seamless loop, suggests moving light on a surface
+  - Dark mode only — hidden in light mode where it would collapse the depth illusion
+
+#### 2.4 Layer 3 — The Glass (Cards and Components)
+
+The primary interaction layer. All cards, panels, tables, and widgets live here.
+Sharp-edged, precise, luminous. Swedish engineering meets Oxygen aesthetics.
+
+- [ ] **Glass material base** (`static/css/modern.css` — `.card` class overhaul):
+  - `backdrop-filter: blur(var(--glass-blur-mid)) var(--glass-saturation)` — the core material
+  - Background: `var(--glass-tint-dark/light)` per theme — transparent tint over blurred content
+  - Border: 1px composed — top+left use `var(--glass-border-highlight)`, bottom+right
+    use `var(--glass-border-shadow)` — achieved via `border-image` gradient or pseudo-element
+  - `border-radius: 0` — Sharp edges are the design statement. No rounding on cards.
+  - Specular highlight: `::before` pseudo with `var(--glass-specular)` covering top-left quadrant,
+    `pointer-events: none`, opacity fades from corner outward
+
+- [ ] **The Bulb — glow source behind each card** (`static/css/modern.css`):
+  - `::after` pseudo-element behind each card (`z-index: -1`)
+  - `background: radial-gradient(ellipse, var(--card-glow-color) 0%, transparent 70%)`
+  - `--card-glow-color` defaults to `var(--glow-neutral)` — overridden per data context:
+    - Positive metric cards → `var(--glow-positive)`
+    - Negative metric cards → `var(--glow-negative)`
+    - Charts, tables, info panels → `var(--glow-neutral)`
+  - Opacity: `calc(0.12 * var(--glow-intensity))` — scales with Settings slider
+  - Animation: `breathing-glow var(--duration-breathe) ease-in-out infinite alternate`
+    keyframes: opacity 0.08 → 0.18, scale 0.95 → 1.05 — a slow living pulse
+
+- [ ] **Hover state** — Card responds to presence:
+  - `transition: all var(--duration-fast) var(--ease-breathe)`
+  - `backdrop-filter` blur reduces: 20px → 12px — card "clears" as focus approaches
+  - Specular `::before` opacity increases — surface brightens toward viewer
+  - `translateY(-3px)` — card lifts toward the viewer
+  - Glow `::after` opacity increases — the bulb brightens behind it
+  - `box-shadow` deepens — Void shadow grows as card lifts away from Shell
+
+- [ ] **Liquid bulge on hover** (`static/js/liquid-glass.js` upgrade):
+  - On `mouseenter`: animate SVG `feDisplacementMap` scale from 0 → 6 → 0 over 800ms
+  - Effect: glass membrane appears to breathe inward then recover — responds to presence
+  - One `<filter>` per card reused via `filter: url(#card-bulge-N)`, N = card index
+
+---
+
+### BREATHE-3 · Data Visualization Language — "Sharp Clarity"
+
+Data must be immediately understood before it is read. Every number and chart
+should communicate its meaning graphically first, textually second.
+
+#### 3.1 Chart.js Global Theme Overhaul (`static/js/dashboard.js`)
+
+- [ ] **Global defaults override** — Set Chart.js defaults before any chart initializes:
+  - `Chart.defaults.font.family = 'JetBrains Mono'`
+  - `Chart.defaults.color = getComputedStyle(root).getPropertyValue('--text-secondary')`
+  - Grid lines: `rgba(255,255,255,0.04)` dark / `rgba(0,0,0,0.06)` light — structural ghost only
+  - No chart borders, no legend boxes — text labels only, no boxing
+  - Tooltip style: glass card — `backdrop-filter`, sharp corners, `--glass-tint` background
+
+- [ ] **Line charts** — Replace solid fills with direction-coded color fields:
+  - `createLinearGradient` from signal color at 30% opacity → 0% at bottom of chart area
+  - The color field communicates trend direction before the line is read
+  - Line itself: 1.5px weight, signal color (positive/negative based on trend direction)
+  - Remove point dots from line — the line is pure geometry
+
+- [ ] **Bar charts** — Swedish precision geometry:
+  - 2px gap between bars, `borderRadius: 0` — sharp
+  - Per-bar gradient from `--glow-neutral` base to signal color based on bar value
+  - Hover: bar gets inner glow, slight lift effect via Chart.js `onHover` callback
+
+#### 3.2 New Micro-Chart Types (`static/js/dashboard.js`)
+
+- [ ] **SparkBar class** — Inline 8-bar charts replacing sparkline lines in table cells:
+  - SVG-drawn, 40×16px, value labels hidden until hover (tooltip only)
+  - Bar color shifts from neutral → positive/negative based on most recent value
+  - Implemented as `class SparkBar { render(container, data) }` injected into `<td>` cells
+
+- [ ] **Signal dot matrix** — 10-dot grid replacing percentage text for strength indicators:
+  - 10 sharp 6×6px squares in a horizontal row, 3px gap
+  - Filled count proportional to value (0–100%), filled squares use signal color
+  - Renders at a glance: 10 green squares = maximum confidence, 3 = low
+  - No library — pure SVG `<rect>` elements
+
+- [ ] **Horizon chart** — Single-row color-banded history in 20px height:
+  - Positive bands above baseline, negative below, encoded via CSS gradient bands
+  - Implemented as a `<div>` with `background: linear-gradient()` computed from data
+  - Extremely space-efficient: shows full history where a line chart would need 120px
+
+- [ ] **Constellation graph** — Correlation data as floating nodes with edges:
+  - SVG-only: `<rect>` nodes (sharp, not circles), `<line>` edges
+  - Node size encodes market cap weight, edge thickness encodes correlation strength
+  - Node glow color encodes performance signal
+  - Force layout: simple iterative JS repulsion loop (no D3 dependency)
+
+#### 3.3 Typography-Forward KPI Numbers (`static/css/modern.css` + `dashboard.js`)
+
+- [ ] **Hero number styling** — The number IS the graphic:
+  - `var(--text-display)` size, `font-family: JetBrains Mono`, `font-weight: 700`
+  - Positive: `color: var(--glow-positive)` + `text-shadow: 0 0 20px currentColor`
+  - Negative: `color: var(--glow-negative)` + matching glow
+
+- [ ] **CountUp class** — Numbers defuse in from noise on page load:
+  - Scrambled digits → final value over 1.2s, easing matches `--ease-defuse` curve
+  - Mercury aesthetic: each digit resolves independently with slight stagger
+  - Each KPI card number initializes its `CountUp` when entering viewport
+
+#### 3.4 Signal Glyphs — SVG Icon Language (`templates/base.html`)
+
+- [ ] **Four glyph symbols** as `<symbol>` definitions in `<defs>`, referenced via `<use>`:
+  - `BUY`: Sharp upward chevron, filled, `var(--glow-positive)`
+  - `SELL`: Sharp downward chevron, filled, `var(--glow-negative)`
+  - `HOLD`: Horizontal double-bar (geometric pause), `var(--glow-neutral)`
+  - `WATCH`: Geometric eye outline, `var(--glow-gold)`
+- [ ] Each glyph hover: scale 1.15×, glow intensifies — `transition: all 200ms var(--ease-breathe)`
+- [ ] Text label hidden by default, appears as tooltip on hover — never clutters the view
+- [ ] All glyphs include `aria-label` and `<title>` for accessibility
+
+#### 3.5 Directional Arrows as Data Graphics (`static/css/modern.css`)
+
+- [ ] Replace `▲ +2.4%` text patterns with `.delta` component:
+  - Sharp SVG arrowhead (8×10px triangle) + 2px shaft, length proportional to magnitude
+  - Arrow + percentage figure are one self-contained `<span class="delta delta--positive">`
+  - Scanning a table of deltas becomes instantaneous — eyes read direction before numbers
+
+---
+
+### BREATHE-4 · Loading Screen — Mercury Diffusion
+
+> **Critical design note:** The diffusion effect lives IN the page text itself — not as a
+> separate overlay, laser, or layer imposed on top of content. The website's own text —
+> nav labels, card titles, KPI numbers, table headers, every visible text node — starts
+> as shimmering noise characters and resolves in place into the real content.
+> There is no separate "loading screen" sitting above the UI. The UI IS the loading animation.
+> The structure, glassmorphic cards, and layout are visible from the first frame;
+> only the text within them is still resolving. This makes the page feel alive as it loads
+> rather than blocked behind a gate.
+
+#### 4.1 Page-Text Diffusion System — The Core Effect
+
+The Mercury diffusion runs directly on the site's real text content. Every text node
+on the page is wrapped and treated as a diffusion target. No overlay, no separate screen.
+
+- [ ] **`TextDiffuser` class** (`static/js/loading-screen.js`) — wraps all page text in diffusion targets:
+  - On `DOMContentLoaded` (before paint): traverse all visible text nodes in `<body>`
+    — nav links, card headings, KPI values, table cells, labels, badges
+  - For each text node: store the real string, replace characters with random noise chars
+    from the set `░▒▓█╔╗╝╚║═╠╣╦╩╬│─┼@#$%&?!`
+  - Node characters resolve probabilistically, each character independent:
+    `p = baseP + (1 - normalizedPositionInPage) * 0.04` — top of page resolves faster
+  - Nav and headings resolve first (0–400ms), body text mid (300–800ms),
+    table data and sub-labels last (600–1200ms) — a wave from top to bottom
+  - Unresolved characters re-randomize every 2–3 frames — shimmering noise texture
+  - **The layout, cards, and glass layers are fully visible from frame zero** — only
+    the text inside them is diffusing. The glassmorphic depth effect is seen immediately.
+
+- [ ] **Character resolution per node:**
+  - Wrap each character in `<span data-real="X" data-resolved="false">`
+  - On resolve: `span.textContent = realChar`, add `.resolved` class
+  - CSS: `.resolved` transitions `color: var(--glow-gold) → var(--text-primary)` over 80ms
+  - Unresolved spans: `color: var(--glow-gold)` at 35% opacity dark /
+    `var(--glow-amber)` at 45% opacity light — hot embers that cool as they settle
+  - Number characters (0–9) on KPI values: resolve last within their node — the numbers
+    crystallize after surrounding text, making the data reveal feel intentional
+
+- [ ] **Dark mode text diffusion:**
+  - Unresolved: `var(--glow-gold)` embers — glowing noise in the void
+  - Resolved: `var(--text-primary)` warm off-white — cooling from forge temperature
+  - KPI number glow at resolution moment: brief `text-shadow: 0 0 12px var(--glow-gold)`
+    flashing off as the value settles — each number "sparks" when it finalizes
+
+- [ ] **Light mode text diffusion:**
+  - Unresolved: `var(--glow-amber)` at 45% — wet ink not yet dried on Nordic paper
+  - Resolved: `var(--text-primary)` deep ink — ink drying, settling into the page
+  - No glow flash — the ink-dry metaphor is silent and precise
+
+- [ ] **Exclusions** — these text nodes are never diffused, they appear instantly:
+  - Interactive input fields, form labels, error messages
+  - Any text inside `[aria-live]` regions
+  - Text injected after initial page load (live data updates use the number diffuse
+    from Section 7.2 instead — a different, shorter micro-diffusion)
+
+- [ ] **Completion:**
+  - When all text nodes are resolved: fire `CustomEvent('textDiffuseComplete')`
+  - Page is now fully readable — no follow-up action needed, no overlay to remove
+  - Total diffusion window: 800ms–1400ms depending on page length and device speed
+
+#### 4.2 ASCII Sword — Centerpiece During Diffusion
+
+The sword is not a blocking overlay. It is a centerpiece element rendered inside the
+page's hero area (above the fold, center of the dashboard) that exists only during the
+diffusion window, then dissolves as the last text nodes resolve around it.
+It sits in the same Z-space as content — surrounded by diffusing text, not above it.
+
+The sword materializes through the same Mercury diffusion algorithm as the text —
+it is the first thing to fully resolve (~600ms), becoming the visual anchor while
+surrounding page text is still resolving. It draws the eye while the page loads.
+
+```
+                    ║
+                   /║\
+                  / ║ \
+                 /  ║  \
+                / ══╬══ \
+               /    ║    \
+              /     ║     \
+             /      ║      \
+            /       ║       \
+           /________|________\
+                    ║
+                    ║
+                    ║
+                    ║
+              ══════╬══════
+                    ║
+              ┌─────╨─────┐
+              │     ║     │
+              └───────────┘
+```
+
+- [ ] **Sword DOM placement** (`templates/base.html`):
+  - Injected as a child of the main dashboard hero section — same layer as content
+  - `position: absolute` within the hero, centered, `z-index: 1` — not fixed, not overlay
+  - `aria-hidden="true"` — purely decorative
+  - `<pre class="diffuse-sword" aria-hidden="true">` with character `<span>` children
+
+- [ ] **Sword diffusion** — uses the same `TextDiffuser` probabilistic engine:
+  - Center column (blade axis) resolves first — blade materializes before guard and pommel
+  - Probability: `p = (1 - normalizedDistanceFromBladeAxis) * 0.10 + 0.02`
+  - Fully resolved by ~600ms — stands clear while surrounding page text still diffuses
+  - Hold fully resolved until page text diffusion completes, then fade out:
+    `opacity: 1 → 0` over 400ms via `var(--ease-defuse)` — dissolves like vapor
+
+- [ ] **Interactions:**
+  - Click or keypress: immediately resolve ALL remaining text nodes and sword, skip wait
+  - `prefers-reduced-motion`: all text shows final values instantly, sword skipped entirely
+  - Escape key: force-complete diffusion immediately
+
+#### 4.3 Wiring and Settings (`templates/base.html` + `static/js/loading-screen.js`)
+
+- [ ] Check `localStorage.getItem('stockholm-loading-screen') !== 'false'` on
+  `DOMContentLoaded` — if disabled, skip `TextDiffuser` entirely, show all text instantly
+- [ ] `TextDiffuser` must run before first paint — wrap text nodes synchronously in
+  `DOMContentLoaded` handler, before any `requestAnimationFrame` loop starts
+- [ ] `prefers-reduced-motion` check at init — bypass all diffusion if active
+- [ ] Sword `<pre>` element injected via JS only when loading screen is enabled —
+  never hardcoded in HTML (keeps HTML clean for SSR/SEO)
+
+---
+
+### BREATHE-5 · Settings Page — Appearance & Effects (`templates/settings.html`)
+
+Add a new "Appearance & Effects" section. These are all client-side only —
+no server config changes needed.
+
+- [ ] **Loading Screen toggle**
+  - Label: "Intro Loading Screen" · Description: "Show ASCII sword animation on page load"
+  - Toggle switch, ON by default — `localStorage` key `stockholm-loading-screen`
+
+- [ ] **Depth Effects toggle**
+  - Label: "Glass Depth Effects" · Description: "Enables backdrop-blur and glass materials.
+    Disable on low-end devices for better performance."
+  - Toggle ON by default — sets `data-depth="off"` on `<html>` when disabled
+  - CSS: `[data-depth="off"] .card { backdrop-filter: none; background: var(--bg-secondary); }`
+
+- [ ] **Glow Intensity slider**
+  - Label: "Glow Intensity" · Range 0–100, default 60, step 5
+  - Live preview: updates `--glow-intensity` on `:root` in real-time as slider moves
+  - `localStorage` key `stockholm-glow-intensity`
+
+- [ ] **Parallax toggle**
+  - Label: "Parallax Depth" · Description: "Cards shift subtly with cursor movement"
+  - Default ON desktop / OFF mobile (auto-detected) — `localStorage` key `stockholm-parallax`
+
+- [ ] **Settings preview thumbnail** (200×120px CSS-only miniature):
+  - Contains mini glass card, mini glow blobs, mini grid lines — purely illustrative
+  - All elements use actual CSS variables — updates live when settings change
+  - Not interactive, no click target
+
+---
+
+### BREATHE-5b · Server Efficiency — Deep Sleep Optimization (`templates/settings.html` + backend)
+
+A separate settings section: "Server & Performance". Controls how aggressively the
+server conserves resources during idle periods. Designed for always-on deployments
+where the user may leave the monitor running overnight or over weekends.
+
+#### 5b.1 Deep Sleep Mode Toggle
+
+- [ ] **UI control** (`templates/settings.html`):
+  - Section: "Server & Performance"
+  - Toggle label: "Deep Sleep Mode"
+  - Description: "During inactive hours, reduce background polling and AI scan frequency
+    to minimum to save server resources, API budget, and energy."
+  - Toggle switch, default OFF — stored in DB via existing settings API (`/api/settings`)
+  - Setting key: `deep_sleep_enabled` (boolean)
+  - Visual indicator: when ON, show a faint "sleeping" pulse badge in the nav bar
+    (a tiny dim dot, not intrusive — just visible status)
+
+- [ ] **Backend — `core/config.py`**:
+  - Add `deep_sleep_enabled: bool = False` to default settings
+  - Add `deep_sleep_poll_interval: int = 120` (minutes, default — 2 hours between scans)
+  - Add `deep_sleep_start: str = "22:00"` — when deep sleep activates
+  - Add `deep_sleep_end: str = "07:00"` — when full operation resumes
+  - Add `deep_sleep_min_checks: int = 1` — minimum scans per deep sleep window
+    (never goes fully dark — at least one check per night)
+
+- [ ] **Backend — `scheduler.py`**:
+  - On each scheduled job trigger: check `deep_sleep_enabled` setting AND current time
+  - If within deep sleep window: skip the job OR reschedule to run once at the window midpoint
+  - APScheduler `pause()` / `resume()` on non-critical jobs during sleep window:
+    - **Pause during deep sleep:** discovery scan, social/news scraping, non-urgent re-analysis
+    - **Never pause during deep sleep:** price alert checks, hard stop-loss guards,
+      critical portfolio monitors — these always run at full frequency
+  - Log a single "entering deep sleep" event at window start, "resuming" at window end
+    (no per-job spam in logs)
+
+- [ ] **Backend — `core/database.py`**:
+  - Store `last_deep_sleep_entry` timestamp in settings table
+  - Expose `GET /api/server/sleep-status` endpoint → `{ sleeping: bool, resumes_at: str }`
+    for the UI indicator badge
+
+#### 5b.2 Deep Sleep Intensity Selector
+
+- [ ] Three-level selector (radio group) below the toggle, enabled only when toggle is ON:
+  - **Light** — Scan interval ×2 during sleep window. Alert checks unchanged.
+    - Use case: light reduction, still nearly responsive
+  - **Deep** *(default when enabled)* — Scan interval ×6. Alerts at ×2.
+    Non-critical background tasks suspended entirely.
+    - Use case: overnight idle, balanced protection vs. resource savings
+  - **Hibernate** — All scans suspended. Only hard alert guards run (price breach,
+    stop-loss). Minimum 1 health-check per hour.
+    - Use case: extended absence (weekend), maximum savings
+    - Warning displayed: "AI analysis will be stale until Deep Sleep ends."
+  - Stored as `deep_sleep_intensity: str` — `"light"` / `"deep"` / `"hibernate"`
+
+#### 5b.3 Sleep Window Configuration
+
+- [ ] **Time pickers** for sleep window start/end (only shown when toggle ON):
+  - "Sleep from:" time input, default `22:00`
+  - "Wake at:" time input, default `07:00`
+  - Handles overnight window correctly (start > end = crosses midnight)
+  - Changes saved to DB immediately on blur — no separate Save button needed
+
+- [ ] **Weekend full-day option:**
+  - Checkbox: "Extend Deep Sleep across full weekends (Sat–Sun)"
+  - When checked: Deep Sleep runs all day Saturday and Sunday regardless of time window
+  - Stored as `deep_sleep_full_weekends: bool`
+
+#### 5b.4 Live Status Display
+
+- [ ] In the Server & Performance section header: show current scheduler state:
+  - Active: `● Active — next scan in 14 min` (green dot, JetBrains Mono)
+  - Sleeping: `◌ Deep Sleep — resumes at 07:00` (dim dot, muted color)
+  - Hibernate: `○ Hibernating — alerts only` (empty dot, `var(--text-tertiary)`)
+  - Fetched from `GET /api/server/sleep-status` on settings page load, no polling
+
+---
+
+### BREATHE-6 · Component Redesigns
+
+Apply Layer 3 glass and Breathe language to every major component.
+
+#### 6.1 Navigation Bar (`templates/base.html` + `static/css/modern.css`)
+
+- [ ] Full-width glass band: `backdrop-filter: blur(var(--glass-blur-far)) var(--glass-saturation)`
+- [ ] Background: `var(--glass-tint-dark/light)` — transparent over page content
+- [ ] Height: reduce to 48px — ultra-thin, more content space above fold
+- [ ] Bottom edge: `1px solid var(--glass-border-highlight)` — the only visible border
+- [ ] Active nav link: 2px `var(--glow-neutral)` left accent, no background fill
+- [ ] Hover nav link: small glass pill background, no color change — restraint
+
+#### 6.2 All Cards (`static/css/modern.css`)
+
+- [ ] Apply full Layer 3 glass material (Section 2.4) to all `.card` elements
+- [ ] Inner padding: `var(--space-6)` minimum — glass needs breathing room inside
+- [ ] Section headers inside cards: `var(--text-xs)`, uppercase, `letter-spacing: 0.12em`
+- [ ] Financial values: `font-family: JetBrains Mono`, `var(--text-2xl)` minimum for KPIs
+- [ ] `border-radius: 0` — enforce everywhere cards are defined
+
+#### 6.3 Tables (`static/css/modern.css`)
+
+- [ ] Header row: glass material, `position: sticky`, `top: 48px` (below nav)
+- [ ] Even rows: `rgba(255,255,255,0.02)` tint — barely visible structure, not zebra
+- [ ] Row hover: glass tint + 2px left accent line in `var(--glow-neutral)`
+- [ ] Sort indicators: replace text arrows with sharp chevron SVG glyphs
+- [ ] Delta cells: inject `.delta` directional arrow components (Section 3.5)
+- [ ] Sparkline cells: inject `SparkBar` instances (Section 3.2)
+
+#### 6.4 Buttons (`static/css/modern.css`)
+
+- [ ] **Primary (pill shape, `border-radius: 9999px`):**
+  - Glass fill, signal-color border glow on hover, `translateY(-2px)` lift
+- [ ] **Toggle/mode (sharp rectangle, `border-radius: 0`):**
+  - Active state: glass fill + inner glow — no heavy background color
+- [ ] **Danger:**
+  - `border: 1px solid rgba(var(--glow-negative-rgb), 0.3)` → 80% on hover
+  - Glow bulb behind activates with `var(--glow-negative)` on hover
+
+#### 6.5 Modals (`static/css/modern.css` + `templates/base.html`)
+
+- [ ] Backdrop: `backdrop-filter: blur(12px)` — see-through blur, not solid overlay
+  - `rgba(var(--bg-primary-rgb), 0.6)` background — not opaque
+- [ ] Modal card: Layer 4 glass, sharp corners, `box-shadow: 0 32px 80px rgba(0,0,0,0.6)`
+- [ ] Enter animation: `scale(0.96) → scale(1)` + fade, 300ms `var(--ease-breathe)`
+- [ ] Close `×`: top-right, JetBrains Mono, hover glows faint `var(--glow-negative)`
+
+#### 6.6 Toast Notifications (`static/css/modern.css` + `static/js/dashboard.js`)
+
+- [ ] Glass material, sharp corners, right-rail bottom-anchored stack
+- [ ] Left border: 3px solid signal color + inset glow `rgba(var(--signal-rgb), 0.3)`
+- [ ] Enter: slide from right + fade, `var(--ease-breathe)` — Exit: slide right + fade
+
+#### 6.7 Login Page (`templates/login.html`)
+
+- [ ] Full Breathe treatment: Luminary layer visible, login card is centered glass slab
+- [ ] Input fields: `background: rgba(255,255,255,0.04)`, `border-radius: 0`
+  - Focus: left border accent `var(--glow-neutral)`, no ring glow
+- [ ] Mobile: Luminary reduced to single static gradient — performance first
+
+---
+
+### BREATHE-7 · Animation System — "The Breathe Curve"
+
+#### 7.1 Page Load Sequence
+
+- [ ] Implement timed sequence with `setTimeout` chains on `DOMContentLoaded`:
+  - `t=0ms`: Loading screen (if enabled) — Mercury diffusion sword (1800ms total)
+  - `t=1800ms` (or `t=0` if disabled): Shell fades in (200ms)
+  - `t=2000ms`: Luminary orbs drift in from opacity 0 (600ms, `ease-defuse`)
+  - `t=2200ms`: Navigation glass materializes (300ms, `ease-breathe`)
+  - `t=2400ms`: Cards stagger in — 80ms apart, each 500ms `ease-breathe` spring settle
+  - `t=3000ms+`: Glow bulbs begin their breathing animation cycle
+
+#### 7.2 Data Update Animations (`static/js/dashboard.js`)
+
+- [ ] Number change: current value defuses to noise → resolves to new value (400ms total)
+  — unmistakable live data refresh signal
+- [ ] Chart line update: new point draws in via `stroke-dashoffset` SVG animation
+- [ ] Signal change (BUY → SELL): glyph `rotateY(180deg)` flip, color transition 800ms
+- [ ] Positive → Negative shift: bulb color transitions from green → red over 800ms
+
+#### 7.3 Scroll-Triggered Entrance
+
+- [ ] `IntersectionObserver` on all cards: animate in when entering viewport, not on page load
+  - Stagger eliminated — each card animates freshly as it enters view
+- [ ] Charts: initialize only when entering viewport (no off-screen rendering waste)
+
+#### 7.4 Reduced Motion Compliance (non-negotiable)
+
+- [ ] Every animation has a `@media (prefers-reduced-motion: reduce)` override:
+  - Diffusion effects → instant `opacity` transitions only
+  - Parallax → completely disabled
+  - Loading screen → completed sword shown 600ms, then fade (no diffusion)
+  - Count-up → final value shown immediately
+  - Card enter → `opacity` only, no `translateY`
+  - Breathing glow → static opacity, no keyframe animation
+  - Luminary drift → static centered position, no movement
+
+---
+
+### BREATHE-8 · Performance and Accessibility
+
+#### 8.1 Performance Guards
+
+- [ ] `backdrop-filter` toggle: disabled when `data-depth="off"` (Settings, Section 5)
+- [ ] Particle field: capped at 40 particles, hidden on mobile
+- [ ] `will-change: transform` added only to parallax-active elements, removed when disabled
+- [ ] SVG displacement filters: single shared `<defs>` block per page, not per card
+- [ ] Charts: lazy-init via `IntersectionObserver` — off-screen charts don't render
+- [ ] `content-visibility: auto` on below-fold page sections where browser support exists
+
+#### 8.2 Mobile Adaptations
+
+- [ ] Luminary: single static gradient, no drift animation
+- [ ] Glass blur: 20px → 8px reduced radius
+- [ ] Parallax: always OFF on touch devices
+- [ ] Particle field: hidden entirely
+- [ ] Loading screen: 800ms max, simpler diffusion (fewer character positions)
+- [ ] SparkBars: 4 bars instead of 8 for narrow viewports
+
+#### 8.3 Accessibility
+
+- [ ] Color contrast ≥ 4.5:1 for all text in both themes — verify with DevTools
+- [ ] Glow colors never sole indicator — always paired with text/icon
+- [ ] Focus states: `outline: 2px solid var(--glow-neutral)`, `outline-offset: 4px`, sharp corners
+- [ ] All signal glyphs: `aria-label` + `<title>` attributes (Section 3.4)
+- [ ] Loading screen: `role="dialog"`, `aria-live="polite"` for screen readers
+
+---
+
+### BREATHE-9 · File Execution Checklist
+
+> Implement phases in order — each phase depends on the previous being stable.
+
+**Phase A — Foundation** (no visible changes until complete)
+- [ ] `static/css/modern.css` — Replace all CSS variables with Breathe token system
+- [ ] `static/js/dashboard.js` — Skeleton: `ParallaxManager`, `LoadingScreen` stubs, new settings keys
+
+**Phase B — Layer System** (the structural rewrite)
+- [ ] `templates/base.html` — Add `<div class="luminary">`, `<div class="shell">`,
+  loading screen HTML, SVG `<defs>` for filters and glyphs
+- [ ] `static/css/modern.css` — Implement all 4 layers (Sections 2.1–2.4)
+- [ ] `static/js/liquid-glass.js` — Upgrade SVG filter; add per-card bulge animation
+
+**Phase C — Data Visualization**
+- [ ] `static/js/dashboard.js` — Chart.js global overrides, `CountUp`, `SparkBar`, delta arrows
+
+**Phase D — Loading Screen**
+- [ ] `static/js/loading-screen.js` — New file: full `LoadingScreen` class with Mercury algorithm
+- [ ] `static/css/modern.css` — Loading screen styles for dark + light mode
+- [ ] `templates/base.html` — Wire loading screen init from `localStorage` on `DOMContentLoaded`
+
+**Phase E — Settings and Components**
+- [ ] `templates/settings.html` — Appearance & Effects section with 4 new controls + preview
+- [ ] `static/css/modern.css` — All component redesigns: nav, cards, tables, buttons,
+  modals, toasts, login
+
+**Phase F — Polish and Verification**
+- [ ] Dark mode: full visual review — void depth, glow presence, readability
+- [ ] Light mode: full visual review — frosted morning light, signal legibility
+- [ ] `prefers-reduced-motion`: every animation confirmed compliant
+- [ ] Mobile: all adaptations functioning at 375px and 768px breakpoints
+- [ ] All 4 Settings toggles persist across page reload and browser restart
+- [ ] Loading screen: ON/OFF works; click-skip works; dark + light modes verified
+- [ ] Performance: no scroll jank; Chrome Layers panel shows expected GPU compositing
+- [ ] Accessibility: tab order intact; ARIA labels on all new SVG elements
+
+---
+
+### Reference
+
+**Design Inspirations:**
+- Oxygen 16 "Breathe With You" — spatial light depth, glass over glow, breathing life
+- Mercury LLM diffusion — probabilistic token resolution from noise to form
+- Swedish design language — restraint, sharpness, purposeful space, nothing excess
+
+**Existing Code — Reuse, Do Not Rewrite:**
+- `ThemeManager` in `dashboard.js` — extend only
+- `liquid-glass.js` SVG architecture — upgrade, keep displacement map structure
+- CSS variable `[data-theme]` selector pattern in `modern.css` — keep, rename tokens
+- `ChartManager` chart init in `dashboard.js` — wrap with global defaults
+- All existing `IntersectionObserver` patterns — reuse for scroll-triggered animations
