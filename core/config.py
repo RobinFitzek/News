@@ -210,6 +210,14 @@ DEFAULT_SETTINGS = {
     # Phase 6 — Trust gate admin override + sync timestamp
     "auto_trade_trust_override": False,
     "broker_last_sync": "",
+
+    # BREATHE-5b Deep Sleep
+    "deep_sleep_enabled": False,
+    "deep_sleep_poll_interval": 120,
+    "deep_sleep_start": "22:00",
+    "deep_sleep_end": "07:00",
+    "deep_sleep_intensity": "deep",
+    "deep_sleep_full_weekends": False,
 }
 
 # Web Server

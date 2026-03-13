@@ -1107,12 +1107,19 @@ async def trust_page(request: Request, username: str = Depends(require_auth)):
 # ==================== WATCHLIST ====================
 
 @app.get("/watchlist", response_class=HTMLResponse)
-async def watchlist_page(request: Request, username: str = Depends(require_auth)):
+async def watchlist_page(
+    request: Request, 
+    username: str = Depends(require_auth),
+    sort_by: str = "ticker",
+    sort_order: str = "asc"
+):
     """Watchlist management"""
     return templates.TemplateResponse("watchlist.html", {
         "request": request,
         "csrf_token": request.state.csrf_token,
-        "watchlist": db.get_watchlist(active_only=False)
+        "watchlist": db.get_watchlist(active_only=False, sort_by=sort_by, sort_order=sort_order),
+        "current_sort": sort_by,
+        "current_order": sort_order
     })
 
 @app.post("/watchlist/add")
@@ -1139,6 +1146,41 @@ async def remove_from_watchlist(
     csrf.verify_token(request, csrf_token)
     db.remove_from_watchlist(ticker)
     return RedirectResponse(url="/watchlist", status_code=303)
+
+@app.post("/watchlist/archive/{ticker}")
+async def archive_watchlist_item(
+    request: Request,
+    ticker: str,
+    csrf_token: str = Form(...),
+    username: str = Depends(require_auth)
+):
+    """Archive a watchlist item"""
+    csrf.verify_token(request, csrf_token)
+    db.archive_watchlist_item(ticker)
+    return RedirectResponse(url="/watchlist", status_code=303)
+
+@app.post("/api/watchlist/note")
+async def save_watchlist_note(
+    request: Request,
+    ticker: str = Form(...),
+    note_text: str = Form(...),
+    csrf_token: str = Form(...),
+    username: str = Depends(require_auth)
+):
+    """Save note for a watchlist item"""
+    csrf.verify_token(request, csrf_token)
+    db.save_stock_note(ticker, note_text)
+    return JSONResponse({"status": "success", "message": "Note saved"})
+
+@app.get("/api/watchlist/note/{ticker}")
+async def get_watchlist_note(
+    request: Request,
+    ticker: str,
+    username: str = Depends(require_auth)
+):
+    """Get note for a watchlist item"""
+    note = db.get_stock_note(ticker)
+    return JSONResponse({"ticker": ticker, "note": note or ""})
 
 # ==================== SETTINGS ====================
 
@@ -1260,6 +1302,14 @@ async def save_settings(request: Request, username: str = Depends(require_auth))
         db.set_setting("notify_on_strong_signals", form.get("notify_on_strong_signals") == "on")
         db.set_setting("daily_summary_enabled", form.get("daily_summary_enabled") == "on")
         db.set_setting("daily_summary_time", form.get("daily_summary_time", "20:00"))
+
+    # Server Efficiency settings
+    if save_all or section == "server_efficiency":
+        db.set_setting("deep_sleep_enabled", form.get("deep_sleep_enabled") == "on")
+        db.set_setting("deep_sleep_intensity", form.get("deep_sleep_intensity", "deep"))
+        db.set_setting("deep_sleep_start", form.get("deep_sleep_start", "22:00"))
+        db.set_setting("deep_sleep_end", form.get("deep_sleep_end", "07:00"))
+        db.set_setting("deep_sleep_full_weekends", form.get("deep_sleep_full_weekends") == "on")
 
     # Analysis settings
     if save_all or section == "analysis":
@@ -2840,6 +2890,41 @@ async def api_reality_check(request: Request, username: str = Depends(require_ap
     return drawdown_tracker.get_reality_dashboard()
 
 # ==================== API ENDPOINTS ====================
+
+@app.get("/api/server/sleep-status")
+async def api_sleep_status(request: Request, username: str = Depends(require_api_key_or_session)):
+    """API endpoint for BREATHE-5b Deep Sleep UI status"""
+    enabled = db.get_setting("deep_sleep_enabled") == True or str(db.get_setting("deep_sleep_enabled")).lower() == "true"
+    intensity = db.get_setting("deep_sleep_intensity") or "deep"
+    wake_time = db.get_setting("deep_sleep_end") or "07:00"
+    
+    # We can ask scheduler if it's currently sleeping
+    is_sleeping = False
+    if enabled and hasattr(scheduler, 'is_deep_sleep_active'):
+        is_sleeping = scheduler.is_deep_sleep_active()
+
+    status = scheduler.get_status()
+    jobs = status.get('jobs', [])
+    next_scan_min = 15
+    if jobs:
+        scan_job = next((j for j in jobs if j['name'] == 'run_scan'), jobs[0])
+        if scan_job and scan_job.get('next_run'):
+            try:
+                from datetime import datetime
+                import pytz
+                nr = datetime.fromisoformat(scan_job['next_run'])
+                now = datetime.now(pytz.utc)
+                diff = (nr.astimezone(pytz.utc) - now).total_seconds()
+                next_scan_min = max(0, int(diff / 60))
+            except Exception:
+                pass
+
+    return {
+        "sleeping": is_sleeping,
+        "hibernate": intensity == "hibernate",
+        "resumes_at": wake_time,
+        "next_scan_min": next_scan_min
+    }
 
 @app.get("/api/status")
 async def api_status(request: Request, username: str = Depends(require_api_key_or_session)):
