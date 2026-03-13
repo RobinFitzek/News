@@ -2389,6 +2389,16 @@ async def get_dev_logs(request: Request, username: str = Depends(require_auth)):
     except Exception as e:
         return {"logs": f"Error loading logs: {e}"}
 
+# ==================== ARCHITECTURE ====================
+
+@app.get("/architecture", response_class=HTMLResponse)
+async def architecture_page(request: Request, username: str = Depends(require_auth)):
+    """System architecture visualization page"""
+    return templates.TemplateResponse("architecture.html", {
+        "request": request,
+        "csrf_token": request.state.csrf_token,
+    })
+
 # ==================== LEARNING PERFORMANCE ====================
 
 @app.get("/learning", response_class=HTMLResponse)
