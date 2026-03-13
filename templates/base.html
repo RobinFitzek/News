@@ -304,7 +304,7 @@
                 <!-- System — settings & admin -->
                 <div class="nav-group">
                     <button
-                        class="nav-group-trigger {% if request.url.path in ['/logs', '/settings'] %}active{% endif %}">
+                        class="nav-group-trigger {% if request.url.path in ['/logs', '/settings', '/architecture'] %}active{% endif %}">
                         <svg class="icon-svg" viewBox="0 0 24 24">
                             <circle cx="12" cy="12" r="3" />
                             <path
@@ -328,6 +328,15 @@
                                 <line x1="12" y1="19" x2="20" y2="19" />
                             </svg>
                             Logs
+                        </a>
+                        <div class="nav-dropdown-divider"></div>
+                        <a href="/architecture"
+                            class="nav-dropdown-item {% if request.url.path == '/architecture' %}active{% endif %}">
+                            <svg class="icon-svg" viewBox="0 0 24 24">
+                                <polygon
+                                    points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                            </svg>
+                            How it Works
                         </a>
                         <div class="nav-dropdown-divider"></div>
                         <a href="/logout" class="nav-dropdown-item" style="color: var(--signal-negative);">

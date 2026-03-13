@@ -81,6 +81,50 @@
 </div>
 {% endif %}
 
+<!-- Section Filter Nav -->
+<div class="card" style="margin-bottom:1.5rem;">
+    <div class="card-body" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+        <span class="metric-label" style="margin-right:0.5rem;">View:</span>
+        <button type="button" class="btn btn-ghost section-filter" data-target="overview">Overview</button>
+        <button type="button" class="btn btn-ghost section-filter" data-target="deep">Deep Dive</button>
+        <button type="button" class="btn btn-ghost section-filter" data-target="history">History &amp; Notes</button>
+        <button type="button" class="btn btn-ghost section-filter" data-target="all">Show All</button>
+    </div>
+</div>
+
+{% if selected_analysis %}
+<!-- Latest Analysis Context -->
+<div class="card" style="margin-bottom:1.5rem;">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
+        <h3 class="card-title">🤖 Latest Analysis Context</h3>
+        <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+            <span class="badge {% if 'BUY' in (selected_analysis.signal or '') %}badge-success{% elif 'SELL' in (selected_analysis.signal or '') %}badge-danger{% else %}badge-neutral{% endif %}">
+                {{ selected_analysis.signal or 'HOLD' }}
+            </span>
+            <span class="metric-label">{{ selected_analysis.confidence or '—' }}% confidence</span>
+            <span class="metric-label">{{ selected_analysis.timestamp }}</span>
+            <a href="/analysis/{{ selected_analysis.id }}" class="btn btn-ghost" style="font-size:0.8rem;">Full Report →</a>
+        </div>
+    </div>
+    <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <div>
+            <div class="metric-label" style="margin-bottom:0.35rem;">Bull Case</div>
+            <div style="font-size:0.875rem;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap;">{{ selected_analysis.bull_case or 'No specific bull case available.' }}</div>
+        </div>
+        <div>
+            <div class="metric-label" style="margin-bottom:0.35rem;">Bear Case</div>
+            <div style="font-size:0.875rem;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap;">{{ selected_analysis.bear_case or 'No specific bear case available.' }}</div>
+        </div>
+        <div style="grid-column:1/-1;">
+            <div class="metric-label" style="margin-bottom:0.35rem;">Synthesis &amp; Recommendation</div>
+            <div style="font-size:0.875rem;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap;">{{ selected_analysis.recommendation or 'No recommendation available.' }}</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div data-section-group="overview">
+
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
 
     <!-- Price Chart -->
@@ -246,6 +290,10 @@
     </div>
 
 </div>
+
+</div><!-- end data-section-group="overview" -->
+
+<div data-section-group="deep">
 
 <!-- Technical Indicators (AJAX) -->
 <div id="technicals-card" class="card" style="margin-bottom:1.5rem;display:none;">
@@ -421,6 +469,10 @@
     </div>
 </div>
 
+</div><!-- end data-section-group="deep" -->
+
+<div data-section-group="history">
+
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1.5rem;">
 
     <!-- Analysis History -->
@@ -437,6 +489,7 @@
                         <th>Date</th>
                         <th>Signal</th>
                         <th>Confidence</th>
+                        <th scope="col" aria-label="Actions"></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -448,6 +501,7 @@
                                 {{ a.signal or 'HOLD' }}
                             </span></td>
                         <td>{{ a.confidence or '—' }}%</td>
+                        <td><a href="/analysis/{{ a.id }}" class="btn btn-ghost" style="font-size:0.75rem;padding:2px 8px;">View</a></td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -581,10 +635,38 @@
     </div>
 </div>
 
+</div><!-- end data-section-group="history" -->
+
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
+    // Section filter UX
+    (() => {
+        const groups = document.querySelectorAll('[data-section-group]');
+        const buttons = document.querySelectorAll('.section-filter');
+        function setActive(target) {
+            groups.forEach(g => {
+                if (target === 'all' || g.dataset.sectionGroup === target) {
+                    g.style.display = '';
+                } else {
+                    g.style.display = 'none';
+                }
+            });
+            buttons.forEach(b => {
+                if (b.dataset.target === target) {
+                    b.classList.add('btn-primary');
+                    b.classList.remove('btn-ghost');
+                } else {
+                    b.classList.remove('btn-primary');
+                    b.classList.add('btn-ghost');
+                }
+            });
+        }
+        buttons.forEach(btn => btn.addEventListener('click', () => setActive(btn.dataset.target)));
+        setActive('overview');
+    })();
+
     // Copy ticker to clipboard
     function copyTicker() {
         navigator.clipboard.writeText('{{ ticker }}').then(() => {

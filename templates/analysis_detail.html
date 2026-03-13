@@ -4,10 +4,27 @@
 
 {% block content %}
 <div class="animate-fade-in">
-    <!-- Back Button -->
-    <a href="/history" class="btn btn-ghost" style="margin-bottom: var(--space-6);">
-        ← Back to History
-    </a>
+    <!-- Back Button + Stock Link -->
+    <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-6);flex-wrap:wrap;">
+        <a href="/history" class="btn btn-ghost">← Back to History</a>
+        <a href="/stock/{{ analysis.ticker }}?analysis_id={{ analysis.id }}" class="btn btn-ghost">📊 Stock Detail</a>
+    </div>
+
+    <!-- Section Nav -->
+    <div class="card" style="margin-bottom:var(--space-6);">
+        <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center;padding:var(--space-3) var(--space-4);">
+            <span style="font-size:0.6875rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.08em;margin-right:var(--space-2);">Jump to:</span>
+            <a href="#section-signal" class="btn btn-ghost" style="font-size:0.75rem;padding:var(--space-1) var(--space-3);">Signal</a>
+            <a href="#section-chart" class="btn btn-ghost" style="font-size:0.75rem;padding:var(--space-1) var(--space-3);">Chart</a>
+            <a href="#section-bullbear" class="btn btn-ghost" style="font-size:0.75rem;padding:var(--space-1) var(--space-3);">Bull/Bear</a>
+            <a href="#section-synthesis" class="btn btn-ghost" style="font-size:0.75rem;padding:var(--space-1) var(--space-3);">Synthesis</a>
+            {% if analysis.technical %}<a href="#section-technical" class="btn btn-ghost" style="font-size:0.75rem;padding:var(--space-1) var(--space-3);">Technical</a>{% endif %}
+            {% if analysis.fundamental %}<a href="#section-fundamental" class="btn btn-ghost" style="font-size:0.75rem;padding:var(--space-1) var(--space-3);">Fundamental</a>{% endif %}
+            {% if analysis.news %}<a href="#section-news" class="btn btn-ghost" style="font-size:0.75rem;padding:var(--space-1) var(--space-3);">News</a>{% endif %}
+            {% if analysis.geopolitical_context %}<a href="#section-geo" class="btn btn-ghost" style="font-size:0.75rem;padding:var(--space-1) var(--space-3);">Geo Risk</a>{% endif %}
+            <a href="#section-factcheck" class="btn btn-ghost" style="font-size:0.75rem;padding:var(--space-1) var(--space-3);">Fact-Check</a>
+        </div>
+    </div>
 
     <!-- Page Header -->
     <header class="page-header">
@@ -23,7 +40,7 @@
     </header>
 
     <!-- Signal Card -->
-    <div class="card" style="margin-bottom: var(--space-8); position: relative; overflow: visible;">
+    <div id="section-signal" class="card" style="margin-bottom: var(--space-8); position: relative; overflow: visible;">
         <div style="position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--text-primary);"></div>
 
         <div
@@ -72,7 +89,7 @@
     <div id="exposure-warnings" style="display: none; margin-bottom: var(--space-6);"></div>
 
     <!-- Price Chart -->
-    <div class="card" style="margin-bottom: var(--space-6);">
+    <div id="section-chart" class="card" style="margin-bottom: var(--space-6);">
         <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
             <span class="status-dot" style="background: var(--text-primary);"></span>
             6-Month Price Chart
@@ -125,7 +142,7 @@
     </div>
 
     <!-- Bull/Bear Cases -->
-    <div
+    <div id="section-bullbear"
         style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--space-6); margin-bottom: var(--space-6);">
         <div class="card" style="border-left: 3px solid #6bba7e;">
             <h3
@@ -149,7 +166,7 @@
     </div>
 
     <!-- Recommendation (Synthesis/Fallback) -->
-    <div class="card" style="margin-bottom: var(--space-6);">
+    <div id="section-synthesis" class="card" style="margin-bottom: var(--space-6);">
         <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
             <span class="status-dot" style="background: var(--text-muted);"></span>
             Synthesis & Recommendation
@@ -187,7 +204,7 @@
 
     <!-- News -->
     {% if analysis.news %}
-    <div class="card" style="margin-bottom: var(--space-6);">
+    <div id="section-news" class="card" style="margin-bottom: var(--space-6);">
         <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
             <span class="status-dot" style="background: var(--text-primary);"></span>
             News Analysis
@@ -199,7 +216,7 @@
 
     <!-- Fundamental -->
     {% if analysis.fundamental %}
-    <div class="card" style="margin-bottom: var(--space-6);">
+    <div id="section-fundamental" class="card" style="margin-bottom: var(--space-6);">
         <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
             <span class="status-dot" style="background: var(--text-primary);"></span>
             Fundamental Analysis
@@ -231,7 +248,7 @@
 
     <!-- Geopolitical Risk -->
     {% if analysis.geopolitical_context %}
-    <div class="card" style="margin-bottom: var(--space-6); border-left: 3px solid
+    <div id="section-geo" class="card" style="margin-bottom: var(--space-6); border-left: 3px solid
         {% set ctx = analysis.geopolitical_context %}
         {% if 'EXPOSURE: HOCH' in ctx or 'EXPOSURE:HOCH' in ctx %}rgba(220,38,38,0.7)
         {% elif 'EXPOSURE: MITTEL' in ctx or 'EXPOSURE:MITTEL' in ctx %}rgba(234,179,8,0.7)
@@ -276,7 +293,7 @@
 
     <!-- Technical -->
     {% if analysis.technical %}
-    <div class="card" style="margin-bottom: var(--space-6);">
+    <div id="section-technical" class="card" style="margin-bottom: var(--space-6);">
         <h3 style="margin: 0 0 var(--space-4) 0; display: flex; align-items: center; gap: var(--space-3);">
             <span class="status-dot" style="background: var(--text-primary);"></span>
             Technical Analysis
@@ -288,7 +305,7 @@
 
     <!-- AI Cross-Check -->
     {% if crosscheck %}
-    <div class="card" style="margin-bottom: var(--space-6); border-left: 3px solid
+    <div id="section-factcheck" class="card" style="margin-bottom: var(--space-6); border-left: 3px solid
         {% if crosscheck.trust_score and crosscheck.trust_score >= 0.8 %}#6bba7e
         {% elif crosscheck.trust_score and crosscheck.trust_score >= 0.5 %}#d4a84b
         {% else %}#d47272{% endif %};">
@@ -392,7 +409,7 @@
     </div>
     {% else %}
     <!-- Re-check button when no cross-check exists -->
-    <div class="card">
+    <div id="section-factcheck" class="card">
         <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <h3 style="margin: 0 0 var(--space-1) 0;">AI Fact-Check</h3>

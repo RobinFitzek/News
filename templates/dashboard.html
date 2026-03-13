@@ -116,6 +116,9 @@
             <div class="sys-status-item">
                 <span class="sys-label">Last:</span>
                 <span class="sys-value">{{ discovery_stats.last_run.run_at }}</span>
+                {% if discovery_stats.last_run.errors %}
+                <span style="color: var(--signal-negative); font-size: 0.5625rem; letter-spacing: 0.06em; text-transform: uppercase;" title="Last discovery run encountered errors">⚠ Error</span>
+                {% endif %}
             </div>
             {% endif %}
 
@@ -144,22 +147,22 @@
 
             <div class="sys-status-item" id="data-freshness-pill" style="display: none;">
                 <span class="sys-label">Freshness:</span>
-                <span id="data-freshness-badge" class="badge" style="font-size: 0.5625rem; padding: 0 4px; background: transparent; border: none; min-width: 0;"></span>
+                <span id="data-freshness-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px;"></span>
             </div>
 
             <div class="sys-status-item" id="sys-health-pill" title="System Health" style="cursor: help; display: none;">
                 <span class="sys-label">Health:</span>
-                <span id="sys-health-badge" class="badge" style="font-size: 0.5625rem; padding: 0 4px; background: transparent; border: none; min-width: 0;"></span>
+                <span id="sys-health-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px;"></span>
             </div>
 
             <!-- Algorithm Status Badges -->
             <div class="sys-status-item" id="meta-labeler-pill" style="display: none;">
                 <span class="sys-label">ML:</span>
-                <span id="meta-labeler-badge" class="badge" style="font-size: 0.5625rem; padding: 0 4px; background: transparent; border: none; min-width: 0;"></span>
+                <span id="meta-labeler-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px;"></span>
             </div>
             <div class="sys-status-item" id="mcpt-pill" style="display: none;">
                 <span class="sys-label">MCPT:</span>
-                <span id="mcpt-badge" class="badge" style="font-size: 0.5625rem; padding: 0 4px; background: transparent; border: none; min-width: 0;"></span>
+                <span id="mcpt-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px;"></span>
             </div>
         </div>
     </div>
@@ -940,7 +943,7 @@
                         </td>
                         <td style="color: var(--text-muted); font-size: var(--text-sm);">{{ a.timestamp }}</td>
                         <td style="white-space:nowrap;">
-                            <a href="/analysis/{{ a.id }}" class="btn btn-ghost"
+                            <a href="/stock/{{ a.ticker }}?analysis_id={{ a.id }}" class="btn btn-ghost"
                                 style="padding: var(--space-2) var(--space-3); font-size: 0.6875rem;">Details</a>
                             {% if a.signal in ('STRONG_BUY', 'STRONG_SELL', 'BUY', 'SELL') %}
                             <button
