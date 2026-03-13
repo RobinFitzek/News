@@ -1542,10 +1542,74 @@ should communicate its meaning graphically first, textually second.
 
 ### BREATHE-4 · Loading Screen — Mercury Diffusion
 
-#### 4.1 ASCII Sword Asset
+> **Critical design note:** The diffusion effect lives IN the page text itself — not as a
+> separate overlay, laser, or layer imposed on top of content. The website's own text —
+> nav labels, card titles, KPI numbers, table headers, every visible text node — starts
+> as shimmering noise characters and resolves in place into the real content.
+> There is no separate "loading screen" sitting above the UI. The UI IS the loading animation.
+> The structure, glassmorphic cards, and layout are visible from the first frame;
+> only the text within them is still resolving. This makes the page feel alive as it loads
+> rather than blocked behind a gate.
 
-The sword that materializes. This exact target final-state must be pixel-perfect in
-JetBrains Mono. Align character widths carefully — monospace math must be exact.
+#### 4.1 Page-Text Diffusion System — The Core Effect
+
+The Mercury diffusion runs directly on the site's real text content. Every text node
+on the page is wrapped and treated as a diffusion target. No overlay, no separate screen.
+
+- [ ] **`TextDiffuser` class** (`static/js/loading-screen.js`) — wraps all page text in diffusion targets:
+  - On `DOMContentLoaded` (before paint): traverse all visible text nodes in `<body>`
+    — nav links, card headings, KPI values, table cells, labels, badges
+  - For each text node: store the real string, replace characters with random noise chars
+    from the set `░▒▓█╔╗╝╚║═╠╣╦╩╬│─┼@#$%&?!`
+  - Node characters resolve probabilistically, each character independent:
+    `p = baseP + (1 - normalizedPositionInPage) * 0.04` — top of page resolves faster
+  - Nav and headings resolve first (0–400ms), body text mid (300–800ms),
+    table data and sub-labels last (600–1200ms) — a wave from top to bottom
+  - Unresolved characters re-randomize every 2–3 frames — shimmering noise texture
+  - **The layout, cards, and glass layers are fully visible from frame zero** — only
+    the text inside them is diffusing. The glassmorphic depth effect is seen immediately.
+
+- [ ] **Character resolution per node:**
+  - Wrap each character in `<span data-real="X" data-resolved="false">`
+  - On resolve: `span.textContent = realChar`, add `.resolved` class
+  - CSS: `.resolved` transitions `color: var(--glow-gold) → var(--text-primary)` over 80ms
+  - Unresolved spans: `color: var(--glow-gold)` at 35% opacity dark /
+    `var(--glow-amber)` at 45% opacity light — hot embers that cool as they settle
+  - Number characters (0–9) on KPI values: resolve last within their node — the numbers
+    crystallize after surrounding text, making the data reveal feel intentional
+
+- [ ] **Dark mode text diffusion:**
+  - Unresolved: `var(--glow-gold)` embers — glowing noise in the void
+  - Resolved: `var(--text-primary)` warm off-white — cooling from forge temperature
+  - KPI number glow at resolution moment: brief `text-shadow: 0 0 12px var(--glow-gold)`
+    flashing off as the value settles — each number "sparks" when it finalizes
+
+- [ ] **Light mode text diffusion:**
+  - Unresolved: `var(--glow-amber)` at 45% — wet ink not yet dried on Nordic paper
+  - Resolved: `var(--text-primary)` deep ink — ink drying, settling into the page
+  - No glow flash — the ink-dry metaphor is silent and precise
+
+- [ ] **Exclusions** — these text nodes are never diffused, they appear instantly:
+  - Interactive input fields, form labels, error messages
+  - Any text inside `[aria-live]` regions
+  - Text injected after initial page load (live data updates use the number diffuse
+    from Section 7.2 instead — a different, shorter micro-diffusion)
+
+- [ ] **Completion:**
+  - When all text nodes are resolved: fire `CustomEvent('textDiffuseComplete')`
+  - Page is now fully readable — no follow-up action needed, no overlay to remove
+  - Total diffusion window: 800ms–1400ms depending on page length and device speed
+
+#### 4.2 ASCII Sword — Centerpiece During Diffusion
+
+The sword is not a blocking overlay. It is a centerpiece element rendered inside the
+page's hero area (above the fold, center of the dashboard) that exists only during the
+diffusion window, then dissolves as the last text nodes resolve around it.
+It sits in the same Z-space as content — surrounded by diffusing text, not above it.
+
+The sword materializes through the same Mercury diffusion algorithm as the text —
+it is the first thing to fully resolve (~600ms), becoming the visual anchor while
+surrounding page text is still resolving. It draws the eye while the page loads.
 
 ```
                     ║
@@ -1569,53 +1633,33 @@ JetBrains Mono. Align character widths carefully — monospace math must be exac
               └───────────┘
 ```
 
-#### 4.2 Mercury Diffusion Algorithm (`static/js/loading-screen.js` — new file)
+- [ ] **Sword DOM placement** (`templates/base.html`):
+  - Injected as a child of the main dashboard hero section — same layer as content
+  - `position: absolute` within the hero, centered, `z-index: 1` — not fixed, not overlay
+  - `aria-hidden="true"` — purely decorative
+  - `<pre class="diffuse-sword" aria-hidden="true">` with character `<span>` children
 
-- [ ] **`LoadingScreen` class** — full probabilistic character resolution:
-  - Characters start as random noise from: `░▒▓█╔╗╝╚║═╠╣╦╩╬│─┼` and punctuation
-  - Each character position in the sword shape has a resolution probability per frame:
-    `p = (1 - normalizedDistanceFromBladeAxis) * 0.08 + 0.01`
-  - Blade axis (center column) resolves first — the blade materializes, then guard, then pommel
-  - Unresolved characters re-randomize every 2–3 frames — shimmering noise
-  - On resolution: character class transitions `color: var(--glow-gold) → var(--text-primary)`
-    — hot embers cooling into form
-  - Total diffusion duration: 1.2s at 60fps via `requestAnimationFrame`
-  - After all resolved: hold 400ms, then `opacity: 0` over 200ms, remove from DOM
-
-- [ ] **Dark mode rendering:**
-  - Background: `#080810` — pure void
-  - Resolved: warm off-white (`var(--text-primary)`)
-  - Unresolved: `var(--glow-gold)` at 40% opacity — hot forge embers
-  - Faint radial glow behind sword: `var(--glow-gold)` 10% opacity, 200px radius
-
-- [ ] **Light mode rendering:**
-  - Background: `#F5F0E8` — Nordic paper
-  - Resolved: deep ink (`var(--text-primary)`)
-  - Unresolved: `var(--glow-amber)` at 50% — ink bleeding into paper
-  - No background glow — ink-bleed effect IS the light mode answer
+- [ ] **Sword diffusion** — uses the same `TextDiffuser` probabilistic engine:
+  - Center column (blade axis) resolves first — blade materializes before guard and pommel
+  - Probability: `p = (1 - normalizedDistanceFromBladeAxis) * 0.10 + 0.02`
+  - Fully resolved by ~600ms — stands clear while surrounding page text still diffuses
+  - Hold fully resolved until page text diffusion completes, then fade out:
+    `opacity: 1 → 0` over 400ms via `var(--ease-defuse)` — dissolves like vapor
 
 - [ ] **Interactions:**
-  - Click or keypress anywhere skips to completion instantly
-  - Escape key aborts, hides loading screen immediately
-  - `prefers-reduced-motion`: skip diffusion, show completed sword 600ms, fade out
+  - Click or keypress: immediately resolve ALL remaining text nodes and sword, skip wait
+  - `prefers-reduced-motion`: all text shows final values instantly, sword skipped entirely
+  - Escape key: force-complete diffusion immediately
 
-#### 4.3 Loading Screen DOM and Wiring (`templates/base.html`)
+#### 4.3 Wiring and Settings (`templates/base.html` + `static/js/loading-screen.js`)
 
-- [ ] HTML structure injected before `</body>`:
-  ```html
-  <div id="loading-screen" class="loading-screen" role="dialog" aria-label="Loading Stockholm">
-    <div class="loading-sword-container">
-      <pre class="loading-sword" aria-hidden="true"><!-- spans injected by JS --></pre>
-      <p class="loading-label">Stockholm</p>
-      <p class="loading-sublabel">AI Investment Monitor</p>
-    </div>
-    <p class="loading-skip">Click or press any key to skip</p>
-  </div>
-  ```
-- [ ] `DOMContentLoaded`: check `localStorage.getItem('stockholm-loading-screen') !== 'false'`
-  — initialize `new LoadingScreen()` if enabled
-- [ ] Loading screen CSS: `z-index: var(--z-overlay)`, `position: fixed`, `inset: 0`
-  — renders above all layers including navigation
+- [ ] Check `localStorage.getItem('stockholm-loading-screen') !== 'false'` on
+  `DOMContentLoaded` — if disabled, skip `TextDiffuser` entirely, show all text instantly
+- [ ] `TextDiffuser` must run before first paint — wrap text nodes synchronously in
+  `DOMContentLoaded` handler, before any `requestAnimationFrame` loop starts
+- [ ] `prefers-reduced-motion` check at init — bypass all diffusion if active
+- [ ] Sword `<pre>` element injected via JS only when loading screen is enabled —
+  never hardcoded in HTML (keeps HTML clean for SSR/SEO)
 
 ---
 
@@ -1647,6 +1691,84 @@ no server config changes needed.
   - Contains mini glass card, mini glow blobs, mini grid lines — purely illustrative
   - All elements use actual CSS variables — updates live when settings change
   - Not interactive, no click target
+
+---
+
+### BREATHE-5b · Server Efficiency — Deep Sleep Optimization (`templates/settings.html` + backend)
+
+A separate settings section: "Server & Performance". Controls how aggressively the
+server conserves resources during idle periods. Designed for always-on deployments
+where the user may leave the monitor running overnight or over weekends.
+
+#### 5b.1 Deep Sleep Mode Toggle
+
+- [ ] **UI control** (`templates/settings.html`):
+  - Section: "Server & Performance"
+  - Toggle label: "Deep Sleep Mode"
+  - Description: "During inactive hours, reduce background polling and AI scan frequency
+    to minimum to save server resources, API budget, and energy."
+  - Toggle switch, default OFF — stored in DB via existing settings API (`/api/settings`)
+  - Setting key: `deep_sleep_enabled` (boolean)
+  - Visual indicator: when ON, show a faint "sleeping" pulse badge in the nav bar
+    (a tiny dim dot, not intrusive — just visible status)
+
+- [ ] **Backend — `core/config.py`**:
+  - Add `deep_sleep_enabled: bool = False` to default settings
+  - Add `deep_sleep_poll_interval: int = 120` (minutes, default — 2 hours between scans)
+  - Add `deep_sleep_start: str = "22:00"` — when deep sleep activates
+  - Add `deep_sleep_end: str = "07:00"` — when full operation resumes
+  - Add `deep_sleep_min_checks: int = 1` — minimum scans per deep sleep window
+    (never goes fully dark — at least one check per night)
+
+- [ ] **Backend — `scheduler.py`**:
+  - On each scheduled job trigger: check `deep_sleep_enabled` setting AND current time
+  - If within deep sleep window: skip the job OR reschedule to run once at the window midpoint
+  - APScheduler `pause()` / `resume()` on non-critical jobs during sleep window:
+    - **Pause during deep sleep:** discovery scan, social/news scraping, non-urgent re-analysis
+    - **Never pause during deep sleep:** price alert checks, hard stop-loss guards,
+      critical portfolio monitors — these always run at full frequency
+  - Log a single "entering deep sleep" event at window start, "resuming" at window end
+    (no per-job spam in logs)
+
+- [ ] **Backend — `core/database.py`**:
+  - Store `last_deep_sleep_entry` timestamp in settings table
+  - Expose `GET /api/server/sleep-status` endpoint → `{ sleeping: bool, resumes_at: str }`
+    for the UI indicator badge
+
+#### 5b.2 Deep Sleep Intensity Selector
+
+- [ ] Three-level selector (radio group) below the toggle, enabled only when toggle is ON:
+  - **Light** — Scan interval ×2 during sleep window. Alert checks unchanged.
+    - Use case: light reduction, still nearly responsive
+  - **Deep** *(default when enabled)* — Scan interval ×6. Alerts at ×2.
+    Non-critical background tasks suspended entirely.
+    - Use case: overnight idle, balanced protection vs. resource savings
+  - **Hibernate** — All scans suspended. Only hard alert guards run (price breach,
+    stop-loss). Minimum 1 health-check per hour.
+    - Use case: extended absence (weekend), maximum savings
+    - Warning displayed: "AI analysis will be stale until Deep Sleep ends."
+  - Stored as `deep_sleep_intensity: str` — `"light"` / `"deep"` / `"hibernate"`
+
+#### 5b.3 Sleep Window Configuration
+
+- [ ] **Time pickers** for sleep window start/end (only shown when toggle ON):
+  - "Sleep from:" time input, default `22:00`
+  - "Wake at:" time input, default `07:00`
+  - Handles overnight window correctly (start > end = crosses midnight)
+  - Changes saved to DB immediately on blur — no separate Save button needed
+
+- [ ] **Weekend full-day option:**
+  - Checkbox: "Extend Deep Sleep across full weekends (Sat–Sun)"
+  - When checked: Deep Sleep runs all day Saturday and Sunday regardless of time window
+  - Stored as `deep_sleep_full_weekends: bool`
+
+#### 5b.4 Live Status Display
+
+- [ ] In the Server & Performance section header: show current scheduler state:
+  - Active: `● Active — next scan in 14 min` (green dot, JetBrains Mono)
+  - Sleeping: `◌ Deep Sleep — resumes at 07:00` (dim dot, muted color)
+  - Hibernate: `○ Hibernating — alerts only` (empty dot, `var(--text-tertiary)`)
+  - Fetched from `GET /api/server/sleep-status` on settings page load, no polling
 
 ---
 
