@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emoji Removal Test</title>
+    <link rel="stylesheet" href="/static/css/modern.css">
+    <style>
+        body {
+            font-family: var(--font-body);
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid var(--border-default);
+        }
+        
+        .error-message {
+            color: var(--signal-negative);
+            font-size: 0.5625rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+        
+        .success-message {
+            color: var(--signal-positive);
+            font-size: 0.5625rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <h1>Emoji Removal Test</h1>
+    
+    <div class="test-section">
+        <h2>Dashboard Error Message (Fixed)</h2>
+        <p>This simulates the dashboard error message that previously had an emoji:</p>
+        <div class="error-message">Error</div>
+        <p>✅ No emoji - just clean text with red color for errors</p>
+    </div>
+    
+    <div class="test-section">
+        <h2>Alternative Error Indicators</h2>
+        <p>Instead of emojis, we can use:</p>
+        <ul>
+            <li><span class="error-message">[ERROR]</span> - Square brackets</li>
+            <li><span class="error-message">✗ Error</span> - Checkmark cross</li>
+            <li><span class="error-message">• Error</span> - Bullet point</li>
+            <li><span class="error-message">Error</span> - Just the word (cleanest)</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h2>Success Messages</h2>
+        <p>For positive states:</p>
+        <ul>
+            <li><span class="success-message">✓ Success</span> - Checkmark</li>
+            <li><span class="success-message">• Success</span> - Bullet point</li>
+            <li><span class="success-message">Success</span> - Just the word</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h2>Visual Indicators Without Emojis</h2>
+        <p>We can use CSS and text styling instead of emojis:</p>
+        
+        <div style="display: flex; gap: 20px; margin-top: 10px;">
+            <div style="text-align: center;">
+                <div style="width: 20px; height: 20px; background: var(--signal-negative); border-radius: 50%; margin: 0 auto;"></div>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">Error</span>
+            </div>
+            <div style="text-align: center;">
+                <div style="width: 20px; height: 20px; background: var(--signal-positive); border-radius: 50%; margin: 0 auto;"></div>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">Success</span>
+            </div>
+            <div style="text-align: center;">
+                <div style="width: 20px; height: 20px; background: var(--signal-warning); border-radius: 50%; margin: 0 auto;"></div>
+                <span style="font-size: 0.75rem; color: var(--text-muted);">Warning</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Emoji-Free Design Benefits</h2>
+        <ul>
+            <li>✅ Professional appearance</li>
+            <li>✅ Consistent with monochrome aesthetic</li>
+            <li>✅ Better accessibility</li>
+            <li>✅ Faster loading (no emoji fonts)</li>
+            <li>✅ More consistent rendering across devices</li>
+        </ul>
+    </div>
+</body>
+</html>

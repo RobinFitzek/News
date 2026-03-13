@@ -22,7 +22,7 @@
     display: none !important;
 }
 
-/* Toast Notifications - Black & White with Dark Red for errors */
+/* Toast Notifications - Black & White with Red/Green accents */
 .toast {
     padding: 16px 24px;
     border-radius: 0;
@@ -41,14 +41,14 @@
 
 .toast-info,
 .toast-success {
-    background: var(--text-primary);
-    color: var(--bg-primary);
-    border: 2px solid var(--text-primary);
+    background: var(--signal-positive);
+    color: var(--text-inverse);
+    border: 2px solid var(--signal-positive);
 }
 
 .toast-danger,
 .toast-warning {
-    background: var(--bg-primary);
-    color: var(--signal-critical);
-    border: 2px solid var(--signal-critical);
+    background: var(--signal-negative);
+    color: var(--text-inverse);
+    border: 2px solid var(--signal-negative);
 }

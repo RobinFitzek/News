@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading Animation Test</title>
+    <link rel="stylesheet" href="/static/css/modern.css">
+    <style>
+        body {
+            font-family: var(--font-body);
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid var(--border-default);
+        }
+        
+        .animation-preview {
+            background: var(--bg-secondary);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-family: var(--font-mono);
+            color: var(--text-primary);
+        }
+        
+        .sword-preview {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            white-space: pre;
+            text-align: center;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Loading Animation Test</h1>
+    
+    <div class="test-section">
+        <h2>Current Theme: <span id="current-theme">dark</span></h2>
+        <button onclick="toggleTheme()" style="padding: 10px 20px; background: var(--bg-secondary); border: 1px solid var(--border-default); cursor: pointer;">Toggle Theme</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Text Diffusion Animation</h2>
+        <p>This simulates the text diffusion effect that happens during page load.</p>
+        <div class="animation-preview" id="diffusion-test">
+            Sample text that would be diffused during loading...
+        </div>
+        <button onclick="simulateDiffusion()" style="padding: 10px 20px; background: var(--bg-secondary); border: 1px solid var(--border-default); cursor: pointer;">Simulate Diffusion</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>ASCII Sword Animation</h2>
+        <p>This shows the sword animation with theme-appropriate colors.</p>
+        <div class="sword-preview" id="sword-preview">
+      /| ________________
+O|===|* >________________>
+      \|
+        </div>
+        <p>Color: <span id="sword-color">white (dark mode) / black (light mode)</span></p>
+    </div>
+    
+    <div class="test-section">
+        <h2>Color Variables</h2>
+        <p>Text color: <span style="color: var(--text-primary);">var(--text-primary)</span></p>
+        <p>Inverse color: <span style="color: var(--text-inverse); background: var(--bg-primary); padding: 2px 6px;">var(--text-inverse)</span></p>
+        <p>Signal positive: <span style="color: var(--signal-positive);">var(--signal-positive)</span></p>
+    </div>
+    
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-theme');
+            const newTheme = current === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', newTheme);
+            document.getElementById('current-theme').textContent = newTheme;
+            
+            // Update sword color display
+            const swordColor = newTheme === 'light' ? 'black' : 'white';
+            document.getElementById('sword-color').textContent = swordColor + ' (' + newTheme + ' mode)';
+            
+            // Update sword preview color
+            const swordPreview = document.getElementById('sword-preview');
+            swordPreview.style.color = newTheme === 'light' ? 'var(--text-primary)' : 'var(--text-inverse)';
+        }
+        
+        function simulateDiffusion() {
+            const testDiv = document.getElementById('diffusion-test');
+            const originalText = testDiv.textContent;
+            const noiseChars = '░▒▓█╔╗╝╚║═╠╣╦╩╬│─┼@#$%&?!'.split('');
+            
+            // Show diffusion effect
+            let diffusedText = '';
+            for (let i = 0; i < originalText.length; i++) {
+                const char = originalText[i];
+                if (char.trim() === '') {
+                    diffusedText += char;
+                } else {
+                    const noiseChar = noiseChars[Math.floor(Math.random() * noiseChars.length)];
+                    diffusedText += noiseChar;
+                }
+            }
+            
+            testDiv.textContent = diffusedText;
+            
+            // Apply theme-appropriate color
+            const theme = document.documentElement.getAttribute('data-theme');
+            const glowColor = theme === 'light' ? 'var(--text-primary)' : 'var(--text-inverse)';
+            testDiv.style.color = glowColor;
+            testDiv.style.opacity = '0.4';
+            
+            // Resolve after delay
+            setTimeout(() => {
+                testDiv.textContent = originalText;
+                testDiv.style.color = '';
+                testDiv.style.opacity = '';
+            }, 2000);
+        }
+        
+        // Initialize
+        document.getElementById('current-theme').textContent = 
+            document.documentElement.getAttribute('data-theme') || 'dark';
+        
+        // Set initial sword color
+        const initialTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+        const initialColor = initialTheme === 'light' ? 'black' : 'white';
+        document.getElementById('sword-color').textContent = initialColor + ' (' + initialTheme + ' mode)';
+        document.getElementById('sword-preview').style.color = initialTheme === 'light' ? 'var(--text-primary)' : 'var(--text-inverse)';
+    </script>
+</body>
+</html>

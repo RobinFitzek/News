@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Final Emoji Removal Test</title>
+    <link rel="stylesheet" href="/static/css/modern.css">
+    <style>
+        body {
+            font-family: var(--font-body);
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid var(--border-default);
+        }
+        
+        .regime-adjustment {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin: 15px 0;
+        }
+        
+        .factor-card {
+            text-align: center;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+        }
+        
+        .factor-icon {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .metric-label {
+            margin: 4px 0;
+            font-size: 0.875rem;
+        }
+        
+        .percentage-change {
+            font-size: 1rem;
+            font-weight: 500;
+        }
+        
+        .positive {
+            color: var(--signal-positive);
+        }
+        
+        .negative {
+            color: var(--signal-negative);
+        }
+        
+        .neutral {
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <h1>Final Emoji Removal Test</h1>
+    
+    <div class="test-section">
+        <h2>Regime Adjustments (Emoji-Free)</h2>
+        
+        <div class="regime-adjustment">
+            <div class="factor-card">
+                <div class="factor-icon">VAL</div>
+                <div class="metric-label">Valuation</div>
+                <div class="percentage-change negative">-15%</div>
+                <div style="font-size: 0.6875rem; color: var(--text-muted);">×0.85</div>
+            </div>
+            
+            <div class="factor-card">
+                <div class="factor-icon">TEC</div>
+                <div class="metric-label">Technical</div>
+                <div class="percentage-change positive">+15%</div>
+                <div style="font-size: 0.6875rem; color: var(--text-muted);">×1.15</div>
+            </div>
+            
+            <div class="factor-card">
+                <div class="factor-icon">MOM</div>
+                <div class="metric-label">Momentum</div>
+                <div class="percentage-change positive">+20%</div>
+                <div style="font-size: 0.6875rem; color: var(--text-muted);">×1.20</div>
+            </div>
+            
+            <div class="factor-card">
+                <div class="factor-icon">QLT</div>
+                <div class="metric-label">Quality</div>
+                <div class="percentage-change neutral">=0%</div>
+                <div style="font-size: 0.6875rem; color: var(--text-muted);">×1.00</div>
+            </div>
+        </div>
+        
+        <h3>Changes Made:</h3>
+        <ul>
+            <li>✅ Removed 💵 emoji → Replaced with "VAL"</li>
+            <li>✅ Removed 📉 emoji → Replaced with "TEC"</li>
+            <li>✅ Removed 🚀 emoji → Replaced with "MOM"</li>
+            <li>✅ Removed ⭐ emoji → Replaced with "QLT"</li>
+            <li>✅ Removed ▲/▼ symbols → Replaced with +/- signs</li>
+            <li>✅ Fixed hardcoded colors → Using theme variables</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h2>Before vs After Comparison</h2>
+        
+        <h3>Before (with emojis):</h3>
+        <pre style="background: var(--bg-secondary); padding: 10px; border-radius: 4px; overflow-x: auto;">
+💵
+VAL
+▼ -15%
+×0.85
+        </pre>
+        
+        <h3>After (emoji-free):</h3>
+        <div class="factor-card" style="margin: 15px auto; max-width: 150px;">
+            <div class="factor-icon">VAL</div>
+            <div class="metric-label">Valuation</div>
+            <div class="percentage-change negative">-15%</div>
+            <div style="font-size: 0.6875rem; color: var(--text-muted);">×0.85</div>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Benefits of Emoji-Free Design</h2>
+        <ul>
+            <li>✅ <strong>Professional Appearance</strong>: Clean, business-like interface</li>
+            <li>✅ <strong>Consistent Branding</strong>: Matches monochrome aesthetic</li>
+            <li>✅ <strong>Better Accessibility</strong>: Clear text labels instead of ambiguous symbols</li>
+            <li>✅ <strong>Localization Friendly</strong>: Text can be translated easily</li>
+            <li>✅ <strong>Performance</strong>: No emoji font loading required</li>
+            <li>✅ <strong>Consistency</strong>: Uniform look across all platforms</li>
+        </ul>
+    </div>
+    
+    <div class="test-section">
+        <h2>Alternative Design Options</h2>
+        
+        <h3>Option 1: Text Abbreviations (Current)</h3>
+        <div style="display: flex; gap: 10px; margin: 10px 0;">
+            <span class="badge-simulation">VAL</span>
+            <span class="badge-simulation">TEC</span>
+            <span class="badge-simulation">MOM</span>
+            <span class="badge-simulation">QLT</span>
+        </div>
+        
+        <h3>Option 2: First Letters</h3>
+        <div style="display: flex; gap: 10px; margin: 10px 0;">
+            <span class="badge-simulation">V</span>
+            <span class="badge-simulation">T</span>
+            <span class="badge-simulation">M</span>
+            <span class="badge-simulation">Q</span>
+        </div>
+        
+        <h3>Option 3: No Icons (Cleanest)</h3>
+        <div style="display: flex; gap: 10px; margin: 10px 0;">
+            <span class="badge-simulation">Valuation</span>
+            <span class="badge-simulation">Technical</span>
+            <span class="badge-simulation">Momentum</span>
+            <span class="badge-simulation">Quality</span>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Color Scheme Verification</h2>
+        <p>All colors now use theme variables:</p>
+        
+        <div style="display: flex; gap: 20px; margin: 15px 0;">
+            <div style="text-align: center;">
+                <div style="width: 30px; height: 30px; background: var(--signal-positive); border-radius: 50%; margin: 0 auto;"></div>
+                <span style="font-size: 0.75rem;">Positive</span>
+            </div>
+            <div style="text-align: center;">
+                <div style="width: 30px; height: 30px; background: var(--signal-negative); border-radius: 50%; margin: 0 auto;"></div>
+                <span style="font-size: 0.75rem;">Negative</span>
+            </div>
+            <div style="text-align: center;">
+                <div style="width: 30px; height: 30px; background: var(--text-muted); border-radius: 50%; margin: 0 auto;"></div>
+                <span style="font-size: 0.75rem;">Neutral</span>
+            </div>
+        </div>
+    </div>
+    
+    <style>
+        .badge-simulation {
+            display: inline-block;
+            padding: 4px 8px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-default);
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+    </style>
+</body>
+</html>

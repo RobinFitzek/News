@@ -69,8 +69,12 @@ class TextDiffuser {
                 span.setAttribute('data-prob', prob.toString());
                 span.textContent = this.getRandomNoise();
                 
-                // Start with glowing noise style
-                span.style.color = 'var(--glow-gold)';
+                // Start with glowing noise style - use white/black based on theme
+                // Default to white (dark mode) if theme not set yet
+                const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+                // In dark mode: text-primary is white (#FFFFFF), in light mode: text-primary is black (#000000)
+                const glowColor = 'var(--text-primary)';
+                span.style.color = glowColor;
                 span.style.opacity = '0.4';
                 
                 fragment.appendChild(span);
@@ -116,7 +120,9 @@ class TextDiffuser {
                     target.span.style.opacity = '';
                     
                     if (target.isNumber) {
-                        target.span.style.textShadow = '0 0 12px var(--glow-gold)';
+                        // Use text-primary which is white in dark mode, black in light mode
+                        const glowColor = 'var(--text-primary)';
+                        target.span.style.textShadow = `0 0 12px ${glowColor}`;
                         setTimeout(() => { target.span.style.textShadow = ''; }, 200);
                     }
                 } else {
@@ -154,13 +160,13 @@ class AscendantSword {
             transform: translate(-50%, -50%);
             font-family: var(--font-data, 'JetBrains Mono', monospace);
             font-size: 14px;
-            color: var(--glow-gold);
+            color: var(--text-inverse);
             text-align: center;
             line-height: 1.1;
             z-index: 9999;
             pointer-events: none;
             white-space: pre;
-            text-shadow: 0 0 15px var(--glow-gold);
+            text-shadow: 0 0 15px var(--text-inverse);
             opacity: 0.8;
             transition: opacity 0.3s ease, transform 0.8s cubic-bezier(.34, 1.56, .64, 1);
         `;
@@ -177,9 +183,11 @@ O|===|* >________________>
     }
     
     shatter() {
-        // Flash amber then shatter
-        this.container.style.color = 'var(--glow-amber)';
-        this.container.style.textShadow = '0 0 30px var(--glow-amber)';
+        // Flash with theme-appropriate color then shatter
+        const theme = document.documentElement.getAttribute('data-theme');
+        const flashColor = theme === 'light' ? 'var(--text-primary)' : 'var(--signal-positive)';
+        this.container.style.color = flashColor;
+        this.container.style.textShadow = `0 0 30px ${flashColor}`;
         this.container.style.transform = 'translate(-50%, -50%) scale(1.1)';
         
         setTimeout(() => {
@@ -213,8 +221,8 @@ O|===|* >________________>
                 top: ${cy}px;
                 width: ${size}px;
                 height: ${size}px;
-                background: var(--glow-amber);
-                box-shadow: 0 0 ${size}px var(--glow-amber);
+                background: var(--signal-positive);
+                box-shadow: 0 0 ${size}px var(--signal-positive);
                 border-radius: 50%;
                 opacity: 0.8;
                 pointer-events: none;

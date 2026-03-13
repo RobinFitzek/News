@@ -32,18 +32,32 @@
         // Apply Breathe settings immediately to prevent FOUC
         (function() {
             try {
-                var depth = localStorage.getItem('stockholm-depth-effects');
-                if (depth === 'off') document.documentElement.setAttribute('data-depth', 'off');
-
-                var glow = localStorage.getItem('stockholm-glow-intensity');
-                if (glow) document.documentElement.style.setProperty('--glow-intensity', (parseInt(glow) / 100).toString());
-                
+                // Set theme FIRST - this is critical for loading animations
                 var theme = localStorage.getItem('stockholm-theme');
                 if (theme === 'light' || (!theme && window.matchMedia('(prefers-color-scheme: light)').matches)) {
                     document.documentElement.setAttribute('data-theme', 'light');
                 } else {
                     document.documentElement.setAttribute('data-theme', 'dark');
                 }
+
+                var depth = localStorage.getItem('stockholm-depth-effects');
+                if (depth === 'off') document.documentElement.setAttribute('data-depth', 'off');
+
+                var glow = localStorage.getItem('stockholm-glow-intensity');
+                if (glow) document.documentElement.style.setProperty('--glow-intensity', (parseInt(glow) / 100).toString());
+                
+                var glowColor = localStorage.getItem('stockholm-glow-color') || 'neutral';
+                var glowColorMap = {
+                    'neutral': { primary: '--glow-neutral', secondary: '--glow-ice' },
+                    'gold': { primary: '--glow-gold', secondary: '--glow-amber' },
+                    'positive': { primary: '--glow-positive', secondary: '--glow-positive' },
+                    'negative': { primary: '--glow-negative', secondary: '--glow-negative' },
+                    'amber': { primary: '--glow-amber', secondary: '--glow-gold' },
+                    'ice': { primary: '--glow-ice', secondary: '--glow-sky' }
+                };
+                var colorConfig = glowColorMap[glowColor] || glowColorMap.neutral;
+                document.documentElement.style.setProperty('--glow-primary', `var(${colorConfig.primary})`);
+                document.documentElement.style.setProperty('--glow-secondary', `var(${colorConfig.secondary})`);
             } catch (e) {}
         })();
     </script>

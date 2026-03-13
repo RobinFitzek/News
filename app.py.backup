@@ -66,6 +66,11 @@ STATIC_DIR = Path(__file__).parent / "static"
 STATIC_DIR.mkdir(exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+# Mount React frontend static files
+REACT_DIST = Path(__file__).parent / "frontend" / "dist"
+if REACT_DIST.exists():
+    app.mount("/", StaticFiles(directory=str(REACT_DIST), html=True), name="react")
+
 # ==================== MIDDLEWARE ====================
 
 @app.middleware("http")
@@ -444,11 +449,171 @@ async def change_password_submit(
     audit_log.log("password_change", username=username, ip=request.client.host)
     return RedirectResponse(url="/?password_changed=1", status_code=303)
 
+
+@app.get("/api/dashboard")
+async def api_dashboard(username: str = Depends(require_api_key_or_session)):
+    """Dashboard data endpoint for React frontend"""
+    try:
+        # Get top 3 picks for preview widget
+        try:
+            top_picks_preview = db.get_top_picks(min_predictions=3, min_accuracy=0.65, limit=3)
+        except Exception:
+            top_picks_preview = []
+        
+        # Get trusted tickers for badge display
+        try:
+            trusted_tickers = list(db.get_trusted_tickers(min_accuracy=0.7) or [])
+        except Exception:
+            trusted_tickers = []
+        
+        # Enrich recent analyses with staleness metadata
+        recent_analyses = db.get_analysis_history(limit=10)
+        for a in recent_analyses:
+            staleness_tracker.enrich_analysis(a)
+        
+        # Feature 4: Cold start detection
+        learning_stats = learning_optimizer.get_learning_stats()
+        cold_start = False
+        cold_start_reason = ""
+        first_prediction = db.query_one("SELECT MIN(prediction_date) as first_date FROM prediction_outcomes")
+        if first_prediction and first_prediction.get('first_date'):
+            from datetime import datetime as dt
+            try:
+                first_date = dt.fromisoformat(first_prediction['first_date'].replace(' ', 'T')[:19])
+                days_active = (dt.now() - first_date).days
+                if days_active < 60 or learning_stats.get('total_verified', 0) < 20:
+                    cold_start = True
+                    cold_start_reason = f"{days_active} days of data, {learning_stats.get('total_verified', 0)} verified predictions"
+            except Exception:
+                cold_start = True
+                cold_start_reason = "Unable to determine system age"
+        else:
+            cold_start = True
+            cold_start_reason = "No predictions recorded yet"
+        
+        # Feature 6: Kill switch check
+        system_paused = db.get_setting('system_paused_accuracy') or False
+        
+        # Discovery stats for widget
+        try:
+            discovery_stats = db.get_discovery_stats()
+            discovery_stats['enabled'] = db.get_setting('discovery_enabled')
+        except Exception:
+            discovery_stats = None
+        
+        return {
+            "system_status": scheduler.get_status(),
+            "watchlist": db.get_watchlist(),
+            "recent_analyses": recent_analyses,
+            "api_status": {
+                "perplexity": pplx_client.get_usage(),
+                "gemini": gemini_client.get_usage()
+            },
+            "learning_stats": learning_stats,
+            "top_picks_preview": top_picks_preview,
+            "trusted_tickers": trusted_tickers,
+            "cold_start": cold_start,
+            "cold_start_reason": cold_start_reason,
+            "system_paused": system_paused,
+            "discovery_stats": discovery_stats,
+            "scheduler_status": scheduler.get_status()
+        }
+    except Exception as e:
+        import traceback
+        print(f"Dashboard API error: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Dashboard API error: {str(e)}")
+
+@app.get("/", response_class=HTMLResponse)
+=======
 # ==================== DASHBOARD ====================
+
+@app.get("/", response_class=HTMLResponse)====================
+
+@app.get("/api/dashboard")
+async def api_dashboard(username: str = Depends(require_api_key_or_session)):
+    """Dashboard data endpoint for React frontend"""
+    try:
+        # Get top 3 picks for preview widget
+        try:
+            top_picks_preview = db.get_top_picks(min_predictions=3, min_accuracy=0.65, limit=3)
+        except Exception:
+            top_picks_preview = []
+        
+        # Get trusted tickers for badge display
+        try:
+            trusted_tickers = list(db.get_trusted_tickers(min_accuracy=0.7) or [])
+        except Exception:
+            trusted_tickers = []
+        
+        # Enrich recent analyses with staleness metadata
+        recent_analyses = db.get_analysis_history(limit=10)
+        for a in recent_analyses:
+            staleness_tracker.enrich_analysis(a)
+        
+        # Feature 4: Cold start detection
+        learning_stats = learning_optimizer.get_learning_stats()
+        cold_start = False
+        cold_start_reason = ""
+        first_prediction = db.query_one("SELECT MIN(prediction_date) as first_date FROM prediction_outcomes")
+        if first_prediction and first_prediction.get('first_date'):
+            from datetime import datetime as dt
+            try:
+                first_date = dt.fromisoformat(first_prediction['first_date'].replace(' ', 'T')[:19])
+                days_active = (dt.now() - first_date).days
+                if days_active < 60 or learning_stats.get('total_verified', 0) < 20:
+                    cold_start = True
+                    cold_start_reason = f"{days_active} days of data, {learning_stats.get('total_verified', 0)} verified predictions"
+            except Exception:
+                cold_start = True
+                cold_start_reason = "Unable to determine system age"
+        else:
+            cold_start = True
+            cold_start_reason = "No predictions recorded yet"
+        
+        # Feature 6: Kill switch check
+        system_paused = db.get_setting('system_paused_accuracy') or False
+        
+        # Discovery stats for widget
+        try:
+            discovery_stats = db.get_discovery_stats()
+            discovery_stats['enabled'] = db.get_setting('discovery_enabled')
+        except Exception:
+            discovery_stats = None
+        
+        return {
+            "system_status": scheduler.get_status(),
+            "watchlist": db.get_watchlist(),
+            "recent_analyses": recent_analyses,
+            "api_status": {
+                "perplexity": pplx_client.get_usage(),
+                "gemini": gemini_client.get_usage()
+            },
+            "learning_stats": learning_stats,
+            "top_picks_preview": top_picks_preview,
+            "trusted_tickers": trusted_tickers,
+            "cold_start": cold_start,
+            "cold_start_reason": cold_start_reason,
+            "system_paused": system_paused,
+            "discovery_stats": discovery_stats,
+            "scheduler_status": scheduler.get_status()
+        }
+    except Exception as e:
+        import traceback
+        print(f"Dashboard API error: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Dashboard API error: {str(e)}")
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request, username: str = Depends(require_auth)):
-    """Main dashboard"""
+    """Main dashboard - serves React app in production, Jinja template in development"""
+    # Check if React frontend exists and we're in production mode
+    if REACT_DIST.exists():
+        # Serve React's index.html for SPA routing
+        from fastapi.responses import FileResponse
+        return FileResponse(REACT_DIST / "index.html")
+    
+    # Fallback to Jinja template for development
     try:
         # Get top 3 picks for preview widget
         try:
@@ -522,6 +687,8 @@ async def dashboard(request: Request, username: str = Depends(require_auth)):
         raise HTTPException(status_code=500, detail=f"Dashboard error: {str(e)}")
 
 # ==================== SYSTEM HEALTH ====================
+
+=======
 @app.get("/api/health")
 async def api_health(username: str = Depends(require_api_key_or_session)):
     """System health monitor endpoint for the dashboard widget"""

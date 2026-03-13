@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glow Color Test</title>
+    <link rel="stylesheet" href="/static/css/modern.css">
+    <style>
+        body {
+            font-family: var(--font-body);
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid var(--border-default);
+        }
+        
+        .glow-preview {
+            position: relative;
+            width: 200px;
+            height: 120px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            overflow: hidden;
+            margin: 20px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .glow-effect {
+            position: absolute;
+            top: 20%;
+            left: 20%;
+            width: 60px;
+            height: 60px;
+            background: var(--glow-primary, var(--glow-gold));
+            filter: blur(20px);
+            opacity: 0.6;
+            border-radius: 50%;
+            transition: background 0.3s;
+        }
+        
+        select {
+            width: 100%;
+            padding: 10px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-default);
+            border-radius: 4px;
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <h1>Glow Color Test</h1>
+    
+    <div class="test-section">
+        <h2>Current Theme: <span id="current-theme">dark</span></h2>
+        <button onclick="toggleTheme()" style="padding: 10px 20px; background: var(--bg-secondary); border: 1px solid var(--border-default); cursor: pointer;">Toggle Theme</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Glow Color Selector</h2>
+        <select id="glow-color-selector" onchange="updateGlowColor(this.value)">
+            <option value="neutral">Neutral (White)</option>
+            <option value="gold">Gold (Yellow)</option>
+            <option value="positive">Positive (Green)</option>
+            <option value="negative">Negative (Red)</option>
+            <option value="amber">Amber (Orange)</option>
+            <option value="ice">Ice (Blue)</option>
+        </select>
+    </div>
+    
+    <div class="test-section">
+        <h2>Glow Preview</h2>
+        <div class="glow-preview">
+            <div class="glow-effect"></div>
+            <span style="z-index: 1; color: var(--text-primary);">Glow Effect</span>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Contrast Test (Light Mode)</h2>
+        <div style="background: white; padding: 15px; border: 1px solid #ddd;">
+            <p style="color: #000000;">Black text on white background</p>
+            <p style="color: #222222;">Dark gray text on white background</p>
+            <p style="color: #444444;">Medium gray text on white background</p>
+            <p style="color: #666666;">Light gray text on white background</p>
+        </div>
+    </div>
+    
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-theme');
+            const newTheme = current === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', newTheme);
+            document.getElementById('current-theme').textContent = newTheme;
+        }
+        
+        function updateGlowColor(color) {
+            const glowColorMap = {
+                'neutral': { primary: '--glow-neutral', secondary: '--glow-ice' },
+                'gold': { primary: '--glow-gold', secondary: '--glow-amber' },
+                'positive': { primary: '--glow-positive', secondary: '--glow-positive' },
+                'negative': { primary: '--glow-negative', secondary: '--glow-negative' },
+                'amber': { primary: '--glow-amber', secondary: '--glow-gold' },
+                'ice': { primary: '--glow-ice', secondary: '--glow-sky' }
+            };
+            
+            const config = glowColorMap[color] || glowColorMap.neutral;
+            document.documentElement.style.setProperty('--glow-primary', `var(${config.primary})`);
+            document.documentElement.style.setProperty('--glow-secondary', `var(${config.secondary})`);
+            localStorage.setItem('stockholm-glow-color', color);
+        }
+        
+        // Initialize
+        document.getElementById('current-theme').textContent = 
+            document.documentElement.getAttribute('data-theme') || 'dark';
+    </script>
+</body>
+</html>

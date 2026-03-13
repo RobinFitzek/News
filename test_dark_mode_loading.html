@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dark Mode Loading Test</title>
+    <link rel="stylesheet" href="/static/css/modern.css">
+    <style>
+        body {
+            font-family: var(--font-body);
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid var(--border-default);
+        }
+        
+        .dark-mode-test {
+            background: #000000;
+            color: #FFFFFF;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .loading-simulation {
+            background: #000000;
+            color: #FFFFFF;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: var(--font-mono);
+        }
+        
+        .noise-char {
+            color: #FFFFFF;
+            opacity: 0.4;
+        }
+        
+        .resolved-char {
+            color: #FFFFFF;
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <h1>Dark Mode Loading Animation Test</h1>
+    
+    <div class="test-section">
+        <h2>Current Theme: <span id="current-theme">dark</span></h2>
+        <p>This page simulates dark mode loading animation.</p>
+    </div>
+    
+    <div class="test-section">
+        <h2>Dark Mode Verification</h2>
+        <div class="dark-mode-test">
+            <p>This text should be WHITE on BLACK background in dark mode.</p>
+            <p>Text color: <span id="text-color">#FFFFFF</span></p>
+            <p>Background color: <span id="bg-color">#000000</span></p>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Loading Animation Simulation</h2>
+        <div class="loading-simulation" id="loading-simulation">
+            Loading text animation...
+        </div>
+        <button onclick="simulateLoading()" style="padding: 10px 20px; background: var(--bg-secondary); border: 1px solid var(--border-default); cursor: pointer; margin-top: 10px;">Simulate Loading Animation</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Color Variables Check</h2>
+        <p>text-inverse: <span style="color: var(--text-inverse); background: #000000; padding: 2px 6px;">var(--text-inverse)</span> (should be white)</p>
+        <p>text-primary: <span style="color: var(--text-primary);">var(--text-primary)</span> (should be white in dark mode)</p>
+        <p>signal-positive: <span style="color: var(--signal-positive);">var(--signal-positive)</span> (should be green)</p>
+    </div>
+    
+    <script>
+        // Force dark mode for this test
+        document.documentElement.setAttribute('data-theme', 'dark');
+        document.getElementById('current-theme').textContent = 'dark (forced)';
+        
+        function simulateLoading() {
+            const simDiv = document.getElementById('loading-simulation');
+            const originalText = simDiv.textContent;
+            const noiseChars = '░▒▓█╔╗╝╚║═╠╣╦╩╬│─┼@#$%&?!'.split('');
+            
+            // Show diffusion effect
+            let diffusedText = '';
+            for (let i = 0; i < originalText.length; i++) {
+                const char = originalText[i];
+                if (char.trim() === '') {
+                    diffusedText += char;
+                } else {
+                    const noiseChar = noiseChars[Math.floor(Math.random() * noiseChars.length)];
+                    diffusedText += `<span class="noise-char">${noiseChar}</span>`;
+                }
+            }
+            
+            simDiv.innerHTML = diffusedText;
+            
+            // Resolve after delay
+            setTimeout(() => {
+                simDiv.textContent = originalText;
+            }, 2000);
+        }
+        
+        // Update color displays
+        const computedStyle = getComputedStyle(document.documentElement);
+        document.getElementById('text-color').textContent = computedStyle.getPropertyValue('--text-primary').trim();
+        document.getElementById('bg-color').textContent = computedStyle.getPropertyValue('--bg-primary').trim();
+    </script>
+</body>
+</html>

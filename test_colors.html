@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Scheme Test</title>
+    <link rel="stylesheet" href="/static/css/modern.css">
+    <link rel="stylesheet" href="/static/css/performance.css">
+    <style>
+        body {
+            font-family: var(--font-body);
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid var(--border-default);
+        }
+        
+        .color-swatch {
+            display: inline-block;
+            width: 100px;
+            height: 100px;
+            margin: 10px;
+            border: 1px solid var(--border-default);
+        }
+        
+        .test-button {
+            padding: 10px 20px;
+            margin: 5px;
+            border: 1px solid var(--border-default);
+            cursor: pointer;
+        }
+        
+        .test-toast {
+            margin: 10px 0;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Black & White Color Scheme Test</h1>
+    
+    <div class="test-section">
+        <h2>Current Theme: <span id="current-theme">dark</span></h2>
+        <button class="test-button" onclick="toggleTheme()">Toggle Theme</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>Background Colors</h2>
+        <div class="color-swatch" style="background: var(--bg-primary);"></div>
+        <div class="color-swatch" style="background: var(--bg-secondary);"></div>
+        <div class="color-swatch" style="background: var(--bg-tertiary);"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Text Colors</h2>
+        <div style="color: var(--text-primary); background: var(--bg-primary); padding: 10px;">Primary Text</div>
+        <div style="color: var(--text-secondary); background: var(--bg-primary); padding: 10px;">Secondary Text</div>
+        <div style="color: var(--text-muted); background: var(--bg-primary); padding: 10px;">Muted Text</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Signal Colors (Accents)</h2>
+        <div class="color-swatch" style="background: var(--signal-positive);"></div>
+        <div class="color-swatch" style="background: var(--signal-negative);"></div>
+        <div class="color-swatch" style="background: var(--signal-neutral);"></div>
+        <div class="color-swatch" style="background: var(--signal-warning);"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Toast Notifications</h2>
+        <div class="toast toast-success test-toast">Success message with green accent</div>
+        <div class="toast toast-danger test-toast">Error message with red accent</div>
+        <div class="toast toast-info test-toast">Info message</div>
+    </div>
+    
+    <div class="test-section">
+        <h2>Buttons with Accents</h2>
+        <button class="btn btn-positive test-button">Positive Action (Green)</button>
+        <button class="btn btn-negative test-button">Negative Action (Red)</button>
+        <button class="btn btn-neutral test-button">Neutral Action</button>
+    </div>
+    
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-theme');
+            const newTheme = current === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', newTheme);
+            document.getElementById('current-theme').textContent = newTheme;
+        }
+        
+        // Initialize
+        document.getElementById('current-theme').textContent = 
+            document.documentElement.getAttribute('data-theme') || 'dark';
+    </script>
+</body>
+</html>

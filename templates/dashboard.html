@@ -17,9 +17,9 @@
 
     {% if system_paused %}
     <div
-        style="background: rgba(220, 38, 38, 0.15); border: 1px solid rgba(220, 38, 38, 0.4); color: #fca5a5; padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4); display: flex; justify-content: space-between; align-items: center; gap: var(--space-4);">
+        style="background: rgba(255, 0, 0, 0.08); border: 1px solid rgba(255, 0, 0, 0.15); color: var(--signal-negative); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4); display: flex; justify-content: space-between; align-items: center; gap: var(--space-4);">
         <div>
-            <span style="font-weight: 600; color: #f87171;">PIPELINE PAUSED</span>
+            <span style="font-weight: 600; color: var(--signal-negative);">PIPELINE PAUSED</span>
             <span style="margin-left: var(--space-3); font-size: 0.875rem;">Accuracy kill switch active — accuracy
                 dropped below 50%. Pipeline will not run until cleared.</span>
         </div>
@@ -30,8 +30,8 @@
 
     {% if cold_start %}
     <div
-        style="background: rgba(234, 179, 8, 0.1); border: 1px solid rgba(234, 179, 8, 0.3); color: #fde68a; padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4); font-size: 0.875rem;">
-        <span style="font-weight: 600; color: #fbbf24;">COLD START</span>
+        style="background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.15); color: var(--text-secondary); padding: var(--space-4) var(--space-5); margin-bottom: var(--space-4); font-size: 0.875rem;">
+        <span style="font-weight: 600; color: var(--text-primary);">COLD START</span>
         <span style="margin-left: var(--space-3);">{{ cold_start_reason }}. Needs 60 days + 20 verified predictions
             before accuracy is reliable.</span>
     </div>
@@ -117,7 +117,7 @@
                 <span class="sys-label">Last:</span>
                 <span class="sys-value">{{ discovery_stats.last_run.run_at }}</span>
                 {% if discovery_stats.last_run.errors %}
-                <span style="color: var(--signal-negative); font-size: 0.5625rem; letter-spacing: 0.06em; text-transform: uppercase;" title="Last discovery run encountered errors">⚠ Error</span>
+                <span style="color: var(--signal-negative); font-size: 0.5625rem; letter-spacing: 0.06em; text-transform: uppercase;" title="Last discovery run encountered errors">Error</span>
                 {% endif %}
             </div>
             {% endif %}
@@ -1165,10 +1165,10 @@
             const regimeColor = data.regime === 'bull' ? '#6bba7e' : data.regime === 'bear' ? '#d47272' : '#d4a84b';
             const adj = data.adjustments || {};
             const factors = [
-                { key: 'valuation', label: 'Valuation', icon: '💵' },
-                { key: 'technical', label: 'Technical', icon: '📉' },
-                { key: 'momentum', label: 'Momentum', icon: '🚀' },
-                { key: 'quality', label: 'Quality', icon: '⭐' },
+                { key: 'valuation', label: 'Valuation', icon: 'VAL' },
+                { key: 'technical', label: 'Technical', icon: 'TEC' },
+                { key: 'momentum', label: 'Momentum', icon: 'MOM' },
+                { key: 'quality', label: 'Quality', icon: 'QLT' },
             ];
             let html = `<div style="margin-bottom:0.75rem;padding:0.5rem 0.75rem;background:rgba(0,0,0,0.2);border-radius:var(--radius-md);font-size:0.8125rem;color:${regimeColor};">
                 <strong>${data.regime.toUpperCase()} MARKET</strong> — ${data.description || ''}
@@ -1178,13 +1178,13 @@
                 const mult = adj[f.key] ?? 1.0;
                 const isBoost = mult > 1.0;
                 const isReduce = mult < 1.0;
-                const color = isBoost ? '#6bba7e' : isReduce ? '#d47272' : 'var(--text-muted)';
-                const arrow = isBoost ? '▲' : isReduce ? '▼' : '—';
+                const color = isBoost ? 'var(--signal-positive)' : isReduce ? 'var(--signal-negative)' : 'var(--text-muted)';
+                const arrow = isBoost ? '+' : isReduce ? '-' : '=';
                 const pctChange = ((mult - 1) * 100).toFixed(0);
                 html += `<div style="text-align:center;padding:0.75rem;background:var(--bg-secondary);border-radius:var(--radius-md);">
-                    <div style="font-size:1.25rem;">${f.icon}</div>
+                    <div style="font-size:1rem;font-weight:600;">${f.icon}</div>
                     <div class="metric-label" style="margin:0.25rem 0;">${f.label}</div>
-                    <div style="font-size:1rem;font-weight:500;color:${color};">${arrow} ${isBoost ? '+' : ''}${pctChange}%</div>
+                    <div style="font-size:1rem;font-weight:500;color:${color};">${arrow}${isBoost ? '+' : ''}${pctChange}%</div>
                     <div style="font-size:0.6875rem;color:var(--text-muted);">×${mult.toFixed(2)}</div>
                 </div>`;
             });
@@ -1502,9 +1502,9 @@
     // ── Geopolitisches Radar ──────────────────────────────────────────────
     (function loadGeoRadar() {
         const EXPOSURE_COLORS = {
-            'HOCH': { bg: 'rgba(220,38,38,0.15)', border: 'rgba(220,38,38,0.4)', text: '#fca5a5' },
-            'MITTEL': { bg: 'rgba(234,179,8,0.12)', border: 'rgba(234,179,8,0.35)', text: '#fde68a' },
-            'GERING': { bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.35)', text: '#6ee7b7' },
+            'HOCH': { bg: 'rgba(255,0,0,0.08)', border: 'rgba(255,0,0,0.15)', text: 'var(--signal-negative)' },
+            'MITTEL': { bg: 'rgba(255,255,255,0.08)', border: 'rgba(255,255,255,0.2)', text: 'var(--text-secondary)' },
+            'GERING': { bg: 'rgba(0,255,0,0.06)', border: 'rgba(0,255,0,0.15)', text: 'var(--signal-positive)' },
             'KEINE': { bg: 'rgba(255,255,255,0.04)', border: 'rgba(255,255,255,0.1)', text: 'var(--text-muted)' },
         };
 
@@ -1534,17 +1534,17 @@
                         scanBadge.textContent = 'Ø Schweregrad ' + avg + '/10';
                         scanBadge.style.display = '';
                         if (avg >= 7) {
-                            scanBadge.style.background = 'rgba(220,38,38,0.2)';
-                            scanBadge.style.color = '#fca5a5';
-                            scanBadge.style.border = '1px solid rgba(220,38,38,0.4)';
+                            scanBadge.style.background = 'rgba(255,0,0,0.1)';
+                            scanBadge.style.color = 'var(--signal-negative)';
+                            scanBadge.style.border = '1px solid rgba(255,0,0,0.2)';
                         } else if (avg >= 4) {
-                            scanBadge.style.background = 'rgba(234,179,8,0.15)';
-                            scanBadge.style.color = '#fde68a';
-                            scanBadge.style.border = '1px solid rgba(234,179,8,0.3)';
+                            scanBadge.style.background = 'rgba(255,255,255,0.08)';
+                            scanBadge.style.color = 'var(--text-secondary)';
+                            scanBadge.style.border = '1px solid rgba(255,255,255,0.2)';
                         } else {
-                            scanBadge.style.background = 'rgba(16,185,129,0.12)';
-                            scanBadge.style.color = '#6ee7b7';
-                            scanBadge.style.border = '1px solid rgba(16,185,129,0.3)';
+                            scanBadge.style.background = 'rgba(0,255,0,0.06)';
+                            scanBadge.style.color = 'var(--signal-positive)';
+                            scanBadge.style.border = '1px solid rgba(0,255,0,0.15)';
                         }
                     }
                 }

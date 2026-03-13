@@ -8,52 +8,52 @@
 :root {
   /* === BREATHE SYSTEM — The Deep (Dark Mode) === */
   
-  --bg-primary: #080810;
-  --bg-secondary: #0E0E1A;
-  --bg-tertiary: #141426;
-  --bg-hover: #1c1c21;
-  --bg-inverse: #f0ece6;
-  --bg-card: #0E0E1A;
-  --bg-card-hover: #141426;
-  --bg-elevated: #141426;
-  --nav-bg: rgba(8, 8, 16, 0.65);
+  --bg-primary: #000000;
+  --bg-secondary: #111111;
+  --bg-tertiary: #222222;
+  --bg-hover: #333333;
+  --bg-inverse: #FFFFFF;
+  --bg-card: #111111;
+  --bg-card-hover: #222222;
+  --bg-elevated: #222222;
+  --nav-bg: rgba(0, 0, 0, 0.65);
 
-  --surface-black: #0c0c0e;
-  --surface-soft: #111114;
-  --surface-muted: #16161a;
+  --surface-black: #000000;
+  --surface-soft: #111111;
+  --surface-muted: #222222;
   --surface-glass: rgba(255, 255, 255, 0.03);
 
-  --text-primary: #EEE8DC;
-  --text-secondary: #9990A0;
-  --text-muted: #6b6560;
-  --text-ghost: #3d3935;
-  --text-inverse: #080810;
+  --text-primary: #FFFFFF;
+  --text-secondary: #CCCCCC;
+  --text-muted: #999999;
+  --text-ghost: #666666;
+  --text-inverse: #000000;
 
-  --signal-positive: #4EE88A;
-  --signal-negative: #E86060;
-  --signal-neutral: #60A8E8;
-  --signal-warning: #d4a84b;
-  --signal-positive-bg: rgba(78, 232, 138, 0.08);
-  --signal-negative-bg: rgba(232, 96, 96, 0.06);
-  --signal-neutral-bg: rgba(96, 168, 232, 0.03);
+  --signal-positive: #00FF00;
+  --signal-negative: #FF0000;
+  --signal-neutral: #FFFFFF;
+  --signal-warning: #FFFF00;
+  --signal-positive-bg: rgba(0, 255, 0, 0.08);
+  --signal-negative-bg: rgba(255, 0, 0, 0.06);
+  --signal-neutral-bg: rgba(255, 255, 255, 0.03);
 
-  --glow-positive: #6BFF9E;
-  --glow-negative: #FF6B6B;
-  --glow-neutral: #6BB8FF;
-  --glow-gold: #FFD87A;
-  --glow-ice: #A8D8FF;
-  --glow-amber: #FFB347;
-  --glow-sky: #B8DAFF;
+  --glow-positive: #00FF00;
+  --glow-negative: #FF0000;
+  --glow-neutral: #FFFFFF;
+  --glow-gold: #FFFF00;
+  --glow-ice: #FFFFFF;
+  --glow-amber: #FFFF00;
+  --glow-sky: #FFFFFF;
   --glow-intensity: 0.6;
   --glow-radius-near: 120px;
   --glow-radius-far: 400px;
   --card-glow-color: var(--glow-neutral);
 
-  --accent-warm: #e8e4de;
-  --accent-cool: #9a9590;
+  --accent-warm: #FFFFFF;
+  --accent-cool: #CCCCCC;
   --accent-line: rgba(255, 255, 255, 0.1);
-  --accent-bright: #ffffff;
-  --accent-focus: #EEE8DC;
+  --accent-bright: #FFFFFF;
+  --accent-focus: #FFFFFF;
   --accent-glow: rgba(255, 255, 255, 0.04);
   --nav-hover: rgba(255, 255, 255, 0.05);
 
@@ -153,50 +153,54 @@
 [data-theme="light"] {
   /* === BREATHE SYSTEM — The Breath (Light Mode) === */
   
-  --bg-primary: #F5F0E8;
-  --bg-secondary: #EDE8DF;
-  --bg-tertiary: #E4DFD4;
-  --bg-hover: #e0dcd4;
-  --bg-inverse: #18141e;
-  --bg-card: #EDE8DF;
-  --bg-card-hover: #E4DFD4;
-  --bg-elevated: #F5F0E8;
-  --nav-bg: rgba(245, 240, 232, 0.85);
+  --bg-primary: #FFFFFF;
+  --bg-secondary: #F5F5F5;
+  --bg-tertiary: #EEEEEE;
+  --bg-hover: #DDDDDD;
+  --bg-inverse: #000000;
+  --bg-card: #F5F5F5;
+  --bg-card-hover: #EEEEEE;
+  --bg-elevated: #FFFFFF;
+  --nav-bg: rgba(255, 255, 255, 0.85);
 
-  --surface-black: #f7f5f0;
-  --surface-soft: #efece6;
-  --surface-muted: #e8e4dd;
+  --surface-black: #FFFFFF;
+  --surface-soft: #F5F5F5;
+  --surface-muted: #EEEEEE;
   --surface-glass: rgba(0, 0, 0, 0.03);
 
-  --text-primary: #18141E;
-  --text-secondary: #5C5468;
-  --text-muted: #7a756e;
-  --text-ghost: #b5b0a8;
-  --text-inverse: #F5F0E8;
+  --text-primary: #000000;
+  --text-secondary: #222222;
+  --text-muted: #444444;
+  --text-ghost: #777777;
+  --text-inverse: #FFFFFF;
 
-  --signal-positive: #0D7A3C;
-  --signal-negative: #A01818;
-  --signal-neutral: #1456A0;
-  --signal-warning: #9a7520;
-  --signal-positive-bg: rgba(13, 122, 60, 0.1);
-  --signal-negative-bg: rgba(160, 24, 24, 0.08);
-  --signal-neutral-bg: rgba(20, 86, 160, 0.04);
+  --signal-positive: #006400;
+  --signal-negative: #8B0000;
+  --signal-neutral: #000000;
+  --signal-warning: #8B8B00;
+  --signal-positive-bg: rgba(0, 100, 0, 0.1);
+  --signal-negative-bg: rgba(139, 0, 0, 0.08);
+  --signal-neutral-bg: rgba(0, 0, 0, 0.04);
 
-  --accent-warm: #18141E;
-  --accent-cool: #5C5468;
-  --accent-line: rgba(0, 0, 0, 0.12);
-  --accent-bright: #18141E;
-  --accent-focus: #18141E;
-  --accent-glow: rgba(0, 0, 0, 0.05);
-  --nav-hover: rgba(0, 0, 0, 0.06);
+  --accent-warm: #000000;
+  --accent-cool: #222222;
+  --accent-line: rgba(0, 0, 0, 0.15);
+  --accent-bright: #000000;
+  --accent-focus: #000000;
+  --accent-glow: rgba(0, 0, 0, 0.07);
+  --nav-hover: rgba(0, 0, 0, 0.08);
 
-  --border-primary: rgba(0,0,0,0.07);
-  --border-highlight: rgba(255,255,255,0.80);
-  --border-hairline: rgba(0, 0, 0, 0.07);
-  --border-light: rgba(0, 0, 0, 0.18);
-  --border-default: rgba(0, 0, 0, 0.25);
-  --border-strong: rgba(0, 0, 0, 0.35);
+  --border-primary: rgba(0,0,0,0.10);
+  --border-highlight: rgba(0,0,0,0.90);
+  --border-hairline: rgba(0, 0, 0, 0.10);
+  --border-light: rgba(0, 0, 0, 0.20);
+  --border-default: rgba(0, 0, 0, 0.30);
+  --border-strong: rgba(0, 0, 0, 0.40);
   --border-focus: var(--border-highlight);
+
+  /* Dynamic glow colors - can be overridden by user settings */
+  --glow-primary: var(--glow-neutral);
+  --glow-secondary: var(--glow-gold);
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.06);
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.07);
@@ -273,11 +277,12 @@ body {
   top: -10%; right: -10%;
   width: 800px; height: 800px;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--glow-gold) 0%, transparent 60%);
+  background: radial-gradient(circle, var(--glow-primary, var(--glow-gold)) 0%, transparent 60%);
   filter: blur(80px);
   opacity: 0.25;
   animation: luminary-drift var(--duration-float) ease-in-out infinite alternate;
   will-change: transform;
+  transition: background 1s var(--ease-smooth);
 }
 
 .luminary::after {
@@ -286,11 +291,12 @@ body {
   bottom: -10%; left: -10%;
   width: 600px; height: 600px;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--glow-ice) 0%, transparent 60%);
+  background: radial-gradient(circle, var(--glow-secondary, var(--glow-ice)) 0%, transparent 60%);
   filter: blur(60px);
   opacity: 0.18;
   animation: luminary-drift var(--duration-float) ease-in-out infinite alternate-reverse;
   will-change: transform;
+  transition: background 1s var(--ease-smooth);
 }
 
 [data-theme="light"] .luminary {
@@ -298,12 +304,12 @@ body {
 }
 
 [data-theme="light"] .luminary::before {
-  background: radial-gradient(circle, var(--glow-amber) 0%, transparent 60%);
+  background: radial-gradient(circle, var(--glow-primary, var(--glow-amber)) 0%, transparent 60%);
   opacity: 0.15;
 }
 
 [data-theme="light"] .luminary::after {
-  background: radial-gradient(circle, var(--glow-sky) 0%, transparent 60%);
+  background: radial-gradient(circle, var(--glow-secondary, var(--glow-sky)) 0%, transparent 60%);
   opacity: 0.10;
 }
 

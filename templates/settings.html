@@ -1011,6 +1011,22 @@
                                 </div>
                                 <input type="range" id="glow-intensity-slider" min="0" max="100" step="5" value="60" style="width: 100%;">
                             </div>
+
+                            <!-- Glow Color Selector -->
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2);">
+                                    <div style="font-size: 0.875rem; font-weight: 500; color: var(--text-primary);">Glow Color</div>
+                                    <span id="glow-color-val" style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">Neutral</span>
+                                </div>
+                                <select id="glow-color-selector" style="width: 100%; padding: 8px; background: var(--bg-secondary); border: 1px solid var(--border-light); border-radius: 4px; color: var(--text-primary);">
+                                    <option value="neutral">Neutral (White)</option>
+                                    <option value="gold">Gold (Yellow)</option>
+                                    <option value="positive">Positive (Green)</option>
+                                    <option value="negative">Negative (Red)</option>
+                                    <option value="amber">Amber (Orange)</option>
+                                    <option value="ice">Ice (Blue)</option>
+                                </select>
+                            </div>
                         </div>
 
                         <!-- Right Col: Preview -->
@@ -1019,9 +1035,9 @@
                             
                             <!-- Mini Preview Thumbnail -->
                             <div style="position: relative; width: 200px; height: 120px; background: var(--bg-primary); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-default); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-                                <!-- Background Glow -->
-                                <div style="position: absolute; top: 20%; left: 20%; width: 60px; height: 60px; background: var(--glow-gold); filter: blur(20px); opacity: calc(var(--glow-intensity, 0.6)); transition: opacity 0.2s; border-radius: 50%;"></div>
-                                <div style="position: absolute; bottom: 10%; right: 10%; width: 80px; height: 80px; background: var(--glow-amber); filter: blur(25px); opacity: calc(var(--glow-intensity, 0.6) * 0.7); transition: opacity 0.2s; border-radius: 50%;"></div>
+                                <!-- Background Glow - Dynamic based on user selection -->
+                                <div style="position: absolute; top: 20%; left: 20%; width: 60px; height: 60px; background: var(--glow-primary, var(--glow-gold)); filter: blur(20px); opacity: calc(var(--glow-intensity, 0.6)); transition: opacity 0.2s, background 0.3s; border-radius: 50%;"></div>
+                                <div style="position: absolute; bottom: 10%; right: 10%; width: 80px; height: 80px; background: var(--glow-secondary, var(--glow-amber)); filter: blur(25px); opacity: calc(var(--glow-intensity, 0.6) * 0.7); transition: opacity 0.2s, background 0.3s; border-radius: 50%;"></div>
                                 
                                 <!-- Mini Grid -->
                                 <div style="position: absolute; inset: 0; background-image: linear-gradient(var(--border-light) 1px, transparent 1px), linear-gradient(90deg, var(--border-light) 1px, transparent 1px); background-size: 15px 15px; opacity: 0.3;"></div>
@@ -1751,6 +1767,42 @@ def run(context: dict, settings: dict) -> dict:
                 document.documentElement.style.setProperty('--glow-intensity', (val / 100).toString());
                 localStorage.setItem('stockholm-glow-intensity', val);
             });
+        }
+
+        // Glow Color Selector
+        const glowColorSelector = document.getElementById('glow-color-selector');
+        const glowColorVal = document.getElementById('glow-color-val');
+        if (glowColorSelector && glowColorVal) {
+            // Define glow color mappings
+            const glowColorMap = {
+                'neutral': { primary: '--glow-neutral', secondary: '--glow-ice', display: 'Neutral' },
+                'gold': { primary: '--glow-gold', secondary: '--glow-amber', display: 'Gold' },
+                'positive': { primary: '--glow-positive', secondary: '--glow-positive', display: 'Positive' },
+                'negative': { primary: '--glow-negative', secondary: '--glow-negative', display: 'Negative' },
+                'amber': { primary: '--glow-amber', secondary: '--glow-gold', display: 'Amber' },
+                'ice': { primary: '--glow-ice', secondary: '--glow-sky', display: 'Ice' }
+            };
+
+            // Load saved glow color or default to neutral
+            const savedGlowColor = localStorage.getItem('stockholm-glow-color') || 'neutral';
+            glowColorSelector.value = savedGlowColor;
+            updateGlowColor(savedGlowColor);
+
+            glowColorSelector.addEventListener('change', (e) => {
+                const color = e.target.value;
+                updateGlowColor(color);
+                localStorage.setItem('stockholm-glow-color', color);
+            });
+
+            function updateGlowColor(color) {
+                const colorConfig = glowColorMap[color] || glowColorMap.neutral;
+                glowColorVal.textContent = colorConfig.display;
+                
+                // Update CSS variables
+                const root = document.documentElement;
+                root.style.setProperty('--glow-primary', `var(${colorConfig.primary})`);
+                root.style.setProperty('--glow-secondary', `var(${colorConfig.secondary})`);
+            }
         }
         
         // Deep Sleep Status Fetch
