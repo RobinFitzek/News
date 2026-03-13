@@ -111,7 +111,37 @@ class Database:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        
+
+        # Personal API Keys (bearer tokens for external tool access)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS personal_api_keys (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key_hash TEXT NOT NULL UNIQUE,
+                label TEXT NOT NULL,
+                scope TEXT NOT NULL DEFAULT 'read',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_used_at TIMESTAMP
+            )
+        """)
+
+        # Plugins (local .py file plugins)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS plugins (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                filename TEXT UNIQUE NOT NULL,
+                plugin_type TEXT NOT NULL DEFAULT 'notifier',
+                enabled INTEGER NOT NULL DEFAULT 0,
+                settings TEXT NOT NULL DEFAULT '{}',
+                version TEXT DEFAULT '1.0.0',
+                description TEXT DEFAULT '',
+                author TEXT DEFAULT '',
+                installed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_run_at TIMESTAMP,
+                last_error TEXT
+            )
+        """)
+
         # Watchlist
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS watchlist (
@@ -3142,6 +3172,114 @@ class Database:
                 SET status = 'dismissed', dismissed_at = ?, dismiss_reason = ?
                 WHERE id = ? AND status IN ('new', 'screened')
             """, (datetime.now().isoformat(), reason, disc_id))
+
+
+    # === Personal API Keys ===
+
+    def create_personal_api_key(self, key_hash: str, label: str, scope: str = 'read') -> int:
+        """Store a new personal API key hash and return its id."""
+        cursor = self.execute(
+            "INSERT INTO personal_api_keys (key_hash, label, scope, created_at) VALUES (?, ?, ?, ?)",
+            (key_hash, label, scope, datetime.now().isoformat())
+        )
+        return cursor.lastrowid
+
+    def list_personal_api_keys(self) -> list:
+        """List all personal API keys (no hashes)."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, label, scope, created_at, last_used_at FROM personal_api_keys ORDER BY created_at DESC")
+        rows = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return rows
+
+    def get_personal_api_key_by_hash(self, key_hash: str) -> Optional[dict]:
+        """Look up a personal API key by its SHA-256 hash."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, label, scope, created_at, last_used_at FROM personal_api_keys WHERE key_hash = ?", (key_hash,))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def touch_personal_api_key(self, key_hash: str):
+        """Update last_used_at for a personal API key."""
+        self.execute(
+            "UPDATE personal_api_keys SET last_used_at = ? WHERE key_hash = ?",
+            (datetime.now().isoformat(), key_hash)
+        )
+
+    def revoke_personal_api_key(self, key_id: int):
+        """Delete a personal API key by id."""
+        self.execute("DELETE FROM personal_api_keys WHERE id = ?", (key_id,))
+
+    # === Plugins ===
+
+    def upsert_plugin(self, filename: str, name: str, plugin_type: str,
+                      version: str = '1.0.0', description: str = '', author: str = '') -> int:
+        """Insert or update a plugin record. Returns the plugin id."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM plugins WHERE filename = ?", (filename,))
+        existing = cursor.fetchone()
+        conn.close()
+        if existing:
+            self.execute(
+                "UPDATE plugins SET name=?, plugin_type=?, version=?, description=?, author=? WHERE filename=?",
+                (name, plugin_type, version, description, author, filename)
+            )
+            return existing['id']
+        cursor = self.execute(
+            "INSERT INTO plugins (name, filename, plugin_type, version, description, author, installed_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (name, filename, plugin_type, version, description, author, datetime.now().isoformat())
+        )
+        return cursor.lastrowid
+
+    def list_plugins(self) -> list:
+        """List all installed plugins."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM plugins ORDER BY installed_at DESC")
+        rows = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return rows
+
+    def get_plugin(self, plugin_id: int) -> Optional[dict]:
+        """Get a single plugin by id."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM plugins WHERE id = ?", (plugin_id,))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def get_plugin_by_filename(self, filename: str) -> Optional[dict]:
+        """Get a plugin by filename."""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM plugins WHERE filename = ?", (filename,))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
+
+    def update_plugin_settings(self, plugin_id: int, settings_json: str):
+        """Save plugin settings as JSON string."""
+        self.execute("UPDATE plugins SET settings = ? WHERE id = ?", (settings_json, plugin_id))
+
+    def toggle_plugin(self, plugin_id: int, enabled: bool):
+        """Enable or disable a plugin."""
+        self.execute("UPDATE plugins SET enabled = ? WHERE id = ?", (1 if enabled else 0, plugin_id))
+
+    def delete_plugin(self, plugin_id: int):
+        """Remove a plugin record from the DB."""
+        self.execute("DELETE FROM plugins WHERE id = ?", (plugin_id,))
+
+    def set_plugin_last_run(self, plugin_id: int, error: Optional[str] = None):
+        """Update last_run_at and optionally store last_error."""
+        self.execute(
+            "UPDATE plugins SET last_run_at = ?, last_error = ? WHERE id = ?",
+            (datetime.now().isoformat(), error, plugin_id)
+        )
 
 
 # Singleton

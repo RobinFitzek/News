@@ -3,6 +3,7 @@ Session-based authentication for single-user deployment
 Simple but secure authentication system for home network use.
 """
 import bcrypt
+import hashlib
 from datetime import datetime, timedelta
 from typing import Optional
 import secrets
@@ -161,6 +162,27 @@ class AuthManager:
             'enabled': bool(row.get('totp_enabled')),
             'has_secret': bool(row.get('totp_secret')),
         }
+
+    # === Personal API Keys (#42) ===
+
+    def generate_personal_api_key(self, label: str, scope: str = 'read') -> tuple:
+        """Generate a new personal API key. Returns (raw_key, key_id).
+        The raw key is shown ONCE — only the SHA-256 hash is stored."""
+        raw_key = "sk_" + secrets.token_hex(32)  # 67 chars: sk_ + 64 hex
+        key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
+        key_id = db.create_personal_api_key(key_hash=key_hash, label=label, scope=scope)
+        return raw_key, key_id
+
+    def validate_bearer_token(self, token: str) -> Optional[tuple]:
+        """Validate a Bearer token. Returns (username, scope) or None."""
+        if not token or not token.startswith("sk_"):
+            return None
+        key_hash = hashlib.sha256(token.encode()).hexdigest()
+        row = db.get_personal_api_key_by_hash(key_hash)
+        if not row:
+            return None
+        db.touch_personal_api_key(key_hash)
+        return ("admin", row["scope"])
 
     def use_backup_code(self, username: str, code: str) -> bool:
         """Try to use a backup code. Returns True and removes the code if valid."""

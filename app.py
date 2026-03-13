@@ -21,6 +21,7 @@ from core.auth import auth_manager
 from core.csrf import csrf
 from core.rate_limit import limiter
 from core.audit_log import audit_log
+from core.plugin_manager import plugin_manager
 from scheduler import scheduler
 from slowapi.errors import RateLimitExceeded
 from fastapi.responses import JSONResponse
@@ -132,6 +133,23 @@ def require_auth(request: Request) -> str:
                 headers={"Location": "/change-password"}
             )
     return username
+
+
+def require_api_key_or_session(request: Request) -> str:
+    """
+    Accept either a valid Bearer token (personal API key) or an active session cookie.
+    Used on all /api/* endpoints to enable external tool access.
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()
+        result = auth_manager.validate_bearer_token(token)
+        if result:
+            return result[0]  # username
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired API key")
+    # Fall back to session-based auth
+    return require_auth_basic(request)
+
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
@@ -506,7 +524,7 @@ async def dashboard(request: Request, username: str = Depends(require_auth)):
 # ==================== SYSTEM HEALTH ====================
 
 @app.get("/api/health")
-async def api_health(username: str = Depends(require_auth)):
+async def api_health(username: str = Depends(require_api_key_or_session)):
     """System health monitor endpoint for the dashboard widget"""
     from engine.health_monitor import health_monitor
     try:
@@ -517,7 +535,7 @@ async def api_health(username: str = Depends(require_auth)):
 # ==================== GEOPOLITICAL ====================
 
 @app.get("/api/geopolitical")
-async def api_geopolitical(username: str = Depends(require_auth)):
+async def api_geopolitical(username: str = Depends(require_api_key_or_session)):
     """Return the latest geopolitical scan (max 24h old)"""
     try:
         scan = db.get_latest_geopolitical_scan()
@@ -526,12 +544,12 @@ async def api_geopolitical(username: str = Depends(require_auth)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/macro/events")
-async def api_macro_events(days: int = 14, username: str = Depends(require_auth)):
+async def api_macro_events(days: int = 14, username: str = Depends(require_api_key_or_session)):
     from engine.macro_tracker import macro_tracker
     return {"events": macro_tracker.get_upcoming_events(days_ahead=days)}
 
 @app.get("/api/geopolitical/exposure")
-async def api_geopolitical_exposure(username: str = Depends(require_auth)):
+async def api_geopolitical_exposure(username: str = Depends(require_api_key_or_session)):
     """Return per-ticker geopolitical exposure from the latest analysis"""
     try:
         watchlist = db.get_watchlist()
@@ -551,7 +569,7 @@ async def api_geopolitical_exposure(username: str = Depends(require_auth)):
 # ==================== SIGNAL ACCURACY ====================
 
 @app.get("/api/signal-accuracy")
-async def api_signal_accuracy(username: str = Depends(require_auth)):
+async def api_signal_accuracy(username: str = Depends(require_api_key_or_session)):
     """Provides accuracy and breakdown of predictive signals."""
     from engine.signal_grader import signal_grader
     try:
@@ -566,7 +584,7 @@ async def api_signal_accuracy(username: str = Depends(require_auth)):
 # ==================== AUTO PAPER TRADING ====================
 
 @app.get("/api/paper-trading/auto")
-async def api_auto_paper_trading(username: str = Depends(require_auth)):
+async def api_auto_paper_trading(username: str = Depends(require_api_key_or_session)):
     """Provides automated paper trading tracking (legacy endpoint)."""
     from engine.auto_paper_trader import auto_paper_trader
     try:
@@ -581,7 +599,7 @@ async def api_auto_paper_trading(username: str = Depends(require_auth)):
 # ==================== AUTO-TRADE API ====================
 
 @app.get("/api/auto-trade/status")
-async def api_auto_trade_status(username: str = Depends(require_auth)):
+async def api_auto_trade_status(username: str = Depends(require_api_key_or_session)):
     from engine.auto_paper_trader import auto_paper_trader
     try:
         return auto_paper_trader.get_status()
@@ -589,7 +607,7 @@ async def api_auto_trade_status(username: str = Depends(require_auth)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/auto-trade/trust-gate")
-async def api_auto_trade_trust_gate(username: str = Depends(require_auth)):
+async def api_auto_trade_trust_gate(username: str = Depends(require_api_key_or_session)):
     from engine.auto_paper_trader import auto_paper_trader
     try:
         return auto_paper_trader.get_trust_gate()
@@ -597,7 +615,7 @@ async def api_auto_trade_trust_gate(username: str = Depends(require_auth)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/auto-trade/positions")
-async def api_auto_trade_positions(username: str = Depends(require_auth)):
+async def api_auto_trade_positions(username: str = Depends(require_api_key_or_session)):
     from engine.auto_paper_trader import auto_paper_trader
     try:
         return {"positions": auto_paper_trader.get_open_positions()}
@@ -607,7 +625,7 @@ async def api_auto_trade_positions(username: str = Depends(require_auth)):
 @app.get("/api/auto-trade/log")
 async def api_auto_trade_log(
     page: int = 1,
-    username: str = Depends(require_auth)
+    username: str = Depends(require_api_key_or_session)
 ):
     from engine.auto_paper_trader import auto_paper_trader
     try:
@@ -621,7 +639,7 @@ async def api_auto_trade_log(
 async def api_auto_trade_close(
     trade_id: int,
     request: Request,
-    username: str = Depends(require_auth)
+    username: str = Depends(require_api_key_or_session)
 ):
     from engine.auto_paper_trader import auto_paper_trader
     try:
@@ -635,7 +653,7 @@ async def api_auto_trade_close(
 @app.post("/api/auto-trade/toggle")
 async def api_auto_trade_toggle(
     request: Request,
-    username: str = Depends(require_auth)
+    username: str = Depends(require_api_key_or_session)
 ):
     from core.database import db as _db
     current = _db.get_setting("auto_trade_enabled") or False
@@ -645,7 +663,7 @@ async def api_auto_trade_toggle(
     return {"enabled": not current}
 
 @app.get("/api/auto-trade/pending-confirm")
-async def api_auto_trade_pending(username: str = Depends(require_auth)):
+async def api_auto_trade_pending(username: str = Depends(require_api_key_or_session)):
     from engine.auto_paper_trader import auto_paper_trader
     try:
         return {"pending": auto_paper_trader.get_pending_confirmations()}
@@ -656,7 +674,7 @@ async def api_auto_trade_pending(username: str = Depends(require_auth)):
 async def api_auto_trade_confirm(
     token: str,
     request: Request,
-    username: str = Depends(require_auth)
+    username: str = Depends(require_api_key_or_session)
 ):
     from engine.auto_paper_trader import auto_paper_trader
     result = auto_paper_trader.confirm_trade(token)
@@ -669,7 +687,7 @@ async def api_auto_trade_confirm(
 async def api_auto_trade_skip(
     token: str,
     request: Request,
-    username: str = Depends(require_auth)
+    username: str = Depends(require_api_key_or_session)
 ):
     from engine.auto_paper_trader import auto_paper_trader
     result = auto_paper_trader.skip_trade(token)
@@ -678,7 +696,7 @@ async def api_auto_trade_skip(
     return result
 
 @app.get("/api/auto-trade/risk-gate-status")
-async def api_auto_trade_risk_gate(username: str = Depends(require_auth)):
+async def api_auto_trade_risk_gate(username: str = Depends(require_api_key_or_session)):
     from engine.auto_paper_trader import auto_paper_trader
     try:
         return auto_paper_trader.get_risk_gate_status()
@@ -686,7 +704,7 @@ async def api_auto_trade_risk_gate(username: str = Depends(require_auth)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/export/auto-trades")
-async def export_auto_trades(username: str = Depends(require_auth)):
+async def export_auto_trades(username: str = Depends(require_api_key_or_session)):
     """CSV export of all auto paper trades."""
     import csv, io
     from fastapi.responses import StreamingResponse
@@ -723,7 +741,7 @@ async def export_auto_trades(username: str = Depends(require_auth)):
 # ==================== AUTO-TRADE PROPOSE / ACTION LINKS ====================
 
 @app.post("/api/auto-trade/propose")
-async def api_auto_trade_propose(request: Request, username: str = Depends(require_auth)):
+async def api_auto_trade_propose(request: Request, username: str = Depends(require_api_key_or_session)):
     """Manually propose an auto-trade for a specific analysis (dashboard Auto-Execute button)."""
     from engine.auto_paper_trader import auto_paper_trader
     from core.database import db as _db
@@ -807,7 +825,7 @@ async def action_auto_trade_skip(token: str, request: Request):
 
 
 @app.get("/api/auto-trade/equity-curve")
-async def api_auto_trade_equity_curve(days: int = 30, username: str = Depends(require_auth)):
+async def api_auto_trade_equity_curve(days: int = 30, username: str = Depends(require_api_key_or_session)):
     """Cumulative auto-trade PnL by date for charting."""
     from core.database import db as _db
     cutoff = (datetime.now() - timedelta(days=min(days, 365))).strftime('%Y-%m-%d')
@@ -836,7 +854,7 @@ async def api_auto_trade_equity_curve(days: int = 30, username: str = Depends(re
 # ==================== BROKER / ORDER ROUTES (Phase 6) ====================
 
 @app.post("/api/orders/execute")
-async def api_orders_execute(request: Request, username: str = Depends(require_auth)):
+async def api_orders_execute(request: Request, username: str = Depends(require_api_key_or_session)):
     """Execute a trade entry. Body: {token} OR {ticker, direction, size_usd}."""
     from engine.order_manager import order_manager
     data = await request.json()
@@ -860,7 +878,7 @@ async def api_orders_execute(request: Request, username: str = Depends(require_a
 
 
 @app.post("/api/orders/close/{trade_id}")
-async def api_orders_close(trade_id: int, request: Request, username: str = Depends(require_auth)):
+async def api_orders_close(trade_id: int, request: Request, username: str = Depends(require_api_key_or_session)):
     """Close an open auto-trade position."""
     from engine.order_manager import order_manager
     data = {}
@@ -876,7 +894,7 @@ async def api_orders_close(trade_id: int, request: Request, username: str = Depe
 
 
 @app.get("/api/orders/status/{order_id}")
-async def api_orders_status(order_id: str, username: str = Depends(require_auth)):
+async def api_orders_status(order_id: str, username: str = Depends(require_api_key_or_session)):
     """Poll fill status for a broker order (best-effort)."""
     from clients.broker_client import get_broker_client, AlpacaBrokerClient
     broker = get_broker_client()
@@ -891,7 +909,7 @@ async def api_orders_status(order_id: str, username: str = Depends(require_auth)
 
 
 @app.get("/api/broker/account")
-async def api_broker_account(username: str = Depends(require_auth)):
+async def api_broker_account(username: str = Depends(require_api_key_or_session)):
     """Return broker account: equity, buying_power, cash, broker_last_sync."""
     from clients.broker_client import get_broker_client
     broker = get_broker_client()
@@ -901,7 +919,7 @@ async def api_broker_account(username: str = Depends(require_auth)):
 
 
 @app.get("/api/broker/positions")
-async def api_broker_positions(username: str = Depends(require_auth)):
+async def api_broker_positions(username: str = Depends(require_api_key_or_session)):
     """Return live broker positions."""
     from clients.broker_client import get_broker_client
     broker = get_broker_client()
@@ -909,7 +927,7 @@ async def api_broker_positions(username: str = Depends(require_auth)):
 
 
 @app.post("/api/broker/sync")
-async def api_broker_sync(username: str = Depends(require_auth)):
+async def api_broker_sync(username: str = Depends(require_api_key_or_session)):
     """Trigger manual broker position sync."""
     from engine.order_manager import order_manager
     synced = order_manager.sync_broker_positions()
@@ -921,7 +939,7 @@ async def api_broker_sync(username: str = Depends(require_auth)):
 _truth_banner_cache = {"data": None, "time": None}
 
 @app.get("/api/truth-banner")
-async def api_truth_banner(username: str = Depends(require_auth)):
+async def api_truth_banner(username: str = Depends(require_api_key_or_session)):
     """The single most important metric: system signals vs just buying SPY."""
     import yfinance as yf
     from datetime import datetime as dt, timedelta
@@ -1146,6 +1164,16 @@ async def settings_page(request: Request, username: str = Depends(require_auth))
     # Feature 6: Kill switch status
     system_paused = db.get_setting('system_paused_accuracy') or False
 
+    try:
+        personal_api_keys = db.list_personal_api_keys()
+    except Exception:
+        personal_api_keys = []
+
+    try:
+        plugins = db.list_plugins()
+    except Exception:
+        plugins = []
+
     return templates.TemplateResponse("settings.html", {
         "request": request,
         "csrf_token": request.state.csrf_token,
@@ -1161,6 +1189,8 @@ async def settings_page(request: Request, username: str = Depends(require_auth))
         "provider_shortcuts": PROVIDER_SHORTCUTS,
         "stage_info": STAGE_INFO,
         "system_paused": system_paused,
+        "personal_api_keys": personal_api_keys,
+        "plugins": plugins,
     })
 
 @app.post("/settings/clear-kill-switch")
@@ -1462,8 +1492,110 @@ async def save_api_keys(request: Request, username: str = Depends(require_auth))
     return RedirectResponse(url="/settings?saved=1", status_code=303)
 
 
+# ==================== PERSONAL API KEYS (#42) ====================
+
+@app.get("/api/personal-keys")
+async def list_personal_api_keys(request: Request, username: str = Depends(require_auth)):
+    """List personal API keys (session auth only — no bearer)."""
+    keys = db.list_personal_api_keys()
+    return {"keys": keys}
+
+
+@app.post("/api/personal-keys")
+async def generate_personal_api_key(request: Request, username: str = Depends(require_auth)):
+    """Generate a new personal API key. Returns the raw key ONCE — store it now."""
+    payload = await request.json()
+    label = (payload.get("label") or "").strip()
+    scope = (payload.get("scope") or "read").strip()
+    if not label:
+        raise HTTPException(status_code=400, detail="label is required")
+    if scope not in ("read", "write"):
+        raise HTTPException(status_code=400, detail="scope must be 'read' or 'write'")
+    raw_key, key_id = auth_manager.generate_personal_api_key(label=label, scope=scope)
+    return {"id": key_id, "raw_key": raw_key, "label": label, "scope": scope}
+
+
+@app.delete("/api/personal-keys/{key_id}")
+async def revoke_personal_api_key(key_id: int, request: Request, username: str = Depends(require_auth)):
+    """Revoke a personal API key by id (session auth only)."""
+    db.revoke_personal_api_key(key_id)
+    return {"status": "revoked"}
+
+
+# ==================== PLUGINS (#42.5) ====================
+
+@app.get("/api/plugins")
+async def api_list_plugins(request: Request, username: str = Depends(require_auth)):
+    """List all installed plugins."""
+    plugins = db.list_plugins()
+    # Add settings schema to each plugin record for the UI
+    for plugin in plugins:
+        try:
+            plugin["settings_schema"] = plugin_manager.get_plugin_settings_schema(plugin["id"])
+        except Exception:
+            plugin["settings_schema"] = {}
+    return {"plugins": plugins}
+
+
+@app.post("/api/plugins/install")
+async def api_install_plugin(request: Request, username: str = Depends(require_auth)):
+    """Install a plugin from an uploaded .py file (multipart/form-data)."""
+    from fastapi import UploadFile, File
+    form = await request.form()
+    file = form.get("file")
+    if file is None:
+        raise HTTPException(status_code=400, detail="No file uploaded")
+    filename = getattr(file, "filename", None) or "plugin.py"
+    if not filename.endswith(".py"):
+        raise HTTPException(status_code=400, detail="Only .py files are accepted")
+    content = await file.read()
+    try:
+        meta = plugin_manager.install(filename=filename, content=content)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    return meta
+
+
+@app.delete("/api/plugins/{plugin_id}")
+async def api_uninstall_plugin(plugin_id: int, request: Request, username: str = Depends(require_auth)):
+    """Uninstall a plugin by id."""
+    try:
+        plugin_manager.uninstall(plugin_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return {"status": "uninstalled"}
+
+
+@app.post("/api/plugins/{plugin_id}/toggle")
+async def api_toggle_plugin(plugin_id: int, request: Request, username: str = Depends(require_auth)):
+    """Enable or disable a plugin."""
+    payload = await request.json()
+    enabled = bool(payload.get("enabled", False))
+    db.toggle_plugin(plugin_id, enabled)
+    return {"status": "ok", "enabled": enabled}
+
+
+@app.post("/api/plugins/{plugin_id}/settings")
+async def api_update_plugin_settings(plugin_id: int, request: Request, username: str = Depends(require_auth)):
+    """Save plugin-specific settings."""
+    import json as _json
+    payload = await request.json()
+    settings = payload.get("settings", {})
+    if not isinstance(settings, dict):
+        raise HTTPException(status_code=400, detail="settings must be a JSON object")
+    db.update_plugin_settings(plugin_id, _json.dumps(settings))
+    return {"status": "ok"}
+
+
+@app.post("/api/plugins/{plugin_id}/run")
+async def api_run_plugin(plugin_id: int, request: Request, username: str = Depends(require_auth)):
+    """Manually trigger a plugin (test run). Uses a dummy context."""
+    result = plugin_manager.run_plugin(plugin_id)
+    return result
+
+
 @app.get("/api/providers")
-async def api_get_providers(request: Request, username: str = Depends(require_auth)):
+async def api_get_providers(request: Request, username: str = Depends(require_api_key_or_session)):
     """List custom API providers and usage stats."""
     providers = db.get_api_providers(include_secrets=False)
     enriched = []
@@ -1479,7 +1611,7 @@ async def api_get_providers(request: Request, username: str = Depends(require_au
 
 
 @app.post("/api/providers")
-async def api_create_provider(request: Request, username: str = Depends(require_auth)):
+async def api_create_provider(request: Request, username: str = Depends(require_api_key_or_session)):
     """Create a custom OpenAI-compatible provider."""
     payload = await request.json()
 
@@ -1513,7 +1645,7 @@ async def api_create_provider(request: Request, username: str = Depends(require_
 
 
 @app.put("/api/providers/{provider_id}")
-async def api_update_provider(provider_id: int, request: Request, username: str = Depends(require_auth)):
+async def api_update_provider(provider_id: int, request: Request, username: str = Depends(require_api_key_or_session)):
     """Update an existing custom OpenAI-compatible provider."""
     payload = await request.json()
 
@@ -1553,14 +1685,14 @@ async def api_update_provider(provider_id: int, request: Request, username: str 
 
 
 @app.delete("/api/providers/{provider_id}")
-async def api_delete_provider(provider_id: int, request: Request, username: str = Depends(require_auth)):
+async def api_delete_provider(provider_id: int, request: Request, username: str = Depends(require_api_key_or_session)):
     """Delete a custom provider."""
     db.delete_api_provider(provider_id)
     return {"status": "ok"}
 
 
 @app.post("/api/providers/{provider_id}/test")
-async def api_test_provider(provider_id: int, request: Request, username: str = Depends(require_auth)):
+async def api_test_provider(provider_id: int, request: Request, username: str = Depends(require_api_key_or_session)):
     """Test provider connectivity with a lightweight completion call."""
     result = provider_registry.test_provider(provider_id)
     if result.get("status") == "error" and result.get("error") == "provider_not_found":
@@ -1589,7 +1721,7 @@ async def peek_api_key(service: str, request: Request, username: str = Depends(r
 # ==================== STAGE ASSIGNMENT API ====================
 
 @app.get("/api/stage-assignments")
-async def api_get_stage_assignments(request: Request, username: str = Depends(require_auth)):
+async def api_get_stage_assignments(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get current pipeline stage → provider assignments."""
     assignments_list = db.get_stage_assignments()
     assignments = {a['stage_name']: a for a in assignments_list}
@@ -1598,7 +1730,7 @@ async def api_get_stage_assignments(request: Request, username: str = Depends(re
 
 
 @app.post("/api/stage-assignments")
-async def api_set_stage_assignments(request: Request, username: str = Depends(require_auth)):
+async def api_set_stage_assignments(request: Request, username: str = Depends(require_api_key_or_session)):
     """Save pipeline stage → provider assignments."""
     payload = await request.json()
     mode = payload.get("mode", "per_stage")
@@ -1943,7 +2075,7 @@ async def dismiss_discovery(
     return RedirectResponse(url="/discoveries", status_code=303)
 
 @app.get("/api/discovery/stats")
-async def api_discovery_stats(request: Request, username: str = Depends(require_auth)):
+async def api_discovery_stats(request: Request, username: str = Depends(require_api_key_or_session)):
     """JSON stats for discovery dashboard widget"""
     return db.get_discovery_stats()
 
@@ -2350,7 +2482,7 @@ async def add_trade(
     return RedirectResponse(url="/portfolio?added=1", status_code=303)
 
 @app.get("/portfolio/export")
-async def export_portfolio(request: Request, username: str = Depends(require_auth)):
+async def export_portfolio(request: Request, username: str = Depends(require_api_key_or_session)):
     """Export portfolio to CSV"""
     import csv
     import io
@@ -2591,7 +2723,7 @@ async def save_paper_trading_settings(
     return RedirectResponse(url="/paper-trading?saved=1", status_code=303)
 
 @app.get("/api/paper-trading/summary")
-async def api_paper_trading_summary(request: Request, username: str = Depends(require_auth)):
+async def api_paper_trading_summary(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get paper trading portfolio summary"""
     from engine.paper_trading import paper_trader
     return paper_trader.get_portfolio_summary()
@@ -2600,40 +2732,40 @@ async def api_paper_trading_summary(request: Request, username: str = Depends(re
 async def api_paper_trading_equity_curve(
     request: Request, 
     days: int = 30,
-    username: str = Depends(require_auth)
+    username: str = Depends(require_api_key_or_session)
 ):
     """Get equity curve data for charting"""
     from engine.paper_trading import paper_trader
     return paper_trader.get_equity_curve(days_back=min(days, 365))
 
 @app.get("/api/signal-ev")
-async def api_signal_ev(request: Request, username: str = Depends(require_auth)):
+async def api_signal_ev(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get Signal Expected Value - avg returns per signal type and confidence"""
     return learning_optimizer.feedback.calculate_signal_ev()
 
 @app.get("/api/calibration")
-async def api_calibration(request: Request, username: str = Depends(require_auth)):
+async def api_calibration(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get calibration curve data: predicted confidence vs actual hit rate"""
     return learning_optimizer.feedback.calculate_calibration()
 
 @app.get("/api/ab-comparison")
-async def api_ab_comparison(request: Request, username: str = Depends(require_auth)):
+async def api_ab_comparison(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get quant-only vs quant+AI accuracy comparison"""
     return learning_optimizer.feedback.calculate_ab_comparison()
 
 @app.get("/api/signal-decay")
-async def api_signal_decay(request: Request, username: str = Depends(require_auth)):
+async def api_signal_decay(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get signal accuracy at multiple time horizons (1d, 3d, 7d, 14d, 30d)"""
     return learning_optimizer.feedback.calculate_signal_decay()
 
 @app.get("/api/weight-history")
-async def api_weight_history(request: Request, username: str = Depends(require_auth)):
+async def api_weight_history(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get weight change audit trail"""
     return learning_optimizer.get_weight_history()
 
 @app.post("/api/weight-rollback/{version_id}")
 @limiter.limit("5/hour")
-async def api_weight_rollback(request: Request, version_id: int, username: str = Depends(require_auth)):
+async def api_weight_rollback(request: Request, version_id: int, username: str = Depends(require_api_key_or_session)):
     """Rollback to a previous weight version"""
     token = request.headers.get('X-CSRF-Token', '')
     if not csrf.validate_token(token):
@@ -2645,43 +2777,43 @@ async def api_weight_rollback(request: Request, version_id: int, username: str =
     return result
 
 @app.get("/api/paper-trading/risk-metrics")
-async def api_paper_risk_metrics(request: Request, username: str = Depends(require_auth)):
+async def api_paper_risk_metrics(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get risk-adjusted metrics for paper trading portfolio"""
     from engine.paper_trading import paper_trader
     return paper_trader.get_risk_metrics()
 
 @app.get("/api/paper-trading/spy-correlation")
-async def api_paper_spy_correlation(request: Request, username: str = Depends(require_auth)):
+async def api_paper_spy_correlation(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get portfolio beta and alpha vs SPY"""
     from engine.paper_trading import paper_trader
     return paper_trader.get_spy_correlation()
 
 @app.get("/api/sector-momentum")
-async def api_sector_momentum(request: Request, username: str = Depends(require_auth)):
+async def api_sector_momentum(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get sector momentum heat map data"""
     from engine.sector_momentum import sector_momentum
     return sector_momentum.get_heat_map_data()
 
 @app.get("/api/sector-momentum/rotation")
-async def api_sector_rotation(request: Request, username: str = Depends(require_auth)):
+async def api_sector_rotation(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get sector rotation signals"""
     from engine.sector_momentum import sector_momentum
     return sector_momentum.get_rotation_signals()
 
 @app.get("/api/economic-calendar")
-async def api_economic_calendar(request: Request, username: str = Depends(require_auth)):
+async def api_economic_calendar(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get upcoming market-moving events"""
     from engine.economic_calendar import economic_calendar
     return economic_calendar.get_calendar_summary()
 
 @app.get("/api/multi-timeframe/{ticker}")
-async def api_multi_timeframe(ticker: str, request: Request, username: str = Depends(require_auth)):
+async def api_multi_timeframe(ticker: str, request: Request, username: str = Depends(require_api_key_or_session)):
     """Get multi-timeframe analysis for a ticker"""
     from engine.multi_timeframe import multi_timeframe
     return multi_timeframe.analyze_ticker(ticker.upper())
 
 @app.get("/api/position-size/{ticker}")
-async def api_position_size(ticker: str, confidence: int = 70, portfolio: float = 100000, request: Request = None, username: str = Depends(require_auth)):
+async def api_position_size(ticker: str, confidence: int = 70, portfolio: float = 100000, request: Request = None, username: str = Depends(require_api_key_or_session)):
     """Get recommended position size for a ticker"""
     from engine.position_sizing import position_sizer
     return position_sizer.calculate_position_size(
@@ -2691,18 +2823,18 @@ async def api_position_size(ticker: str, confidence: int = 70, portfolio: float 
     )
 
 @app.get("/api/statistical-significance")
-async def api_statistical_significance(request: Request, username: str = Depends(require_auth)):
+async def api_statistical_significance(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get statistical significance of prediction accuracy"""
     return learning_optimizer.feedback.calculate_significance()
 
 @app.get("/api/drawdown")
-async def api_drawdown(request: Request, username: str = Depends(require_auth)):
+async def api_drawdown(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get drawdown analysis for paper trading"""
     from engine.drawdown_tracker import drawdown_tracker
     return drawdown_tracker.get_paper_trading_drawdown()
 
 @app.get("/api/reality-check")
-async def api_reality_check(request: Request, username: str = Depends(require_auth)):
+async def api_reality_check(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get comprehensive reality check dashboard"""
     from engine.drawdown_tracker import drawdown_tracker
     return drawdown_tracker.get_reality_dashboard()
@@ -2710,7 +2842,7 @@ async def api_reality_check(request: Request, username: str = Depends(require_au
 # ==================== API ENDPOINTS ====================
 
 @app.get("/api/status")
-async def api_status(request: Request, username: str = Depends(require_auth)):
+async def api_status(request: Request, username: str = Depends(require_api_key_or_session)):
     """API endpoint for status"""
     # Count stale analyses
     recent = db.get_analysis_history(limit=50)
@@ -2731,24 +2863,24 @@ async def api_status(request: Request, username: str = Depends(require_auth)):
     }
 
 @app.get("/api/scan-progress")
-async def api_scan_progress(request: Request, username: str = Depends(require_auth)):
+async def api_scan_progress(request: Request, username: str = Depends(require_api_key_or_session)):
     """Real-time scan progress for dashboard status bar"""
     from engine.scan_progress import scan_progress
     return scan_progress.get_state()
 
 @app.get("/api/discovery-status")
-async def api_discovery_status(request: Request, username: str = Depends(require_auth)):
+async def api_discovery_status(request: Request, username: str = Depends(require_api_key_or_session)):
     """Real-time discovery run status for discoveries page polling"""
     from engine.auto_discovery import discovery_status
     return discovery_status.get()
 
 @app.get("/api/budget")
-async def api_budget_status(request: Request, username: str = Depends(require_auth)):
+async def api_budget_status(request: Request, username: str = Depends(require_api_key_or_session)):
     """API endpoint for budget status (used by dashboard AJAX)"""
     return budget_tracker.get_budget_status()
 
 @app.get("/api/budget/status")
-async def api_budget_status_detail(request: Request, username: str = Depends(require_auth)):
+async def api_budget_status_detail(request: Request, username: str = Depends(require_api_key_or_session)):
     """Detailed budget health card endpoint (#29)."""
     status = budget_tracker.get_budget_status()
     # Compute avg cost per analysis from last 7 days
@@ -2771,7 +2903,7 @@ async def api_budget_status_detail(request: Request, username: str = Depends(req
     return status
 
 @app.get("/api/portfolio/alerts")
-async def api_portfolio_alerts(request: Request, username: str = Depends(require_auth)):
+async def api_portfolio_alerts(request: Request, username: str = Depends(require_api_key_or_session)):
     """Portfolio rule checks: position sizing, stop-loss, sector concentration, benchmark."""
     from engine.portfolio_manager import portfolio_manager
     from engine.alert_manager import alert_manager
@@ -2797,7 +2929,7 @@ async def api_portfolio_alerts(request: Request, username: str = Depends(require
 @app.post("/api/portfolio/alerts/ack")
 async def api_ack_portfolio_alert(
     request: Request,
-    username: str = Depends(require_auth)
+    username: str = Depends(require_api_key_or_session)
 ):
     """Acknowledge a deduplicated alert by id or hash."""
     from engine.alert_manager import alert_manager
@@ -2822,12 +2954,12 @@ async def api_ack_portfolio_alert(
     }
 
 @app.get("/api/signal-pnl")
-async def api_signal_pnl(request: Request, username: str = Depends(require_auth)):
+async def api_signal_pnl(request: Request, username: str = Depends(require_api_key_or_session)):
     """Signal P&L scorecard — aggregated prediction outcome stats."""
     return db.get_signal_pnl_summary()
 
 @app.get("/api/quant-screen")
-async def api_quant_screen(request: Request, username: str = Depends(require_auth)):
+async def api_quant_screen(request: Request, username: str = Depends(require_api_key_or_session)):
     """Run quant screener on watchlist — zero API cost."""
     from engine.quant_screener import quant_screener
     watchlist = db.get_watchlist(active_only=True)
@@ -2840,7 +2972,7 @@ async def api_quant_screen(request: Request, username: str = Depends(require_aut
 # ==================== DATA EXPORT ====================
 
 @app.get("/api/export/analyses")
-async def export_analyses(request: Request, format: str = "csv", username: str = Depends(require_auth)):
+async def export_analyses(request: Request, format: str = "csv", username: str = Depends(require_api_key_or_session)):
     """Export analysis history as CSV or JSON"""
     import csv
     import io
@@ -2876,7 +3008,7 @@ async def export_analyses(request: Request, format: str = "csv", username: str =
     )
 
 @app.get("/api/export/predictions")
-async def export_predictions(request: Request, format: str = "csv", username: str = Depends(require_auth)):
+async def export_predictions(request: Request, format: str = "csv", username: str = Depends(require_api_key_or_session)):
     """Export prediction outcomes as CSV or JSON"""
     import csv
     import io
@@ -2919,7 +3051,7 @@ async def export_predictions(request: Request, format: str = "csv", username: st
     )
 
 @app.get("/api/export/paper-trades")
-async def export_paper_trades(request: Request, format: str = "csv", username: str = Depends(require_auth)):
+async def export_paper_trades(request: Request, format: str = "csv", username: str = Depends(require_api_key_or_session)):
     """Export paper trading history as CSV or JSON"""
     import csv
     import io
@@ -2951,7 +3083,7 @@ async def export_paper_trades(request: Request, format: str = "csv", username: s
     )
 
 @app.get("/api/export/backtest/{run_id}")
-async def export_backtest(request: Request, run_id: int, format: str = "csv", username: str = Depends(require_auth)):
+async def export_backtest(request: Request, run_id: int, format: str = "csv", username: str = Depends(require_api_key_or_session)):
     """Export backtest results as CSV or JSON"""
     import csv
     import io
@@ -3041,14 +3173,14 @@ async def crosscheck_history(
 # ==================== MARKET REGIME ====================
 
 @app.get("/api/market-regime")
-async def api_market_regime(request: Request, username: str = Depends(require_auth)):
+async def api_market_regime(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get current market regime (bull/bear/choppy) with VIX and yield data."""
     from engine.market_regime import market_regime
     return market_regime.get_current_regime()
 
 
 @app.get("/api/regime-adjustments")
-async def api_regime_adjustments(request: Request, username: str = Depends(require_auth)):
+async def api_regime_adjustments(request: Request, username: str = Depends(require_api_key_or_session)):
     """Return active weight adjustment multipliers for the current market regime."""
     from engine.market_regime import market_regime
     regime_data = market_regime.get_current_regime()
@@ -3067,7 +3199,7 @@ async def api_regime_adjustments(request: Request, username: str = Depends(requi
 # ==================== PORTFOLIO BENCHMARK ====================
 
 @app.get("/api/portfolio/benchmark")
-async def api_portfolio_benchmark(request: Request, username: str = Depends(require_auth)):
+async def api_portfolio_benchmark(request: Request, username: str = Depends(require_api_key_or_session)):
     """Portfolio vs SPY benchmark comparison."""
     from engine.portfolio_benchmark import portfolio_benchmark
     return portfolio_benchmark.calculate_portfolio_vs_spy()
@@ -3075,7 +3207,7 @@ async def api_portfolio_benchmark(request: Request, username: str = Depends(requ
 # ==================== CONCENTRATION CHECK ====================
 
 @app.get("/api/portfolio/concentration")
-async def api_portfolio_concentration(request: Request, username: str = Depends(require_auth)):
+async def api_portfolio_concentration(request: Request, username: str = Depends(require_api_key_or_session)):
     """Check portfolio concentration and correlation risks."""
     from engine.concentration_checker import concentration_checker
     holdings = db.get_portfolio_holdings()
@@ -3084,7 +3216,7 @@ async def api_portfolio_concentration(request: Request, username: str = Depends(
 # ==================== PRICE CHART DATA ====================
 
 @app.get("/api/chart-data/{ticker}")
-async def api_chart_data(request: Request, ticker: str, username: str = Depends(require_auth)):
+async def api_chart_data(request: Request, ticker: str, username: str = Depends(require_api_key_or_session)):
     """Return 6mo OHLCV + SMA overlays + signal markers for a ticker."""
     import yfinance as yf_local
 
@@ -3213,7 +3345,7 @@ async def api_chart_data(request: Request, ticker: str, username: str = Depends(
 # ==================== ALGORITHM STATUS ====================
 
 @app.get("/api/algo-status")
-async def api_algo_status(request: Request, username: str = Depends(require_auth)):
+async def api_algo_status(request: Request, username: str = Depends(require_api_key_or_session)):
     """Return algorithm module statuses for dashboard badges."""
     result = {}
     try:
@@ -3231,12 +3363,12 @@ async def api_algo_status(request: Request, username: str = Depends(require_auth
 # ==================== LEARNING WEIGHT OPTIMIZATION ====================
 
 @app.get("/api/learning/weight-suggestions")
-async def api_weight_suggestions(request: Request, username: str = Depends(require_auth)):
+async def api_weight_suggestions(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get current vs suggested quant weights based on learning data."""
     return learning_optimizer.calculate_optimal_weights()
 
 @app.get("/api/learning/feature-importance")
-async def api_feature_importance(request: Request, username: str = Depends(require_auth)):
+async def api_feature_importance(request: Request, username: str = Depends(require_api_key_or_session)):
     """Return RF meta-labeler feature importances sorted descending (#48)."""
     from engine.meta_labeler import meta_labeler
     importances = meta_labeler.get_feature_importances()
@@ -3251,7 +3383,7 @@ async def api_feature_importance(request: Request, username: str = Depends(requi
 
 @app.post("/api/learning/apply-weights")
 @limiter.limit("5/hour")
-async def api_apply_weights(request: Request, username: str = Depends(require_auth)):
+async def api_apply_weights(request: Request, username: str = Depends(require_api_key_or_session)):
     """Apply suggested weight optimizations to the live screener."""
     data = await request.json()
 
@@ -3437,7 +3569,7 @@ async def stock_detail_page(request: Request, ticker: str, username: str = Depen
 
 
 @app.get("/api/stock/{ticker}/risk-trend")
-async def api_risk_trend(ticker: str, days: int = 30, username: str = Depends(require_auth)):
+async def api_risk_trend(ticker: str, days: int = 30, username: str = Depends(require_api_key_or_session)):
     rows = db.query("""
         SELECT timestamp, risk_score, geo_risk_score, signal, confidence
         FROM analysis_history
@@ -3448,7 +3580,7 @@ async def api_risk_trend(ticker: str, days: int = 30, username: str = Depends(re
     return {"ticker": ticker.upper(), "data": rows}
 
 @app.get("/api/stock/{ticker}/corporate-actions")
-async def api_corporate_actions(ticker: str, username: str = Depends(require_auth)):
+async def api_corporate_actions(ticker: str, username: str = Depends(require_api_key_or_session)):
     """Return corporate actions (splits, dividends) for a ticker (#43)."""
     ticker = ticker.upper()
     actions = db.get_corporate_actions(ticker, limit=50)
@@ -3471,7 +3603,7 @@ async def save_stock_note(
 # ==================== EARNINGS API ====================
 
 @app.get("/api/earnings/{ticker}")
-async def api_earnings(ticker: str, request: Request, username: str = Depends(require_auth)):
+async def api_earnings(ticker: str, request: Request, username: str = Depends(require_api_key_or_session)):
     """Return earnings data including beat history for a ticker."""
     from engine.earnings_tracker import earnings_tracker
     t = ticker.upper()
@@ -3482,14 +3614,14 @@ async def api_earnings(ticker: str, request: Request, username: str = Depends(re
 
 
 @app.get("/api/key-stats/{ticker}")
-async def api_key_stats(ticker: str, request: Request, username: str = Depends(require_auth)):
+async def api_key_stats(ticker: str, request: Request, username: str = Depends(require_api_key_or_session)):
     """Return 52w proximity, market cap label, short interest, pre/post market prices."""
     from engine.financial_statements import financial_statements
     return financial_statements.get_key_stats(ticker.upper())
 
 
 @app.get("/api/financials/{ticker}")
-async def api_financials(ticker: str, request: Request, username: str = Depends(require_auth)):
+async def api_financials(ticker: str, request: Request, username: str = Depends(require_api_key_or_session)):
     """Return 8-quarter financial trend data."""
     from engine.financial_statements import financial_statements
     return financial_statements.get_quarterly_financials(ticker.upper())
@@ -3502,7 +3634,7 @@ async def api_dcf(
     growth_rate: float = None,
     terminal_rate: float = 0.03,
     discount_rate: float = 0.10,
-    username: str = Depends(require_auth),
+    username: str = Depends(require_api_key_or_session),
 ):
     """Run DCF fair value estimate with adjustable assumptions."""
     from engine.financial_statements import financial_statements
@@ -3516,7 +3648,7 @@ async def api_dcf(
 async def api_peers(
     ticker: str, request: Request,
     peers: str = "",
-    username: str = Depends(require_auth),
+    username: str = Depends(require_api_key_or_session),
 ):
     """Peer comparison table."""
     from engine.financial_statements import financial_statements
@@ -3742,7 +3874,7 @@ async def bulk_dismiss_discoveries(
 # ==================== RELATIVE STRENGTH RANKING ====================
 
 @app.get("/api/rs-ranking")
-async def api_rs_ranking(request: Request, username: str = Depends(require_auth)):
+async def api_rs_ranking(request: Request, username: str = Depends(require_api_key_or_session)):
     """Rank watchlist stocks by 3/6/12-month relative strength vs SPY."""
     from engine.rs_ranking import rs_ranking
     watchlist = [w['ticker'] for w in db.get_watchlist()]
@@ -3755,7 +3887,7 @@ async def api_rs_ranking(request: Request, username: str = Depends(require_auth)
 # ==================== DISCOVERY HIT RATE ====================
 
 @app.get("/api/discovery-hit-rate")
-async def api_discovery_hit_rate(request: Request, username: str = Depends(require_auth)):
+async def api_discovery_hit_rate(request: Request, username: str = Depends(require_api_key_or_session)):
     """Return discovery hit rate by strategy and overall."""
     from engine.discovery_hit_rate import discovery_hit_rate
     return {
@@ -3779,7 +3911,7 @@ async def trigger_hit_rate_check(request: Request, username: str = Depends(requi
 async def api_upcoming_dividends(
     request: Request,
     days: int = 30,
-    username: str = Depends(require_auth),
+    username: str = Depends(require_api_key_or_session),
 ):
     """Watchlist stocks with ex-dividend dates in the next N days."""
     from engine.dividend_tracker import dividend_tracker
@@ -3816,7 +3948,7 @@ async def api_upcoming_dividends(
 # ==================== PRE/POST MARKET PRICES ====================
 
 @app.get("/api/extended-hours")
-async def api_extended_hours(request: Request, username: str = Depends(require_auth)):
+async def api_extended_hours(request: Request, username: str = Depends(require_api_key_or_session)):
     """Return pre-market / after-hours prices for all watchlist tickers."""
     from engine.financial_statements import financial_statements
     watchlist = [w['ticker'] for w in db.get_watchlist()]
@@ -3841,7 +3973,7 @@ async def api_extended_hours(request: Request, username: str = Depends(require_a
 
 
 @app.get("/api/portfolio/var")
-async def api_portfolio_var(request: Request, username: str = Depends(require_auth)):
+async def api_portfolio_var(request: Request, username: str = Depends(require_api_key_or_session)):
     """Calculate Value at Risk for current portfolio."""
     from engine.var_calculator import var_calculator
     try:
@@ -3852,7 +3984,7 @@ async def api_portfolio_var(request: Request, username: str = Depends(require_au
 
 
 @app.get("/api/portfolio/correlation")
-async def api_portfolio_correlation(request: Request, username: str = Depends(require_auth)):
+async def api_portfolio_correlation(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get correlation matrix for portfolio holdings."""
     from engine.correlation_analyzer import correlation_analyzer
     holdings = db.get_portfolio_holdings()
@@ -3872,7 +4004,7 @@ async def api_portfolio_correlation(request: Request, username: str = Depends(re
 
 
 @app.get("/api/portfolio/exposure/{ticker}")
-async def api_portfolio_exposure(ticker: str, request: Request, username: str = Depends(require_auth)):
+async def api_portfolio_exposure(ticker: str, request: Request, username: str = Depends(require_api_key_or_session)):
     """Check how a specific ticker correlates with the user's existing portfolio."""
     try:
         from engine.portfolio_manager import portfolio_manager
@@ -3888,7 +4020,7 @@ async def api_portfolio_exposure(ticker: str, request: Request, username: str = 
 
 
 @app.get("/api/portfolio/rebalancing-plan")
-async def api_portfolio_rebalancing_plan(request: Request, username: str = Depends(require_auth)):
+async def api_portfolio_rebalancing_plan(request: Request, username: str = Depends(require_api_key_or_session)):
     """Generate concrete rebalancing execution plan with specific share counts."""
     from engine.portfolio_manager import portfolio_manager
     try:
@@ -3899,7 +4031,7 @@ async def api_portfolio_rebalancing_plan(request: Request, username: str = Depen
 
 
 @app.get("/api/portfolio/risk-metrics")
-async def api_portfolio_risk_metrics(request: Request, username: str = Depends(require_auth)):
+async def api_portfolio_risk_metrics(request: Request, username: str = Depends(require_api_key_or_session)):
     """Calculate Sharpe, Sortino, Calmar, beta, volatility for portfolio."""
     import yfinance as yf
     import numpy as np
@@ -3964,7 +4096,7 @@ async def api_portfolio_risk_metrics(request: Request, username: str = Depends(r
 async def api_scenario_analysis(
     request: Request,
     scenario: str = "market_crash",
-    username: str = Depends(require_auth),
+    username: str = Depends(require_api_key_or_session),
 ):
     """Run a stress scenario against portfolio."""
     from engine.scenario_analyzer import scenario_analyzer
@@ -3976,14 +4108,14 @@ async def api_scenario_analysis(
 
 
 @app.get("/api/price-alerts")
-async def api_get_price_alerts(request: Request, username: str = Depends(require_auth)):
+async def api_get_price_alerts(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get all active price alerts."""
     alerts = db.query("SELECT * FROM price_alerts WHERE active = 1 ORDER BY created_at DESC") or []
     return {"alerts": [dict(a) for a in alerts]}
 
 
 @app.post("/api/price-alerts")
-async def api_create_price_alert(request: Request, username: str = Depends(require_auth)):
+async def api_create_price_alert(request: Request, username: str = Depends(require_api_key_or_session)):
     """Create a new price alert."""
     data = await request.json()
     ticker = data.get('ticker', '').upper()
@@ -4002,14 +4134,14 @@ async def api_create_price_alert(request: Request, username: str = Depends(requi
 
 
 @app.delete("/api/price-alerts/{alert_id}")
-async def api_delete_price_alert(request: Request, alert_id: int, username: str = Depends(require_auth)):
+async def api_delete_price_alert(request: Request, alert_id: int, username: str = Depends(require_api_key_or_session)):
     """Deactivate a price alert."""
     db.execute("UPDATE price_alerts SET active = 0 WHERE id = ?", (alert_id,))
     return {"status": "deactivated"}
 
 
 @app.get("/api/patterns/{ticker}")
-async def api_patterns(request: Request, ticker: str, username: str = Depends(require_auth)):
+async def api_patterns(request: Request, ticker: str, username: str = Depends(require_api_key_or_session)):
     """Detect chart patterns for a ticker."""
     from engine.pattern_recognition import pattern_recognizer
     try:
@@ -4020,7 +4152,7 @@ async def api_patterns(request: Request, ticker: str, username: str = Depends(re
 
 
 @app.get("/api/sentiment/{ticker}")
-async def api_sentiment(request: Request, ticker: str, username: str = Depends(require_auth)):
+async def api_sentiment(request: Request, ticker: str, username: str = Depends(require_api_key_or_session)):
     """Get sentiment summary including analyst consensus and contrarian signals."""
     from engine.sentiment_analyzer import sentiment_analyzer
     try:
@@ -4031,7 +4163,7 @@ async def api_sentiment(request: Request, ticker: str, username: str = Depends(r
 
 
 @app.get("/api/catalysts/{ticker}")
-async def api_catalysts(request: Request, ticker: str, username: str = Depends(require_auth)):
+async def api_catalysts(request: Request, ticker: str, username: str = Depends(require_api_key_or_session)):
     """Unified catalyst timeline: earnings, dividends, economic events."""
     from engine.earnings_tracker import earnings_tracker
     from engine.dividend_tracker import dividend_tracker
@@ -4063,7 +4195,7 @@ async def api_catalysts(request: Request, ticker: str, username: str = Depends(r
 
 
 @app.get("/api/short-interest/{ticker}")
-async def api_short_interest(request: Request, ticker: str, username: str = Depends(require_auth)):
+async def api_short_interest(request: Request, ticker: str, username: str = Depends(require_api_key_or_session)):
     """Get short interest data and squeeze setup analysis."""
     from engine.short_interest import short_interest_tracker
     try:
@@ -4080,7 +4212,7 @@ async def api_short_interest(request: Request, ticker: str, username: str = Depe
 
 
 @app.get("/api/options-flow/{ticker}")
-async def api_options_flow(request: Request, ticker: str, username: str = Depends(require_auth)):
+async def api_options_flow(request: Request, ticker: str, username: str = Depends(require_api_key_or_session)):
     """Get options flow summary and unusual activity."""
     from engine.options_flow import options_flow
     try:
@@ -4095,7 +4227,7 @@ async def api_options_flow(request: Request, ticker: str, username: str = Depend
 
 
 @app.get("/api/institutional/{ticker}")
-async def api_institutional(request: Request, ticker: str, username: str = Depends(require_auth)):
+async def api_institutional(request: Request, ticker: str, username: str = Depends(require_api_key_or_session)):
     """Get institutional holder data and ownership changes."""
     from engine.institutional_tracker import institutional_tracker
     try:
@@ -4125,7 +4257,7 @@ async def graveyard_page(request: Request, username: str = Depends(require_auth)
 
 
 @app.get("/api/graveyard/performance")
-async def api_graveyard_performance(request: Request, username: str = Depends(require_auth)):
+async def api_graveyard_performance(request: Request, username: str = Depends(require_api_key_or_session)):
     """Fetch post-removal price performance for graveyard tickers."""
     import yfinance as yf
     graveyard = db.query("""
@@ -4158,7 +4290,7 @@ async def api_graveyard_performance(request: Request, username: str = Depends(re
 
 
 @app.get("/api/scenario-analysis/presets")
-async def api_scenario_presets(request: Request, username: str = Depends(require_auth)):
+async def api_scenario_presets(request: Request, username: str = Depends(require_api_key_or_session)):
     """List available preset scenarios."""
     from engine.scenario_analyzer import scenario_analyzer
     return {"scenarios": scenario_analyzer.get_preset_scenarios()}
@@ -4197,7 +4329,7 @@ async def stock_compare_page(
 # ==================== WEEKLY REPORT ====================
 
 @app.get("/api/report/preview", response_class=HTMLResponse)
-async def api_report_preview(request: Request, username: str = Depends(require_auth)):
+async def api_report_preview(request: Request, username: str = Depends(require_api_key_or_session)):
     """Generate and return the weekly report as HTML (opens in browser)."""
     from engine.report_generator import ReportGenerator
     rg = ReportGenerator()
@@ -4209,7 +4341,7 @@ async def api_report_preview(request: Request, username: str = Depends(require_a
 
 
 @app.post("/api/report/send")
-async def api_report_send(request: Request, username: str = Depends(require_auth)):
+async def api_report_send(request: Request, username: str = Depends(require_api_key_or_session)):
     """Generate and send the weekly report via configured channels."""
     from engine.report_generator import ReportGenerator
     rg = ReportGenerator()
@@ -4248,7 +4380,7 @@ async def sector_screen_page(request: Request, username: str = Depends(require_a
 
 
 @app.get("/api/sector-screen")
-async def api_sector_screen(request: Request, username: str = Depends(require_auth)):
+async def api_sector_screen(request: Request, username: str = Depends(require_api_key_or_session)):
     """
     Sector-relative screening API.
     Returns top 3 sectors with cheapest stocks per sector + contrarian pick.
@@ -4448,7 +4580,7 @@ async def watchlist_import_csv(
 # ==================== EXPORT (#36) ====================
 
 @app.get("/api/analysis/export.csv")
-async def export_analyses_csv(request: Request, username: str = Depends(require_auth)):
+async def export_analyses_csv(request: Request, username: str = Depends(require_api_key_or_session)):
     """Export all analysis_history rows as CSV (#36)."""
     import csv
     import io
@@ -4479,7 +4611,7 @@ async def export_analyses_csv(request: Request, username: str = Depends(require_
 
 
 @app.get("/api/portfolio/export.csv")
-async def export_portfolio_csv(request: Request, username: str = Depends(require_auth)):
+async def export_portfolio_csv(request: Request, username: str = Depends(require_api_key_or_session)):
     """Export paper trades with entry/exit and FIFO-based P&L as CSV (#36)."""
     import csv
     import io
@@ -4547,7 +4679,7 @@ async def report_weekly_pdf(request: Request, username: str = Depends(require_au
 # ==================== DATA FRESHNESS ====================
 
 @app.get("/api/data-freshness")
-async def api_data_freshness(request: Request, username: str = Depends(require_auth)):
+async def api_data_freshness(request: Request, username: str = Depends(require_api_key_or_session)):
     """Get data freshness summary — detects stale yfinance data."""
     from engine.data_freshness import data_freshness
     summary = data_freshness.get_freshness_summary()

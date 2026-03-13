@@ -240,6 +240,21 @@ class InvestmentScheduler:
         if today_analyses:
             notifications.send_daily_summary(today_analyses)
             print("Daily summary sent")
+
+            # Fire per-signal alerts for strong signals (enables plugin notifiers)
+            for analysis in today_analyses:
+                signal = analysis.get('signal') or ''
+                if signal in ('STRONG_BUY', 'STRONG_SELL'):
+                    try:
+                        notifications.send_alert(
+                            ticker=analysis.get('ticker', ''),
+                            signal=signal,
+                            recommendation=analysis.get('recommendation', ''),
+                            confidence=analysis.get('confidence') or 0,
+                            risk_score=analysis.get('risk_score') or 5,
+                        )
+                    except Exception as e:
+                        print(f"  send_alert error for {analysis.get('ticker')}: {e}")
     
     def start(self):
         """Start the scheduler with all cycle jobs"""
