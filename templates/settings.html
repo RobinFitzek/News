@@ -3,7 +3,7 @@
 {% block title %}Settings — Stockholm{% endblock %}
 
 {% block content %}
-<div class="animate-fade-in">
+<div id="settings-page" class="animate-fade-in">
     <!-- Page Header -->
     <header class="page-header">
         <div>
@@ -949,18 +949,178 @@
 
             <!-- ═══ PANEL: APPEARANCE ═══════════════════════ -->
             <div id="panel-appearance" class="settings-panel">
-                <div class="card">
-                    <h3 style="margin: 0 0 var(--space-4) 0;">Appearance</h3>
-                    <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--space-6);">
-                        <div style="font-size: 0.8125rem; color: var(--text-muted);">
-                            Toggle between Stockholm Dark and Light modes
+                <div class="card" style="margin-bottom: var(--space-6);">
+                    <h3 style="margin: 0 0 var(--space-4) 0;">Appearance & Effects</h3>
+                    
+                    <div class="grid grid-2" style="gap: var(--space-6);">
+                        <!-- Left Col: Controls -->
+                        <div style="display: flex; flex-direction: column; gap: var(--space-5);">
+                            <!-- Theme Toggle -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
+                                <div>
+                                    <div style="font-size: 0.875rem; font-weight: 500; color: var(--text-primary);">Light Mode</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted);">Toggle between Stockholm Dark and Light modes</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="theme-toggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+
+                            <!-- Loading Screen Toggle -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
+                                <div>
+                                    <div style="font-size: 0.875rem; font-weight: 500; color: var(--text-primary);">Intro Loading Screen</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted);">Show ASCII sword animation on page load</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="loading-screen-toggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+
+                            <!-- Depth Effects Toggle -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
+                                <div>
+                                    <div style="font-size: 0.875rem; font-weight: 500; color: var(--text-primary);">Glass Depth Effects</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted);">Enables backdrop-blur and glass materials. Disable on low-end devices.</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="depth-effects-toggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+
+                            <!-- Parallax Toggle -->
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
+                                <div>
+                                    <div style="font-size: 0.875rem; font-weight: 500; color: var(--text-primary);">Parallax Depth</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-muted);">Cards shift subtly with cursor movement</div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="parallax-toggle">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+
+                            <!-- Glow Intensity Slider -->
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: var(--space-2);">
+                                    <div style="font-size: 0.875rem; font-weight: 500; color: var(--text-primary);">Glow Intensity</div>
+                                    <span id="glow-intensity-val" style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">60%</span>
+                                </div>
+                                <input type="range" id="glow-intensity-slider" min="0" max="100" step="5" value="60" style="width: 100%;">
+                            </div>
                         </div>
-                        <label class="checkbox-wrapper">
-                            <input type="checkbox" id="light-mode-toggle" onclick="document.documentElement.classList.toggle('light-mode', this.checked)">
-                            <div class="checkbox-custom"></div>
-                            <span class="checkbox-label">Light mode</span>
-                        </label>
+
+                        <!-- Right Col: Preview -->
+                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-6); background: var(--bg-secondary); border-radius: var(--radius-md); border: 1px solid var(--border-light);">
+                            <div style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: var(--space-5);">Live Preview</div>
+                            
+                            <!-- Mini Preview Thumbnail -->
+                            <div style="position: relative; width: 200px; height: 120px; background: var(--bg-primary); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-default); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+                                <!-- Background Glow -->
+                                <div style="position: absolute; top: 20%; left: 20%; width: 60px; height: 60px; background: var(--glow-gold); filter: blur(20px); opacity: calc(var(--glow-intensity, 0.6)); transition: opacity 0.2s; border-radius: 50%;"></div>
+                                <div style="position: absolute; bottom: 10%; right: 10%; width: 80px; height: 80px; background: var(--glow-amber); filter: blur(25px); opacity: calc(var(--glow-intensity, 0.6) * 0.7); transition: opacity 0.2s; border-radius: 50%;"></div>
+                                
+                                <!-- Mini Grid -->
+                                <div style="position: absolute; inset: 0; background-image: linear-gradient(var(--border-light) 1px, transparent 1px), linear-gradient(90deg, var(--border-light) 1px, transparent 1px); background-size: 15px 15px; opacity: 0.3;"></div>
+                                
+                                <!-- Mini Glass Card -->
+                                <div class="glass-card" style="width: 140px; height: 60px; border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 8px; z-index: 1;">
+                                    <div style="width: 40%; height: 6px; background: var(--text-primary); border-radius: 3px; opacity: 0.8;"></div>
+                                    <div style="width: 80%; height: 4px; background: var(--text-muted); border-radius: 2px;"></div>
+                                    <div style="width: 60%; height: 4px; background: var(--text-muted); border-radius: 2px;"></div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+                </div>
+
+                <!-- Server Efficiency / Deep Sleep -->
+                <div class="card" style="margin-bottom: var(--space-6);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: var(--space-4);">
+                        <h3 style="margin: 0;">Server Efficiency</h3>
+                        <!-- Status Badge -->
+                        <div id="sleep-status-badge" style="display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted);">
+                            <span class="status-dot" style="width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); display: inline-block;"></span>
+                            <span class="status-text">Checking status...</span>
+                        </div>
+                    </div>
+                    <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
+                        Controls how aggressively the server conserves resources during idle periods. Designed for always-on deployments where the user may leave the monitor running overnight or over weekends.
+                    </p>
+                    
+                    <form action="/settings/save" method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <input type="hidden" name="_section" value="server_efficiency">
+                        
+                        <!-- 5b.1 Toggle -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light); margin-bottom: var(--space-4);">
+                            <div>
+                                <div style="font-size: 0.875rem; font-weight: 500; color: var(--text-primary);">Deep Sleep Mode</div>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">During inactive hours, reduce background polling and AI scan frequency to minimum to save server resources.</div>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" name="deep_sleep_enabled" id="deep-sleep-toggle" {% if settings.deep_sleep_enabled|default(false) %}checked{% endif %} onchange="toggleDeepSleepOptions()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        
+                        <div id="deep-sleep-options" style="{% if not settings.deep_sleep_enabled|default(false) %}display: none;{% endif %}">
+                            <!-- 5b.2 Intensity Selector -->
+                            <div style="margin-bottom: var(--space-5);">
+                                <div style="font-size: 0.875rem; font-weight: 500; color: var(--text-primary); margin-bottom: var(--space-3);">Sleep Intensity</div>
+                                <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                                    <label class="radio-label" style="display: flex; align-items: flex-start; gap: var(--space-3); cursor: pointer;">
+                                        <input type="radio" name="deep_sleep_intensity" value="light" {% if settings.deep_sleep_intensity == 'light' %}checked{% endif %} style="margin-top: 2px;">
+                                        <div>
+                                            <div style="font-size: 0.8125rem; font-weight: 500;">Light</div>
+                                            <div style="font-size: 0.75rem; color: var(--text-muted);">Scan interval ×2 during sleep window. Alert checks unchanged.</div>
+                                        </div>
+                                    </label>
+                                    <label class="radio-label" style="display: flex; align-items: flex-start; gap: var(--space-3); cursor: pointer;">
+                                        <input type="radio" name="deep_sleep_intensity" value="deep" {% if not settings.deep_sleep_intensity or settings.deep_sleep_intensity == 'deep' %}checked{% endif %} style="margin-top: 2px;">
+                                        <div>
+                                            <div style="font-size: 0.8125rem; font-weight: 500;">Deep <span style="color: var(--text-muted); font-size: 0.6875rem;">(Default)</span></div>
+                                            <div style="font-size: 0.75rem; color: var(--text-muted);">Scan interval ×6. Alerts at ×2. Non-critical background tasks suspended entirely.</div>
+                                        </div>
+                                    </label>
+                                    <label class="radio-label" style="display: flex; align-items: flex-start; gap: var(--space-3); cursor: pointer;">
+                                        <input type="radio" name="deep_sleep_intensity" value="hibernate" {% if settings.deep_sleep_intensity == 'hibernate' %}checked{% endif %} style="margin-top: 2px;">
+                                        <div>
+                                            <div style="font-size: 0.8125rem; font-weight: 500; color: var(--signal-warning);">Hibernate</div>
+                                            <div style="font-size: 0.75rem; color: var(--text-muted);">All scans suspended. Only hard alert guards run. Minimum 1 health-check per hour.</div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- 5b.3 Sleep Window Configuration -->
+                            <div style="margin-bottom: var(--space-4);">
+                                <div style="font-size: 0.875rem; font-weight: 500; color: var(--text-primary); margin-bottom: var(--space-3);">Sleep Window</div>
+                                <div class="grid grid-2" style="gap: var(--space-4); margin-bottom: var(--space-4);">
+                                    <div>
+                                        <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-1); display: block;">Sleep from:</label>
+                                        <input type="time" name="deep_sleep_start" value="{{ settings.deep_sleep_start|default('22:00') }}" class="form-input">
+                                    </div>
+                                    <div>
+                                        <label style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-1); display: block;">Wake at:</label>
+                                        <input type="time" name="deep_sleep_end" value="{{ settings.deep_sleep_end|default('07:00') }}" class="form-input">
+                                    </div>
+                                </div>
+                                <label class="checkbox-wrapper" style="display: flex; align-items: center; gap: var(--space-2);">
+                                    <input type="checkbox" name="deep_sleep_full_weekends" {% if settings.deep_sleep_full_weekends|default(false) %}checked{% endif %}>
+                                    <div class="checkbox-custom"></div>
+                                    <span style="font-size: 0.8125rem;">Extend Deep Sleep across full weekends (Sat–Sun)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="panel-save" style="margin-top: var(--space-5);">
+                            <button type="submit" class="btn btn-primary">Save Server Settings</button>
+                        </div>
+                    </form>
                 </div>
             </div>
 
@@ -1498,12 +1658,10 @@ def run(context: dict, settings: dict) -> dict:
 </div><!-- /.settings-layout -->
 
 <!-- Plugin Settings Modal -->
-<div id="plugin-settings-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
-    <div style="background: var(--bg-card); border: 1px solid var(--border-default); border-radius: var(--radius-lg); padding: var(--space-6); width: 480px; max-width: calc(100vw - 2rem); max-height: 80vh; overflow-y: auto;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
-            <h3 id="plugin-modal-title" style="margin: 0;">Plugin Settings</h3>
-            <button type="button" class="btn btn-ghost" onclick="closePluginSettings()">✕</button>
-        </div>
+<div id="plugin-settings-modal" class="modal-backdrop">
+    <div class="modal-card" style="width: 480px;">
+        <button type="button" class="modal-close" onclick="closePluginSettings()">×</button>
+        <h3 id="plugin-modal-title" style="margin: 0 0 var(--space-4) 0;">Plugin Settings</h3>
         <div id="plugin-settings-fields" style="margin-bottom: var(--space-4);"></div>
         <div style="display: flex; gap: var(--space-2); justify-content: flex-end;">
             <button type="button" class="btn btn-ghost" onclick="closePluginSettings()">Cancel</button>
@@ -1513,8 +1671,9 @@ def run(context: dict, settings: dict) -> dict:
 </div>
 
 <!-- One-time API key reveal modal -->
-<div id="api-key-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
-    <div style="background: var(--bg-card); border: 1px solid var(--border-default); border-radius: var(--radius-lg); padding: var(--space-6); width: 520px; max-width: calc(100vw - 2rem);">
+<div id="api-key-modal" class="modal-backdrop">
+    <div class="modal-card" style="width: 520px;">
+        <button type="button" class="modal-close" onclick="closeApiKeyModal()">×</button>
         <h3 style="margin: 0 0 var(--space-2);">Your New API Key</h3>
         <p style="font-size: 0.8125rem; color: var(--signal-warning, #f59e0b); margin-bottom: var(--space-4);">
             Copy this key now — it will not be shown again.
@@ -1528,6 +1687,110 @@ def run(context: dict, settings: dict) -> dict:
 </div>
 
 <script>
+    // ─── Appearance Settings Logic ───
+    document.addEventListener('DOMContentLoaded', function() {
+        // Theme Toggle (from dashboard.js ThemeManager)
+        const themeToggle = document.getElementById('theme-toggle');
+        if (themeToggle) {
+            themeToggle.checked = document.documentElement.getAttribute('data-theme') === 'light';
+            themeToggle.addEventListener('change', (e) => {
+                if (window.themeManager) {
+                    window.themeManager.applyTheme(e.target.checked ? 'light' : 'dark');
+                }
+            });
+        }
+
+        // Loading Screen Toggle
+        const lsToggle = document.getElementById('loading-screen-toggle');
+        if (lsToggle) {
+            lsToggle.checked = localStorage.getItem('stockholm-loading-screen') !== 'false';
+            lsToggle.addEventListener('change', (e) => {
+                localStorage.setItem('stockholm-loading-screen', e.target.checked ? 'true' : 'false');
+            });
+        }
+
+        // Depth Effects Toggle
+        const depthToggle = document.getElementById('depth-effects-toggle');
+        if (depthToggle) {
+            depthToggle.checked = document.documentElement.getAttribute('data-depth') !== 'off';
+            depthToggle.addEventListener('change', (e) => {
+                if (e.target.checked) {
+                    document.documentElement.removeAttribute('data-depth');
+                    localStorage.setItem('stockholm-depth-effects', 'on');
+                } else {
+                    document.documentElement.setAttribute('data-depth', 'off');
+                    localStorage.setItem('stockholm-depth-effects', 'off');
+                }
+            });
+        }
+
+        // Parallax Toggle
+        const parallaxToggle = document.getElementById('parallax-toggle');
+        if (parallaxToggle) {
+            parallaxToggle.checked = localStorage.getItem('stockholm-parallax') !== 'false';
+            parallaxToggle.addEventListener('change', (e) => {
+                localStorage.setItem('stockholm-parallax', e.target.checked ? 'true' : 'false');
+                if (window.parallaxManager) {
+                    window.parallaxManager.isActive = e.target.checked;
+                }
+            });
+        }
+
+        // Glow Intensity Slider
+        const glowSlider = document.getElementById('glow-intensity-slider');
+        const glowVal = document.getElementById('glow-intensity-val');
+        if (glowSlider && glowVal) {
+            const savedGlow = localStorage.getItem('stockholm-glow-intensity') || '60';
+            glowSlider.value = savedGlow;
+            glowVal.textContent = savedGlow + '%';
+            document.documentElement.style.setProperty('--glow-intensity', (savedGlow / 100).toString());
+
+            glowSlider.addEventListener('input', (e) => {
+                const val = e.target.value;
+                glowVal.textContent = val + '%';
+                document.documentElement.style.setProperty('--glow-intensity', (val / 100).toString());
+                localStorage.setItem('stockholm-glow-intensity', val);
+            });
+        }
+        
+        // Deep Sleep Status Fetch
+        fetch('/api/server/sleep-status')
+            .then(r => r.json())
+            .then(data => {
+                const badge = document.getElementById('sleep-status-badge');
+                if (!badge) return;
+                const dot = badge.querySelector('.status-dot');
+                const text = badge.querySelector('.status-text');
+                
+                if (data.sleeping && data.hibernate) {
+                    dot.style.background = 'transparent';
+                    dot.style.border = '1px solid var(--text-tertiary)';
+                    text.textContent = '○ Hibernating — alerts only';
+                    text.style.color = 'var(--text-tertiary)';
+                } else if (data.sleeping) {
+                    dot.style.background = 'var(--text-muted)';
+                    text.textContent = '◌ Deep Sleep — resumes at ' + data.resumes_at;
+                    text.style.color = 'var(--text-muted)';
+                } else {
+                    dot.style.background = 'var(--signal-success)';
+                    text.textContent = '● Active — next scan in ' + data.next_scan_min + ' min';
+                    text.style.color = 'var(--text-primary)';
+                }
+            })
+            .catch(() => {
+                const badge = document.getElementById('sleep-status-badge');
+                if (badge) badge.style.display = 'none';
+            });
+    });
+    
+    function toggleDeepSleepOptions() {
+        const toggle = document.getElementById('deep-sleep-toggle');
+        const options = document.getElementById('deep-sleep-options');
+        if (toggle && options) {
+            options.style.display = toggle.checked ? 'block' : 'none';
+        }
+    }
+
     function updateSettingsNavIndicator() {
         var nav = document.querySelector('.settings-nav');
         if (!nav) return;
@@ -2080,7 +2343,7 @@ def run(context: dict, settings: dict) -> dict:
         // Show one-time reveal modal
         document.getElementById('revealed-api-key').value = data.raw_key;
         const modal = document.getElementById('api-key-modal');
-        modal.style.display = 'flex';
+        modal.classList.add('is-open');
 
         // Reload the key list after closing
         modal._newKeyData = data;
@@ -2097,7 +2360,7 @@ def run(context: dict, settings: dict) -> dict:
 
     function closeApiKeyModal() {
         const modal = document.getElementById('api-key-modal');
-        modal.style.display = 'none';
+        modal.classList.remove('is-open');
         location.reload();  // reload to show the new key in the table
     }
 
@@ -2166,7 +2429,7 @@ def run(context: dict, settings: dict) -> dict:
         document.getElementById('plugin-settings-fields').innerHTML = '<p style="color: var(--text-muted); font-size: 0.8125rem;">Loading...</p>';
 
         const modal = document.getElementById('plugin-settings-modal');
-        modal.style.display = 'flex';
+        modal.classList.add('is-open');
 
         // Fetch plugin list to get current settings + schema
         const resp = await fetch('/api/plugins');
@@ -2209,7 +2472,7 @@ def run(context: dict, settings: dict) -> dict:
     }
 
     function closePluginSettings() {
-        document.getElementById('plugin-settings-modal').style.display = 'none';
+        document.getElementById('plugin-settings-modal').classList.remove('is-open');
         _pluginSettingsCurrentId = null;
     }
 
@@ -2257,13 +2520,22 @@ def run(context: dict, settings: dict) -> dict:
     /* ── Settings Layout ─────────────────────────────── */
     .settings-layout {
         display: grid;
-        grid-template-columns: 220px 1fr;
-        gap: var(--space-8);
+        grid-template-columns: 240px 1fr;
+        gap: var(--space-10);
         align-items: start;
+        position: relative;
+        z-index: 10;
     }
     .settings-sidebar {
         position: sticky;
-        top: var(--space-6);
+        top: calc(48px + var(--space-8));
+        padding-right: var(--space-4);
+        border-right: 1px solid var(--border-hairline);
+        min-height: 60vh;
+        opacity: 1 !important;
+        visibility: visible !important;
+        display: block !important;
+        z-index: 50;
     }
     .settings-search-wrap {
         position: relative;
@@ -2282,9 +2554,9 @@ def run(context: dict, settings: dict) -> dict:
     .settings-search-input {
         width: 100%;
         padding: var(--space-2) var(--space-3) var(--space-2) 34px;
-        background: var(--bg-secondary);
-        border: 1px solid var(--border-light);
-        border-radius: var(--radius-sm);
+        background: var(--surface-glass);
+        border: 1px solid var(--border-hairline);
+        border-radius: 0;
         color: var(--text-primary);
         font-size: 0.8125rem;
         box-sizing: border-box;
@@ -2314,8 +2586,9 @@ def run(context: dict, settings: dict) -> dict:
         position: absolute;
         left: 0;
         width: 100%;
-        background: var(--bg-hover);
-        border-radius: var(--radius-sm);
+        background: var(--surface-glass);
+        border-left: 2px solid var(--accent-warm);
+        border-radius: 0;
         transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), height 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         pointer-events: none;
         z-index: 0;
@@ -2329,16 +2602,17 @@ def run(context: dict, settings: dict) -> dict:
         padding: var(--space-2) var(--space-3);
         background: none;
         border: none;
-        border-radius: var(--radius-sm);
+        border-radius: 0;
         color: var(--text-muted);
         font-size: 0.8125rem;
         cursor: pointer;
         width: 100%;
         text-align: left;
-        transition: color var(--duration-fast), background var(--duration-fast);
+        transition: all var(--duration-fast);
+        opacity: 0.7;
     }
-    .settings-nav-item:hover { background: var(--bg-hover); color: var(--text-secondary); }
-    .settings-nav-item.active { color: var(--text-primary); }
+    .settings-nav-item:hover { background: var(--surface-glass); color: var(--text-primary); opacity: 1; }
+    .settings-nav-item.active { color: var(--text-primary); background: var(--surface-glass); font-weight: 600; opacity: 1; }
     .settings-nav-icon { width: 15px; height: 15px; flex-shrink: 0; }
     .settings-panel { display: none; }
     .settings-panel.active { display: block; }

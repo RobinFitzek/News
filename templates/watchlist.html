@@ -68,7 +68,24 @@
 
     <!-- Watchlist Table -->
     <div class="card">
-        <h3 style="margin: 0 0 var(--space-6) 0;">Monitored Securities</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+            <h3 style="margin: 0;">Monitored Securities</h3>
+            <div style="display: flex; gap: var(--space-3); align-items: center;">
+                <span style="font-size: 0.8125rem; color: var(--text-muted);">Sort by:</span>
+                <select id="sort-select" onchange="updateSort()" style="font-size: 0.8125rem; padding: 4px 8px; background: var(--bg-secondary); border: 1px solid var(--border-hairline); color: var(--text-secondary); border-radius: var(--radius-sm);">
+                    <option value="ticker_asc" {% if current_sort == 'ticker' and current_order == 'asc' %}selected{% endif %}>Ticker (A-Z)</option>
+                    <option value="ticker_desc" {% if current_sort == 'ticker' and current_order == 'desc' %}selected{% endif %}>Ticker (Z-A)</option>
+                    <option value="tier_asc" {% if current_sort == 'tier' and current_order == 'asc' %}selected{% endif %}>Tier (A-Z)</option>
+                    <option value="tier_desc" {% if current_sort == 'tier' and current_order == 'desc' %}selected{% endif %}>Tier (Z-A)</option>
+                    <option value="performance_asc" {% if current_sort == 'performance' and current_order == 'asc' %}selected{% endif %}>Risk Score (Low-High)</option>
+                    <option value="performance_desc" {% if current_sort == 'performance' and current_order == 'desc' %}selected{% endif %}>Risk Score (High-Low)</option>
+                    <option value="signal_age_asc" {% if current_sort == 'signal_age' and current_order == 'asc' %}selected{% endif %}>Signal Age (Old-New)</option>
+                    <option value="signal_age_desc" {% if current_sort == 'signal_age' and current_order == 'desc' %}selected{% endif %}>Signal Age (New-Old)</option>
+                    <option value="added_asc" {% if current_sort == 'added' and current_order == 'asc' %}selected{% endif %}>Added (Old-New)</option>
+                    <option value="added_desc" {% if current_sort == 'added' and current_order == 'desc' %}selected{% endif %}>Added (New-Old)</option>
+                </select>
+            </div>
+        </div>
 
         {% if watchlist %}
         <div class="table-wrapper"
@@ -84,7 +101,8 @@
                         <th title="Reddit and Google Trends sentiment">Sentiment</th>
                         <th title="Days since last analysis">Last Analyzed</th>
                         <th>Status</th>
-                        <th style="width: 200px;"></th>
+                        <th style="width: 120px;">Quick Actions</th>
+                        <th style="width: 150px;"></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -179,6 +197,45 @@
                                 style="background: var(--bg-secondary); color: var(--text-muted); border: 1px solid var(--border-default);">Inactive</span>
                             {% endif %}
                         </td>
+                        <!-- Quick Actions Column (#33) -->
+                        <td>
+                            <div style="display:flex;gap:var(--space-2);">
+                                <button onclick="showNoteModal('{{ stock.ticker }}')" class="btn btn-ghost"
+                                    style="padding: var(--space-2); font-size: 0.75rem;" title="Add/Edit Note">
+                                    <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;">
+                                        <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+                                        <path d="M13 2v7h7"></path>
+                                    </svg>
+                                </button>
+                                {% if stock.is_active %}
+                                <form action="/watchlist/archive/{{ stock.ticker }}" method="POST" style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <button type="submit" class="btn btn-ghost" style="padding: var(--space-2); font-size: 0.75rem;" title="Archive">
+                                        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;">
+                                            <path d="M21 8v13H3V8"></path>
+                                            <path d="M1 8h22"></path>
+                                            <path d="M7 3v3a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V3"></path>
+                                        </svg>
+                                    </button>
+                                </form>
+                                {% else %}
+                                <form action="/watchlist/add" method="POST" style="display: inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                    <input type="hidden" name="ticker" value="{{ stock.ticker }}">
+                                    <input type="hidden" name="name" value="{{ stock.name }}">
+                                    <button type="submit" class="btn btn-ghost" style="padding: var(--space-2); font-size: 0.75rem;" title="Unarchive">
+                                        <svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;">
+                                            <path d="M21 8v13H3V8"></path>
+                                            <path d="M1 8h22"></path>
+                                            <path d="M7 3v3a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V3"></path>
+                                            <path d="M12 17v-7"></path>
+                                            <path d="M8 11h8"></path>
+                                        </svg>
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
                         <td>
                             <div style="display:flex;gap:var(--space-2);">
                                 {% if stock.is_active %}
@@ -224,6 +281,20 @@
     </div>
 </div>
 
+<!-- Note Modal (#33) -->
+<div id="note-modal" style="display:none;position:fixed;inset:0;z-index:1001;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;">
+    <div style="background:var(--bg-primary);border:1px solid var(--border-default);border-radius:var(--radius-lg);width:min(520px,95vw);padding:var(--space-8);position:relative;">
+        <button onclick="closeNoteModal()" style="position:absolute;top:var(--space-4);right:var(--space-4);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1.25rem;">✕</button>
+        <h3 id="note-modal-title" style="margin:0 0 var(--space-4) 0;">Note</h3>
+        <textarea id="note-textarea" style="width:100%;min-height:160px;padding:var(--space-4);background:var(--bg-secondary);border:1px solid var(--border-hairline);border-radius:var(--radius-sm);font-family:inherit;font-size:0.875rem;resize:vertical;" placeholder="Add your notes about this stock..."></textarea>
+        <div style="display:flex;gap:var(--space-3);margin-top:var(--space-5);">
+            <button class="btn btn-ghost" onclick="closeNoteModal()" style="flex:1;">Cancel</button>
+            <button id="save-note-btn" class="btn btn-primary" onclick="saveNote()" style="flex:2;">Save</button>
+        </div>
+        <div id="note-save-status" style="font-size:0.8125rem;margin-top:var(--space-3);text-align:center;"></div>
+    </div>
+</div>
+
 <!-- CSV Import Modal (#30) -->
 <div id="csv-import-modal" style="display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;">
     <div style="background:var(--bg-primary);border:1px solid var(--border-default);border-radius:var(--radius-lg);width:min(520px,95vw);padding:var(--space-8);position:relative;">
@@ -257,6 +328,116 @@
 
 {% block extra_scripts %}
 <script>
+    function updateSort() {
+        var select = document.getElementById('sort-select');
+        var value = select.value;
+        var parts = value.split('_');
+        var sortBy = parts[0];
+        var sortOrder = parts[1];
+        
+        // Save preference to localStorage
+        localStorage.setItem('watchlistSort', value);
+        
+        // Build URL with current filters
+        var url = '/watchlist?sort_by=' + sortBy + '&sort_order=' + sortOrder;
+        
+        // Preserve tier filter
+        var tierFilter = new URLSearchParams(window.location.search).get('tier');
+        if (tierFilter) {
+            url += '&tier=' + tierFilter;
+        }
+        
+        // Preserve stale filter
+        var staleFilter = new URLSearchParams(window.location.search).get('stale');
+        if (staleFilter) {
+            url += '&stale=' + staleFilter;
+        }
+        
+        window.location.href = url;
+    }
+    
+    // Load saved sort preference on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        var savedSort = localStorage.getItem('watchlistSort');
+        if (savedSort) {
+            var select = document.getElementById('sort-select');
+            if (select) {
+                // Check if the saved option exists
+                for (var i = 0; i < select.options.length; i++) {
+                    if (select.options[i].value === savedSort) {
+                        select.value = savedSort;
+                        break;
+                    }
+                }
+            }
+        }
+    });
+    
+    // Note Modal Functions (#33)
+    var currentNoteTicker = null;
+    
+    function showNoteModal(ticker) {
+        currentNoteTicker = ticker;
+        var modal = document.getElementById('note-modal');
+        var textarea = document.getElementById('note-textarea');
+        var title = document.getElementById('note-modal-title');
+        
+        title.textContent = 'Note for ' + ticker;
+        textarea.value = 'Loading...';
+        
+        // Fetch existing note
+        fetch('/api/watchlist/note/' + ticker, { credentials: 'same-origin' })
+            .then(function(r) { return r.ok ? r.json() : { note: '' }; })
+            .then(function(data) {
+                textarea.value = data.note || '';
+            })
+            .catch(function() {
+                textarea.value = '';
+            });
+        
+        modal.style.display = 'flex';
+    }
+    
+    function closeNoteModal() {
+        document.getElementById('note-modal').style.display = 'none';
+    }
+    
+    function saveNote() {
+        var textarea = document.getElementById('note-textarea');
+        var noteText = textarea.value;
+        var btn = document.getElementById('save-note-btn');
+        var status = document.getElementById('note-save-status');
+        
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+        status.textContent = '';
+        
+        var formData = new FormData();
+        formData.append('ticker', currentNoteTicker);
+        formData.append('note_text', noteText);
+        formData.append('csrf_token', document.querySelector('input[name="csrf_token"]').value);
+        
+        fetch('/api/watchlist/note', {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin'
+        })
+        .then(function(r) { return r.ok ? r.json() : Promise.reject('Save failed'); })
+        .then(function(data) {
+            status.textContent = '✓ Note saved';
+            status.style.color = '#6bba7e';
+            btn.disabled = false;
+            btn.textContent = 'Save';
+            setTimeout(closeNoteModal, 800);
+        })
+        .catch(function() {
+            status.textContent = '✗ Save failed';
+            status.style.color = '#d47272';
+            btn.disabled = false;
+            btn.textContent = 'Save';
+        });
+    }
+    
     (function () {
         function renderSparkline(svg, prices) {
             if (!prices || prices.length < 2) return;

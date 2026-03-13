@@ -7,6 +7,7 @@
     <meta name="description" content="AI-powered investment monitoring and analysis system">
     <meta name="theme-color" content="#000000">
     <meta name="color-scheme" content="dark">
+    <link rel="manifest" href="/static/manifest.json">
     <title>{% block title %}Stockholm{% endblock %}</title>
 
     <!-- Preconnect for Performance -->
@@ -26,11 +27,54 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
 
     {% block extra_head %}{% endblock %}
+
+    <script>
+        // Apply Breathe settings immediately to prevent FOUC
+        (function() {
+            try {
+                var depth = localStorage.getItem('stockholm-depth-effects');
+                if (depth === 'off') document.documentElement.setAttribute('data-depth', 'off');
+
+                var glow = localStorage.getItem('stockholm-glow-intensity');
+                if (glow) document.documentElement.style.setProperty('--glow-intensity', (parseInt(glow) / 100).toString());
+                
+                var theme = localStorage.getItem('stockholm-theme');
+                if (theme === 'light' || (!theme && window.matchMedia('(prefers-color-scheme: light)').matches)) {
+                    document.documentElement.setAttribute('data-theme', 'light');
+                } else {
+                    document.documentElement.setAttribute('data-theme', 'dark');
+                }
+            } catch (e) {}
+        })();
+    </script>
 </head>
 
 <body>
-    <!-- Ambient Light — Liquid Glass -->
-    <div class="ambient-light" aria-hidden="true"></div>
+    <!-- SVG Defs for Signal Glyphs -->
+    <svg style="display: none;" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <symbol id="glyph-buy" viewBox="0 0 24 24">
+                <path d="M12 4 L20 18 L12 15 L4 18 Z" fill="currentColor" />
+            </symbol>
+            <symbol id="glyph-sell" viewBox="0 0 24 24">
+                <path d="M12 20 L4 6 L12 9 L20 6 Z" fill="currentColor" />
+            </symbol>
+            <symbol id="glyph-hold" viewBox="0 0 24 24">
+                <rect x="5" y="8" width="14" height="3" fill="currentColor" />
+                <rect x="5" y="15" width="14" height="3" fill="currentColor" />
+            </symbol>
+            <symbol id="glyph-watch" viewBox="0 0 24 24">
+                <path d="M12 5C6 5 2 12 2 12s4 7 10 7 10-7 10-7-4-7-10-7zm0 11c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z" fill="none" stroke="currentColor" stroke-width="2" />
+                <circle cx="12" cy="12" r="2" fill="currentColor" />
+            </symbol>
+        </defs>
+    </svg>
+
+    <!-- Layer 0: The Luminary -->
+    <div class="luminary" aria-hidden="true" id="luminary"></div>
+
+    <!-- Layer 1: The Shell -->
+    <div class="shell" aria-hidden="true"></div>
 
     <!-- Navigation -->
     <nav>
@@ -305,6 +349,7 @@
     </div>
 
     <!-- JavaScript -->
+    <script src="/static/js/loading-screen.js"></script>
     <script src="/static/js/liquid-glass.js"></script>
     <script src="/static/js/dashboard.js"></script>
 
@@ -397,7 +442,10 @@
                         if (!data) return;
                         var s = data.scheduler || {};
                         var marketLabel = s.is_market_open ? ' · Open' : ' · Closed';
-                        if (s.is_scanning) {
+                        if (s.is_sleeping) {
+                            dot.className = 'nav-status-dot sleeping';
+                            txt.textContent = 'Sleeping';
+                        } else if (s.is_scanning) {
                             dot.className = 'nav-status-dot scanning';
                             txt.textContent = 'Scanning' + marketLabel;
                         } else if (s.is_running) {
@@ -562,6 +610,21 @@
     </script>
 
     {% block extra_scripts %}{% endblock %}
+    
+    <!-- Service Worker Registration for PWA -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/static/service-worker.js')
+                    .then(function(registration) {
+                        console.log('ServiceWorker registration successful:', registration.scope);
+                    })
+                    .catch(function(error) {
+                        console.log('ServiceWorker registration failed:', error);
+                    });
+            });
+        }
+    </script>
 </body>
 
 </html>

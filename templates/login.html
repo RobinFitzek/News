@@ -78,10 +78,11 @@
         .login-card {
             background: rgba(255, 255, 255, 0.02);
             border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 6px;
+            border-radius: 0;
             padding: 56px 44px;
             position: relative;
             backdrop-filter: blur(20px);
+            box-shadow: 0 32px 80px rgba(0,0,0,0.6);
         }
 
         /* Top accent line with glow */
@@ -121,7 +122,7 @@
         .error-box {
             background: rgba(255, 255, 255, 0.04);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 4px;
+            border-radius: 0;
             padding: 12px 16px;
             margin-bottom: 24px;
             font-size: 0.875rem;
@@ -167,9 +168,10 @@
             font-family: inherit;
             font-size: 0.9375rem;
             color: #ffffff;
-            background: rgba(255, 255, 255, 0.03);
+            background: rgba(255, 255, 255, 0.04);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 4px;
+            border-left: 2px solid transparent;
+            border-radius: 0;
             outline: none;
             transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
         }
@@ -179,8 +181,9 @@
         }
 
         .form-group input:focus {
-            border-color: #ffffff;
-            box-shadow: 0 0 0 1px #ffffff, 0 0 30px rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.1);
+            border-left-color: #ffffff;
+            box-shadow: none;
         }
 
         .btn-login {
@@ -263,6 +266,13 @@
         }
 
         @media (max-width: 480px) {
+            body::before {
+                display: none;
+            }
+            body::after {
+                background: linear-gradient(180deg, rgba(255,255,255,0.05) 0%, transparent 100%);
+            }
+
             .login-card {
                 padding: 40px 28px;
             }

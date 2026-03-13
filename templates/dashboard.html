@@ -56,113 +56,111 @@
 
     <!-- ─── LAYER 1: SYSTEM STATUS BAR ─────────────────── -->
 
+    <!-- ─── LAYER 1: SYSTEM COMMAND CENTER ─────────── -->
+
     <div class="sys-status-bar">
-        <div class="sys-status-info">
-            <!-- Engine state -->
-            <div class="sys-status-item">
-                {% if scheduler_status.is_scanning %}
-                <span class="sys-dot sys-dot-scanning"></span>
-                <span class="sys-value">Scanning</span>
-                {% elif scheduler_status.is_running %}
-                <span class="sys-dot sys-dot-running"></span>
-                <span class="sys-value">Running</span>
-                {% else %}
-                <span class="sys-dot sys-dot-stopped"></span>
-                <span class="sys-value" style="color: var(--signal-negative);">Stopped</span>
-                {% endif %}
+        <!-- Tier 1: Primary Controls -->
+        <div class="sys-command-row">
+            <div class="sys-command-left">
+                <div class="sys-status-item">
+                    {% if scheduler_status.is_scanning %}
+                    <span class="sys-dot sys-dot-scanning"></span>
+                    <span class="sys-value" style="font-weight: 600; color: var(--text-primary);">SCANNING</span>
+                    {% elif scheduler_status.is_running %}
+                    <span class="sys-dot sys-dot-running"></span>
+                    <span class="sys-value" style="font-weight: 600; color: var(--text-primary);">ENGINE ACTIVE</span>
+                    {% else %}
+                    <span class="sys-dot sys-dot-stopped"></span>
+                    <span class="sys-value" style="font-weight: 600; color: var(--signal-negative);">SYSTEM HALTED</span>
+                    {% endif %}
+                </div>
             </div>
 
-            {% if discovery_stats and discovery_stats.last_run %}
-            <div class="sys-sep"></div>
-            <div class="sys-status-item">
-                <span class="sys-label">Last scan</span>
-                <span class="sys-value">{{ discovery_stats.last_run.run_at }}</span>
-                {% if discovery_stats.last_run.errors %}
-                <span class="badge badge-danger" style="font-size: 0.5rem; padding: 1px 5px;">Error</span>
+            <div class="sys-command-center">
+                <form action="/scheduler/run-now" method="POST">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    {% if scheduler_status.is_scanning %}
+                    <button type="button" class="btn btn-secondary sys-btn-main" disabled>SCANNING…</button>
+                    {% else %}
+                    <button type="submit" class="btn btn-primary sys-btn-main">
+                        <svg class="icon-svg svg-animated" viewBox="0 0 24 24">
+                            <circle cx="11" cy="11" r="8" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        </svg>
+                        SCAN NOW
+                    </button>
+                    {% endif %}
+                </form>
+            </div>
+
+            <div class="sys-command-right">
+                <span id="current-time" class="sys-time"></span>
+                <div class="sys-sep"></div>
+                {% if scheduler_status.is_running %}
+                <form action="/scheduler/stop" method="POST" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-danger sys-btn" style="letter-spacing: 0.2em; border-color: transparent;">STOP</button>
+                </form>
+                {% else %}
+                <form action="/scheduler/start" method="POST" style="display: inline;">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-success sys-btn" style="letter-spacing: 0.2em; border-color: transparent;">START</button>
+                </form>
                 {% endif %}
+            </div>
+        </div>
+
+        <!-- Tier 2: Diagnostic Metrics -->
+        <div class="sys-diagnostic-row">
+            {% if discovery_stats and discovery_stats.last_run %}
+            <div class="sys-status-item">
+                <span class="sys-label">Last:</span>
+                <span class="sys-value">{{ discovery_stats.last_run.run_at }}</span>
             </div>
             {% endif %}
 
             {% if scheduler_status.jobs %}
-            <div class="sys-sep"></div>
             <div class="sys-status-item">
+                <span class="sys-label">Queue:</span>
                 <span class="sys-value">{{ scheduler_status.jobs|length }}</span>
-                <span class="sys-label">scheduled jobs</span>
             </div>
             {% endif %}
 
             {% if discovery_stats %}
-            <div class="sys-sep"></div>
             <div class="sys-status-item">
                 {% set pending = (discovery_stats.total_new|default(0)) + (discovery_stats.total_screened|default(0)) %}
-                <span class="sys-value" {% if pending> 0 %}style="color: var(--signal-warning);"{% endif %}>{{ pending
-                    }}</span>
-                <span class="sys-label">pending review</span>
+                <span class="sys-label">Pending:</span>
+                <span class="sys-value" {% if pending> 0 %}style="color: var(--signal-warning);"{% endif %}>{{ pending }}</span>
             </div>
             {% endif %}
 
             {% if learning_stats.total_verified > 0 %}
-            <div class="sys-sep"></div>
             <div class="sys-status-item">
+                <span class="sys-label">Accuracy:</span>
                 <span class="sys-value" {% if learning_stats.hit_rate>= 60 %}style="color: var(--signal-positive);"
-                    {% elif learning_stats.hit_rate < 50 %}style="color: var(--signal-negative);" {% endif %}>
-                        {{ learning_stats.hit_rate }}%
-                </span>
-                <span class="sys-label">AI accuracy</span>
+                    {% elif learning_stats.hit_rate < 50 %}style="color: var(--signal-negative);" {% endif %}>{{ learning_stats.hit_rate }}%</span>
             </div>
             {% endif %}
 
-            <div class="sys-sep"></div>
             <div class="sys-status-item" id="data-freshness-pill" style="display: none;">
-                <span id="data-freshness-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px;"></span>
+                <span class="sys-label">Freshness:</span>
+                <span id="data-freshness-badge" class="badge" style="font-size: 0.5625rem; padding: 0 4px; background: transparent; border: none; min-width: 0;"></span>
             </div>
 
-            <div class="sys-sep"></div>
-            <div class="sys-status-item" id="sys-health-pill" title="System Health"
-                style="cursor: help; display: none;">
-                <span id="sys-health-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px;"></span>
+            <div class="sys-status-item" id="sys-health-pill" title="System Health" style="cursor: help; display: none;">
+                <span class="sys-label">Health:</span>
+                <span id="sys-health-badge" class="badge" style="font-size: 0.5625rem; padding: 0 4px; background: transparent; border: none; min-width: 0;"></span>
             </div>
 
             <!-- Algorithm Status Badges -->
-            <div class="sys-sep"></div>
             <div class="sys-status-item" id="meta-labeler-pill" style="display: none;">
-                <span id="meta-labeler-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px;"></span>
+                <span class="sys-label">ML:</span>
+                <span id="meta-labeler-badge" class="badge" style="font-size: 0.5625rem; padding: 0 4px; background: transparent; border: none; min-width: 0;"></span>
             </div>
-            <div class="sys-sep"></div>
             <div class="sys-status-item" id="mcpt-pill" style="display: none;">
-                <span id="mcpt-badge" class="badge" style="font-size: 0.5625rem; padding: 2px 8px;"></span>
+                <span class="sys-label">MCPT:</span>
+                <span id="mcpt-badge" class="badge" style="font-size: 0.5625rem; padding: 0 4px; background: transparent; border: none; min-width: 0;"></span>
             </div>
-        </div>
-
-        <div class="sys-status-actions">
-            <span id="current-time" class="sys-time"></span>
-
-            {% if scheduler_status.is_running %}
-            <form action="/scheduler/stop" method="POST" style="display: inline;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="btn btn-danger sys-btn">Stop</button>
-            </form>
-            {% else %}
-            <form action="/scheduler/start" method="POST" style="display: inline;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <button type="submit" class="btn btn-success sys-btn">Start</button>
-            </form>
-            {% endif %}
-
-            <form action="/scheduler/run-now" method="POST" style="display: inline;">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                {% if scheduler_status.is_scanning %}
-                <button type="button" class="btn btn-secondary sys-btn" disabled>Scanning…</button>
-                {% else %}
-                <button type="submit" class="btn btn-primary sys-btn">
-                    <svg class="icon-svg svg-animated" viewBox="0 0 24 24">
-                        <circle cx="11" cy="11" r="8" />
-                        <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                    </svg>
-                    Scan Now
-                </button>
-                {% endif %}
-            </form>
         </div>
     </div>
 

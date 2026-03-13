@@ -1355,10 +1355,23 @@ class Database:
         )
 
     # === Watchlist ===
-    def get_watchlist(self, active_only: bool = True) -> List[Dict]:
+    def get_watchlist(self, active_only: bool = True, sort_by: str = "ticker", sort_order: str = "asc") -> List[Dict]:
         conn = self._get_conn()
         cursor = conn.cursor()
         active_filter = "WHERE w.is_active = 1" if active_only else ""
+        
+        # Validate sort parameters to prevent SQL injection
+        valid_sort_columns = {
+            'tier': 'w.tier',
+            'performance': 'ah.risk_score',
+            'signal_age': 'staleness_days',
+            'volatility': 'w.volatility_score',
+            'ticker': 'w.ticker',
+            'added': 'w.added_at'
+        }
+        sort_column = valid_sort_columns.get(sort_by, 'w.ticker')
+        sort_direction = 'DESC' if sort_order.lower() == 'desc' else 'ASC'
+        
         cursor.execute(f"""
             SELECT w.*,
                    ah.signal        AS latest_signal,
@@ -1378,7 +1391,7 @@ class Database:
                 FROM analysis_history
             ) ah ON ah.ticker = w.ticker AND ah.rn = 1
             {active_filter}
-            ORDER BY w.ticker
+            ORDER BY {sort_column} {sort_direction}
         """)
         rows = cursor.fetchall()
         conn.close()
@@ -3086,6 +3099,15 @@ class Database:
             "UPDATE watchlist SET tier = ? WHERE ticker = ?",
             (tier, ticker.upper())
         )
+
+    # === Watchlist Archive ===
+    def archive_watchlist_item(self, ticker: str):
+        """Archive a watchlist item (set is_active=0)."""
+        self.execute("UPDATE watchlist SET is_active = 0 WHERE ticker = ?", (ticker.upper(),))
+
+    def unarchive_watchlist_item(self, ticker: str):
+        """Unarchive a watchlist item (set is_active=1)."""
+        self.execute("UPDATE watchlist SET is_active = 1 WHERE ticker = ?", (ticker.upper(),))
 
     def update_last_scanned(self, ticker: str):
         """Update last_scanned_at timestamp for adaptive scan frequency."""
