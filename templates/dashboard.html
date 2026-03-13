@@ -940,7 +940,7 @@
                         </td>
                         <td style="color: var(--text-muted); font-size: var(--text-sm);">{{ a.timestamp }}</td>
                         <td style="white-space:nowrap;">
-                            <a href="/analysis/{{ a.id }}" class="btn btn-ghost"
+                            <a href="/stock/{{ a.ticker }}?analysis_id={{ a.id }}" class="btn btn-ghost"
                                 style="padding: var(--space-2) var(--space-3); font-size: 0.6875rem;">Details</a>
                             {% if a.signal in ('STRONG_BUY', 'STRONG_SELL', 'BUY', 'SELL') %}
                             <button

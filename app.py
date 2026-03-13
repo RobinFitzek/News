@@ -1872,10 +1872,10 @@ async def geo_history_page(
 
 @app.get("/analysis/{analysis_id}")
 async def analysis_detail(request: Request, analysis_id: int, username: str = Depends(require_auth)):
-    """Redirect legacy analysis detail URL to unified stock detail page."""
+    """Full AI analysis report for a specific analysis run."""
     conn = db._get_conn()
     cursor = conn.cursor()
-    cursor.execute("SELECT ticker FROM analysis_history WHERE id = ?", (analysis_id,))
+    cursor.execute("SELECT * FROM analysis_history WHERE id = ?", (analysis_id,))
     row = cursor.fetchone()
     conn.close()
 
@@ -3563,7 +3563,7 @@ async def health_check():
 # ==================== STOCK DETAIL PAGE ====================
 
 @app.get("/stock/{ticker}", response_class=HTMLResponse)
-async def stock_detail_page(request: Request, ticker: str, username: str = Depends(require_auth)):
+async def stock_detail_page(request: Request, ticker: str, analysis_id: int | None = None, username: str = Depends(require_auth)):
     """Unified stock detail page — all data about a ticker in one place."""
     from engine.earnings_tracker import earnings_tracker
     from engine.financial_statements import financial_statements
@@ -3644,6 +3644,59 @@ async def stock_detail_page(request: Request, ticker: str, username: str = Depen
     except Exception:
         discovery_history = []
 
+    # Selected/latest analysis for merged stock+analysis view
+    selected_analysis = None
+    crosscheck = None
+    try:
+        conn = db._get_conn()
+        cursor = conn.cursor()
+        if analysis_id is not None:
+            cursor.execute(
+                "SELECT * FROM analysis_history WHERE id = ? AND ticker = ?",
+                (analysis_id, ticker)
+            )
+            row = cursor.fetchone()
+            if not row:
+                cursor.execute(
+                    "SELECT * FROM analysis_history WHERE ticker = ? ORDER BY timestamp DESC LIMIT 1",
+                    (ticker,)
+                )
+                row = cursor.fetchone()
+        else:
+            cursor.execute(
+                "SELECT * FROM analysis_history WHERE ticker = ? ORDER BY timestamp DESC LIMIT 1",
+                (ticker,)
+            )
+            row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            selected_analysis = dict(row)
+
+            try:
+                conn2 = db._get_conn()
+                cur2 = conn2.cursor()
+                cur2.execute(
+                    "SELECT * FROM ai_crosscheck_log WHERE analysis_id = ? ORDER BY checked_at DESC LIMIT 1",
+                    (selected_analysis["id"],)
+                )
+                cc_row = cur2.fetchone()
+                conn2.close()
+
+                if cc_row:
+                    import json as _json
+                    crosscheck = dict(cc_row)
+                    if crosscheck.get("details"):
+                        try:
+                            crosscheck["details"] = _json.loads(crosscheck["details"])
+                        except (ValueError, TypeError):
+                            crosscheck["details"] = []
+            except Exception:
+                crosscheck = None
+    except Exception:
+        selected_analysis = None
+        crosscheck = None
+
     return templates.TemplateResponse("stock_detail.html", {
         "request": request,
         "csrf_token": request.state.csrf_token,
@@ -3656,6 +3709,8 @@ async def stock_detail_page(request: Request, ticker: str, username: str = Depen
         "dcf": dcf,
         "insider_data": insider_data,
         "analysis_history": analysis_history,
+        "selected_analysis": selected_analysis,
+        "crosscheck": crosscheck,
         "stock_note": stock_note,
         "div_info": div_info,
         "in_watchlist": in_watchlist,
