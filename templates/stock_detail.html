@@ -664,9 +664,7 @@
             });
         }
         buttons.forEach(btn => btn.addEventListener('click', () => setActive(btn.dataset.target)));
-        // Default to overview, or deep-dive if analysis_id was provided (user came from a specific analysis)
-        const urlParams = new URLSearchParams(window.location.search);
-        setActive(urlParams.has('analysis_id') ? 'overview' : 'overview');
+        setActive('overview');
     })();
 
     // Copy ticker to clipboard
