@@ -1,0 +1,147 @@
+/* ── Stats Row ────────────────────────────────── */
+
+.statsRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+/* ── Section ──────────────────────────────────── */
+
+.section {
+  margin-bottom: var(--space-6);
+}
+
+.sectionTitle {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-3);
+}
+
+/* ── Table ────────────────────────────────────── */
+
+.tableCard { overflow: hidden; }
+.tableWrapper { overflow-x: auto; }
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.table th {
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+  border-bottom: 1px solid var(--border-primary);
+  white-space: nowrap;
+  background: var(--bg-secondary);
+  position: sticky;
+  top: 52px;
+}
+
+.row {
+  border-bottom: 1px solid var(--border-primary);
+  transition: background var(--duration-fast) var(--ease-smooth);
+}
+.row:hover { background: var(--bg-hover); }
+.row:last-child { border-bottom: none; }
+
+.row td {
+  padding: var(--space-3) var(--space-4);
+  vertical-align: middle;
+}
+
+/* ── Cell helpers ─────────────────────────────── */
+
+.ticker {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: var(--text-base);
+}
+
+.insiderName {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.role {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.muted { color: var(--text-muted); }
+
+.timestamp {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ── Significance score ───────────────────────── */
+
+.significance {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sigValue {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.sigHigh   { color: var(--signal-negative); }
+.sigMed    { color: var(--signal-warning); }
+.sigLow    { color: var(--signal-positive); }
+
+/* ── Empty State ──────────────────────────────── */
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-16);
+  color: var(--text-muted);
+}
+
+.emptyIcon {
+  font-size: 2.5rem;
+  opacity: 0.4;
+}
+
+.emptyText {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ── Loading ──────────────────────────────────── */
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-16);
+}
