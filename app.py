@@ -160,10 +160,10 @@ async def login_page(request: Request):
             return RedirectResponse(url="/change-password", status_code=303)
         return RedirectResponse(url="/", status_code=303)
     from fastapi.responses import FileResponse
-    index = Path(__file__).parent / "static" / "react" / "index.html"
+    index = Path(__file__).resolve().parent / "static" / "react" / "index.html"
     if index.exists():
         return FileResponse(str(index))
-    raise HTTPException(status_code=503, detail="React build not found. Run: cd frontend && npm run build")
+    raise HTTPException(status_code=503, detail=f"React build not found at {index}. Run: cd frontend && npm run build")
 
 @app.post("/login")
 @limiter.limit("5/minute")
@@ -5446,7 +5446,7 @@ async def api_paper_trading(
 
 
 # SPA catch-all — serve React index.html for all non-API routes
-_REACT_INDEX = Path(__file__).parent / "static" / "react" / "index.html"
+_REACT_INDEX = Path(__file__).resolve().parent / "static" / "react" / "index.html"
 
 @app.get("/{full_path:path}", include_in_schema=False)
 async def serve_react_spa(full_path: str):
@@ -5459,7 +5459,7 @@ async def serve_react_spa(full_path: str):
     # Serve static files directly (mount may not win over path routes in this Starlette version)
     if full_path.startswith("static/"):
         from fastapi.responses import FileResponse as _FR
-        file_path = Path(__file__).parent / full_path
+        file_path = Path(__file__).resolve().parent / full_path
         if file_path.exists() and file_path.is_file():
             return _FR(str(file_path))
         from fastapi import HTTPException
@@ -5470,7 +5470,7 @@ async def serve_react_spa(full_path: str):
         return FileResponse(str(_REACT_INDEX))
 
     from fastapi import HTTPException
-    raise HTTPException(status_code=404, detail="React build not found. Run: cd frontend && npm run build")
+    raise HTTPException(status_code=404, detail=f"React build not found at {_REACT_INDEX}. Run: cd frontend && npm run build")
 
 
 # Entry point
