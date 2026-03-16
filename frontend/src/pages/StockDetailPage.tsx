@@ -19,7 +19,6 @@ import {
   useEarnings,
   usePeers,
   useSentiment,
-  usePatterns,
   useAnalysisDetail,
 } from '@/api/endpoints/stock'
 import type { SentimentHeadline } from '@/api/endpoints/stock'

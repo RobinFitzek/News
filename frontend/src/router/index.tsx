@@ -8,6 +8,19 @@ import { WatchlistPage } from '@/pages/WatchlistPage'
 import { HistoryPage } from '@/pages/HistoryPage'
 import { AnalyzePage } from '@/pages/AnalyzePage'
 import { LogsPage } from '@/pages/LogsPage'
+import { DiscoveriesPage } from '@/pages/DiscoveriesPage'
+import { TopPicksPage } from '@/pages/TopPicksPage'
+import { InsiderActivityPage } from '@/pages/InsiderActivityPage'
+import { PortfolioPage } from '@/pages/PortfolioPage'
+import { PaperTradingPage } from '@/pages/PaperTradingPage'
+import { TrustPage } from '@/pages/TrustPage'
+import { LearningPage } from '@/pages/LearningPage'
+import { CrosscheckPage } from '@/pages/CrosscheckPage'
+import { GeoHistoryPage } from '@/pages/GeoHistoryPage'
+import { SectorScreenPage } from '@/pages/SectorScreenPage'
+import { BacktestPage } from '@/pages/BacktestPage'
+import { JournalPage } from '@/pages/JournalPage'
+import { StockDetailPage } from '@/pages/StockDetailPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 
@@ -31,23 +44,23 @@ export const router = createBrowserRouter([
       { path: 'analyze',               element: <AnalyzePage /> },
       { path: 'history',               element: <HistoryPage /> },
       { path: 'logs',                  element: <LogsPage /> },
-      { path: 'discoveries',           element: ph('Auto-Discovery') },
-      { path: 'top-picks',             element: ph('Top Picks') },
-      { path: 'insider-activity',      element: ph('Insider Activity') },
-      { path: 'portfolio',             element: ph('Portfolio') },
-      { path: 'paper-trading',         element: ph('Paper Trading') },
-      { path: 'trust',                 element: ph('Trust Score') },
-      { path: 'learning',              element: ph('Learning') },
-      { path: 'crosscheck',            element: ph('Fact-Check') },
-      { path: 'geo-history',           element: ph('Geo History') },
+      { path: 'discoveries',           element: <DiscoveriesPage /> },
+      { path: 'top-picks',             element: <TopPicksPage /> },
+      { path: 'insider-activity',      element: <InsiderActivityPage /> },
+      { path: 'portfolio',             element: <PortfolioPage /> },
+      { path: 'paper-trading',         element: <PaperTradingPage /> },
+      { path: 'trust',                 element: <TrustPage /> },
+      { path: 'learning',              element: <LearningPage /> },
+      { path: 'crosscheck',            element: <CrosscheckPage /> },
+      { path: 'geo-history',           element: <GeoHistoryPage /> },
+      { path: 'sector-screen',         element: <SectorScreenPage /> },
+      { path: 'backtest',              element: <BacktestPage /> },
+      { path: 'journal',               element: <JournalPage /> },
+      { path: 'stock/:ticker',         element: <StockDetailPage /> },
       { path: 'stock/compare',         element: ph('Compare Stocks') },
-      { path: 'sector-screen',         element: ph('Sector Screen') },
       { path: 'discover',              element: ph('AI Discover') },
-      { path: 'backtest',              element: ph('Backtest') },
-      { path: 'journal',               element: ph('Trade Journal') },
       { path: 'architecture',          element: ph('How it Works') },
       { path: 'graveyard',             element: ph('Graveyard') },
-      { path: 'stock/:ticker',         element: ph('Stock Detail') },
       { path: '*',                     element: <NotFoundPage /> },
     ],
   },
