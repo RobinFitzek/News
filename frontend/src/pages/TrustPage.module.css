@@ -1,0 +1,180 @@
+.statusCard {
+  margin-bottom: var(--space-6);
+  padding: var(--space-6);
+}
+
+.statusCardOpen {
+  --card-glow-color: rgba(107, 255, 158, 0.1);
+}
+
+.statusCardClosed {
+  --card-glow-color: rgba(255, 107, 107, 0.1);
+}
+
+.statusHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.statusLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.statusLabel.open { color: var(--signal-positive); }
+.statusLabel.closed { color: var(--signal-negative); }
+
+.scoreDisplay {
+  font-family: var(--font-mono);
+  font-size: var(--text-4xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.scoreSuffix {
+  font-size: var(--text-lg);
+  color: var(--text-muted);
+}
+
+.checksGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+@media (max-width: 900px) {
+  .checksGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .checksGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.checkCard {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: center;
+  text-align: center;
+}
+
+.checkIcon {
+  font-size: var(--text-2xl);
+  line-height: 1;
+}
+
+.checkIcon.pass { color: var(--signal-positive); }
+.checkIcon.fail { color: var(--signal-negative); }
+
+.checkName {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.reasonsList {
+  margin-bottom: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.reasonsTitle {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: var(--space-3);
+}
+
+.reasonRow {
+  padding: var(--space-3) var(--space-4);
+}
+
+.reasonText {
+  font-size: var(--text-sm);
+  color: var(--signal-warning);
+}
+
+.accuracyCard {
+  margin-bottom: var(--space-6);
+}
+
+.accuracyTitle {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: var(--space-4);
+}
+
+.overallAccuracy {
+  font-family: var(--font-mono);
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: var(--space-5);
+}
+
+.signalBreakdown {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+}
+
+@media (max-width: 480px) {
+  .signalBreakdown {
+    grid-template-columns: 1fr;
+  }
+}
+
+.signalItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.signalName {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.signalAccuracy {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.signalCount {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-16);
+}
