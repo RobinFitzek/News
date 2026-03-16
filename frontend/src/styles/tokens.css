@@ -107,6 +107,10 @@
   --text-4xl: clamp(3rem, 6vw, 5rem);
   --text-display: clamp(3rem, 6vw, 5rem);
 
+  /* Sidebar layout tokens */
+  --sidebar-width-collapsed: 56px;
+  --sidebar-width-expanded: 220px;
+
   --ease-breathe: cubic-bezier(0.34, 1.2, 0.64, 1);
   --ease-defuse: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-sink: cubic-bezier(0.4, 0, 1, 1);

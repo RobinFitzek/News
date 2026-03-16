@@ -14,14 +14,14 @@ function getState(status: ReturnType<typeof useApiStatus>['data']): {
   return { state: 'stopped', label: 'System Halted' }
 }
 
-export function StatusPill() {
+export function StatusPill({ compact = false }: { compact?: boolean }) {
   const { data } = useApiStatus()
   const { state, label } = getState(data)
 
   return (
-    <div className={styles.pill}>
+    <div className={styles.pill} title={compact ? label : undefined}>
       <StatusDot status={state} />
-      <span className={styles.label}>{label}</span>
+      {!compact && <span className={styles.label}>{label}</span>}
     </div>
   )
 }
