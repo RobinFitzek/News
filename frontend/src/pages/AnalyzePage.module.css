@@ -1,0 +1,68 @@
+.formWrapper {
+  max-width: 480px;
+  margin: 0 auto;
+  margin-bottom: var(--space-6);
+}
+
+.formCard {
+  padding: var(--space-6);
+}
+
+.formInner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.tickerInput {
+  width: 100%;
+  padding: 16px var(--space-4);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  transition: border-color var(--duration-fast) var(--ease-smooth);
+  box-sizing: border-box;
+}
+.tickerInput:focus { outline: none; border-color: var(--border-highlight); }
+.tickerInput::placeholder {
+  color: var(--text-muted);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.submitBtn {
+  display: flex;
+  width: 100%;
+}
+
+.submitBtn > button {
+  flex: 1;
+  justify-content: center;
+}
+
+.infoWrapper {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.infoCard {
+  padding: var(--space-4) var(--space-5);
+}
+
+.infoText {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.infoSmall {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin: var(--space-2) 0 0;
+}

@@ -1,0 +1,10 @@
+.divider {
+  height: 1px;
+  background: var(--border-primary);
+  flex-shrink: 0;
+}
+.vertical {
+  width: 1px;
+  height: auto;
+  align-self: stretch;
+}

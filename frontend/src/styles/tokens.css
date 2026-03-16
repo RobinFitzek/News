@@ -1,0 +1,216 @@
+/* ================================================
+   STOCKHOLM — Design Tokens
+   Ported verbatim from static/css/modern.css
+   ================================================ */
+
+:root {
+  /* === BREATHE SYSTEM — The Deep (Dark Mode) === */
+
+  --bg-primary: #080810;
+  --bg-secondary: #0E0E1A;
+  --bg-tertiary: #141426;
+  --bg-hover: #1c1c21;
+  --bg-inverse: #f0ece6;
+  --bg-card: #0E0E1A;
+  --bg-card-hover: #141426;
+  --bg-elevated: #141426;
+  --nav-bg: rgba(8, 8, 16, 0.65);
+
+  --surface-black: #0c0c0e;
+  --surface-soft: #111114;
+  --surface-muted: #16161a;
+  --surface-glass: rgba(255, 255, 255, 0.03);
+
+  --text-primary: #EEE8DC;
+  --text-secondary: #9990A0;
+  --text-muted: #6b6560;
+  --text-ghost: #3d3935;
+  --text-inverse: #080810;
+
+  --signal-positive: #4EE88A;
+  --signal-negative: #E86060;
+  --signal-neutral: #60A8E8;
+  --signal-warning: #d4a84b;
+  --signal-positive-bg: rgba(78, 232, 138, 0.08);
+  --signal-negative-bg: rgba(232, 96, 96, 0.06);
+  --signal-neutral-bg: rgba(96, 168, 232, 0.03);
+
+  --glow-positive: #6BFF9E;
+  --glow-negative: #FF6B6B;
+  --glow-neutral: #6BB8FF;
+  --glow-gold: #FFD87A;
+  --glow-ice: #A8D8FF;
+  --glow-amber: #FFB347;
+  --glow-sky: #B8DAFF;
+  --glow-intensity: 0.6;
+  --glow-radius-near: 120px;
+  --glow-radius-far: 400px;
+  --card-glow-color: var(--glow-neutral);
+
+  --accent-warm: #e8e4de;
+  --accent-cool: #9a9590;
+  --accent-line: rgba(255, 255, 255, 0.1);
+  --accent-bright: #ffffff;
+  --accent-focus: #EEE8DC;
+  --accent-glow: rgba(255, 255, 255, 0.04);
+  --nav-hover: rgba(255, 255, 255, 0.05);
+
+  --border-primary: rgba(255,255,255,0.07);
+  --border-highlight: rgba(255,255,255,0.14);
+  --border-hairline: rgba(255, 255, 255, 0.07);
+  --border-light: rgba(255, 255, 255, 0.14);
+  --border-default: rgba(255, 255, 255, 0.3);
+  --border-strong: rgba(255, 255, 255, 0.4);
+  --border-focus: var(--border-highlight);
+
+  --z-luminary: 0;
+  --z-shell: 1;
+  --z-void: 2;
+  --z-glass: 3;
+  --z-elevated: 4;
+  --z-overlay: 100;
+
+  --glass-blur-near: blur(8px);
+  --glass-blur-mid: blur(20px);
+  --glass-blur-far: blur(36px);
+  --glass-saturation: saturate(160%);
+  --glass-tint-dark: rgba(255,255,255,0.05);
+  --glass-tint-light: rgba(255,255,255,0.62);
+  --glass-border-highlight: rgba(255,255,255,0.14);
+  --glass-border-shadow: rgba(0,0,0,0.18);
+  --glass-specular: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 50%);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+  --space-24: 96px;
+
+  --font-display: 'Source Serif 4', 'Georgia', serif;
+  --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+
+  --text-xs: 0.6875rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+  --text-3xl: clamp(2.5rem, 5vw, 3.5rem);
+  --text-4xl: clamp(3rem, 6vw, 5rem);
+  --text-display: clamp(3rem, 6vw, 5rem);
+
+  --ease-breathe: cubic-bezier(0.34, 1.2, 0.64, 1);
+  --ease-defuse: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-sink: cubic-bezier(0.4, 0, 1, 1);
+  --ease-smooth: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-dramatic: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --duration-diffuse: 600ms;
+  --duration-breathe: 4000ms;
+  --duration-float: 6000ms;
+  --duration-instant: 150ms;
+  --duration-fast: 250ms;
+  --duration-normal: 400ms;
+  --duration-slow: 600ms;
+  --duration-cinematic: 1200ms;
+  --parallax-strength: 4px;
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 30px rgba(255, 255, 255, 0.03);
+  --shadow-border: 0 0 0 1px rgba(255, 255, 255, 0.06);
+
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-full: 9999px;
+
+  --glass-blur: 16px;
+  --glass-bg: rgba(26, 26, 30, 0.75);
+  --glass-bg-hover: rgba(36, 36, 42, 0.65);
+  --glass-edge: rgba(255, 255, 255, 0.1);
+
+  --pulse-color-start: rgba(232, 228, 222, 0.4);
+  --pulse-color-end: rgba(232, 228, 222, 0);
+  --btn-sheen: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+}
+
+[data-theme="light"] {
+  /* === BREATHE SYSTEM — The Breath (Light Mode) === */
+
+  --bg-primary: #F5F0E8;
+  --bg-secondary: #EDE8DF;
+  --bg-tertiary: #E4DFD4;
+  --bg-hover: #e0dcd4;
+  --bg-inverse: #18141e;
+  --bg-card: #EDE8DF;
+  --bg-card-hover: #E4DFD4;
+  --bg-elevated: #F5F0E8;
+  --nav-bg: rgba(245, 240, 232, 0.85);
+
+  --surface-black: #f7f5f0;
+  --surface-soft: #efece6;
+  --surface-muted: #e8e4dd;
+  --surface-glass: rgba(0, 0, 0, 0.03);
+
+  --text-primary: #18141E;
+  --text-secondary: #5C5468;
+  --text-muted: #7a756e;
+  --text-ghost: #b5b0a8;
+  --text-inverse: #F5F0E8;
+
+  --signal-positive: #0D7A3C;
+  --signal-negative: #A01818;
+  --signal-neutral: #1456A0;
+  --signal-warning: #9a7520;
+  --signal-positive-bg: rgba(13, 122, 60, 0.1);
+  --signal-negative-bg: rgba(160, 24, 24, 0.08);
+  --signal-neutral-bg: rgba(20, 86, 160, 0.04);
+
+  --accent-warm: #18141E;
+  --accent-cool: #5C5468;
+  --accent-line: rgba(0, 0, 0, 0.12);
+  --accent-bright: #18141E;
+  --accent-focus: #18141E;
+  --accent-glow: rgba(0, 0, 0, 0.05);
+  --nav-hover: rgba(0, 0, 0, 0.06);
+
+  --border-primary: rgba(0,0,0,0.07);
+  --border-highlight: rgba(255,255,255,0.80);
+  --border-hairline: rgba(0, 0, 0, 0.07);
+  --border-light: rgba(0, 0, 0, 0.18);
+  --border-default: rgba(0, 0, 0, 0.25);
+  --border-strong: rgba(0, 0, 0, 0.35);
+  --border-focus: var(--border-highlight);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.07);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
+  --shadow-glow: none;
+  --shadow-border: 0 0 0 1px rgba(0, 0, 0, 0.06);
+
+  --glass-blur: 0px;
+  --glass-bg: #efece6;
+  --glass-bg-hover: #e8e4dd;
+  --glass-edge: rgba(0, 0, 0, 0.08);
+
+  --pulse-color-start: rgba(26, 26, 30, 0.3);
+  --pulse-color-end: rgba(26, 26, 30, 0);
+  --btn-sheen: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+
+  --glow-intensity: 0;
+}

@@ -1,0 +1,196 @@
+.addCard {
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.addTitle {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: var(--space-3);
+}
+
+.formRow {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-3);
+}
+
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+  min-width: 120px;
+}
+
+.formField.wide {
+  flex: 2;
+  min-width: 200px;
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.input,
+.select {
+  padding: 8px var(--space-3);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  width: 100%;
+  transition: border-color var(--duration-fast) var(--ease-smooth);
+}
+.input:focus,
+.select:focus {
+  outline: none;
+  border-color: var(--border-highlight);
+}
+.input::placeholder { color: var(--text-muted); }
+.select option { background: var(--bg-secondary); }
+
+.textarea {
+  padding: 8px var(--space-3);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  width: 100%;
+  resize: vertical;
+  min-height: 64px;
+  transition: border-color var(--duration-fast) var(--ease-smooth);
+}
+.textarea:focus {
+  outline: none;
+  border-color: var(--border-highlight);
+}
+.textarea::placeholder { color: var(--text-muted); }
+
+.addActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-2);
+}
+
+/* ── Entries ─────────────────────────────────────────────────────────────── */
+
+.entriesList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-16);
+}
+
+.entryCard {
+  padding: var(--space-4);
+}
+
+.entryHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.entryTicker {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: var(--text-base);
+  color: var(--text-primary);
+}
+
+.entryDate {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.entryNotes {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: var(--space-3);
+  white-space: pre-wrap;
+}
+
+.entryMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.entryPrice {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.entryPnl {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.positive { color: var(--signal-positive); }
+.negative { color: var(--signal-negative); }
+
+.entryFooter {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-primary);
+}
+
+.spacer { flex: 1; }
+
+/* ── Close Modal ─────────────────────────────────────────────────────────── */
+
+.closeModalFields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--border-primary);
+}
+
+/* ── Loading / Empty ─────────────────────────────────────────────────────── */
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-16);
+}
+
+.emptyState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-16);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}

@@ -1,0 +1,46 @@
+.luminary {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-luminary);
+  pointer-events: none;
+  overflow: hidden;
+  mix-blend-mode: screen;
+}
+
+[data-theme="light"] .luminary {
+  mix-blend-mode: multiply;
+  opacity: 0.3;
+}
+
+.orbA {
+  position: absolute;
+  top: -10%;
+  right: -10%;
+  width: 800px;
+  height: 800px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--glow-gold) 0%, transparent 60%);
+  filter: blur(80px);
+  opacity: calc(0.25 * var(--glow-intensity, 0.6));
+  animation: luminaryDrift var(--duration-float) ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.orbB {
+  position: absolute;
+  bottom: -10%;
+  left: -10%;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--glow-ice) 0%, transparent 60%);
+  filter: blur(60px);
+  opacity: calc(0.18 * var(--glow-intensity, 0.6));
+  animation: luminaryDrift var(--duration-float) ease-in-out infinite alternate-reverse;
+  will-change: transform;
+}
+
+@keyframes luminaryDrift {
+  0%   { transform: translate(-40px, -40px); }
+  100% { transform: translate(40px, 40px); }
+}
