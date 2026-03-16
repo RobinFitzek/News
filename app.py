@@ -163,7 +163,7 @@ async def login_page(request: Request):
     index = Path(__file__).parent / "static" / "react" / "index.html"
     if index.exists():
         return FileResponse(str(index))
-    return RedirectResponse(url="/static/react/index.html")
+    raise HTTPException(status_code=503, detail="React build not found. Run: cd frontend && npm run build")
 
 @app.post("/login")
 @limiter.limit("5/minute")
@@ -5451,11 +5451,17 @@ _REACT_INDEX = Path(__file__).parent / "static" / "react" / "index.html"
 @app.get("/{full_path:path}", include_in_schema=False)
 async def serve_react_spa(full_path: str):
     """Serve React SPA for all non-API, non-static routes"""
-    # Only skip actual server-side endpoints, not React routes
-    skip_prefixes = (
-        "api/", "static/", "logout",
-    )
-    if any(full_path.startswith(p) for p in skip_prefixes):
+    # Block server-side API and auth endpoints
+    if full_path.startswith("api/") or full_path == "logout":
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404)
+
+    # Serve static files directly (mount may not win over path routes in this Starlette version)
+    if full_path.startswith("static/"):
+        from fastapi.responses import FileResponse as _FR
+        file_path = Path(__file__).parent / full_path
+        if file_path.exists() and file_path.is_file():
+            return _FR(str(file_path))
         from fastapi import HTTPException
         raise HTTPException(status_code=404)
 
