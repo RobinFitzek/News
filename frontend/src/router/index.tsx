@@ -5,6 +5,9 @@ import { LoginPage } from '@/pages/LoginPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { WatchlistPage } from '@/pages/WatchlistPage'
+import { HistoryPage } from '@/pages/HistoryPage'
+import { AnalyzePage } from '@/pages/AnalyzePage'
+import { LogsPage } from '@/pages/LogsPage'
 import { PlaceholderPage } from '@/pages/PlaceholderPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 
@@ -25,6 +28,9 @@ export const router = createBrowserRouter([
       { index: true,                   element: <DashboardPage /> },
       { path: 'settings',              element: <SettingsPage /> },
       { path: 'watchlist',             element: <WatchlistPage /> },
+      { path: 'analyze',               element: <AnalyzePage /> },
+      { path: 'history',               element: <HistoryPage /> },
+      { path: 'logs',                  element: <LogsPage /> },
       { path: 'discoveries',           element: ph('Auto-Discovery') },
       { path: 'top-picks',             element: ph('Top Picks') },
       { path: 'insider-activity',      element: ph('Insider Activity') },
@@ -33,15 +39,12 @@ export const router = createBrowserRouter([
       { path: 'trust',                 element: ph('Trust Score') },
       { path: 'learning',              element: ph('Learning') },
       { path: 'crosscheck',            element: ph('Fact-Check') },
-      { path: 'history',               element: ph('History') },
       { path: 'geo-history',           element: ph('Geo History') },
-      { path: 'analyze',               element: ph('Analyze Stock') },
       { path: 'stock/compare',         element: ph('Compare Stocks') },
       { path: 'sector-screen',         element: ph('Sector Screen') },
       { path: 'discover',              element: ph('AI Discover') },
       { path: 'backtest',              element: ph('Backtest') },
       { path: 'journal',               element: ph('Trade Journal') },
-      { path: 'logs',                  element: ph('Logs') },
       { path: 'architecture',          element: ph('How it Works') },
       { path: 'graveyard',             element: ph('Graveyard') },
       { path: 'stock/:ticker',         element: ph('Stock Detail') },

@@ -364,6 +364,23 @@ export interface PaperPosition {
   pnl_pct: number
 }
 
+// ── History ──────────────────────────────────────
+
+export interface HistoryAnalysis {
+  id: number
+  ticker: string
+  signal: SignalType
+  confidence: number
+  risk_score: number | null
+  geo_risk_score: number | null
+  timestamp: string
+}
+
+export interface HistoryResponse {
+  analyses: HistoryAnalysis[]
+  filter_ticker: string | null
+}
+
 // ── Misc ─────────────────────────────────────────
 
 export interface ToastMessage {
