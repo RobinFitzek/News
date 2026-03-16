@@ -1,0 +1,36 @@
+.dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.dot.md {
+  width: 8px;
+  height: 8px;
+}
+
+.running, .active, .success {
+  background: var(--signal-positive);
+  box-shadow: 0 0 6px var(--glow-positive);
+}
+
+.scanning {
+  background: var(--signal-warning);
+  box-shadow: 0 0 6px var(--glow-amber);
+}
+
+.stopped, .danger {
+  background: var(--signal-negative);
+  box-shadow: 0 0 4px var(--glow-negative);
+}
+
+.sleeping, .idle {
+  background: var(--text-muted);
+}
+
+.warning {
+  background: var(--signal-warning);
+  box-shadow: 0 0 4px var(--glow-amber);
+}

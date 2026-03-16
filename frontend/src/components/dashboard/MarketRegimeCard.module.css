@@ -1,0 +1,110 @@
+.card { padding: var(--space-5); height: 100%; }
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5);
+}
+
+.title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: var(--font-mono);
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 80px;
+}
+
+.error {
+  font-size: var(--text-sm);
+  color: var(--signal-negative);
+  padding: var(--space-4) 0;
+}
+
+.metrics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.rowLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.rowValue {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.value {
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+}
+
+.smaRow {
+  display: flex;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
+}
+
+.sma {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 10px;
+  border: 1px solid;
+  flex: 1;
+}
+
+.smaAbove {
+  border-color: rgba(78, 232, 138, 0.2);
+  background: var(--signal-positive-bg);
+}
+.smaBelow {
+  border-color: rgba(232, 96, 96, 0.2);
+  background: var(--signal-negative-bg);
+}
+
+.smaDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.smaAbove .smaDot { background: var(--signal-positive); }
+.smaBelow .smaDot { background: var(--signal-negative); }
+
+.smaLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.smaStatus {
+  font-size: var(--text-xs);
+  margin-left: auto;
+}
+.smaAbove .smaStatus { color: var(--signal-positive); }
+.smaBelow .smaStatus { color: var(--signal-negative); }

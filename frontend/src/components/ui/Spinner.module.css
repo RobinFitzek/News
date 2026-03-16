@@ -1,0 +1,9 @@
+.spinner {
+  color: var(--signal-neutral);
+  animation: spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

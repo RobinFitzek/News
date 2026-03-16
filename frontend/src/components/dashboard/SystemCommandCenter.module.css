@@ -1,0 +1,104 @@
+.bar {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  margin-bottom: var(--space-6);
+}
+
+.commandRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--border-primary);
+  gap: var(--space-4);
+}
+
+.leftGroup, .rightGroup, .centerGroup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.leftGroup { flex: 1; }
+.centerGroup { flex-shrink: 0; }
+.rightGroup { flex: 1; justify-content: flex-end; }
+
+.stateLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.clock {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.sep {
+  width: 1px;
+  height: 14px;
+  background: var(--border-primary);
+  flex-shrink: 0;
+}
+
+.scanProgress {
+  padding: var(--space-2) var(--space-5) var(--space-1);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.scanLabel {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.scanTicker {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--signal-warning);
+  font-weight: 500;
+}
+
+.scanCount {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.diagnosticRow {
+  display: flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-5);
+  gap: var(--space-4);
+  overflow-x: auto;
+  flex-wrap: wrap;
+}
+
+.diagItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.diagLabel {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.diagValue {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}

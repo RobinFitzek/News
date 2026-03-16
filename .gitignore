@@ -48,3 +48,10 @@ logs/
 core/__pycache__/
 engine/__pycache__/
 clients/__pycache__/
+
+# React build output
+static/react/
+
+# Node modules
+frontend/node_modules/
+frontend/dist-types/

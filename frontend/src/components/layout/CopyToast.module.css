@@ -1,0 +1,32 @@
+.toast {
+  position: fixed;
+  bottom: var(--space-8);
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 8px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-highlight);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(20px);
+  z-index: var(--z-overlay);
+  pointer-events: none;
+}
+
+.icon {
+  color: var(--signal-positive);
+  font-size: var(--text-sm);
+  font-family: var(--font-mono);
+}
+
+.text {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.text strong {
+  color: var(--text-primary);
+  font-weight: 500;
+  font-family: var(--font-mono);
+}

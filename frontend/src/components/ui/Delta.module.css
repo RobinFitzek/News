@@ -1,0 +1,8 @@
+.delta {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+.positive { color: var(--signal-positive); }
+.negative { color: var(--signal-negative); }
+.neutral  { color: var(--text-muted); }

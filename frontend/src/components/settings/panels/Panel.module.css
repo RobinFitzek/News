@@ -1,0 +1,237 @@
+.panelContent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.panelTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 300;
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.section {
+  padding: var(--space-5);
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.sectionTitle {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: var(--font-mono);
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Provider rows */
+.providerRow, .keyRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  gap: var(--space-3);
+}
+
+.providerInfo, .keyInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1;
+  min-width: 0;
+}
+
+.providerName, .keyLabel {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.keyMask {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.providerActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.empty {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  padding: var(--space-3) 0;
+}
+
+/* Form */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.fieldLabel {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.input {
+  padding: 8px var(--space-3);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  width: 100%;
+  transition: border-color var(--duration-fast) var(--ease-smooth);
+}
+.input:focus { outline: none; border-color: var(--border-highlight); }
+.input option { background: var(--bg-secondary); }
+
+/* Save button row */
+.saveRow {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-primary);
+}
+
+/* Created key display */
+.createdKey {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.createdKeyNote {
+  font-size: var(--text-sm);
+  color: var(--signal-warning);
+  padding: var(--space-3);
+  background: rgba(212,168,75,0.06);
+  border: 1px solid rgba(212,168,75,0.3);
+}
+
+.rawKey {
+  display: block;
+  padding: var(--space-3);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-highlight);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--signal-positive);
+  word-break: break-all;
+}
+
+/* Slider */
+.sliderRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.slider {
+  flex: 1;
+  accent-color: var(--text-primary);
+}
+
+.sliderValue {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  min-width: 36px;
+  text-align: right;
+}
+
+/* Toggle */
+.toggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-primary);
+}
+.toggleRow:last-child { border-bottom: none; }
+
+.toggleLabel {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.toggleSub {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.toggle {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.toggle input { opacity: 0; width: 0; height: 0; }
+
+.toggleTrack {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  transition: background 0.2s;
+}
+
+.toggle input:checked ~ .toggleTrack {
+  background: var(--signal-positive);
+  border-color: var(--signal-positive);
+}
+
+.toggleThumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  background: var(--text-muted);
+  transition: transform 0.2s, background 0.2s;
+}
+
+.toggle input:checked ~ .toggleThumb {
+  transform: translateX(16px);
+  background: var(--bg-primary);
+}

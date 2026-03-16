@@ -1,0 +1,51 @@
+.strip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-4) var(--space-6);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  margin-bottom: var(--space-6);
+  overflow-x: auto;
+}
+
+.sep {
+  width: 1px;
+  height: 32px;
+  background: var(--border-primary);
+  flex-shrink: 0;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.metricValue {
+  font-family: var(--font-mono);
+  font-size: var(--text-xl);
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.positive { color: var(--signal-positive); }
+.negative { color: var(--signal-negative); }
+
+.metricLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+  flex-shrink: 0;
+}

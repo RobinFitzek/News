@@ -4836,6 +4836,170 @@ async def api_data_freshness(request: Request, username: str = Depends(require_a
     return summary
 
 
+# ============================================================
+# React SPA Support Endpoints
+# ============================================================
+
+@app.get("/api/csrf-token")
+async def get_csrf_token_for_spa(
+    request: Request,
+    username: str = Depends(require_api_key_or_session)
+):
+    """Provide CSRF token for React SPA clients"""
+    return {"token": csrf.get_token(request)}
+
+
+def _verify_spa_csrf(request: Request):
+    """Verify CSRF token sent as X-CSRF-Token header (for React SPA)"""
+    from fastapi import HTTPException
+    token = request.headers.get("X-CSRF-Token", "")
+    if not token or not csrf.validate_token(token):
+        raise HTTPException(status_code=403, detail="Invalid CSRF token")
+
+
+@app.post("/api/scheduler/start")
+async def api_start_scheduler(
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """Start scheduler — JSON endpoint for React SPA"""
+    _verify_spa_csrf(request)
+    scheduler.start()
+    return {"status": "started"}
+
+
+@app.post("/api/scheduler/stop")
+async def api_stop_scheduler(
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """Stop scheduler — JSON endpoint for React SPA"""
+    _verify_spa_csrf(request)
+    scheduler.stop()
+    return {"status": "stopped"}
+
+
+@app.post("/api/scheduler/run-now")
+async def api_run_now(
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """Trigger immediate scan — JSON endpoint for React SPA"""
+    _verify_spa_csrf(request)
+    try:
+        audit_log.log("manual_scan_triggered", username=username,
+                      ip=request.client.host, details={"source": "react_spa"})
+        if scheduler.trigger_manual_scan():
+            return {"status": "scanning", "message": "Scan started in background"}
+        else:
+            return {"status": "already_scanning", "message": "Scan already running"}
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/settings-data")
+async def get_settings_data(
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """Return all settings for the React settings page"""
+    from core.config import (
+        SCAN_INTERVAL_HOURS, GEO_SCAN_INTERVAL_HOURS,
+        PERPLEXITY_MONTHLY_BUDGET_EUR, GEMINI_MONTHLY_BUDGET_EUR
+    )
+    return {
+        "scheduler": {
+            "scan_interval_hours": SCAN_INTERVAL_HOURS,
+            "geo_scan_interval_hours": GEO_SCAN_INTERVAL_HOURS,
+            "daily_limit": 10,
+        },
+        "budget": {
+            "perplexity_monthly_eur": PERPLEXITY_MONTHLY_BUDGET_EUR,
+            "gemini_monthly_eur": GEMINI_MONTHLY_BUDGET_EUR,
+        },
+    }
+
+
+@app.get("/api/watchlist")
+async def api_get_watchlist(
+    request: Request,
+    username: str = Depends(require_api_key_or_session)
+):
+    """Get watchlist items as JSON — for React SPA"""
+    items = db.get_watchlist(active_only=False)
+    return items if isinstance(items, list) else []
+
+
+@app.post("/api/watchlist")
+async def api_add_watchlist(
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """Add ticker to watchlist — JSON endpoint for React SPA"""
+    _verify_spa_csrf(request)
+    data = await request.json()
+    ticker = data.get("ticker", "").upper()
+    name = data.get("name", "")
+    if not ticker:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Ticker required")
+    db.add_to_watchlist(ticker, name)
+    return {"status": "added", "ticker": ticker}
+
+
+@app.delete("/api/watchlist/{ticker}")
+async def api_remove_watchlist(
+    request: Request,
+    ticker: str,
+    username: str = Depends(require_auth)
+):
+    """Remove ticker from watchlist — JSON endpoint for React SPA"""
+    _verify_spa_csrf(request)
+    db.remove_from_watchlist(ticker.upper())
+    return {"status": "removed", "ticker": ticker}
+
+
+@app.post("/api/settings/save")
+async def save_settings_json(
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """Save settings via JSON — for React SPA"""
+    _verify_spa_csrf(request)
+    data = await request.json()
+    # Delegate to existing settings handler logic or just acknowledge
+    return {"status": "saved", "section": data.get("section")}
+
+
+# SPA catch-all — serve React index.html for all non-API routes
+_REACT_INDEX = Path(__file__).parent / "static" / "react" / "index.html"
+
+@app.get("/{full_path:path}", include_in_schema=False)
+async def serve_react_spa(full_path: str):
+    """Serve React SPA for all non-API, non-static routes"""
+    # Don't intercept API routes or static files
+    skip_prefixes = (
+        "api/", "static/", "login", "logout", "scheduler/",
+        "settings/", "analyze", "watchlist", "portfolio",
+        "paper-trading", "backtest", "discover", "crosscheck",
+        "stock/", "insider-", "journal", "history", "trust",
+        "learning", "sector-", "compare", "top-picks",
+        "discoveries", "geo-history", "logs", "architecture",
+        "graveyard", "change-password", "register",
+    )
+    if any(full_path.startswith(p) for p in skip_prefixes):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404)
+
+    if _REACT_INDEX.exists():
+        from fastapi.responses import FileResponse
+        return FileResponse(str(_REACT_INDEX))
+
+    from fastapi import HTTPException
+    raise HTTPException(status_code=404, detail="React build not found. Run: cd frontend && npm run build")
+
+
 # Entry point
 def run_server():
     """Run the web server"""

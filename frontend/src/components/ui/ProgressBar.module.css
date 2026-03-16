@@ -1,0 +1,16 @@
+.track {
+  background: var(--border-primary);
+  overflow: hidden;
+  width: 100%;
+}
+
+.fill {
+  height: 100%;
+  width: 100%;
+  transform-origin: left;
+}
+
+.default { background: var(--text-secondary); }
+.success  { background: var(--signal-positive); }
+.danger   { background: var(--signal-negative); }
+.warning  { background: var(--signal-warning); }
