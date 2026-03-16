@@ -1,0 +1,177 @@
+/* ================================================
+   Sidebar Navigation
+   ================================================ */
+
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: var(--z-elevated);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border-right: 1px solid var(--border-primary);
+  overflow: hidden;
+  will-change: width;
+}
+
+/* ── Logo ── */
+.logoRow {
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border-primary);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.logoMark {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--glow-gold);
+  text-decoration: none;
+  border: 1px solid rgba(255, 216, 122, 0.2);
+  line-height: 1;
+  box-shadow: 0 0 12px rgba(255, 216, 122, 0.06);
+  transition: border-color var(--duration-fast);
+}
+.logoMark:hover { border-color: rgba(255, 216, 122, 0.4); }
+
+.logoText {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 400;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+/* ── Status ── */
+.statusRow {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-primary);
+  flex-shrink: 0;
+}
+
+/* ── Nav ── */
+.nav {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-3) 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  scrollbar-width: none;
+}
+.nav::-webkit-scrollbar { display: none; }
+
+.group {
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--border-primary);
+}
+.group:last-child { border-bottom: none; }
+
+/* ── Nav item ── */
+.navItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 36px;
+  padding: 0 16px;
+  color: var(--text-muted);
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  transition:
+    color var(--duration-fast) var(--ease-smooth),
+    background var(--duration-fast) var(--ease-smooth);
+  width: 100%;
+  text-align: left;
+}
+
+.navItem:hover {
+  color: var(--text-primary);
+  background: var(--nav-hover);
+}
+
+.navItem.active {
+  color: var(--text-primary);
+}
+
+/* Active left-border accent */
+.navItem.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--signal-positive);
+  border-radius: 0 2px 2px 0;
+}
+
+.navItem.active { background: rgba(78, 232, 138, 0.04); }
+
+.icon {
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity var(--duration-fast);
+}
+.navItem:hover .icon,
+.navItem.active .icon { opacity: 1; }
+
+.navLabel {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Bottom ── */
+.bottom {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border-primary);
+  padding: var(--space-2) 0;
+}
+
+/* Toggle collapse button */
+.toggleBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 36px;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-ghost);
+  transition: color var(--duration-fast);
+}
+.toggleBtn:hover { color: var(--text-muted); }
+
+/* ── Tooltip (collapsed state, CSS-only) ── */
+@media (hover: hover) {
+  .navItem[title]:not(.active) {
+    position: relative;
+  }
+}

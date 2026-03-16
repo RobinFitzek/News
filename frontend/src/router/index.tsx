@@ -2,6 +2,8 @@ import { createBrowserRouter } from 'react-router-dom'
 import { AuthGuard } from './AuthGuard'
 import { RootLayout } from '@/components/layout/RootLayout'
 import { LoginPage } from '@/pages/LoginPage'
+import { TotpPage } from '@/pages/TotpPage'
+import { TwoFactorSetupPage } from '@/pages/TwoFactorSetupPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { WatchlistPage } from '@/pages/WatchlistPage'
@@ -32,6 +34,10 @@ export const router = createBrowserRouter([
     element: <LoginPage />,
   },
   {
+    path: '/login/totp',
+    element: <TotpPage />,
+  },
+  {
     element: (
       <AuthGuard>
         <RootLayout />
@@ -40,6 +46,7 @@ export const router = createBrowserRouter([
     children: [
       { index: true,                   element: <DashboardPage /> },
       { path: 'settings',              element: <SettingsPage /> },
+      { path: 'settings/2fa/setup',    element: <TwoFactorSetupPage /> },
       { path: 'watchlist',             element: <WatchlistPage /> },
       { path: 'analyze',               element: <AnalyzePage /> },
       { path: 'history',               element: <HistoryPage /> },

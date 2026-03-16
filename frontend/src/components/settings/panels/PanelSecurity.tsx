@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useChangePassword } from '@/api/endpoints/settings'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -86,9 +87,9 @@ export function PanelSecurity() {
         <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', margin: 'var(--space-3) 0' }}>
           Enable TOTP two-factor authentication for additional security.
         </p>
-        <a href="/settings/2fa">
+        <Link to="/settings/2fa/setup">
           <Button variant="secondary" size="sm">Manage 2FA</Button>
-        </a>
+        </Link>
       </Card>
     </div>
   )

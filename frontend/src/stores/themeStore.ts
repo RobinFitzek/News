@@ -5,9 +5,12 @@ interface ThemeStore {
   theme: 'dark' | 'light' | 'system'
   glowIntensity: number
   depthEffects: boolean
+  sidebarExpanded: boolean
   setTheme: (theme: ThemeStore['theme']) => void
   setGlowIntensity: (v: number) => void
   setDepthEffects: (v: boolean) => void
+  setSidebarExpanded: (v: boolean) => void
+  toggleSidebar: () => void
   applyTheme: () => void
 }
 
@@ -24,6 +27,7 @@ export const useThemeStore = create<ThemeStore>()(
       theme: 'dark',
       glowIntensity: 0.6,
       depthEffects: true,
+      sidebarExpanded: true,
 
       setTheme: (theme) => {
         set({ theme })
@@ -39,6 +43,10 @@ export const useThemeStore = create<ThemeStore>()(
         set({ depthEffects: v })
         document.documentElement.setAttribute('data-depth', String(v))
       },
+
+      setSidebarExpanded: (v) => set({ sidebarExpanded: v }),
+
+      toggleSidebar: () => set(s => ({ sidebarExpanded: !s.sidebarExpanded })),
 
       applyTheme: () => {
         const { theme, glowIntensity, depthEffects } = get()
@@ -59,6 +67,7 @@ export const useThemeStore = create<ThemeStore>()(
         theme: state.theme,
         glowIntensity: state.glowIntensity,
         depthEffects: state.depthEffects,
+        sidebarExpanded: state.sidebarExpanded,
       }),
     }
   )
