@@ -4972,6 +4972,256 @@ async def save_settings_json(
     return {"status": "saved", "section": data.get("section")}
 
 
+# ── Analysis History ────────────────────────────────────────────────────────
+
+@app.get("/api/history")
+async def api_history(
+    request: Request,
+    ticker: str = None,
+    limit: int = 100,
+    username: str = Depends(require_api_key_or_session)
+):
+    """Analysis history — JSON for React SPA"""
+    analyses = db.get_analysis_history(ticker=ticker.upper() if ticker else None, limit=limit)
+    return {"analyses": analyses or [], "filter_ticker": ticker}
+
+
+# ── Discoveries ──────────────────────────────────────────────────────────────
+
+@app.get("/api/discoveries")
+async def api_discoveries(
+    request: Request,
+    status: str = "all",
+    username: str = Depends(require_api_key_or_session)
+):
+    """Discoveries list + stats — JSON for React SPA"""
+    items = db.get_recent_discoveries(
+        days=30,
+        status=status if status != "all" else None
+    )
+    stats = db.get_discovery_stats()
+    log = db.get_discovery_log(limit=10)
+    return {"discoveries": items or [], "stats": stats, "log": log or [], "status_filter": status}
+
+
+@app.post("/api/discoveries/{discovery_id}/promote")
+async def api_promote_discovery(
+    request: Request,
+    discovery_id: int,
+    username: str = Depends(require_auth)
+):
+    """Promote a discovery — JSON for React SPA"""
+    _verify_spa_csrf(request)
+    discovery = db.query_one("SELECT * FROM discovered_stocks WHERE id = ?", (discovery_id,))
+    if not discovery:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Discovery not found")
+    ticker = discovery['ticker']
+    db.add_to_watchlist(ticker, '')
+    db.promote_discovery(ticker)
+    audit_log.log("discovery_promoted", username=username, ip=request.client.host, details={"ticker": ticker})
+    return {"status": "promoted", "ticker": ticker}
+
+
+@app.post("/api/discoveries/{discovery_id}/dismiss")
+async def api_dismiss_discovery(
+    request: Request,
+    discovery_id: int,
+    username: str = Depends(require_auth)
+):
+    """Dismiss a discovery — JSON for React SPA"""
+    _verify_spa_csrf(request)
+    data = await request.json()
+    db.dismiss_discovery(discovery_id, data.get("reason", ""))
+    return {"status": "dismissed"}
+
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+
+@app.get("/api/logs")
+async def api_logs(
+    request: Request,
+    alert_filter: str = "active",
+    username: str = Depends(require_auth)
+):
+    """System logs — JSON for React SPA"""
+    from engine.alert_manager import alert_manager
+    if alert_filter not in ("active", "all"):
+        alert_filter = "active"
+    dedup_alerts = alert_manager.get_active_alerts(include_acknowledged=(alert_filter == "all"))
+    alert_summary = alert_manager.get_alert_summary()
+    login_fail_summary = db.get_login_failures_summary(hours=24)
+    recent_login_failures = db.get_recent_login_failures(limit=30, hours=24)
+    return {
+        "scheduler_logs": db.get_scheduler_logs(limit=50) or [],
+        "alerts": db.get_alerts(limit=50) or [],
+        "dedup_alerts": list(dedup_alerts) if dedup_alerts else [],
+        "alert_summary": alert_summary,
+        "alert_filter": alert_filter,
+        "login_fail_summary": login_fail_summary,
+        "recent_login_failures": recent_login_failures or [],
+    }
+
+
+# ── Top Picks ─────────────────────────────────────────────────────────────────
+
+@app.get("/api/top-picks")
+async def api_top_picks(
+    request: Request,
+    username: str = Depends(require_api_key_or_session)
+):
+    """Top picks — JSON for React SPA"""
+    top_picks = db.get_top_picks(min_predictions=5, min_accuracy=0.6, limit=20)
+    recent_signals = db.get_recent_high_confidence_predictions(days=7, min_confidence=70)
+    learning_stats = learning_optimizer.get_learning_stats()
+    return {
+        "top_picks": top_picks or [],
+        "recent_signals": recent_signals or [],
+        "learning_stats": learning_stats,
+        "total_trusted": len([p for p in (top_picks or []) if p.get('accuracy', 0) >= 70]),
+    }
+
+
+# ── Insider Activity ──────────────────────────────────────────────────────────
+
+@app.get("/api/insider-activity")
+async def api_insider_activity(
+    request: Request,
+    username: str = Depends(require_api_key_or_session)
+):
+    """Insider activity — JSON for React SPA"""
+    return {"signals": db.get_top_insider_signals(limit=50) or []}
+
+
+@app.post("/api/insider-activity/scan")
+async def api_scan_insider_activity(
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """Scan watchlist for insider activity — JSON for React SPA"""
+    _verify_spa_csrf(request)
+    from engine.insider_tracker import insider_tracker
+    try:
+        results = insider_tracker.scan_watchlist_insiders(days_back=90)
+        for result in results:
+            if result.get('recent_transactions'):
+                db.save_insider_transactions_bulk(result['recent_transactions'])
+        return {"success": True, "count": len(results)}
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Journal ──────────────────────────────────────────────────────────────────
+
+@app.get("/api/journal")
+async def api_journal(
+    request: Request,
+    ticker: str = None,
+    username: str = Depends(require_auth)
+):
+    """Journal entries — JSON for React SPA"""
+    entries = db.get_journal_entries(ticker=ticker, limit=50)
+    return {"entries": entries or []}
+
+
+@app.post("/api/journal/add")
+async def api_add_journal(
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """Add journal entry — JSON for React SPA"""
+    _verify_spa_csrf(request)
+    data = await request.json()
+    ticker = data.get("ticker", "").upper()
+    entry_type = data.get("type", "")
+    notes = data.get("notes", "")
+    price = data.get("price")
+    if not ticker or not entry_type:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="ticker and type required")
+    entry_id = db.add_journal_entry(ticker=ticker, entry_type=entry_type, notes=notes, price=price)
+    return {"status": "added", "id": entry_id}
+
+
+@app.post("/api/journal/{entry_id}/close")
+async def api_close_journal(
+    request: Request,
+    entry_id: int,
+    username: str = Depends(require_auth)
+):
+    """Close journal entry — JSON for React SPA"""
+    _verify_spa_csrf(request)
+    data = await request.json()
+    db.close_journal_entry(entry_id, exit_price=data.get("exit_price"), notes=data.get("notes", ""))
+    return {"status": "closed"}
+
+
+@app.post("/api/journal/{entry_id}/delete")
+async def api_delete_journal(
+    request: Request,
+    entry_id: int,
+    username: str = Depends(require_auth)
+):
+    """Delete journal entry — JSON for React SPA"""
+    _verify_spa_csrf(request)
+    db.delete_journal_entry(entry_id)
+    return {"status": "deleted"}
+
+
+# ── Portfolio (main summary) ──────────────────────────────────────────────────
+
+@app.get("/api/portfolio")
+async def api_portfolio(
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """Portfolio summary + trades — JSON for React SPA"""
+    summary = db.get_portfolio_summary()
+    trades = db.get_trades()
+    return {"summary": summary, "trades": trades or []}
+
+
+@app.post("/api/portfolio/add-trade")
+async def api_add_trade(
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """Add trade — JSON for React SPA"""
+    _verify_spa_csrf(request)
+    data = await request.json()
+    ticker = data.get("ticker", "").upper()
+    if not ticker:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="ticker required")
+    db.add_trade(
+        ticker=ticker,
+        trade_type=data.get("type", "BUY"),
+        amount=float(data.get("amount", 0)),
+        price=float(data.get("price", 0)),
+        date=data.get("date"),
+        fees=float(data.get("fees", 0)),
+        notes=data.get("notes", ""),
+        currency=data.get("currency", "USD").upper(),
+    )
+    return {"status": "added"}
+
+
+# ── Paper Trading ─────────────────────────────────────────────────────────────
+
+@app.get("/api/paper-trading")
+async def api_paper_trading(
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """Paper trading summary — JSON for React SPA"""
+    from engine.paper_trading import paper_trader
+    summary = paper_trader.get_portfolio_summary()
+    trades = paper_trader.get_trade_log(limit=50)
+    settings = paper_trader.get_settings()
+    return {"summary": summary, "trades": trades or [], "settings": settings}
+
+
 # SPA catch-all — serve React index.html for all non-API routes
 _REACT_INDEX = Path(__file__).parent / "static" / "react" / "index.html"
 
