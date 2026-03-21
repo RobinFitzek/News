@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Geo Scenarios — Stockholm{% endblock %}
+
+{% block extra_head %}
+<style>
+.scenario-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: var(--space-5); }
+.scenario-card { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); transition: border-color 0.2s; }
+.scenario-card:hover { border-color: var(--border-default); }
+.sector-impact-bar { display: flex; align-items: center; gap: var(--space-2); font-size: 0.6875rem; margin-bottom: 2px; }
+.sector-bar-fill { height: 6px; border-radius: 3px; min-width: 4px; flex-shrink: 0; }
+.sector-name { color: var(--text-secondary); width: 130px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sector-pct { font-family: var(--font-mono); font-size: 0.6875rem; width: 44px; text-align: right; flex-shrink: 0; }
+.scenario-result { background: var(--bg-tertiary); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: var(--space-3); font-size: 0.8125rem; display: none; }
+.scenario-result.visible { display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+
+    <header class="page-header">
+        <div>
+            <h1>Geopolitical Scenarios</h1>
+            <p>Stress-test your portfolio against predefined macro and geopolitical events</p>
+        </div>
+    </header>
+
+    <!-- Info banner -->
+    <div class="card" style="margin-bottom: var(--space-6); background: rgba(96,168,232,0.08); border-color: rgba(96,168,232,0.2);">
+        <div style="display: flex; gap: var(--space-3); align-items: flex-start;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary, #60a8e8)" stroke-width="2"
+                 stroke-linecap="round" style="width:18px; height:18px; flex-shrink:0; margin-top:2px;">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <p style="font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.6; margin: 0;">
+                Scenarios are estimated impact models based on sector weights. They are educational tools, not
+                price predictions. Click <strong>Run Scenario</strong> to estimate impact on your current portfolio.
+            </p>
+        </div>
+    </div>
+
+    <div class="scenario-grid">
+        {% for key, sc in scenarios.items() %}
+        <div class="scenario-card" id="card-{{ key }}">
+            <!-- Header -->
+            <div>
+                <div style="font-weight: 700; font-size: 1rem; margin-bottom: var(--space-1);">{{ sc.name }}</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted);">{{ sc.description }}</div>
+            </div>
+
+            <!-- Sector impacts -->
+            <div>
+                <div style="font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--space-2);">Sector Impacts</div>
+                {% for sector, impact in sc.sector_impacts.items() | sort(attribute='1') %}
+                {% set pct = impact * 100 %}
+                {% set bar_width = [(pct | abs) * 2, 80] | min %}
+                <div class="sector-impact-bar">
+                    <span class="sector-name">{{ sector | replace('_', ' ') | title }}</span>
+                    <div class="sector-bar-fill"
+                         style="width: {{ bar_width }}px; background: {% if pct > 0 %}var(--signal-positive, #4ee88a){% else %}var(--signal-negative, #e86060){% endif %};"></div>
+                    <span class="sector-pct" style="color: {% if pct > 0 %}var(--signal-positive){% else %}var(--signal-negative){% endif %};">
+                        {{ "%+.0f"|format(pct) }}%
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Historical analog -->
+            <div style="font-size: 0.6875rem; color: var(--text-muted); font-style: italic;">
+                Historical analog: {{ sc.historical_analog }}
+            </div>
+
+            <!-- Run button + result -->
+            <div style="margin-top: auto; padding-top: var(--space-2);">
+                <button class="btn btn-secondary" style="font-size: 0.8125rem; width: 100%;"
+                        onclick="runScenario('{{ key }}', this)">
+                    Run Scenario
+                </button>
+                <div class="scenario-result" id="result-{{ key }}"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function runScenario(key, btn) {
+    const resultEl = document.getElementById('result-' + key);
+    btn.disabled = true;
+    btn.textContent = 'Running…';
+    resultEl.classList.remove('visible');
+
+    try {
+        const resp = await fetch('/api/scenarios/run?name=' + encodeURIComponent(key), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        if (!resp.ok) {
+            const err = await resp.json();
+            resultEl.innerHTML = '<span style="color:var(--signal-negative);">Error: ' +
+                (err.detail || 'Unknown error') + '</span>';
+            resultEl.classList.add('visible');
+            return;
+        }
+        const data = await resp.json();
+        const impact = data.portfolio_impact_pct;
+        const color  = impact >= 0 ? 'var(--signal-positive)' : 'var(--signal-negative)';
+
+        let html = '<div style="margin-bottom:var(--space-2);">'
+                 + '<strong>Estimated Portfolio Impact: </strong>'
+                 + '<span style="font-family:var(--font-mono); font-weight:700; color:' + color + ';">'
+                 + (impact >= 0 ? '+' : '') + impact.toFixed(2) + '%</span></div>';
+
+        if (data.holdings_impact && data.holdings_impact.length > 0) {
+            html += '<div style="font-size:0.6875rem; color:var(--text-muted); margin-bottom:var(--space-1);">Top exposures:</div>';
+            const top = data.holdings_impact.slice(0, 5);
+            top.forEach(h => {
+                const c = h.estimated_pnl_pct >= 0 ? 'var(--signal-positive)' : 'var(--signal-negative)';
+                html += '<div style="display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:2px;">'
+                      + '<span style="font-family:var(--font-mono);">' + h.ticker + '</span>'
+                      + '<span style="color:' + c + ';font-family:var(--font-mono);">'
+                      + (h.estimated_pnl_pct >= 0 ? '+' : '') + h.estimated_pnl_pct.toFixed(2) + '%</span>'
+                      + '</div>';
+            });
+            if (!data.holdings_impact.length) {
+                html += '<div style="font-size:0.75rem;color:var(--text-muted);">No portfolio positions loaded.</div>';
+            }
+        } else {
+            html += '<div style="font-size:0.75rem;color:var(--text-muted);">No portfolio positions to cross-reference.</div>';
+        }
+
+        resultEl.innerHTML = html;
+        resultEl.classList.add('visible');
+    } catch (e) {
+        resultEl.innerHTML = '<span style="color:var(--signal-negative);">Request failed.</span>';
+        resultEl.classList.add('visible');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Run Again';
+    }
+}
+</script>
+{% endblock %}

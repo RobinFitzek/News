@@ -392,6 +392,26 @@ class InvestmentScheduler:
             replace_existing=True
         )
 
+        # Weekly 13F institutional holdings refresh (#25) — Friday 18:00
+        # EDGAR 13F filings are quarterly; refreshing weekly ensures we catch new filings
+        # shortly after the Feb/May/Aug/Nov 15 EDGAR deadline.
+        self.scheduler.add_job(
+            self.refresh_13f_holdings,
+            CronTrigger(day_of_week='fri', hour=18, minute=0, timezone=self.timezone),
+            id='refresh_13f',
+            name='13F Institutional Holdings Refresh',
+            replace_existing=True
+        )
+
+        # Daily macro snapshot — weekdays at 17:00 (after US market close)
+        self.scheduler.add_job(
+            self.capture_macro_snapshot,
+            CronTrigger(day_of_week='mon-fri', hour=17, minute=5, timezone=self.timezone),
+            id='macro_snapshot',
+            name='Daily Macro Snapshot',
+            replace_existing=True
+        )
+
         # Discovery hit rate check (daily at 21:00)
         self.scheduler.add_job(
             self.check_hit_rates,
@@ -756,6 +776,27 @@ class InvestmentScheduler:
             self._check_intraday_breakouts(threshold_pct=trigger_pct)
         except Exception as e:
             print(f"(Error) Price alert check failed: {e}")
+
+    def refresh_13f_holdings(self):
+        """Weekly job: refresh top-20 institutional 13F holdings (#25)."""
+        try:
+            from engine.institutional_tracker import institutional_tracker
+            results = institutional_tracker.refresh_top_filer_holdings()
+            total = sum(results.values())
+            print(f"13F refresh complete: {len(results)} filers, {total} holdings stored")
+        except Exception as e:
+            print(f"(Error) 13F holdings refresh failed: {e}")
+
+    def capture_macro_snapshot(self):
+        """Daily job: fetch macro market data and store snapshot (#22)."""
+        try:
+            from engine.macro_tracker import macro_tracker
+            snap = macro_tracker.fetch_and_store_snapshot()
+            if snap:
+                print(f"Macro snapshot stored: regime={snap.get('regime_label')}, "
+                      f"vix={snap.get('vix')}, spread={snap.get('spread_2y10y')}")
+        except Exception as e:
+            print(f"(Error) Macro snapshot failed: {e}")
 
     def run_health_check(self):
         """Run daily health checks and weekly cleanups."""

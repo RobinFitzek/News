@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Two-Factor Authentication — Stockholm{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in" style="max-width: 560px; margin: 0 auto;">
+
+    <header class="page-header">
+        <div>
+            <h1>Two-Factor Authentication</h1>
+            <p>Protect your account with a TOTP authenticator app</p>
+        </div>
+        <a href="/settings#panel-security" class="btn btn-secondary" style="font-size:0.8125rem;">
+            ← Back to Settings
+        </a>
+    </header>
+
+    {% if error == 'expired' %}
+    <div class="alert alert-danger" style="margin-bottom:var(--space-5);">
+        Setup session expired. Please try again.
+    </div>
+    {% elif error == 'invalid_code' %}
+    <div class="alert alert-danger" style="margin-bottom:var(--space-5);">
+        Invalid code — please check your authenticator app and try again.
+    </div>
+    {% elif error == 'wrong_password' %}
+    <div class="alert alert-danger" style="margin-bottom:var(--space-5);">
+        Wrong password. 2FA not disabled.
+    </div>
+    {% endif %}
+
+    {% if success == '1' %}
+    <div class="alert alert-success" style="margin-bottom:var(--space-5);">
+        Two-factor authentication enabled successfully.
+    </div>
+    {% elif success == 'disabled' %}
+    <div class="alert alert-success" style="margin-bottom:var(--space-5);">
+        Two-factor authentication has been disabled.
+    </div>
+    {% endif %}
+
+    {% if totp_info and totp_info.enabled %}
+    <!-- ── ALREADY ENABLED ─────────────────────────────── -->
+    <div class="card" style="margin-bottom:var(--space-6);">
+        <div style="display:flex; align-items:center; gap:var(--space-3); margin-bottom:var(--space-4);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--signal-positive)" stroke-width="2"
+                 stroke-linecap="round" style="width:24px; height:24px; flex-shrink:0;">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <polyline points="9 12 11 14 15 10"/>
+            </svg>
+            <h3 style="margin:0;">2FA is Active</h3>
+        </div>
+        <p style="font-size:0.8125rem; color:var(--text-secondary); line-height:1.6; margin-bottom:var(--space-5);">
+            Your account is protected. Every login requires your password <strong>and</strong> a
+            6-digit code from your authenticator app.
+        </p>
+
+        <hr style="border:none; border-top:1px solid var(--border-light); margin:var(--space-4) 0;">
+
+        <h4 style="margin:0 0 var(--space-3) 0; font-size:0.875rem;">Disable Two-Factor Authentication</h4>
+        <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:var(--space-4); line-height:1.5;">
+            To disable 2FA, confirm your account password. This cannot be undone without re-enabling.
+        </p>
+        <form action="/settings/2fa/disable" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div style="display:flex; gap:var(--space-3); align-items:center; flex-wrap:wrap;">
+                <input type="password" name="password" placeholder="Enter your password"
+                       style="flex:1; min-width:200px;" autocomplete="current-password" required>
+                <button type="submit" class="btn btn-danger" style="font-size:0.8125rem;">
+                    Disable 2FA
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {% else %}
+    <!-- ── SETUP FLOW ──────────────────────────────────── -->
+    <div class="card" style="margin-bottom:var(--space-6);">
+        <h3 style="margin:0 0 var(--space-2) 0;">Step 1 — Install an Authenticator App</h3>
+        <p style="font-size:0.8125rem; color:var(--text-secondary); line-height:1.6; margin-bottom:0;">
+            Download <strong>Google Authenticator</strong>, <strong>Authy</strong>, or any TOTP app on your phone.
+        </p>
+    </div>
+
+    <div class="card" style="margin-bottom:var(--space-6);">
+        <h3 style="margin:0 0 var(--space-4) 0;">Step 2 — Scan this QR Code</h3>
+        {% if qr_b64 %}
+        <div style="display:flex; gap:var(--space-6); align-items:flex-start; flex-wrap:wrap;">
+            <div style="flex-shrink:0;">
+                <img src="data:image/png;base64,{{ qr_b64 }}"
+                     alt="2FA QR Code"
+                     style="width:180px; height:180px; border:4px solid var(--bg-tertiary); border-radius:var(--radius-sm); display:block;">
+            </div>
+            <div style="flex:1; min-width:200px;">
+                <p style="font-size:0.8125rem; color:var(--text-secondary); line-height:1.6; margin-bottom:var(--space-3);">
+                    Open your authenticator app and scan the QR code. Alternatively, enter the key manually:
+                </p>
+                <code style="font-family:var(--font-mono); font-size:0.875rem; background:var(--bg-tertiary);
+                             padding:var(--space-2) var(--space-3); border-radius:var(--radius-sm);
+                             word-break:break-all; display:block; letter-spacing:0.1em;">
+                    {{ secret_pending }}
+                </code>
+            </div>
+        </div>
+        {% else %}
+        <p style="font-size:0.8125rem; color:var(--signal-warning);">
+            QR code unavailable — <code>qrcode</code> library not installed.
+            Enter this key manually in your authenticator app:
+        </p>
+        <code style="font-family:var(--font-mono); font-size:0.875rem; background:var(--bg-tertiary);
+                     padding:var(--space-2) var(--space-3); border-radius:var(--radius-sm);
+                     word-break:break-all; display:block; letter-spacing:0.1em;">
+            {{ secret_pending }}
+        </code>
+        {% endif %}
+    </div>
+
+    <div class="card" style="margin-bottom:var(--space-6);">
+        <h3 style="margin:0 0 var(--space-4) 0;">Step 3 — Verify and Enable</h3>
+        <p style="font-size:0.8125rem; color:var(--text-secondary); line-height:1.6; margin-bottom:var(--space-4);">
+            Enter the 6-digit code shown in your authenticator app to confirm setup.
+        </p>
+        <form action="/settings/2fa/enable" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div style="display:flex; gap:var(--space-3); align-items:center; flex-wrap:wrap;">
+                <input type="text" name="code" placeholder="123456"
+                       maxlength="6" minlength="6" pattern="[0-9]{6}"
+                       style="width:120px; font-family:var(--font-mono); font-size:1.125rem;
+                              text-align:center; letter-spacing:0.2em;"
+                       autocomplete="one-time-code" inputmode="numeric" required>
+                <button type="submit" class="btn btn-primary">Enable 2FA</button>
+            </div>
+        </form>
+    </div>
+
+    {% if backup_codes %}
+    <div class="card" style="border: 1px solid var(--signal-warning-border, var(--border-default));">
+        <div style="display:flex; align-items:center; gap:var(--space-3); margin-bottom:var(--space-3);">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--signal-warning, #f59e0b)" stroke-width="2"
+                 stroke-linecap="round" style="width:20px; height:20px; flex-shrink:0;">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <h4 style="margin:0; font-size:0.875rem;">Save Your Backup Codes</h4>
+        </div>
+        <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:var(--space-4); line-height:1.5;">
+            Store these one-time codes somewhere safe. Each can be used once to log in if you lose access to your authenticator app.
+        </p>
+        <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:var(--space-2); margin-bottom:var(--space-4);">
+            {% for code in backup_codes %}
+            <code style="font-family:var(--font-mono); font-size:0.8125rem; background:var(--bg-tertiary);
+                         padding:var(--space-2); text-align:center; border-radius:var(--radius-sm);
+                         letter-spacing:0.05em;">{{ code }}</code>
+            {% endfor %}
+        </div>
+        <p style="font-size:0.6875rem; color:var(--text-muted);">
+            These codes will not be shown again after enabling 2FA.
+        </p>
+    </div>
+    {% endif %}
+
+    {% endif %}
+</div>
+{% endblock %}

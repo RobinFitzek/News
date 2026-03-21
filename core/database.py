@@ -828,6 +828,39 @@ class Database:
             )
         """)
 
+        # Macro snapshots table (#22)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS macro_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                yield_10y REAL,
+                yield_2y REAL,
+                yield_3m REAL,
+                spread_2y10y REAL,
+                vix REAL,
+                hyg_price REAL,
+                lqd_price REAL,
+                credit_spread REAL,
+                dxy REAL,
+                regime_label TEXT,
+                captured_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        # Ensure uniqueness on date for upsert behaviour
+        cursor.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_macro_snapshots_date
+            ON macro_snapshots(date)
+        """)
+
+        # Watchlist groups/tags table (#27)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS watchlist_groups (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                group_name TEXT UNIQUE NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         # Webhook settings migration (ensure settings exist for new keys)
         webhook_defaults = [
             ('telegram_enabled', 'false'),
@@ -863,6 +896,12 @@ class Database:
             "ALTER TABLE users ADD COLUMN totp_secret TEXT",
             "ALTER TABLE users ADD COLUMN totp_enabled INTEGER DEFAULT 0",
             "ALTER TABLE users ADD COLUMN backup_codes TEXT",
+            # Watchlist groups (#27)
+            "ALTER TABLE watchlist ADD COLUMN group_name TEXT DEFAULT 'Default'",
+            # Watchlist earnings date (#23)
+            "ALTER TABLE watchlist ADD COLUMN earnings_date TEXT",
+            # Watchlist earnings_suppressed (#23)
+            "ALTER TABLE watchlist ADD COLUMN earnings_imminent INTEGER DEFAULT 0",
         ]
         for sql in migrations:
             try:
@@ -1685,6 +1724,77 @@ class Database:
         return self.query(
             "SELECT * FROM corporate_actions WHERE action_date >= ? ORDER BY action_date DESC",
             (cutoff,)
+        )
+
+    # === Macro Snapshots (#22) ===
+
+    def save_macro_snapshot(self, date: str, yield_10y: float, yield_2y: float,
+                             yield_3m: float, spread_2y10y: float, vix: float,
+                             hyg_price: float, lqd_price: float, credit_spread: float,
+                             dxy: float, regime_label: str) -> int:
+        """Upsert a daily macro snapshot. Returns the row id."""
+        with self._get_transaction() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO macro_snapshots
+                    (date, yield_10y, yield_2y, yield_3m, spread_2y10y, vix,
+                     hyg_price, lqd_price, credit_spread, dxy, regime_label)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(date) DO UPDATE SET
+                    yield_10y=excluded.yield_10y, yield_2y=excluded.yield_2y,
+                    yield_3m=excluded.yield_3m, spread_2y10y=excluded.spread_2y10y,
+                    vix=excluded.vix, hyg_price=excluded.hyg_price,
+                    lqd_price=excluded.lqd_price, credit_spread=excluded.credit_spread,
+                    dxy=excluded.dxy, regime_label=excluded.regime_label,
+                    captured_at=CURRENT_TIMESTAMP
+            """, (date, yield_10y, yield_2y, yield_3m, spread_2y10y, vix,
+                  hyg_price, lqd_price, credit_spread, dxy, regime_label))
+            return cursor.lastrowid
+
+    def get_macro_snapshots(self, days: int = 90) -> List[Dict]:
+        """Return macro snapshots for the last N days, newest first."""
+        cutoff = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+        return self.query(
+            "SELECT * FROM macro_snapshots WHERE date >= ? ORDER BY date DESC",
+            (cutoff,)
+        )
+
+    def get_latest_macro_snapshot(self) -> Optional[Dict]:
+        """Return the most recent macro snapshot."""
+        return self.query_one(
+            "SELECT * FROM macro_snapshots ORDER BY date DESC LIMIT 1"
+        )
+
+    # === Watchlist Groups (#27) ===
+
+    def get_watchlist_groups(self) -> List[str]:
+        """Return all distinct group names from the watchlist, including custom groups."""
+        rows = self.query(
+            "SELECT DISTINCT group_name FROM watchlist WHERE is_active=1 AND group_name IS NOT NULL ORDER BY group_name"
+        )
+        groups = [r['group_name'] for r in rows if r.get('group_name')]
+        if 'Default' not in groups:
+            groups.insert(0, 'Default')
+        return groups
+
+    def update_watchlist_group(self, ticker: str, group_name: str) -> bool:
+        """Set the group for a watchlist ticker."""
+        try:
+            self.execute(
+                "UPDATE watchlist SET group_name = ? WHERE ticker = ?",
+                (group_name.strip() or 'Default', ticker.upper())
+            )
+            return True
+        except Exception as e:
+            self.logger.error(f"update_watchlist_group error: {e}")
+            return False
+
+    def update_watchlist_earnings(self, ticker: str, earnings_date: Optional[str],
+                                   earnings_imminent: bool = False):
+        """Store the next earnings date + imminent flag for a watchlist ticker."""
+        self.execute(
+            "UPDATE watchlist SET earnings_date = ?, earnings_imminent = ? WHERE ticker = ?",
+            (earnings_date, 1 if earnings_imminent else 0, ticker.upper())
         )
 
     # === Scheduler Log ===

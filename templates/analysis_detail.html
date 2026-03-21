@@ -85,6 +85,72 @@
         </div>
     </div>
 
+    <!-- Confidence Decay -->
+    {% if analysis.timestamp %}
+    <div class="card" style="margin-bottom:var(--space-6);" id="confidence-decay-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:var(--space-4);">
+            <div>
+                <div style="font-size:0.6875rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:var(--space-1);">Analysis Freshness</div>
+                <div id="decay-age-label" style="font-size:0.875rem; color:var(--text-secondary);">Calculating…</div>
+            </div>
+            <div style="display:flex; align-items:center; gap:var(--space-4);">
+                <div style="text-align:right;">
+                    <div style="font-size:0.6875rem; color:var(--text-muted); margin-bottom:2px;">Effective Confidence</div>
+                    <div id="decay-confidence" style="font-family:var(--font-mono); font-size:1.25rem; font-weight:600;">—</div>
+                </div>
+                <div style="width:120px;">
+                    <div style="background:var(--bg-tertiary); border-radius:3px; height:6px;">
+                        <div id="decay-bar" style="height:6px; border-radius:3px; background:#6bba7e; width:100%; transition:width 0.4s;"></div>
+                    </div>
+                    <div id="decay-label" style="font-size:0.6875rem; color:var(--text-muted); margin-top:4px; text-align:center;">Fresh</div>
+                </div>
+                <a href="/analyze/{{ analysis.ticker }}" class="btn btn-secondary" id="reanalyze-btn"
+                   style="font-size:0.75rem; display:none;">Re-analyze</a>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function() {
+        var tsStr = {{ analysis.timestamp | tojson }};
+        if (!tsStr) return;
+        var analysisDate = new Date(tsStr.replace(' ', 'T'));
+        if (isNaN(analysisDate)) return;
+        var now = new Date();
+        var diffMs   = now - analysisDate;
+        var diffDays = diffMs / (1000 * 60 * 60 * 24);
+        var baseConf = {{ analysis.confidence | int }};
+
+        // Decay: 50% confidence loss at 5 days, linear approximation
+        var decayFactor = Math.max(0, 1 - diffDays / 10);
+        var effectiveConf = Math.round(baseConf * decayFactor);
+
+        var ageLabel, barColor, statusLabel, showReanalyze;
+        if (diffDays < 1) {
+            ageLabel = 'Updated today'; barColor = '#6bba7e'; statusLabel = 'Fresh'; showReanalyze = false;
+        } else if (diffDays < 3) {
+            var h = Math.round(diffDays * 24);
+            ageLabel = h + ' hour' + (h !== 1 ? 's' : '') + ' old'; barColor = '#6bba7e'; statusLabel = 'Fresh'; showReanalyze = false;
+        } else if (diffDays < 7) {
+            ageLabel = Math.floor(diffDays) + ' days old'; barColor = '#f59e0b'; statusLabel = 'Aging'; showReanalyze = true;
+        } else {
+            ageLabel = Math.floor(diffDays) + ' days old'; barColor = '#ef4444'; statusLabel = 'Stale'; showReanalyze = true;
+        }
+
+        var ageEl = document.getElementById('decay-age-label');
+        var confEl = document.getElementById('decay-confidence');
+        var barEl  = document.getElementById('decay-bar');
+        var lblEl  = document.getElementById('decay-label');
+        var btnEl  = document.getElementById('reanalyze-btn');
+
+        if (ageEl)  ageEl.textContent  = ageLabel;
+        if (confEl) { confEl.textContent = effectiveConf + '/100'; confEl.style.color = barColor; }
+        if (barEl)  { barEl.style.width = (decayFactor * 100).toFixed(0) + '%'; barEl.style.background = barColor; }
+        if (lblEl)  { lblEl.textContent = statusLabel; lblEl.style.color = barColor; }
+        if (btnEl && showReanalyze)  btnEl.style.display = '';
+    })();
+    </script>
+    {% endif %}
+
     <!-- Portfolio Exposure Warnings -->
     <div id="exposure-warnings" style="display: none; margin-bottom: var(--space-6);"></div>
 

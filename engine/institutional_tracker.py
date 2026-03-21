@@ -376,5 +376,126 @@ class InstitutionalTracker:
             return None
 
 
+    # ── Top-20 13F filer methods (#25) ──────────────────────────────────────
+
+    def refresh_top_filer_holdings(self) -> Dict[str, int]:
+        """
+        Fetch and store the latest 13F holdings for all TOP_FILERS.
+        Called weekly by the scheduler.
+        Returns {filer_name: holdings_count}.
+        """
+        from clients.sec_edgar_client import TOP_FILERS, sec_client
+        results = {}
+        for filer_name, cik in TOP_FILERS.items():
+            try:
+                holdings = sec_client.get_13f_holdings(cik, filer_name)
+                for h in holdings:
+                    try:
+                        db.execute("""
+                            INSERT OR REPLACE INTO institutional_holdings
+                                (filer_name, ticker, shares, value, change_pct, filing_date,
+                                 source_url, fetched_at)
+                            VALUES (?, ?, ?, ?, NULL, ?, ?, ?)
+                        """, (
+                            h['filer_name'],
+                            h['ticker'],
+                            h['shares'],
+                            h['value_usd'],
+                            h['filing_date'],
+                            f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type=13F",
+                            datetime.now().isoformat(),
+                        ))
+                    except Exception as e:
+                        logger.debug(f"Insert institutional_holding failed: {e}")
+                results[filer_name] = len(holdings)
+                logger.info(f"13F refresh: {filer_name} → {len(holdings)} holdings")
+            except Exception as e:
+                logger.error(f"refresh_top_filer_holdings failed for {filer_name}: {e}")
+                results[filer_name] = 0
+        return results
+
+    def get_smart_money_activity(self, ticker: str,
+                                  days_back: int = 95) -> Dict:
+        """
+        Return which TOP_FILERS have added or dropped this ticker in the most
+        recent 13F filings.
+
+        Returns:
+            {
+              ticker: str,
+              new_positions: [{filer_name, shares, value_usd, filing_date}],
+              increased: [...],
+              decreased: [...],
+              smart_money_badge: bool,   # True if any top-20 filer added/new
+            }
+        """
+        ticker = ticker.upper()
+        cutoff = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
+        rows = db.query(
+            """
+            SELECT * FROM institutional_holdings
+            WHERE ticker = ? AND filing_date >= ?
+            ORDER BY filing_date DESC, filer_name
+            """,
+            (ticker, cutoff),
+        )
+        # Group by filer — take latest filing per filer
+        latest_by_filer: Dict[str, Dict] = {}
+        for r in rows:
+            fn = r.get('filer_name', '')
+            if fn not in latest_by_filer:
+                latest_by_filer[fn] = r
+
+        # Compare to previous quarter (rows older than latest for same filer)
+        prev_rows = db.query(
+            """
+            SELECT * FROM institutional_holdings
+            WHERE ticker = ? AND filing_date < ?
+            ORDER BY filing_date DESC, filer_name
+            """,
+            (ticker, cutoff),
+        )
+        prev_by_filer: Dict[str, Dict] = {}
+        for r in prev_rows:
+            fn = r.get('filer_name', '')
+            if fn not in prev_by_filer:
+                prev_by_filer[fn] = r
+
+        new_positions, increased, decreased = [], [], []
+        for filer_name, current in latest_by_filer.items():
+            cur_shares = current.get('shares') or 0
+            if filer_name not in prev_by_filer:
+                new_positions.append({
+                    'filer_name': filer_name,
+                    'shares': cur_shares,
+                    'value_usd': current.get('value') or 0,
+                    'filing_date': current.get('filing_date'),
+                })
+            else:
+                prev_shares = prev_by_filer[filer_name].get('shares') or 0
+                if prev_shares > 0:
+                    chg = (cur_shares - prev_shares) / prev_shares * 100
+                    if chg > 5:
+                        increased.append({'filer_name': filer_name,
+                                          'change_pct': round(chg, 1),
+                                          'shares': cur_shares,
+                                          'filing_date': current.get('filing_date')})
+                    elif chg < -5:
+                        decreased.append({'filer_name': filer_name,
+                                          'change_pct': round(chg, 1),
+                                          'shares': cur_shares,
+                                          'filing_date': current.get('filing_date')})
+
+        smart_money_badge = bool(new_positions or increased)
+        return {
+            'ticker': ticker,
+            'new_positions': new_positions,
+            'increased': increased,
+            'decreased': decreased,
+            'smart_money_badge': smart_money_badge,
+            'total_top_filers_holding': len(latest_by_filer),
+        }
+
+
 # Singleton
 institutional_tracker = InstitutionalTracker()
