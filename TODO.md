@@ -1238,7 +1238,7 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 
 ## Frontend — React SPA Rewrite
 
-> **Status:** Complete. All 27 pages ported from Jinja2 to React 18 + TypeScript. Jinja2 templates remain for legacy/fallback.
+> **Status:** Complete. All 28 pages ported from Jinja2 to React 18 + TypeScript. Jinja2 templates remain for legacy/fallback.
 
 ### Stack
 
@@ -1283,6 +1283,7 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 [x] MacroPage — yield curve, VIX, DXY, regime, 90-day chart, economic calendar events
 [x] CorporateActionsPage — dividends, splits, mergers with ticker/type filters, dividend summary
 [x] GraveyardPage — removed tickers, post-removal performance, win rate
+[x] ScenariosPage — geopolitical stress-test cards with per-sector impact bars, run scenario, portfolio impact
 [x] ArchitecturePage — pipeline flow, AI agents, data sources, risk gates, auto-trade flow, tech stack
 [x] NotFoundPage — 404 with back-to-dashboard link
 ```
@@ -1310,7 +1311,7 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 ### Router & Navigation
 
 ```
-[x] 27 routes in React Router (SPA catch-all in FastAPI serves index.html)
+[x] 28 routes in React Router (SPA catch-all in FastAPI serves index.html)
 [x] AuthGuard wrapper for protected routes
 [x] Animated sidebar with 5 nav groups + settings/logout
 [x] Vite dev server proxies /api to FastAPI (port 8000)
@@ -1333,7 +1334,7 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 [x] Geopolitisches Radar card + exposure heatmap — dashboard.html
 [x] GET /api/geopolitical + GET /api/geopolitical/exposure — app.py
 [x] README rewrite — README.md
-[x] React SPA frontend — 27 pages, 24 API endpoint modules, full component library
+[x] React SPA frontend — 28 pages, 25 API endpoint modules, full component library
 ```
 
 ---

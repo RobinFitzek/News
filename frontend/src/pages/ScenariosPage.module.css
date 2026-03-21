@@ -1,0 +1,87 @@
+.loading { display: flex; justify-content: center; padding: var(--space-12) 0; }
+
+.infoBanner {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: var(--space-2);
+}
+.infoBanner strong { color: var(--text-primary); }
+.infoIcon { flex-shrink: 0; margin-top: 2px; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: var(--space-5);
+}
+
+.cardInner { display: flex; flex-direction: column; gap: var(--space-3); height: 100%; }
+.cardTitle { font-weight: 700; font-size: 1rem; }
+.cardDesc { font-size: 0.75rem; color: var(--text-muted); }
+
+.sectorLabel {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-1);
+}
+
+.impactRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.6875rem;
+  margin-bottom: 2px;
+}
+.sectorName {
+  color: var(--text-secondary);
+  width: 130px;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.barFill { height: 6px; border-radius: 3px; min-width: 4px; flex-shrink: 0; }
+.pct {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  width: 44px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.analog { font-size: 0.6875rem; color: var(--text-muted); font-style: italic; }
+
+.runArea { margin-top: auto; padding-top: var(--space-2); }
+
+.resultBox {
+  margin-top: var(--space-3);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  font-size: 0.8125rem;
+}
+.impactLabel { font-weight: 600; margin-bottom: var(--space-1); }
+.impactValue { font-family: var(--font-mono); font-weight: 700; }
+
+.exposureHeader {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  margin-bottom: var(--space-1);
+  margin-top: var(--space-2);
+}
+.exposureRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  margin-bottom: 2px;
+}
+.exposureTicker { font-family: var(--font-mono); }
+.exposurePnl { font-family: var(--font-mono); }
+
+.noPositions { font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-2); }

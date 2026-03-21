@@ -37,6 +37,7 @@ const ICONS = {
   backtest: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
   logs: 'M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2z',
   macro: 'M2 20h20M6 16V8m4 8V4m4 12V8m4 8V6',
+  scenarios: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM12 8v4m0 4h.01',
   corporate: 'M3 21h18M3 10h18M3 10l9-8 9 8M5 10v11m14-11v11m-10-7h2v7H9z',
   graveyard: 'M8 2v4m8-4v4m-9 4h10M5 6h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z',
   compare: 'M16 3h5v5M8 3H3v5m18 8v5h-5M3 16v5h5M21 3l-7 7M3 3l7 7m4 4 7 7M3 21l7-7',
@@ -75,6 +76,7 @@ const NAV_GROUPS: { items: NavItem[] }[] = [
     items: [
       { to: '/macro',             label: 'Macro',            icon: 'macro' },
       { to: '/corporate-actions', label: 'Corp. Actions',    icon: 'corporate' },
+      { to: '/scenarios',         label: 'Scenarios',        icon: 'scenarios' },
       { to: '/sector-screen',     label: 'Sectors',          icon: 'sector' },
       { to: '/geo-history',       label: 'Geo History',      icon: 'geoHistory' },
       { to: '/graveyard',         label: 'Graveyard',        icon: 'graveyard' },

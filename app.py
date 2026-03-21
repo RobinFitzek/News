@@ -1944,6 +1944,13 @@ async def scenarios_page(request: Request, username: str = Depends(require_auth)
     })
 
 
+@app.get("/api/scenarios")
+async def api_list_scenarios(request: Request, username: str = Depends(require_api_key_or_session)):
+    """List all available geopolitical scenarios."""
+    from engine.geo_scenario import geo_scenarios
+    return {"scenarios": geo_scenarios.get_all_scenarios()}
+
+
 @app.post("/api/scenarios/run")
 async def api_run_scenario(
     request: Request,

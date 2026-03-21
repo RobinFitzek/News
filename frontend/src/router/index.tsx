@@ -29,6 +29,7 @@ import { GraveyardPage } from '@/pages/GraveyardPage'
 import { ArchitecturePage } from '@/pages/ArchitecturePage'
 import { MacroPage } from '@/pages/MacroPage'
 import { CorporateActionsPage } from '@/pages/CorporateActionsPage'
+import { ScenariosPage } from '@/pages/ScenariosPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 
 export const router = createBrowserRouter([
@@ -73,6 +74,7 @@ export const router = createBrowserRouter([
       { path: 'graveyard',             element: <GraveyardPage /> },
       { path: 'macro',                 element: <MacroPage /> },
       { path: 'corporate-actions',     element: <CorporateActionsPage /> },
+      { path: 'scenarios',             element: <ScenariosPage /> },
       { path: '*',                     element: <NotFoundPage /> },
     ],
   },
