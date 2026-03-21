@@ -1,4 +1,7 @@
 .delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-weight: 500;
@@ -6,3 +9,8 @@
 .positive { color: var(--signal-positive); }
 .negative { color: var(--signal-negative); }
 .neutral  { color: var(--text-muted); }
+
+.arrow {
+  flex-shrink: 0;
+  vertical-align: middle;
+}

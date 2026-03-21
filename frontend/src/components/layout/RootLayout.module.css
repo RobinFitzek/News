@@ -15,6 +15,27 @@
   opacity: 0.4;
 }
 
+/* Void shimmer — dark-mode-only subtle light sweep */
+.shell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.015) 50%,
+    transparent 60%
+  );
+  animation: shimmer-sweep 12s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell::after {
+    animation: none;
+  }
+}
+
 /* Body shifts right when sidebar is visible */
 .body {
   flex: 1;

@@ -123,6 +123,16 @@ input, textarea, select {
   100% { background-position: -200% 0; }
 }
 
+@keyframes shimmer-sweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+@keyframes breathing-glow {
+  0%   { opacity: 0.08; transform: scale(0.96); }
+  100% { opacity: 0.18; transform: scale(1.04); }
+}
+
 /* Utility classes */
 .font-mono   { font-family: var(--font-mono); }
 .font-display { font-family: var(--font-display); }

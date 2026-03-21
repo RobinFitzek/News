@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Luminary } from './Luminary'
+import { RadianceProvider } from './RadianceProvider'
 import { Sidebar } from './Sidebar'
 import { CopyToast } from './CopyToast'
 import { KbdOverlay } from './KbdOverlay'
@@ -40,9 +41,11 @@ export function RootLayout() {
               ease: [0.34, 1.2, 0.64, 1],
             }}
           >
-            <div className="main-container">
-              <Outlet />
-            </div>
+            <RadianceProvider>
+              <div className="main-container">
+                <Outlet />
+              </div>
+            </RadianceProvider>
           </motion.main>
         </AnimatePresence>
       </motion.div>
