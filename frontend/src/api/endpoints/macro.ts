@@ -17,3 +17,30 @@ export function useMarketRegime() {
     staleTime: 300_000,
   })
 }
+
+// ── Macro Snapshot ─────────────────────────────────────────────────────────
+
+export interface MacroSnapshotEntry {
+  date: string
+  yield_2y: number | null
+  yield_10y: number | null
+  spread_2_10: number | null
+  vix: number | null
+  dxy: number | null
+  credit_spread: number | null
+  regime: string | null
+}
+
+export interface MacroSnapshot {
+  latest: MacroSnapshotEntry | null
+  history: MacroSnapshotEntry[]
+  events: MacroEvent[]
+}
+
+export function useMacroSnapshot() {
+  return useQuery<MacroSnapshot>({
+    queryKey: ['macro-snapshot'],
+    queryFn: () => api.get('/api/macro/snapshot').then(r => r.data),
+    staleTime: 300_000,
+  })
+}

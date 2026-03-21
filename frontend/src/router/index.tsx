@@ -23,10 +23,13 @@ import { SectorScreenPage } from '@/pages/SectorScreenPage'
 import { BacktestPage } from '@/pages/BacktestPage'
 import { JournalPage } from '@/pages/JournalPage'
 import { StockDetailPage } from '@/pages/StockDetailPage'
-import { PlaceholderPage } from '@/pages/PlaceholderPage'
+import { DiscoverPage } from '@/pages/DiscoverPage'
+import { CompareStocksPage } from '@/pages/CompareStocksPage'
+import { GraveyardPage } from '@/pages/GraveyardPage'
+import { ArchitecturePage } from '@/pages/ArchitecturePage'
+import { MacroPage } from '@/pages/MacroPage'
+import { CorporateActionsPage } from '@/pages/CorporateActionsPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
-
-const ph = (title: string) => <PlaceholderPage title={title} />
 
 export const router = createBrowserRouter([
   {
@@ -64,10 +67,12 @@ export const router = createBrowserRouter([
       { path: 'backtest',              element: <BacktestPage /> },
       { path: 'journal',               element: <JournalPage /> },
       { path: 'stock/:ticker',         element: <StockDetailPage /> },
-      { path: 'stock/compare',         element: ph('Compare Stocks') },
-      { path: 'discover',              element: ph('AI Discover') },
-      { path: 'architecture',          element: ph('How it Works') },
-      { path: 'graveyard',             element: ph('Graveyard') },
+      { path: 'stock/compare',         element: <CompareStocksPage /> },
+      { path: 'discover',              element: <DiscoverPage /> },
+      { path: 'architecture',          element: <ArchitecturePage /> },
+      { path: 'graveyard',             element: <GraveyardPage /> },
+      { path: 'macro',                 element: <MacroPage /> },
+      { path: 'corporate-actions',     element: <CorporateActionsPage /> },
       { path: '*',                     element: <NotFoundPage /> },
     ],
   },

@@ -1254,6 +1254,69 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 
 ---
 
+## Frontend — React SPA Rewrite
+
+Full migration from Jinja2 templates to a React 18 Single Page Application.
+
+**Tech Stack:** React 18, TypeScript, Vite, TanStack Query (React Query), Zustand, Framer Motion, Chart.js, Axios, CSS Modules
+
+**Build:** `cd frontend && npm run build` → outputs to `static/react/`
+
+### Pages — Completed
+```
+[x] LoginPage — username/password + TOTP redirect, split layout, market indices strip
+[x] TotpPage — 6-digit TOTP entry, backup code toggle, auto-submit
+[x] TwoFactorSetupPage — QR code display, backup codes, verification, disable 2FA
+[x] DashboardPage — System command center, market regime, benchmarks, intelligence strip, geo radar
+[x] WatchlistPage — Full CRUD, tier filters, sort, export, notes modal, CSV import
+[x] AnalyzePage — Ticker submission form, CSRF handling
+[x] HistoryPage — Analysis history table, ticker filter, CSV/JSON export
+[x] SettingsPage — 7 tabbed panels (API, Scheduler, Analysis, Budget, Security, Appearance, Plugins)
+[x] LogsPage — Active alerts, scheduler logs, login security stats
+[x] DiscoveriesPage — Auto-discovery results grid, status filtering, promote/dismiss, strategy stats
+[x] TopPicksPage — Rankings table, recent signals, learning stats
+[x] InsiderActivityPage — Signals table, scan trigger, significance scores
+[x] PortfolioPage — Holdings table, trade log, add trade modal, export
+[x] PaperTradingPage — Positions, trades, summary metrics, export
+[x] TrustPage — Gate status, 4 check cards, signal accuracy breakdown
+[x] LearningPage — Weight suggestions, feature importance, apply weights
+[x] CrosscheckPage — Crosscheck history with verdicts
+[x] GeoHistoryPage — Severity summary, events table
+[x] SectorScreenPage — Sector cards with momentum/signals
+[x] BacktestPage — Date range form, progress bar, results metrics, apply weights
+[x] JournalPage — Add entry, entries list, close/delete, P&L tracking
+[x] StockDetailPage — Multi-tab (Overview, Chart, Earnings, Peers, Sentiment, Patterns)
+[x] DiscoverPage — AI stock discovery form (sector/focus/count), results grid, add to watchlist
+[x] CompareStocksPage — Side-by-side comparison (2-5 tickers), normalized price chart, metrics table
+[x] GraveyardPage — Removed tickers, post-removal performance, win rate analysis
+[x] ArchitecturePage — Visual system overview (pipeline, AI agents, data sources, risk gates, tech stack)
+[x] MacroPage — Macro dashboard, yield spread/VIX chart, upcoming central bank events
+[x] CorporateActionsPage — Dividends & actions ledger, filters, dividend income summary
+[x] NotFoundPage — 404 with navigation
+```
+
+### Infrastructure — Completed
+```
+[x] React Router with AuthGuard — protected routes, SPA catch-all in FastAPI
+[x] Axios API client — session auth, CSRF interceptor, 401/403 error handling
+[x] TanStack Query — data fetching with stale times, cache invalidation
+[x] Zustand stores — theme (dark/light/system, sidebar state), toast notifications
+[x] CSS Modules — component-scoped styles following glassmorphic design tokens
+[x] Vite build — code splitting (react-vendor, motion, query, charts), proxy dev server
+[x] Sidebar navigation — 5 nav groups, animated collapse, SVG icons, status pill
+[x] 23 API endpoint modules — typed hooks for all backend endpoints
+```
+
+### Remaining Work
+```
+[ ] Settings panel parity — Settings page covers ~50% of Jinja2 settings.html features
+[ ] Architecture page customization — drag-and-drop rearrangeable sections (future)
+[ ] Design Rewrite "Breathe" integration — glassmorphic design language from CSS TODO section
+[ ] ScenariosPage — standalone geopolitical scenario stress-testing (currently embedded in Portfolio)
+```
+
+---
+
 ## Won't Do (documented for future reference)
 
 ```

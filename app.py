@@ -3850,6 +3850,32 @@ async def api_risk_trend(ticker: str, days: int = 30, username: str = Depends(re
     """, (ticker.upper(), f"-{days}"))
     return {"ticker": ticker.upper(), "data": rows}
 
+@app.get("/api/corporate-actions")
+async def api_corporate_actions_all(
+    request: Request,
+    ticker: str = None,
+    type: str = None,
+    username: str = Depends(require_api_key_or_session),
+):
+    """Return corporate actions across all watchlist tickers with optional filters."""
+    if ticker:
+        actions = db.get_corporate_actions(ticker.upper(), limit=100)
+    else:
+        actions = db.get_recent_corporate_actions(days=365)
+
+    if type:
+        actions = [a for a in actions if a.get('action_type', '').lower() == type.lower()]
+
+    # Build dividend income summary
+    dividend_summary = {}
+    for a in actions:
+        if a.get('action_type', '').lower() == 'dividend' and a.get('value'):
+            t = a.get('ticker', '')
+            dividend_summary[t] = dividend_summary.get(t, 0) + float(a['value'])
+
+    return {"actions": actions, "dividend_summary": dividend_summary}
+
+
 @app.get("/api/stock/{ticker}/corporate-actions")
 async def api_corporate_actions(ticker: str, username: str = Depends(require_api_key_or_session)):
     """Return corporate actions (splits, dividends) for a ticker (#43)."""
