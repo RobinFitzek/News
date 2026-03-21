@@ -1236,6 +1236,89 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 
 ---
 
+## Frontend — React SPA Rewrite
+
+> **Status:** Complete. All 27 pages ported from Jinja2 to React 18 + TypeScript. Jinja2 templates remain for legacy/fallback.
+
+### Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | React 18.3 + TypeScript 5.5 |
+| Routing | React Router 6 (client-side SPA) |
+| State | Zustand 5 (theme, toasts) |
+| Data Fetching | TanStack Query 5 (React Query) |
+| HTTP | Axios with CSRF interceptor |
+| Animation | Framer Motion 11 |
+| Charts | Chart.js 4 + react-chartjs-2 |
+| Build | Vite 5 → `/static/react/` |
+| Styling | CSS Modules + glassmorphic design tokens |
+
+### Pages — Implementation Status
+
+```
+[x] LoginPage — session auth with TOTP support
+[x] TotpPage — 6-digit TOTP + backup code entry
+[x] TwoFactorSetupPage — QR code, backup codes, enable/disable
+[x] DashboardPage — system command center, market regime, benchmarks, geo radar, economic calendar
+[x] SettingsPage — 7 tabbed panels (API, Scheduler, Analysis, Budget, Security, Appearance, Plugins)
+[x] WatchlistPage — full CRUD, tier filter, sort, notes, sparklines, CSV import
+[x] AnalyzePage — ticker submission form with CSRF
+[x] StockDetailPage — multi-tab (overview, chart, earnings, peers, sentiment, patterns)
+[x] HistoryPage — analysis history table with CSV/JSON export
+[x] DiscoveriesPage — auto-discovery grid, status filters, promote/dismiss, stats
+[x] DiscoverPage — manual AI discovery (sector, focus, limit), result cards, add to watchlist
+[x] TopPicksPage — ranked picks table, win streaks, recent signals, learning stats
+[x] InsiderActivityPage — insider signals table, scan trigger
+[x] PortfolioPage — holdings, trade log, add trade modal, summary metrics, CSV export
+[x] PaperTradingPage — positions, trades, equity metrics, CSV export
+[x] TrustPage — trust gate status, 4 check cards, signal accuracy breakdown
+[x] LearningPage — weight suggestions, feature importance, signal accuracy, apply weights
+[x] CrosscheckPage — crosscheck history with verdicts and confidence
+[x] GeoHistoryPage — severity summary, events table, region/sector breakdown
+[x] SectorScreenPage — sector cards with momentum, signals, risk, top picks
+[x] BacktestPage — date range form, progress bar, results, apply weights, export
+[x] JournalPage — trade journal entries, add/close/delete
+[x] CompareStocksPage — side-by-side comparison of up to 5 tickers with normalized chart
+[x] MacroPage — yield curve, VIX, DXY, regime, 90-day chart, economic calendar events
+[x] CorporateActionsPage — dividends, splits, mergers with ticker/type filters, dividend summary
+[x] GraveyardPage — removed tickers, post-removal performance, win rate
+[x] ArchitecturePage — pipeline flow, AI agents, data sources, risk gates, auto-trade flow, tech stack
+[x] NotFoundPage — 404 with back-to-dashboard link
+```
+
+### Components
+
+```
+[x] Layout: RootLayout, Sidebar (animated collapse), Navbar, PageHeader, StatusPill
+[x] UI: Button, Card (glassmorphic + glow), Badge, Modal, Spinner, Toast, ProgressBar
+[x] UI: MetricCard, Delta, StatusDot, Divider, Kbd, CopyToast
+[x] Dashboard: SystemCommandCenter, GeoRadarCard, MarketRegimeCard, IntelStrip, EconomicCalendarCard, BenchmarkCard
+[x] Settings: PanelAppearance, PanelSecurity, PanelAPIConnections, PanelScheduler, PanelPlugins, PanelAnalysis, PanelBudget
+[x] Keyboard overlay (KbdOverlay), Luminary theme toggle
+```
+
+### API Layer
+
+```
+[x] Axios client with session auth (withCredentials) + CSRF interceptor
+[x] CSRF singleton with in-flight deduplication
+[x] TanStack Query client with stale/gc configuration
+[x] 24 endpoint modules: auth, watchlist, portfolio, stock, discovery, insider, learning, backtest, journal, macro, geopolitical, graveyard, corporateActions, settings, budget, plugins, providers, scheduler, status, logs, topPicks, history, paperTrading, personalKeys
+```
+
+### Router & Navigation
+
+```
+[x] 27 routes in React Router (SPA catch-all in FastAPI serves index.html)
+[x] AuthGuard wrapper for protected routes
+[x] Animated sidebar with 5 nav groups + settings/logout
+[x] Vite dev server proxies /api to FastAPI (port 8000)
+[x] Production build to /static/react/ with code splitting (react-vendor, motion, query, charts)
+```
+
+---
+
 ## Completed
 
 ```
@@ -1250,6 +1333,7 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 [x] Geopolitisches Radar card + exposure heatmap — dashboard.html
 [x] GET /api/geopolitical + GET /api/geopolitical/exposure — app.py
 [x] README rewrite — README.md
+[x] React SPA frontend — 27 pages, 24 API endpoint modules, full component library
 ```
 
 ---
