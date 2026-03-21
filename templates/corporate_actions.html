@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}Corporate Actions — Stockholm{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+
+    <header class="page-header">
+        <div>
+            <h1>Corporate Actions</h1>
+            <p>Dividends, stock splits, and other corporate events for your watchlist</p>
+        </div>
+    </header>
+
+    <!-- Filter Controls -->
+    <div class="card" style="margin-bottom: var(--space-6);">
+        <div style="display: flex; gap: var(--space-4); align-items: center; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: var(--space-2);">
+                <label style="font-size: 0.8125rem; color: var(--text-secondary);">Ticker:</label>
+                <select id="filter-ticker"
+                    style="background: var(--bg-secondary); border: 1px solid var(--border-subtle);
+                           color: var(--text-primary); padding: 4px 8px; border-radius: var(--radius-sm);
+                           font-size: 0.8125rem;" onchange="filterActions()">
+                    <option value="">All</option>
+                    {% for t in tickers | sort %}
+                    <option value="{{ t }}">{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="display: flex; align-items: center; gap: var(--space-2);">
+                <label style="font-size: 0.8125rem; color: var(--text-secondary);">Type:</label>
+                <select id="filter-type"
+                    style="background: var(--bg-secondary); border: 1px solid var(--border-subtle);
+                           color: var(--text-primary); padding: 4px 8px; border-radius: var(--radius-sm);
+                           font-size: 0.8125rem;" onchange="filterActions()">
+                    <option value="">All Types</option>
+                    <option value="dividend">Dividend</option>
+                    <option value="split">Stock Split</option>
+                    <option value="merger">Merger / Acquisition</option>
+                    <option value="spinoff">Spin-off</option>
+                </select>
+            </div>
+            <div style="margin-left: auto; font-size: 0.75rem; color: var(--text-muted);" id="filter-count">
+                {{ actions | length }} events
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions Table -->
+    {% if actions %}
+    <div class="card">
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 0.8125rem;"
+                   id="actions-table">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--border-subtle);">
+                        <th style="padding: var(--space-3) var(--space-4); text-align: left;
+                                   color: var(--text-muted); font-weight: 500; font-size: 0.6875rem;
+                                   text-transform: uppercase; letter-spacing: 0.05em;">Date</th>
+                        <th style="padding: var(--space-3) var(--space-4); text-align: left;
+                                   color: var(--text-muted); font-weight: 500; font-size: 0.6875rem;
+                                   text-transform: uppercase; letter-spacing: 0.05em;">Ticker</th>
+                        <th style="padding: var(--space-3) var(--space-4); text-align: left;
+                                   color: var(--text-muted); font-weight: 500; font-size: 0.6875rem;
+                                   text-transform: uppercase; letter-spacing: 0.05em;">Type</th>
+                        <th style="padding: var(--space-3) var(--space-4); text-align: right;
+                                   color: var(--text-muted); font-weight: 500; font-size: 0.6875rem;
+                                   text-transform: uppercase; letter-spacing: 0.05em;">Amount / Factor</th>
+                        <th style="padding: var(--space-3) var(--space-4); text-align: left;
+                                   color: var(--text-muted); font-weight: 500; font-size: 0.6875rem;
+                                   text-transform: uppercase; letter-spacing: 0.05em;">Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for action in actions %}
+                    {% set atype = (action.action_type or '').lower() %}
+                    <tr class="action-row"
+                        data-ticker="{{ action.ticker }}"
+                        data-type="{{ atype }}"
+                        style="border-bottom: 1px solid var(--border-subtle); transition: background 0.15s;"
+                        onmouseover="this.style.background='var(--bg-tertiary)'"
+                        onmouseout="this.style.background=''">
+                        <td style="padding: var(--space-3) var(--space-4); font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary);">
+                            {{ action.action_date or '—' }}
+                        </td>
+                        <td style="padding: var(--space-3) var(--space-4);">
+                            <a href="/stock/{{ action.ticker }}"
+                               style="font-family: var(--font-mono); font-weight: 600; color: var(--text-primary); text-decoration: none;">
+                                {{ action.ticker }}
+                            </a>
+                        </td>
+                        <td style="padding: var(--space-3) var(--space-4);">
+                            <span class="badge
+                                {% if 'dividend' in atype %}badge-info
+                                {% elif 'split' in atype %}badge-success
+                                {% elif 'merger' in atype or 'acquisition' in atype %}badge-warning
+                                {% else %}badge-secondary{% endif %}"
+                                style="font-size: 0.6875rem;">
+                                {{ action.action_type | title }}
+                            </span>
+                        </td>
+                        <td style="padding: var(--space-3) var(--space-4); text-align: right;
+                                   font-family: var(--font-mono); font-size: 0.8125rem;">
+                            {% if action.amount %}
+                                {{ "$%.4f"|format(action.amount) if 'dividend' in atype else action.amount }}
+                            {% elif action.factor %}
+                                {{ action.factor }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td style="padding: var(--space-3) var(--space-4); color: var(--text-secondary); font-size: 0.75rem; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                            {{ action.description or action.details or '—' }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Per-ticker dividend summary -->
+    {% if actions | selectattr('action_type', 'equalto', 'dividend') | list %}
+    <div class="card" style="margin-top: var(--space-6);">
+        <h3 style="margin: 0 0 var(--space-4) 0; font-size: 0.875rem;">Dividend Income Summary (All-Time)</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--space-3);">
+            {% set ns = namespace(divs={}) %}
+            {% for action in actions if (action.action_type or '') | lower == 'dividend' and action.amount %}
+                {% set t = action.ticker %}
+                {% if t not in ns.divs %}{% set ns.divs = ns.divs | combine({t: 0}) %}{% endif %}
+                {% set ns.divs = ns.divs | combine({t: ns.divs[t] + (action.amount | float)}) %}
+            {% endfor %}
+            {% for ticker, total in ns.divs.items() | sort(attribute='0') %}
+            <div style="background: var(--bg-secondary); border: 1px solid var(--border-subtle);
+                         border-radius: var(--radius-sm); padding: var(--space-3); text-align: center;">
+                <div style="font-family: var(--font-mono); font-weight: 600; font-size: 0.875rem;">{{ ticker }}</div>
+                <div style="font-family: var(--font-mono); font-size: 0.8125rem; color: var(--signal-positive);">
+                    ${{ "%.4f"|format(total) }}
+                </div>
+                <div style="font-size: 0.6875rem; color: var(--text-muted);">total div.</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="card" style="text-align: center; padding: var(--space-10); color: var(--text-muted);">
+        <p>No corporate actions recorded yet.</p>
+        <p style="font-size: 0.75rem; margin-top: var(--space-2);">
+            Corporate actions (dividends, splits) are automatically fetched via yfinance on the weekly job.
+        </p>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function filterActions() {
+    const tickerFilter = document.getElementById('filter-ticker').value.toUpperCase();
+    const typeFilter   = document.getElementById('filter-type').value.toLowerCase();
+    const rows         = document.querySelectorAll('.action-row');
+    let count = 0;
+    rows.forEach(row => {
+        const tickerMatch = !tickerFilter || row.dataset.ticker === tickerFilter;
+        const typeMatch   = !typeFilter   || (row.dataset.type || '').includes(typeFilter);
+        const show        = tickerMatch && typeMatch;
+        row.style.display = show ? '' : 'none';
+        if (show) count++;
+    });
+    const countEl = document.getElementById('filter-count');
+    if (countEl) countEl.textContent = count + ' events';
+}
+</script>
+{% endblock %}

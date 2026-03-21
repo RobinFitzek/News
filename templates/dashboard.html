@@ -863,6 +863,78 @@
     })();
     </script>
 
+    <!-- ─── MACRO EVENT BANNER ───────────────────────────────── -->
+    <div id="macro-event-banner" style="display:none; margin-bottom:var(--space-4); padding:var(--space-3) var(--space-4);
+         background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.3); border-radius:var(--radius-sm);
+         display:flex; align-items:center; gap:var(--space-3);">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--signal-caution,#f59e0b)" stroke-width="2"
+             stroke-linecap="round" style="width:16px;height:16px;flex-shrink:0;">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <span id="macro-event-text" style="font-size:0.8125rem; color:var(--signal-caution,#f59e0b); font-weight:600;"></span>
+    </div>
+
+    <!-- ─── FEATURE IMPORTANCE WIDGET ────────────────────────── -->
+    <div class="card" style="margin-bottom:var(--space-6);" id="feature-importance-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-3);">
+            <h3 style="margin:0; font-size:0.875rem;">Top Predictive Features</h3>
+            <span style="font-size:0.6875rem; color:var(--text-muted);">ML model feature weights</span>
+        </div>
+        <div id="feature-importance-content">
+            <div style="font-size:0.8125rem; color:var(--text-muted);">Loading…</div>
+        </div>
+    </div>
+    <script>
+    (function() {
+        // Macro event banner
+        fetch('/api/macro/snapshot').then(function(r){ return r.json(); }).then(function(d) {
+            if (!d.events) return;
+            var urgent = d.events.filter(function(ev){ return ev.days_until != null && ev.days_until <= 2; });
+            if (urgent.length > 0) {
+                var ev = urgent[0];
+                var banner = document.getElementById('macro-event-banner');
+                var text   = document.getElementById('macro-event-text');
+                if (banner && text) {
+                    text.textContent = '⚠ ' + ev.type + ' in ' + ev.days_until + ' day' + (ev.days_until !== 1 ? 's' : '') + ' — ' + (ev.description || '');
+                    banner.style.display = 'flex';
+                }
+            }
+        }).catch(function(){});
+
+        // Feature importance widget
+        fetch('/api/learning/feature-importance').then(function(r){ return r.json(); }).then(function(d) {
+            var el = document.getElementById('feature-importance-content');
+            if (!el) return;
+            var features = d.features || d;
+            if (!Array.isArray(features) || features.length === 0) {
+                el.innerHTML = '<div style="font-size:0.8125rem;color:var(--text-muted);">No model trained yet — run a few analyses to build feature weights.</div>';
+                return;
+            }
+            var top = features.slice(0, 5);
+            var maxVal = top[0].importance || top[0].weight || 1;
+            var html = '<div style="display:flex;flex-direction:column;gap:var(--space-2);">';
+            top.forEach(function(f, i) {
+                var name = f.feature || f.name || ('Feature ' + (i+1));
+                var val  = f.importance || f.weight || 0;
+                var pct  = maxVal > 0 ? (val / maxVal * 100) : 0;
+                var valPct = (val * 100).toFixed(1);
+                html += '<div style="display:flex;align-items:center;gap:var(--space-3);">'
+                      + '<span style="font-size:0.75rem;color:var(--text-secondary);width:160px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + name + '</span>'
+                      + '<div style="flex:1;background:var(--bg-tertiary);border-radius:3px;height:6px;">'
+                      + '<div style="height:6px;border-radius:3px;background:var(--accent-primary,#60a8e8);width:' + pct.toFixed(1) + '%;"></div>'
+                      + '</div>'
+                      + '<span style="font-family:var(--font-mono);font-size:0.75rem;color:var(--text-secondary);width:44px;text-align:right;">' + valPct + '%</span>'
+                      + '</div>';
+            });
+            html += '</div>';
+            el.innerHTML = html;
+        }).catch(function() {
+            var el = document.getElementById('feature-importance-content');
+            if (el) el.innerHTML = '<div style="font-size:0.8125rem;color:var(--text-muted);">Feature importance unavailable.</div>';
+        });
+    })();
+    </script>
 
     <!-- ─── RECENT ANALYSES ───────────────────────────────── -->
 

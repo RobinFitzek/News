@@ -647,6 +647,32 @@
                     </div>
                 </div>
             </div>
+            <!-- Alert Dedup / Cooldown -->
+            <div class="card" style="margin-bottom: var(--space-6);">
+                <h3 style="margin: 0 0 var(--space-4) 0;">Alert Deduplication</h3>
+                <p style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: var(--space-5); line-height: 1.5;">
+                    A new alert for the same ticker fires only when: the direction flips, the risk score changes by ≥ 2 points, a new geo event occurred, or the cooldown period has elapsed.
+                </p>
+                <div class="grid grid-2" style="gap: var(--space-5);">
+                    <div>
+                        <label>Cooldown Hours</label>
+                        <input type="number" name="alert_cooldown_hours"
+                            value="{{ settings.alert_cooldown_hours|default(24) }}"
+                            min="1" max="168" step="1"
+                            title="Minimum hours between repeated alerts for the same ticker (overridden by direction change, score delta ≥ 2, or new geo event)">
+                        <small style="color:var(--text-muted); font-size:0.7rem;">Default: 24h. Range: 1 – 168h.</small>
+                    </div>
+                    <div>
+                        <label>Intraday Breakout Threshold (%)</label>
+                        <input type="number" name="intraday_trigger_pct"
+                            value="{{ settings.intraday_trigger_pct|default(3.0) }}"
+                            min="0.5" max="20.0" step="0.5"
+                            title="Trigger immediate re-analysis if a watchlist ticker moves this % intraday">
+                        <small style="color:var(--text-muted); font-size:0.7rem;">Default: 3%. Range: 0.5 – 20%.</small>
+                    </div>
+                </div>
+            </div>
+
             <div class="panel-save">
                 <button type="submit" class="btn btn-primary">Save Notification Settings</button>
             </div>
@@ -945,6 +971,35 @@
                         <button type="submit" class="btn btn-primary">Save Security Settings</button>
                     </div>
                 </form>
+
+                <!-- Two-Factor Authentication -->
+                <div class="card" style="margin-top: var(--space-6);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+                        <div>
+                            <h3 style="margin: 0 0 var(--space-1) 0;">Two-Factor Authentication</h3>
+                            <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0;">
+                                Protect your account with a TOTP authenticator app (Google Authenticator, Authy, etc.)
+                            </p>
+                        </div>
+                        {% if totp_info and totp_info.enabled %}
+                        <span class="badge badge-success" style="flex-shrink:0;">Enabled</span>
+                        {% else %}
+                        <span class="badge badge-secondary" style="flex-shrink:0;">Disabled</span>
+                        {% endif %}
+                    </div>
+                    {% if totp_info and totp_info.enabled %}
+                    <p style="font-size: 0.8125rem; color: var(--signal-positive); margin-bottom: var(--space-4);">
+                        ✓ Your account is protected with two-factor authentication.
+                    </p>
+                    <a href="/settings/2fa/setup" class="btn btn-secondary" style="font-size: 0.8125rem;">Manage / Disable 2FA</a>
+                    {% else %}
+                    <p style="font-size: 0.8125rem; color: var(--text-secondary); margin-bottom: var(--space-4); line-height: 1.5;">
+                        Two-factor authentication adds an extra layer of security. After entering your password,
+                        you will be prompted for a 6-digit code from your authenticator app.
+                    </p>
+                    <a href="/settings/2fa/setup" class="btn btn-primary" style="font-size: 0.8125rem;">Set Up 2FA</a>
+                    {% endif %}
+                </div>
             </div>
 
             <!-- ═══ PANEL: APPEARANCE ═══════════════════════ -->

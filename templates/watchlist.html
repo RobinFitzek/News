@@ -96,6 +96,7 @@
                         <th>Ticker</th>
                         <th>Name</th>
                         <th>Tier</th>
+                        <th title="Custom group / category for this ticker">Group</th>
                         <th>Added</th>
                         <th title="Geopolitical risk score from latest analysis (1-10)">Geo Risk</th>
                         <th title="Reddit and Google Trends sentiment">Sentiment</th>
@@ -113,13 +114,21 @@
                     {% if (tier_filter == 'all' or (stock.tier or 'core') == tier_filter) and (stale_filter != '1' or staleness > 5) %}
                     <tr>
                         <td>
-                            <div style="display:flex;align-items:center;gap:var(--space-3);">
+                            <div style="display:flex;align-items:center;gap:var(--space-2); flex-wrap:wrap;">
                                 <a href="/stock/{{ stock.ticker }}"
                                     style="font-family: var(--font-mono); font-weight: 500; font-size: 0.9375rem; color: var(--text-primary); text-decoration: none;"
                                     onmouseover="this.style.textDecoration='underline'"
                                     onmouseout="this.style.textDecoration='none'">
                                     {{ stock.ticker }}
                                 </a>
+                                {% if stock.earnings_imminent %}
+                                <span title="Earnings imminent: {{ stock.earnings_date or '' }}"
+                                      style="font-size:0.6875rem;background:rgba(245,158,11,0.18);color:#f59e0b;
+                                             border:1px solid rgba(245,158,11,0.3);border-radius:10px;
+                                             padding:1px 6px;">🗓 {{ stock.earnings_date or 'soon' }}</span>
+                                {% elif stock.earnings_date %}
+                                <span title="Next earnings: {{ stock.earnings_date }}" style="font-size:0.6875rem;color:var(--text-muted);">📅</span>
+                                {% endif %}
                                 <svg class="sparkline-svg" data-sparkline="{{ stock.ticker }}" width="60" height="20"
                                     style="flex-shrink:0;overflow:visible;"></svg>
                             </div>
@@ -141,6 +150,16 @@
                                     </option>
                                 </select>
                             </form>
+                        </td>
+                        <!-- Group cell (#27) -->
+                        <td>
+                            <span class="watchlist-group-label"
+                                  data-ticker="{{ stock.ticker }}"
+                                  style="font-size:0.75rem; color:var(--text-secondary); cursor:pointer;"
+                                  title="Click to change group"
+                                  onclick="promptGroupChange('{{ stock.ticker }}', '{{ stock.group_name or 'Default' }}')">
+                                {{ stock.group_name or 'Default' }}
+                            </span>
                         </td>
                         <td style="font-size: 0.8125rem; color: var(--text-muted);">{{ stock.added_at }}</td>
                         <!-- Geo Risk Badge (#20) -->
@@ -547,6 +566,24 @@
                 btn.disabled = false;
                 btn.textContent = 'Import All';
             });
+    }
+
+    // ── Watchlist Groups (#27) ────────────────────────────────────────────
+    function promptGroupChange(ticker, currentGroup) {
+        var newGroup = window.prompt('Set group for ' + ticker + ' (current: ' + currentGroup + '):', currentGroup);
+        if (newGroup === null) return;  // cancelled
+        newGroup = newGroup.trim() || 'Default';
+        fetch('/api/watchlist/' + encodeURIComponent(ticker) + '/group', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ group_name: newGroup })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+            var labels = document.querySelectorAll('.watchlist-group-label[data-ticker="' + ticker + '"]');
+            labels.forEach(function(el) { el.textContent = d.group_name || newGroup; });
+        })
+        .catch(function() { alert('Failed to update group.'); });
     }
 </script>
 {% endblock %}

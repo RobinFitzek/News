@@ -330,12 +330,52 @@ async def login_totp_verify(
 
 @app.get("/settings/2fa/setup")
 async def settings_2fa_setup(request: Request, username: str = Depends(require_auth)):
-    """2FA setup page — served by React SPA"""
-    from fastapi.responses import FileResponse
-    index = Path(__file__).parent / "static" / "react" / "index.html"
-    if index.exists():
-        return FileResponse(str(index))
-    return RedirectResponse(url="/settings")
+    """2FA setup page — Jinja2 template with QR code."""
+    import json as _json
+    totp_info = auth_manager.get_user_totp_info(username)
+
+    qr_b64 = None
+    backup_codes = None
+    secret_pending = None
+
+    error = request.query_params.get("error")
+    success = request.query_params.get("success")
+
+    if not totp_info.get("enabled"):
+        # Generate a fresh secret + QR for the setup form (store in settings as temp)
+        existing_pending = db.query_one(
+            "SELECT value FROM settings WHERE key = ?",
+            (f"_pending_totp_setup_{username}",)
+        )
+        if existing_pending:
+            data = _json.loads(existing_pending["value"])
+            secret_pending = data["secret"]
+            backup_codes = data["backup_codes"]
+        else:
+            secret_pending = auth_manager.generate_totp_secret()
+            backup_codes = auth_manager.generate_backup_codes()
+            db.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
+                (f"_pending_totp_setup_{username}",
+                 _json.dumps({"secret": secret_pending, "backup_codes": backup_codes}))
+            )
+        try:
+            uri = auth_manager.get_totp_uri(username, secret_pending)
+            qr_b64 = auth_manager.generate_qr_code_base64(uri)
+        except RuntimeError:
+            qr_b64 = None  # pyotp/qrcode not installed
+
+    return templates.TemplateResponse("2fa_setup.html", {
+        "request": request,
+        "username": username,
+        "totp_info": totp_info,
+        "qr_b64": qr_b64,
+        "secret_pending": secret_pending,
+        "backup_codes": backup_codes,
+        "error": error,
+        "success": success,
+        "csrf_token": request.state.csrf_token,
+    })
 
 
 @app.post("/settings/2fa/enable")
@@ -1189,6 +1229,11 @@ async def settings_page(request: Request, username: str = Depends(require_auth))
     except Exception:
         plugins = []
 
+    try:
+        totp_info = auth_manager.get_user_totp_info(username)
+    except Exception:
+        totp_info = {"enabled": False}
+
     return templates.TemplateResponse("settings.html", {
         "request": request,
         "csrf_token": request.state.csrf_token,
@@ -1206,6 +1251,7 @@ async def settings_page(request: Request, username: str = Depends(require_auth))
         "system_paused": system_paused,
         "personal_api_keys": personal_api_keys,
         "plugins": plugins,
+        "totp_info": totp_info,
     })
 
 @app.post("/settings/clear-kill-switch")
@@ -1275,6 +1321,16 @@ async def save_settings(request: Request, username: str = Depends(require_auth))
         db.set_setting("notify_on_strong_signals", form.get("notify_on_strong_signals") == "on")
         db.set_setting("daily_summary_enabled", form.get("daily_summary_enabled") == "on")
         db.set_setting("daily_summary_time", form.get("daily_summary_time", "20:00"))
+        try:
+            db.set_setting("alert_cooldown_hours",
+                           max(1, min(168, int(form.get("alert_cooldown_hours") or 24))))
+        except (ValueError, TypeError):
+            pass
+        try:
+            db.set_setting("intraday_trigger_pct",
+                           max(0.5, min(20.0, float(form.get("intraday_trigger_pct") or 3.0))))
+        except (ValueError, TypeError):
+            pass
 
     # Server Efficiency settings
     if save_all or section == "server_efficiency":
@@ -1842,6 +1898,98 @@ async def geo_history_page(
         "only_deltas": only_deltas,
         "limit": limit,
     })
+
+@app.get("/macro", response_class=HTMLResponse)
+async def macro_page(request: Request, username: str = Depends(require_auth)):
+    """Macro dashboard — yield curve, VIX, credit spreads (#22)."""
+    from engine.macro_tracker import macro_tracker
+    snapshots = macro_tracker.get_macro_snapshots(90)
+    events = macro_tracker.get_upcoming_events(days_ahead=30)
+    latest = macro_tracker.get_latest_snapshot()
+    return templates.TemplateResponse("macro.html", {
+        "request": request,
+        "csrf_token": request.state.csrf_token,
+        "snapshots": snapshots,
+        "events": events,
+        "latest": latest,
+    })
+
+
+@app.get("/corporate-actions", response_class=HTMLResponse)
+async def corporate_actions_page(request: Request, username: str = Depends(require_auth)):
+    """Dividend & corporate actions ledger across all watchlist tickers (#50)."""
+    tickers = [w['ticker'] for w in db.get_watchlist()]
+    all_actions = []
+    for t in tickers:
+        actions = db.get_corporate_actions(t, limit=30)
+        all_actions.extend(actions)
+    # Sort newest first
+    all_actions.sort(key=lambda x: x.get('action_date', ''), reverse=True)
+    return templates.TemplateResponse("corporate_actions.html", {
+        "request": request,
+        "csrf_token": request.state.csrf_token,
+        "actions": all_actions,
+        "tickers": tickers,
+    })
+
+
+@app.get("/scenarios", response_class=HTMLResponse)
+async def scenarios_page(request: Request, username: str = Depends(require_auth)):
+    """Geopolitical scenario stress-test overview (#39)."""
+    from engine.geo_scenario import geo_scenarios
+    return templates.TemplateResponse("scenarios.html", {
+        "request": request,
+        "csrf_token": request.state.csrf_token,
+        "scenarios": geo_scenarios.get_all_scenarios(),
+    })
+
+
+@app.post("/api/scenarios/run")
+async def api_run_scenario(
+    request: Request,
+    name: str,
+    username: str = Depends(require_api_key_or_session)
+):
+    """Run a named geo scenario against the current portfolio (#39)."""
+    from engine.geo_scenario import geo_scenarios
+    try:
+        result = geo_scenarios.run_scenario(name)
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/watchlist/groups")
+async def api_watchlist_groups(username: str = Depends(require_api_key_or_session)):
+    """Return all distinct watchlist group names (#27)."""
+    return {"groups": db.get_watchlist_groups()}
+
+
+@app.post("/api/watchlist/{ticker}/group")
+async def api_set_watchlist_group(
+    request: Request,
+    ticker: str,
+    username: str = Depends(require_api_key_or_session)
+):
+    """Set the group for a watchlist ticker (#27)."""
+    body = await request.json()
+    group_name = str(body.get("group_name", "Default")).strip() or "Default"
+    ok = db.update_watchlist_group(ticker, group_name)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Failed to update group")
+    return {"ticker": ticker.upper(), "group_name": group_name}
+
+
+@app.get("/api/macro/snapshot")
+async def api_macro_snapshot(username: str = Depends(require_api_key_or_session)):
+    """Return the latest macro snapshot and 90-day history (#22)."""
+    from engine.macro_tracker import macro_tracker
+    return {
+        "latest": macro_tracker.get_latest_snapshot(),
+        "history": macro_tracker.get_macro_snapshots(90),
+        "events": macro_tracker.get_upcoming_events(30),
+    }
+
 
 @app.get("/analysis/{analysis_id}")
 async def analysis_detail(request: Request, analysis_id: int, username: str = Depends(require_auth)):

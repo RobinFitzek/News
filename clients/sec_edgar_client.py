@@ -409,5 +409,140 @@ class SECEdgarClient:
         }
 
 
+    def get_13f_holdings(self, cik: str, filer_name: str = "") -> List[Dict]:
+        """
+        Fetch the most recent 13F-HR filing for a given CIK and return
+        a list of position dicts: {ticker, issuer_name, shares, value, filing_date}.
+
+        Falls back gracefully — returns [] on any error so callers can proceed.
+        """
+        try:
+            time.sleep(self.rate_limit_delay)
+            # Step 1: find the most recent 13F-HR submission
+            submissions_url = f"https://data.sec.gov/submissions/CIK{cik}.json"
+            resp = requests.get(submissions_url, headers=self.headers, timeout=15)
+            if resp.status_code != 200:
+                self.logger.warning(f"13F submissions fetch failed for {cik}: {resp.status_code}")
+                return []
+
+            data = resp.json()
+            filings = data.get('filings', {}).get('recent', {})
+            forms = filings.get('form', [])
+            acc_nums = filings.get('accessionNumber', [])
+            filing_dates = filings.get('filingDate', [])
+
+            # Find the latest 13F-HR
+            target_accession = None
+            target_date = None
+            for form, acc, fd in zip(forms, acc_nums, filing_dates):
+                if form in ('13F-HR', '13F-HR/A'):
+                    target_accession = acc.replace('-', '')
+                    target_date = fd
+                    break  # already sorted newest-first
+
+            if not target_accession:
+                self.logger.info(f"No 13F-HR found for CIK {cik} ({filer_name})")
+                return []
+
+            time.sleep(self.rate_limit_delay)
+            # Step 2: fetch the filing index to locate the infotable XML
+            cik_clean = cik.lstrip('0') or '0'
+            index_url = (f"https://www.sec.gov/Archives/edgar/data/"
+                         f"{cik_clean}/{target_accession}/{target_accession}-index.json")
+            idx_resp = requests.get(index_url, headers=self.headers, timeout=15)
+            xml_url = None
+            if idx_resp.status_code == 200:
+                for doc in idx_resp.json().get('directory', {}).get('item', []):
+                    if 'infotable' in doc.get('name', '').lower():
+                        xml_url = (f"https://www.sec.gov/Archives/edgar/data/"
+                                   f"{cik_clean}/{target_accession}/{doc['name']}")
+                        break
+
+            # Fallback: construct URL directly
+            if not xml_url:
+                xml_url = (f"https://www.sec.gov/Archives/edgar/data/"
+                           f"{cik_clean}/{target_accession}/{target_accession}-infotable.xml")
+
+            time.sleep(self.rate_limit_delay)
+            xml_resp = requests.get(xml_url, headers=self.headers, timeout=20)
+            if xml_resp.status_code != 200:
+                self.logger.warning(f"13F infotable fetch failed: {xml_url} ({xml_resp.status_code})")
+                return []
+
+            # Step 3: parse the holdings XML
+            holdings = []
+            try:
+                root = ET.fromstring(xml_resp.content)
+                # Handle namespace
+                ns = ''
+                tag = root.tag
+                if '{' in tag:
+                    ns = tag.split('}')[0] + '}'
+
+                for info in root.iter(f'{ns}infoTable'):
+                    def _t(name):
+                        el = info.find(f'{ns}{name}')
+                        return el.text.strip() if el is not None and el.text else ''
+
+                    ticker_sym = _t('ticker')
+                    issuer = _t('nameOfIssuer')
+                    shares_str = _t('sshPrnamt')
+                    value_str = _t('value')  # in thousands of USD
+
+                    try:
+                        shares = int(shares_str.replace(',', '')) if shares_str else 0
+                        value_usd = int(value_str.replace(',', '')) * 1000 if value_str else 0
+                    except ValueError:
+                        shares, value_usd = 0, 0
+
+                    if issuer or ticker_sym:
+                        holdings.append({
+                            'ticker': ticker_sym.upper() if ticker_sym else '',
+                            'issuer_name': issuer,
+                            'shares': shares,
+                            'value_usd': value_usd,
+                            'filing_date': target_date,
+                            'filer_name': filer_name,
+                            'filer_cik': cik,
+                        })
+            except ET.ParseError as e:
+                self.logger.warning(f"XML parse error for 13F {cik}: {e}")
+                return []
+
+            self.logger.info(f"13F parsed: {len(holdings)} holdings for {filer_name or cik} ({target_date})")
+            return holdings
+
+        except Exception as e:
+            self.logger.error(f"get_13f_holdings({cik}): {e}", exc_info=True)
+            return []
+
+
+# ── Top-20 Institutional Filers (#25) ─────────────────────────────────────
+# CIK numbers (zero-padded to 10 digits) for the most-watched institutional filers.
+# Source: SEC EDGAR — CIKs are public record and do not change.
+TOP_FILERS: Dict[str, str] = {
+    "Berkshire Hathaway":   "0001067983",
+    "Vanguard Group":       "0000102909",
+    "BlackRock":            "0001364742",
+    "State Street":         "0000093751",
+    "Fidelity (FMR)":       "0000315066",
+    "T. Rowe Price":        "0001113169",
+    "JPMorgan Chase":       "0000019617",
+    "Goldman Sachs":        "0000886982",
+    "Morgan Stanley":       "0000895421",
+    "Citadel Advisors":     "0001423689",
+    "Bridgewater":          "0001350694",
+    "Renaissance Tech":     "0001037389",
+    "Tiger Global":         "0001167483",
+    "Viking Global":        "0001109923",
+    "Appaloosa Mgmt":       "0001070154",
+    "Baupost Group":        "0001061219",
+    "Pershing Square":      "0001336528",
+    "Third Point":          "0001040570",
+    "Greenlight Capital":   "0001079114",
+    "Coatue Management":    "0001336070",
+}
+
+
 # Singleton
 sec_client = SECEdgarClient()

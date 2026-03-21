@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Macro Dashboard — Stockholm{% endblock %}
+
+{% block extra_head %}
+<style>
+.macro-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-6); }
+.macro-kpi { background: var(--bg-secondary); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: var(--space-4); }
+.macro-kpi-label { font-size: 0.6875rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: var(--space-1); }
+.macro-kpi-value { font-family: var(--font-mono); font-size: 1.5rem; font-weight: 600; color: var(--text-primary); }
+.macro-kpi-sub { font-size: 0.6875rem; color: var(--text-muted); margin-top: var(--space-1); }
+.regime-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.04em; }
+.regime-inverted { background: rgba(220,38,38,0.15); color: var(--signal-negative, #e86060); }
+.regime-flat     { background: rgba(212,168,75,0.15); color: var(--signal-caution, #f59e0b); }
+.regime-normal   { background: rgba(16,185,129,0.12); color: var(--signal-positive, #4ee88a); }
+.regime-steep    { background: rgba(59,130,246,0.15); color: var(--accent-primary, #60a8e8); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+
+    <header class="page-header">
+        <div>
+            <h1>Macro Dashboard</h1>
+            <p>Yield curve, volatility, and credit markets — daily snapshot</p>
+        </div>
+        {% if latest %}
+        <div style="font-size:0.75rem; color:var(--text-muted);">Updated: {{ latest.date }}</div>
+        {% endif %}
+    </header>
+
+    <!-- ── KPI Cards ───────────────────────────────────────────── -->
+    {% if latest %}
+    <div style="margin-bottom: var(--space-4);">
+        {% set regime = latest.regime_label or 'Normal' %}
+        <span class="regime-badge
+            {% if 'Inverted' in regime %}regime-inverted
+            {% elif 'Flat' in regime %}regime-flat
+            {% elif 'Steep' in regime %}regime-steep
+            {% else %}regime-normal{% endif %}">
+            {{ regime }}
+        </span>
+    </div>
+    <div class="macro-kpi-grid">
+        <div class="macro-kpi">
+            <div class="macro-kpi-label">10Y Treasury</div>
+            <div class="macro-kpi-value">{{ "%.2f"|format(latest.yield_10y) if latest.yield_10y else "—" }}%</div>
+            <div class="macro-kpi-sub">US 10-Year Yield</div>
+        </div>
+        <div class="macro-kpi">
+            <div class="macro-kpi-label">3M T-Bill</div>
+            <div class="macro-kpi-value">{{ "%.2f"|format(latest.yield_3m) if latest.yield_3m else "—" }}%</div>
+            <div class="macro-kpi-sub">3-Month Yield</div>
+        </div>
+        <div class="macro-kpi">
+            <div class="macro-kpi-label">10Y – 3M Spread</div>
+            {% set spread = latest.spread_2y10y %}
+            <div class="macro-kpi-value"
+                 style="color: {% if spread is not none and spread < 0 %}var(--signal-negative){% elif spread is not none and spread < 0.3 %}var(--signal-caution){% else %}var(--signal-positive){% endif %};">
+                {{ "%+.2f"|format(spread) if spread is not none else "—" }}%
+            </div>
+            <div class="macro-kpi-sub">Inversion = recession risk</div>
+        </div>
+        <div class="macro-kpi">
+            <div class="macro-kpi-label">VIX</div>
+            {% set vix = latest.vix %}
+            <div class="macro-kpi-value"
+                 style="color: {% if vix is not none and vix > 30 %}var(--signal-negative){% elif vix is not none and vix > 20 %}var(--signal-caution){% else %}var(--signal-positive){% endif %};">
+                {{ "%.1f"|format(vix) if vix else "—" }}
+            </div>
+            <div class="macro-kpi-sub">Fear index (>20 = elevated)</div>
+        </div>
+        <div class="macro-kpi">
+            <div class="macro-kpi-label">Credit Spread (HYG/LQD)</div>
+            <div class="macro-kpi-value">{{ "%.4f"|format(latest.credit_spread) if latest.credit_spread else "—" }}</div>
+            <div class="macro-kpi-sub">High yield vs investment grade</div>
+        </div>
+        <div class="macro-kpi">
+            <div class="macro-kpi-label">DXY (USD Index)</div>
+            <div class="macro-kpi-value">{{ "%.1f"|format(latest.dxy) if latest.dxy else "—" }}</div>
+            <div class="macro-kpi-sub">US Dollar Index</div>
+        </div>
+    </div>
+    {% else %}
+    <div class="card" style="margin-bottom: var(--space-6); color: var(--text-muted); font-size: 0.875rem; text-align: center; padding: var(--space-8);">
+        No macro data yet. The first snapshot will be captured at 17:05 on the next trading day.
+        <br><br>
+        <small>Or trigger manually: <code>GET /api/macro/snapshot</code></small>
+    </div>
+    {% endif %}
+
+    <!-- ── Charts ──────────────────────────────────────────────── -->
+    {% if snapshots %}
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-6); margin-bottom: var(--space-6);">
+        <div class="card">
+            <h3 style="margin: 0 0 var(--space-4) 0; font-size: 0.875rem;">Yield Curve Spread (10Y – 3M)</h3>
+            <canvas id="spreadChart" height="120"></canvas>
+        </div>
+        <div class="card">
+            <h3 style="margin: 0 0 var(--space-4) 0; font-size: 0.875rem;">VIX — Volatility Index</h3>
+            <canvas id="vixChart" height="120"></canvas>
+        </div>
+        <div class="card">
+            <h3 style="margin: 0 0 var(--space-4) 0; font-size: 0.875rem;">10-Year Treasury Yield</h3>
+            <canvas id="yieldChart" height="120"></canvas>
+        </div>
+        <div class="card">
+            <h3 style="margin: 0 0 var(--space-4) 0; font-size: 0.875rem;">Credit Spread (HYG/LQD)</h3>
+            <canvas id="creditChart" height="120"></canvas>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ── Upcoming Central Bank Events ────────────────────────── -->
+    <div class="card">
+        <h3 style="margin: 0 0 var(--space-4) 0;">Upcoming Central Bank Events</h3>
+        {% if events %}
+        <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+            {% for ev in events %}
+            <div style="display: flex; align-items: center; justify-content: space-between;
+                         padding: var(--space-3); border: 1px solid var(--border-subtle);
+                         border-radius: var(--radius-sm);">
+                <div>
+                    <span style="font-weight: 600; font-family: var(--font-mono); font-size: 0.875rem;">
+                        {{ ev.type }}
+                    </span>
+                    <span style="font-size: 0.8125rem; color: var(--text-secondary); margin-left: var(--space-3);">
+                        {{ ev.description }}
+                    </span>
+                </div>
+                <div style="text-align: right; flex-shrink: 0;">
+                    <div style="font-family: var(--font-mono); font-size: 0.8125rem;">{{ ev.date }}</div>
+                    <div style="font-size: 0.6875rem; color: {% if ev.days_until <= 2 %}var(--signal-negative){% elif ev.days_until <= 7 %}var(--signal-caution){% else %}var(--text-muted){% endif %};">
+                        in {{ ev.days_until }} day{{ 's' if ev.days_until != 1 }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="font-size: 0.8125rem; color: var(--text-muted);">No central bank events in the next 30 days.</p>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% if snapshots %}
+<script>
+(function() {
+    const snaps = {{ snapshots | tojson }};
+    const labels = snaps.map(s => s.date ? s.date.slice(5) : '');  // MM-DD
+
+    function mkChart(id, data, label, color, zeroLine) {
+        const ctx = document.getElementById(id);
+        if (!ctx) return;
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [{
+                    label,
+                    data,
+                    borderColor: color,
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    tension: 0.3,
+                    fill: true,
+                    backgroundColor: color.replace(')', ', 0.08)').replace('rgb', 'rgba'),
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                    annotation: zeroLine ? {
+                        annotations: {
+                            zeroLine: {
+                                type: 'line',
+                                yMin: 0,
+                                yMax: 0,
+                                borderColor: 'rgba(255,255,255,0.2)',
+                                borderWidth: 1,
+                                borderDash: [4, 4],
+                            }
+                        }
+                    } : undefined,
+                },
+                scales: {
+                    x: { grid: { display: false }, ticks: { maxTicksLimit: 6, font: { size: 10 } } },
+                    y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { font: { size: 10 } } }
+                }
+            }
+        });
+    }
+
+    mkChart('spreadChart',
+        snaps.map(s => s.spread_2y10y),
+        '10Y–3M Spread (%)',
+        'rgb(96, 168, 232)',
+        true);
+
+    mkChart('vixChart',
+        snaps.map(s => s.vix),
+        'VIX',
+        'rgb(248, 113, 113)',
+        false);
+
+    mkChart('yieldChart',
+        snaps.map(s => s.yield_10y),
+        '10Y Yield (%)',
+        'rgb(167, 139, 250)',
+        false);
+
+    mkChart('creditChart',
+        snaps.map(s => s.credit_spread),
+        'HYG/LQD',
+        'rgb(52, 211, 153)',
+        false);
+})();
+</script>
+{% endif %}
+{% endblock %}
