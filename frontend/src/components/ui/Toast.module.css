@@ -14,15 +14,29 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-5);
-  background: var(--bg-elevated);
+  background: var(--glass-bg, rgba(14, 14, 26, 0.7));
   border: 1px solid var(--border-primary);
   border-left-width: 3px;
-  backdrop-filter: blur(20px);
-  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  box-shadow:
+    var(--shadow-lg),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
   min-width: 220px;
   max-width: 360px;
   cursor: pointer;
   pointer-events: all;
+  transition:
+    border-color var(--duration-fast) var(--ease-smooth),
+    box-shadow var(--duration-fast) var(--ease-smooth);
+}
+
+.toast:hover {
+  border-color: var(--border-highlight);
+  box-shadow:
+    var(--shadow-lg),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 12px rgba(0, 0, 0, 0.3);
 }
 
 .icon {

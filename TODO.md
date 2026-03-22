@@ -1396,8 +1396,36 @@ Full migration from Jinja2 templates to a React 18 Single Page Application.
 ```
 [ ] Settings panel parity — Settings page covers ~50% of Jinja2 settings.html features
 [ ] Architecture page customization — drag-and-drop rearrangeable sections (future)
-[ ] Design Rewrite "Breathe" integration — glassmorphic design language from CSS TODO section
-[ ] ScenariosPage — standalone geopolitical scenario stress-testing (currently embedded in Portfolio)
+[x] ScenariosPage — standalone geopolitical scenario stress-testing + GET /api/scenarios endpoint
+```
+
+### Breathe Design Language — Implementation Status
+```
+[x] Phase 1 — Radiance: inter-element light reflection system
+    - useRadiance hook (proximity engine, 120px range, edge detection)
+    - RadianceProvider (React context + shared SVG defs with refraction filter)
+    - Card integration (radiance prop, edge glow receiver, breathing animation)
+[x] Phase 2 — SVG Signal Glyphs & Micro-Charts
+    - SignalGlyph (BUY/SELL/HOLD/WATCH geometric SVG symbols via <use href>)
+    - SparkBar (pure SVG 8-bar inline micro-charts)
+    - Delta (SVG directional arrows replacing text ▲/▼)
+[x] Phase 3 — Enhanced Glass & Particle Field
+    - Luminary particle field (40 SVG circles with seeded drift)
+    - Orb breathing animation (opacity/blur pulse on gold + ice orbs)
+    - Card hover enhancements (3px lift, deeper shadow, glow brighten)
+    - Void shimmer sweep (12s CSS animation on shell overlay)
+[x] Phase 4 — Mercury Diffusion Loading Screen
+    - TextDiffuser (noise chars → real text with wave reveal)
+    - DiffuseSword (ASCII geometric sword line-by-line emergence)
+    - MercuryLoading (full-screen intro: sword + title + subtitle + dots)
+    - RootLayout integration (2.8s intro, blur+fade exit)
+[x] Phase 5 — Component Polish
+    - Button glass material (backdrop-filter blur, hover lift)
+    - Toast glass material (24px blur, saturate, inset specular, hover glow)
+[ ] Phase 6 — Settings Integration (future)
+    - Loading screen toggle in Settings
+    - Parallax/depth effects toggle integration
+    - Glow intensity slider wired to radiance engine
 ```
 
 ---
@@ -1419,7 +1447,7 @@ Full migration from Jinja2 templates to a React 18 Single Page Application.
 > data that speaks without shouting. Sharp edges. Clean structure. Everything earns its place.
 >
 > **Effort:** L (full design system rewrite) · **Impact:** Very High (complete visual identity)
-> **Status:** Spec complete — ready for implementation
+> **Status:** Phases 1–5 implemented in React frontend. Phase 6 (settings integration) remaining.
 
 ---
 
