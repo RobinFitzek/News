@@ -15,7 +15,7 @@
   opacity: 0.4;
 }
 
-/* Void shimmer — dark-mode-only subtle light sweep */
+/* Void shimmer — primary light sweep */
 .shell::after {
   content: '';
   position: absolute;
@@ -30,8 +30,24 @@
   pointer-events: none;
 }
 
+/* Secondary cross-shimmer — perpendicular sweep for depth */
+.shell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    -30deg,
+    transparent 42%,
+    rgba(107, 184, 255, 0.008) 50%,
+    transparent 58%
+  );
+  animation: shimmer-sweep 18s ease-in-out 6s infinite;
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .shell::after {
+  .shell::after,
+  .shell::before {
     animation: none;
   }
 }

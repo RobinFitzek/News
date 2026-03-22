@@ -64,12 +64,20 @@ export function Card({
         delay,
       }}
     >
+      {/* Animated gradient border — conic rotation on hover */}
+      {glow && <div className={styles.gradientBorder} />}
       {/* Glow blob */}
       {glow && <div className={styles.glowBlob} />}
+      {/* Frost noise texture */}
+      {glass && <div className={styles.frostNoise} />}
+      {/* Prismatic color split */}
+      {glow && <div className={styles.prismatic} />}
       {/* Radiance receiver — light from neighbors */}
       <div className={styles.radiance} />
       {/* Specular highlight */}
       <div className={styles.specular} />
+      {/* Specular sweep — animated glint on hover */}
+      <div className={styles.specularSweep} />
       <Tag className={styles.inner}>{children}</Tag>
     </motion.div>
   )

@@ -12,6 +12,10 @@
   opacity: 0.3;
 }
 
+[data-theme="light"] .auroraLayer {
+  display: none;
+}
+
 .orbA {
   position: absolute;
   top: -10%;
@@ -44,6 +48,69 @@
   will-change: transform, opacity;
 }
 
+/* ── Aurora Borealis — flowing light bands ─────────────────────────── */
+
+.auroraLayer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: calc(var(--glow-intensity, 0.6) * 0.7);
+}
+
+.auroraA {
+  position: absolute;
+  top: -30%;
+  left: -20%;
+  width: 140%;
+  height: 60%;
+  background: linear-gradient(
+    120deg,
+    transparent 20%,
+    var(--aurora-a, rgba(107, 255, 158, 0.08)) 35%,
+    transparent 50%,
+    var(--aurora-b, rgba(107, 184, 255, 0.06)) 65%,
+    transparent 80%
+  );
+  filter: blur(60px);
+  animation: aurora-shift var(--aurora-speed, 20s) ease-in-out infinite;
+  will-change: transform;
+}
+
+.auroraB {
+  position: absolute;
+  bottom: -20%;
+  right: -20%;
+  width: 120%;
+  height: 50%;
+  background: linear-gradient(
+    240deg,
+    transparent 15%,
+    var(--aurora-c, rgba(255, 216, 122, 0.05)) 30%,
+    transparent 45%,
+    var(--aurora-a, rgba(107, 255, 158, 0.06)) 60%,
+    transparent 80%
+  );
+  filter: blur(50px);
+  animation: aurora-shift-reverse calc(var(--aurora-speed, 20s) * 1.3) ease-in-out infinite;
+  will-change: transform;
+}
+
+.auroraC {
+  position: absolute;
+  top: 10%;
+  left: 10%;
+  width: 80%;
+  height: 40%;
+  background: radial-gradient(
+    ellipse at 50% 50%,
+    var(--aurora-b, rgba(107, 184, 255, 0.04)) 0%,
+    transparent 70%
+  );
+  filter: blur(40px);
+  animation: aurora-shift calc(var(--aurora-speed, 20s) * 0.8) ease-in-out infinite reverse;
+  will-change: transform;
+}
+
 /* ── Particle field — 40 drifting SVG dots ─────────────────────────── */
 
 .particleField {
@@ -56,6 +123,12 @@
 
 .particle {
   animation: particleDrift linear infinite alternate;
+}
+
+/* ── Constellation lines — connecting nearby particles ─────────────── */
+
+.constellationLine {
+  animation: constellation-fade 8s ease-in-out infinite;
 }
 
 @keyframes luminaryDrift {
@@ -80,15 +153,27 @@
     animation: none;
   }
 
+  .auroraA, .auroraB, .auroraC {
+    animation: none;
+  }
+
   .particleField {
     display: none;
   }
+
+  .constellationLine {
+    animation: none;
+  }
 }
 
-/* ── Hide particles on mobile ──────────────────────────────────────── */
+/* ── Hide particles and aurora on mobile ───────────────────────────── */
 
 @media (max-width: 768px) {
   .particleField {
+    display: none;
+  }
+
+  .auroraLayer {
     display: none;
   }
 }

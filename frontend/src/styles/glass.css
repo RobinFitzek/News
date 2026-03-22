@@ -41,3 +41,62 @@
     inset 0 1px 0 rgba(255,255,255,0.08),
     inset 0 -1px 0 rgba(0,0,0,0.12);
 }
+
+/* ── Glass frost — noise texture overlay ───────────────────────────── */
+.glass-frost {
+  position: relative;
+}
+.glass-frost::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity: var(--glass-noise-opacity, 0.03);
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: overlay;
+}
+
+/* ── Glass prismatic — chromatic edge split on hover ───────────────── */
+.glass-prismatic {
+  position: relative;
+}
+.glass-prismatic::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  background: linear-gradient(
+    135deg,
+    rgba(107, 255, 158, 0.08) 0%,
+    transparent 25%,
+    rgba(107, 184, 255, 0.06) 50%,
+    transparent 75%,
+    rgba(255, 216, 122, 0.08) 100%
+  );
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+  transition: opacity var(--duration-normal) var(--ease-smooth);
+}
+.glass-prismatic:hover::after {
+  opacity: 1;
+}
+
+/* ── Glass depth — layered shadow for 3D illusion ──────────────────── */
+.glass-depth {
+  box-shadow:
+    0 0 0 1px var(--border-primary),
+    0 2px 4px rgba(0, 0, 0, 0.4),
+    0 8px 24px rgba(0, 0, 0, 0.3),
+    0 24px 48px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transition: box-shadow var(--duration-fast) var(--ease-smooth);
+}
+.glass-depth:hover {
+  box-shadow:
+    0 0 0 1px var(--border-highlight),
+    0 4px 8px rgba(0, 0, 0, 0.45),
+    0 16px 32px rgba(0, 0, 0, 0.35),
+    0 32px 64px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}

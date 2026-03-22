@@ -147,6 +147,21 @@
   --glass-bg-hover: rgba(36, 36, 42, 0.65);
   --glass-edge: rgba(255, 255, 255, 0.1);
 
+  /* Aurora system */
+  --aurora-a: rgba(107, 255, 158, 0.08);
+  --aurora-b: rgba(107, 184, 255, 0.06);
+  --aurora-c: rgba(255, 216, 122, 0.05);
+  --aurora-speed: 20s;
+
+  /* Animated border gradient */
+  --border-gradient-speed: 4s;
+  --border-gradient-a: var(--glow-positive);
+  --border-gradient-b: var(--glow-neutral);
+  --border-gradient-c: var(--glow-gold);
+
+  /* Glass noise opacity */
+  --glass-noise-opacity: 0.03;
+
   --pulse-color-start: rgba(232, 228, 222, 0.4);
   --pulse-color-end: rgba(232, 228, 222, 0);
   --btn-sheen: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.2), transparent);

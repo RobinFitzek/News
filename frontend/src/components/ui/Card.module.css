@@ -26,11 +26,12 @@
 }
 
 .glass:hover {
-  backdrop-filter: blur(12px) saturate(160%);
-  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
 }
 
-/* Glow blob behind card — breathing animation */
+/* ── Glow blob — breathing animation ─────────────────────────────────── */
+
 .glowBlob {
   position: absolute;
   top: -20%;
@@ -48,7 +49,8 @@
   transform: scale(1.08);
 }
 
-/* Subtle specular top edge */
+/* ── Specular highlight — top edge with animated sweep ────────────────── */
+
 .specular {
   position: absolute;
   top: 0;
@@ -62,7 +64,113 @@
 }
 
 .card:hover .specular {
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent);
+}
+
+/* ── Specular sweep — glint that travels across on hover ──────────────── */
+
+.specularSweep {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+  transform: translateX(-100%) skewX(-15deg);
+  transition: opacity var(--duration-fast);
+}
+
+.card:hover .specularSweep {
+  opacity: 1;
+  animation: specular-sweep 1.5s var(--ease-smooth) 0.1s 1 forwards;
+}
+
+/* ── Frost noise overlay — subtle grain on glass ──────────────────────── */
+
+.frostNoise {
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity: var(--glass-noise-opacity, 0.03);
+  pointer-events: none;
+  z-index: 1;
+  mix-blend-mode: overlay;
+}
+
+/* ── Prismatic edge — chromatic color split on hover ──────────────────── */
+
+.prismatic {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--ease-smooth);
+}
+
+.prismatic::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: linear-gradient(
+    135deg,
+    rgba(107, 255, 158, 0.05) 0%,
+    transparent 40%,
+    rgba(107, 184, 255, 0.04) 70%,
+    transparent 100%
+  );
+}
+
+.prismatic::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40%;
+  background: linear-gradient(
+    315deg,
+    rgba(255, 216, 122, 0.04) 0%,
+    transparent 40%,
+    rgba(107, 255, 158, 0.03) 70%,
+    transparent 100%
+  );
+}
+
+.card:hover .prismatic {
+  opacity: 1;
+}
+
+/* ── Animated gradient border — conic rotating border ─────────────────── */
+
+.gradientBorder {
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  background: conic-gradient(
+    from var(--border-angle, 0deg),
+    var(--border-gradient-a, var(--glow-positive)) 0%,
+    transparent 12%,
+    var(--border-gradient-b, var(--glow-neutral)) 33%,
+    transparent 45%,
+    var(--border-gradient-c, var(--glow-gold)) 66%,
+    transparent 78%,
+    var(--border-gradient-a, var(--glow-positive)) 100%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-normal) var(--ease-smooth);
+  animation: border-rotate var(--border-gradient-speed, 4s) linear infinite;
+}
+
+.card:hover .gradientBorder {
+  opacity: 0.4;
 }
 
 /* ── Radiance — light bleeding from neighboring cards ─────────────────── */
@@ -115,6 +223,14 @@
   .radiance {
     display: none;
   }
+
+  .specularSweep {
+    display: none;
+  }
+
+  .gradientBorder {
+    animation: none;
+  }
 }
 
 /* ── Depth effects off ────────────────────────────────────────────────── */
@@ -124,6 +240,22 @@
 }
 
 :global([data-depth="off"]) .radiance {
+  display: none;
+}
+
+:global([data-depth="off"]) .prismatic {
+  display: none;
+}
+
+:global([data-depth="off"]) .frostNoise {
+  display: none;
+}
+
+:global([data-depth="off"]) .gradientBorder {
+  display: none;
+}
+
+:global([data-depth="off"]) .specularSweep {
   display: none;
 }
 
