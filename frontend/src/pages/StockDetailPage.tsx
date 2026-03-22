@@ -21,6 +21,7 @@ import {
   useSentiment,
   useAnalysisDetail,
 } from '@/api/endpoints/stock'
+import { useSmartMoney } from '@/api/endpoints/institutional'
 import type { SentimentHeadline } from '@/api/endpoints/stock'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Card } from '@/components/ui/Card'
@@ -184,9 +185,26 @@ function ExpandSection({
 function OverviewTab({ ticker, analysisId }: { ticker: string; analysisId: string | null }) {
   const { data: keyStats, isLoading: statsLoading, isError: statsError } = useKeyStats(ticker)
   const { data: analysis, isLoading: analysisLoading } = useAnalysisDetail(analysisId)
+  const { data: smartMoney } = useSmartMoney(ticker)
 
   return (
     <div>
+      {/* Smart Money badge */}
+      {smartMoney?.smart_money_badge && (
+        <Card className={styles.smartMoneyCard} animate>
+          <div className={styles.smartMoneyRow}>
+            <Badge variant="gold" size="sm">SMART MONEY</Badge>
+            <span className={styles.smartMoneyText}>
+              {smartMoney.new_positions.length > 0
+                ? `New position by ${smartMoney.new_positions[0].filer_name}`
+                : smartMoney.increased.length > 0
+                ? `Position increased by ${smartMoney.increased[0].filer_name}`
+                : `Held by ${smartMoney.total_top_filers_holding} top institutional filers`}
+            </span>
+          </div>
+        </Card>
+      )}
+
       {/* Signal card (only when analysis_id provided) */}
       {analysisId && (
         <>

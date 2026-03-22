@@ -9,6 +9,7 @@ from typing import List, Dict, Optional
 import time
 import logging
 import re
+import xml.etree.ElementTree as ET
 
 
 class SECEdgarClient:
