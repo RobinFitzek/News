@@ -1987,6 +1987,37 @@ async def api_set_watchlist_group(
     return {"ticker": ticker.upper(), "group_name": group_name}
 
 
+@app.get("/api/watchlist/group-stats")
+async def api_watchlist_group_stats(username: str = Depends(require_api_key_or_session)):
+    """
+    Per-group aggregate statistics: avg risk score, avg geo risk, signal distribution (#27).
+    """
+    rows = db.query(
+        """
+        SELECT
+            COALESCE(w.group_name, 'Default') AS group_name,
+            COUNT(*) AS ticker_count,
+            ROUND(AVG(ah.risk_score), 1) AS avg_risk_score,
+            ROUND(AVG(ah.geo_risk_score), 1) AS avg_geo_risk,
+            SUM(CASE WHEN ah.signal = 'STRONG_BUY'  THEN 1 ELSE 0 END) AS strong_buy,
+            SUM(CASE WHEN ah.signal = 'BUY'         THEN 1 ELSE 0 END) AS buy,
+            SUM(CASE WHEN ah.signal = 'HOLD'        THEN 1 ELSE 0 END) AS hold,
+            SUM(CASE WHEN ah.signal = 'SELL'        THEN 1 ELSE 0 END) AS sell,
+            SUM(CASE WHEN ah.signal = 'STRONG_SELL' THEN 1 ELSE 0 END) AS strong_sell
+        FROM watchlist w
+        LEFT JOIN (
+            SELECT ticker, risk_score, geo_risk_score, signal,
+                   ROW_NUMBER() OVER (PARTITION BY ticker ORDER BY timestamp DESC) AS rn
+            FROM analysis_history
+        ) ah ON ah.ticker = w.ticker AND ah.rn = 1
+        WHERE w.active = 1
+        GROUP BY group_name
+        ORDER BY group_name
+        """
+    ) or []
+    return {"groups": [dict(r) for r in rows]}
+
+
 @app.get("/api/macro/snapshot")
 async def api_macro_snapshot(username: str = Depends(require_api_key_or_session)):
     """Return the latest macro snapshot and 90-day history (#22)."""
@@ -2285,6 +2316,62 @@ async def run_discovery_now(
     )
 
 # ==================== INSIDER TRADING ====================
+
+@app.get("/dark-pool", response_class=HTMLResponse)
+async def dark_pool_page(request: Request, days: int = 7, username: str = Depends(require_auth)):
+    """Dark pool & institutional block trade activity page (#52)."""
+    from engine.dark_pool_tracker import get_top_signals, ensure_schema
+    ensure_schema()
+    signals = get_top_signals(days=days, top_n=50)
+    return templates.TemplateResponse("dark_pool.html", {
+        "request": request,
+        "csrf_token": request.state.csrf_token,
+        "signals": signals,
+        "days": days,
+    })
+
+
+@app.get("/dark-pool/{ticker}", response_class=HTMLResponse)
+async def dark_pool_ticker_page(request: Request, ticker: str, username: str = Depends(require_auth)):
+    """Dark pool signals for a specific ticker (#52)."""
+    from engine.dark_pool_tracker import get_ticker_signals, ensure_schema
+    ensure_schema()
+    ticker = ticker.upper()
+    signals = get_ticker_signals(ticker, days=30)
+    return templates.TemplateResponse("dark_pool.html", {
+        "request": request,
+        "csrf_token": request.state.csrf_token,
+        "signals": signals,
+        "ticker": ticker,
+        "days": 30,
+    })
+
+
+@app.post("/dark-pool/scan")
+@limiter.limit("2/hour")
+async def dark_pool_scan(request: Request, csrf_token: str = Form(...), username: str = Depends(require_auth)):
+    """Trigger a dark pool / volume anomaly scan (#52)."""
+    csrf.verify_token(request, csrf_token)
+    from engine.dark_pool_tracker import scan_watchlist
+    count = scan_watchlist()
+    return {"success": True, "signals_found": count}
+
+
+@app.get("/api/dark-pool")
+async def api_dark_pool_signals(days: int = 7, min_ratio: float = 0.0,
+                                 username: str = Depends(require_api_key_or_session)):
+    """Return recent dark pool / volume anomaly signals (#52)."""
+    from engine.dark_pool_tracker import get_all_recent_signals
+    return {"signals": get_all_recent_signals(days=days, min_volume_ratio=min_ratio)}
+
+
+@app.get("/api/dark-pool/{ticker}")
+async def api_dark_pool_ticker(ticker: str, days: int = 30,
+                                username: str = Depends(require_api_key_or_session)):
+    """Return dark pool signals for a single ticker (#52)."""
+    from engine.dark_pool_tracker import get_ticker_signals
+    return {"ticker": ticker.upper(), "signals": get_ticker_signals(ticker, days=days)}
+
 
 @app.get("/insider-activity", response_class=HTMLResponse)
 async def insider_activity_page(request: Request, username: str = Depends(require_auth)):
@@ -2720,6 +2807,8 @@ async def start_backtest(
     request: Request,
     csrf_token: str = Form(...),
     months: int = Form(24),
+    slippage_pct: float = Form(0.001),
+    commission_eur: float = Form(1.0),
     username: str = Depends(require_auth),
 ):
     """Start a backtest in a background thread."""
@@ -2732,10 +2821,13 @@ async def start_backtest(
         return {"success": False, "error": "A backtest is already running"}
 
     months = max(6, min(60, months))
+    slippage_pct = max(0.0, min(0.05, slippage_pct))  # cap 0–5%
+    commission_eur = max(0.0, min(50.0, commission_eur))  # cap 0–€50
 
     import threading
     def _run():
-        backtest_engine.run(tickers=None, months=months)
+        backtest_engine.run(tickers=None, months=months,
+                            slippage_pct=slippage_pct, commission_eur=commission_eur)
 
     t = threading.Thread(target=_run, daemon=True)
     t.start()
@@ -3097,6 +3189,14 @@ async def api_discovery_status(request: Request, username: str = Depends(require
     from engine.auto_discovery import discovery_status
     return discovery_status.get()
 
+@app.get("/api/ollama/health")
+async def api_ollama_health(request: Request, username: str = Depends(require_api_key_or_session)):
+    """Health check for local Ollama server (item #41)."""
+    from clients.ollama_client import ollama_client
+    available = ollama_client.health_check()
+    models = ollama_client.list_models() if available else []
+    return {"available": available, "models": models}
+
 @app.get("/api/budget")
 async def api_budget_status(request: Request, username: str = Depends(require_api_key_or_session)):
     """API endpoint for budget status (used by dashboard AJAX)"""
@@ -3418,6 +3518,29 @@ async def api_regime_adjustments(request: Request, username: str = Depends(requi
             "choppy": "Choppy market: balanced weighting across all factors",
         }.get(regime, ""),
     }
+
+# ==================== PORTFOLIO Q&A (#37) ====================
+
+@app.post("/api/portfolio/ask")
+async def api_portfolio_ask(request: Request, username: str = Depends(require_api_key_or_session)):
+    """
+    Natural language portfolio Q&A powered by Gemini (#37).
+    POST body: { "question": "Which of my holdings are most exposed to tariff risk?" }
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"error": "Invalid JSON body"}, status_code=400)
+
+    question = (body.get("question") or "").strip()
+    if not question:
+        from fastapi.responses import JSONResponse
+        return JSONResponse({"error": "question is required"}, status_code=400)
+
+    from engine.portfolio_qa import ask as portfolio_ask
+    result = portfolio_ask(question)
+    return result
 
 # ==================== PORTFOLIO BENCHMARK ====================
 
@@ -3882,6 +4005,48 @@ async def api_corporate_actions_all(
 
     return {"actions": actions, "dividend_summary": dividend_summary}
 
+
+@app.get("/api/stock/{ticker}/staleness")
+async def api_staleness(ticker: str, username: str = Depends(require_api_key_or_session)):
+    """
+    Return confidence decay metadata for a ticker's latest analysis (#28/#53).
+
+    Includes staleness_days, decay_pct (50% at 5 days), staleness_level,
+    and a 10-point decay curve for charting.
+    """
+    ticker = ticker.upper()
+    from engine.staleness_tracker import staleness_tracker
+
+    row = db.query(
+        "SELECT timestamp, confidence FROM analysis_history WHERE ticker = ? ORDER BY timestamp DESC LIMIT 1",
+        (ticker,)
+    )
+    if not row:
+        return {"ticker": ticker, "error": "No analysis found"}
+
+    analysis = dict(row[0])
+    enriched = staleness_tracker.enrich_analysis(analysis)
+    age_days = enriched.get("age_days", 0)
+    original_conf = enriched.get("confidence", 70) or 70
+
+    # Build a 10-point decay curve: day 0 → day 14
+    decay_curve = []
+    for d in range(0, 15, 1):
+        decayed = staleness_tracker.apply_confidence_decay(float(original_conf), d)
+        decay_curve.append({"day": d, "confidence": round(decayed, 1)})
+
+    return {
+        "ticker": ticker,
+        "last_analyzed": analysis.get("timestamp"),
+        "age_days": age_days,
+        "original_confidence": original_conf,
+        "current_confidence": round(staleness_tracker.apply_confidence_decay(float(original_conf), age_days), 1),
+        "decay_pct": round((1 - staleness_tracker.apply_confidence_decay(float(original_conf), age_days) / float(original_conf)) * 100, 1) if original_conf else 0,
+        "staleness_level": staleness_tracker.get_staleness_level(age_days),
+        "staleness_icon": staleness_tracker.get_staleness_icon(staleness_tracker.get_staleness_level(age_days)),
+        "should_refresh": staleness_tracker.should_refresh(age_days),
+        "decay_curve": decay_curve,
+    }
 
 @app.get("/api/stock/{ticker}/corporate-actions")
 async def api_corporate_actions(ticker: str, username: str = Depends(require_api_key_or_session)):
@@ -4464,6 +4629,260 @@ async def api_sentiment(request: Request, ticker: str, username: str = Depends(r
         return summary
     except Exception as e:
         return {"error": str(e)}
+
+
+@app.get("/api/nlp-sentiment/{ticker}")
+async def api_nlp_sentiment(ticker: str, days: int = 7, username: str = Depends(require_api_key_or_session)):
+    """
+    Return NLP VADER sentiment trend for a ticker from stored snapshots (#38/#57).
+    """
+    ticker = ticker.upper()
+    try:
+        from core.database import db
+        from datetime import datetime, timedelta
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+        rows = db.query(
+            """
+            SELECT compound_score, positive, neutral, negative, headline_count, scored_at
+            FROM ticker_sentiment
+            WHERE ticker = ? AND scored_at >= ?
+            ORDER BY scored_at ASC
+            """,
+            (ticker, cutoff),
+        ) or []
+        return {
+            "ticker": ticker,
+            "days": days,
+            "snapshots": [dict(r) for r in rows],
+            "latest": dict(rows[-1]) if rows else None,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/nlp-sentiment/movers")
+async def api_nlp_sentiment_movers(hours: int = 24, username: str = Depends(require_api_key_or_session)):
+    """Return tickers with biggest VADER sentiment shift in the last N hours (#38)."""
+    from engine.nlp_scorer import get_sentiment_movers
+    return {"movers": get_sentiment_movers(hours=hours)}
+
+
+# ==================== PAIRS TRADING (#40) ====================
+
+@app.get("/api/pairs")
+async def api_pairs_all(username: str = Depends(require_api_key_or_session)):
+    """Return all tested pairs ordered by cointegration strength (#40)."""
+    from engine.pairs_trader import get_all_pairs, ensure_schema
+    ensure_schema()
+    return {"pairs": get_all_pairs()}
+
+
+@app.get("/api/pairs/active")
+async def api_pairs_active(username: str = Depends(require_api_key_or_session)):
+    """Return pairs with active long_spread / short_spread signals (#40)."""
+    from engine.pairs_trader import get_active_pairs
+    return {"pairs": get_active_pairs()}
+
+
+@app.post("/api/pairs/scan")
+async def api_pairs_scan(request: Request, username: str = Depends(require_api_key_or_session)):
+    """Trigger a manual pairs cointegration scan (#40)."""
+    from engine.pairs_trader import run_weekly_scan
+    try:
+        pairs = run_weekly_scan()
+        return {"cointegrated_pairs": len(pairs), "pairs": pairs}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== MOAT SCORING (#45/#54) ====================
+
+@app.get("/api/moat/{ticker}")
+async def api_moat_ticker(ticker: str, username: str = Depends(require_api_key_or_session)):
+    """Return economic moat score for a ticker (#45/#54)."""
+    from engine.moat_scorer import moat_score
+    return moat_score(ticker.upper())
+
+
+@app.get("/api/moat")
+async def api_moat_watchlist(username: str = Depends(require_api_key_or_session)):
+    """Return moat scores for all active watchlist tickers, sorted by score (#45/#54)."""
+    from engine.moat_scorer import batch_moat_scores
+    tickers = [
+        r["ticker"]
+        for r in (db.query("SELECT ticker FROM watchlist WHERE active = 1") or [])
+    ]
+    if not tickers:
+        return {"moat_scores": []}
+    return {"moat_scores": batch_moat_scores(tickers)}
+
+
+# ==================== PORTFOLIO ANOMALY DETECTION (#46/#55) ====================
+
+@app.get("/api/portfolio/anomaly-detection")
+async def api_portfolio_anomaly_detection(username: str = Depends(require_api_key_or_session)):
+    """
+    Run portfolio anomaly checks and return active anomalies (#46/#55).
+    Also returns correlation vs SPY, beta trend, sector concentration.
+    """
+    from engine.portfolio_anomaly import get_active_anomalies, run_anomaly_checks
+    from engine.portfolio_anomaly import ensure_schema
+    ensure_schema()
+
+    # Return cached recent anomalies (no re-run to avoid slowness on page load)
+    active = get_active_anomalies(hours=48)
+
+    # Correlation vs SPY (lightweight)
+    correlation_vs_spy = None
+    try:
+        import yfinance as yf
+        import pandas as pd
+        tickers = [r["ticker"] for r in (db.query(
+            "SELECT DISTINCT ticker FROM portfolio_trades WHERE exit_date IS NULL"
+        ) or [])]
+        if tickers:
+            spy_hist = yf.Ticker("SPY").history(period="30d")["Close"]
+            port_prices = [yf.Ticker(t).history(period="30d")["Close"] for t in tickers[:10]]
+            if port_prices:
+                port_avg = pd.concat(port_prices, axis=1).mean(axis=1)
+                aligned = pd.concat([port_avg, spy_hist], axis=1).dropna()
+                if len(aligned) > 10:
+                    corr = float(aligned.iloc[:, 0].corr(aligned.iloc[:, 1]))
+                    correlation_vs_spy = round(corr, 3)
+    except Exception:
+        pass
+
+    return {
+        "active_anomalies": active,
+        "correlation_vs_spy": correlation_vs_spy,
+    }
+
+
+@app.post("/api/portfolio/anomaly-detection/run")
+async def api_portfolio_anomaly_run(request: Request, username: str = Depends(require_api_key_or_session)):
+    """Trigger a manual portfolio anomaly check (#46)."""
+    from engine.portfolio_anomaly import run_anomaly_checks
+    anomalies = run_anomaly_checks()
+    return {"anomalies_detected": len(anomalies), "anomalies": anomalies}
+
+
+# ==================== PWA PUSH NOTIFICATIONS (#31/#59) ====================
+
+@app.get("/api/push/vapid-key")
+async def api_push_vapid_key(username: str = Depends(require_api_key_or_session)):
+    """Return the VAPID public key for browser push subscription (#31/#59)."""
+    from engine.push_notifier import get_vapid_public_key
+    key = get_vapid_public_key()
+    if not key:
+        return {"vapid_public_key": None, "available": False}
+    return {"vapid_public_key": key, "available": True}
+
+
+@app.post("/api/push/subscribe")
+async def api_push_subscribe(request: Request, username: str = Depends(require_api_key_or_session)):
+    """Store a browser Web Push subscription (#31/#59)."""
+    from engine.push_notifier import save_subscription
+    body = await request.json()
+    endpoint = body.get("endpoint", "")
+    keys = body.get("keys", {})
+    p256dh = keys.get("p256dh", "")
+    auth = keys.get("auth", "")
+    if not endpoint or not p256dh or not auth:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Missing endpoint or keys")
+    user_agent = request.headers.get("user-agent", "")
+    ok = save_subscription(endpoint, p256dh, auth, user_agent)
+    return {"subscribed": ok}
+
+
+@app.delete("/api/push/unsubscribe")
+async def api_push_unsubscribe(request: Request, username: str = Depends(require_api_key_or_session)):
+    """Remove a browser Web Push subscription (#31/#59)."""
+    from engine.push_notifier import remove_subscription
+    body = await request.json()
+    endpoint = body.get("endpoint", "")
+    if not endpoint:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Missing endpoint")
+    ok = remove_subscription(endpoint)
+    return {"unsubscribed": ok}
+
+
+@app.post("/api/push/test")
+async def api_push_test(request: Request, username: str = Depends(require_api_key_or_session)):
+    """Send a test push notification to all subscriptions (#31/#59)."""
+    from engine.push_notifier import send_push
+    sent = send_push(
+        title="Stockholm Test Notification",
+        body="Push notifications are working correctly!",
+        url="/",
+    )
+    return {"sent": sent}
+
+
+# ==================== CROSS-ASSET COMPOSITE SIGNALS (#47) ====================
+
+@app.get("/api/macro/composite-signals")
+async def api_composite_signals_active(hours: int = 24, username: str = Depends(require_api_key_or_session)):
+    """Return composite macro signals triggered in the last N hours (#47)."""
+    from engine.composite_signals import get_active_composite_signals
+    return {"signals": get_active_composite_signals(hours=hours)}
+
+
+@app.get("/api/macro/composite-signals/latest")
+async def api_composite_signals_latest(username: str = Depends(require_api_key_or_session)):
+    """Return the most recent signal for each composite pattern (#47)."""
+    from engine.composite_signals import get_latest_per_pattern
+    return {"signals": get_latest_per_pattern()}
+
+
+@app.post("/api/macro/composite-signals/evaluate")
+async def api_composite_signals_evaluate(request: Request, username: str = Depends(require_api_key_or_session)):
+    """Manually trigger cross-asset composite signal evaluation (#47)."""
+    from engine.composite_signals import evaluate_composite_signals
+    triggered = evaluate_composite_signals()
+    return {"triggered": len(triggered), "signals": triggered}
+
+
+# ==================== SUPPLY CHAIN RISK (#44/#58) ====================
+
+@app.get("/api/supply-chain/{ticker}")
+async def api_supply_chain(
+    ticker: str,
+    force_refresh: bool = False,
+    username: str = Depends(require_api_key_or_session),
+):
+    """Return supply chain map (suppliers/customers/partners) for a ticker (#44/#58)."""
+    from engine.supply_chain import get_supply_chain
+    return get_supply_chain(ticker.upper(), force_refresh=force_refresh)
+
+
+@app.get("/api/supply-chain/{ticker}/geo-exposure")
+async def api_supply_chain_geo(
+    ticker: str,
+    regions: str = "",
+    username: str = Depends(require_api_key_or_session),
+):
+    """Check if any of a ticker's suppliers are in flagged geo regions (#44/#58)."""
+    from engine.supply_chain import get_geo_elevated_tickers
+    flagged = [r.strip() for r in regions.split(",") if r.strip()] if regions else []
+    if not flagged:
+        return {"ticker": ticker.upper(), "elevated": False, "matches": []}
+    all_elevated = get_geo_elevated_tickers(flagged)
+    matches = [e for e in all_elevated if e["ticker"] == ticker.upper()]
+    return {
+        "ticker": ticker.upper(),
+        "elevated": bool(matches),
+        "matches": matches,
+    }
+
+
+@app.post("/api/supply-chain/refresh")
+async def api_supply_chain_refresh(request: Request, username: str = Depends(require_api_key_or_session)):
+    """Manually trigger quarterly supply chain refresh for all stale tickers (#44)."""
+    from engine.supply_chain import refresh_stale_tickers
+    refreshed = refresh_stale_tickers()
+    return {"refreshed": refreshed}
 
 
 @app.get("/api/catalysts/{ticker}")

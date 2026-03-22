@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+
+{% block title %}Dark Pool Activity — Stockholm{% endblock %}
+
+{% block content %}
+<div class="animate-fade-in">
+    <!-- Page Header -->
+    <header class="page-header">
+        <div>
+            <h1>{% if ticker %}Dark Pool: {{ ticker }}{% else %}Dark Pool Activity{% endif %}</h1>
+            <p>Unusual volume and institutional block trade detection</p>
+        </div>
+        <div style="display: flex; gap: var(--space-3); align-items: center;">
+            {% if not ticker %}
+            <form method="get" style="display: flex; gap: var(--space-2); align-items: center;">
+                <label style="font-size: 0.8125rem; color: var(--text-muted);">Last</label>
+                <select name="days" onchange="this.form.submit()"
+                    style="background: var(--bg-tertiary); border: 1px solid var(--border-default); color: var(--text-primary); padding: 0.375rem 0.75rem; border-radius: var(--radius-md); font-size: 0.875rem;">
+                    <option value="3" {% if days == 3 %}selected{% endif %}>3 days</option>
+                    <option value="7" {% if days == 7 or not days %}selected{% endif %}>7 days</option>
+                    <option value="14" {% if days == 14 %}selected{% endif %}>14 days</option>
+                    <option value="30" {% if days == 30 %}selected{% endif %}>30 days</option>
+                </select>
+            </form>
+            {% endif %}
+            <form method="post" action="/dark-pool/scan" id="scanForm">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-primary" id="scanBtn" onclick="startScan(event)">
+                    Scan Watchlist
+                </button>
+            </form>
+        </div>
+    </header>
+
+    <!-- Methodology Notice -->
+    <div class="card" style="margin-bottom: var(--space-8); border-left: 3px solid var(--accent-primary);">
+        <div class="grid grid-3">
+            <div style="padding-left: var(--space-4);">
+                <h3 style="margin: 0 0 var(--space-2) 0; font-size: 0.875rem;">Volume Spike</h3>
+                <p style="margin: 0; font-size: 0.8125rem; color: var(--text-muted); line-height: 1.6;">
+                    Daily volume &gt; 3× 20-day average. Potential large block execution.
+                </p>
+            </div>
+            <div style="padding-left: var(--space-4); border-left: 1px solid var(--border-default);">
+                <h3 style="margin: 0 0 var(--space-2) 0; font-size: 0.875rem; color: var(--signal-positive);">Dark Pool Proxy</h3>
+                <p style="margin: 0; font-size: 0.8125rem; color: var(--text-muted); line-height: 1.6;">
+                    High volume + tiny price move (&lt;0.5%). Classic iceberg / dark pool accumulation pattern.
+                </p>
+            </div>
+            <div style="padding-left: var(--space-4); border-left: 1px solid var(--border-default);">
+                <h3 style="margin: 0 0 var(--space-2) 0; font-size: 0.875rem; color: var(--text-muted);">Data Source</h3>
+                <p style="margin: 0; font-size: 0.8125rem; color: var(--text-muted); line-height: 1.6;">
+                    Volume anomalies via yfinance. Real dark pool data requires paid FINRA ATS feeds.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scanning State -->
+    <div id="scanningState" class="card" style="display: none; margin-bottom: var(--space-8);">
+        <div style="text-align: center; padding: var(--space-10);">
+            <div class="spinner" style="margin: 0 auto var(--space-4) auto;"></div>
+            <h3 style="margin: 0 0 var(--space-2) 0;">Scanning for Block Trade Activity</h3>
+            <p style="color: var(--text-muted); margin: 0; font-size: 0.875rem;">
+                Analyzing volume anomalies across watchlist tickers...
+            </p>
+        </div>
+    </div>
+
+    <!-- Signals Table -->
+    {% if signals %}
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6);">
+            <div>
+                <h3 style="margin: 0 0 var(--space-1) 0;">
+                    {% if ticker %}{{ ticker }} Block Activity{% else %}Recent Block Activity{% endif %}
+                </h3>
+                <p style="color: var(--text-muted); margin: 0; font-size: 0.8125rem;">
+                    {{ signals|length }} signal{% if signals|length != 1 %}s{% endif %} detected — last {{ days }} days
+                </p>
+            </div>
+            <!-- Filter pills -->
+            <div style="display: flex; gap: var(--space-2);">
+                <button class="btn btn-sm" onclick="filterSignals('all')" id="filter-all"
+                    style="background: var(--accent-primary); color: white;">All</button>
+                <button class="btn btn-sm" onclick="filterSignals('dark_pool_proxy')" id="filter-dark"
+                    style="background: var(--bg-tertiary); color: var(--text-muted);">Dark Pool</button>
+                <button class="btn btn-sm" onclick="filterSignals('volume_spike')" id="filter-spike"
+                    style="background: var(--bg-tertiary); color: var(--text-muted);">Volume Spike</button>
+            </div>
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse;" id="signalsTable">
+                <thead>
+                    <tr style="border-bottom: 1px solid var(--border-default);">
+                        <th style="text-align: left; padding: var(--space-3) var(--space-4); font-size: 0.8125rem; font-weight: 600; color: var(--text-muted);">Ticker</th>
+                        <th style="text-align: left; padding: var(--space-3) var(--space-4); font-size: 0.8125rem; font-weight: 600; color: var(--text-muted);">Date</th>
+                        <th style="text-align: left; padding: var(--space-3) var(--space-4); font-size: 0.8125rem; font-weight: 600; color: var(--text-muted);">Type</th>
+                        <th style="text-align: right; padding: var(--space-3) var(--space-4); font-size: 0.8125rem; font-weight: 600; color: var(--text-muted);">Volume</th>
+                        <th style="text-align: right; padding: var(--space-3) var(--space-4); font-size: 0.8125rem; font-weight: 600; color: var(--text-muted);">Vol Ratio</th>
+                        <th style="text-align: right; padding: var(--space-3) var(--space-4); font-size: 0.8125rem; font-weight: 600; color: var(--text-muted);">Price Move</th>
+                        <th style="text-align: left; padding: var(--space-3) var(--space-4); font-size: 0.8125rem; font-weight: 600; color: var(--text-muted);">Note</th>
+                    </tr>
+                </thead>
+                <tbody id="signalsBody">
+                    {% for s in signals %}
+                    <tr class="signal-row" data-type="{{ s.signal_type }}"
+                        style="border-bottom: 1px solid var(--border-subtle); cursor: pointer;"
+                        onclick="window.location='/stock/{{ s.ticker }}'">
+                        <td style="padding: var(--space-3) var(--space-4);">
+                            <a href="/stock/{{ s.ticker }}" style="font-weight: 600; color: var(--accent-primary);" onclick="event.stopPropagation()">
+                                {{ s.ticker }}
+                            </a>
+                        </td>
+                        <td style="padding: var(--space-3) var(--space-4); font-size: 0.8125rem; color: var(--text-muted);">
+                            {{ s.signal_date }}
+                        </td>
+                        <td style="padding: var(--space-3) var(--space-4);">
+                            {% if s.signal_type == 'dark_pool_proxy' %}
+                            <span style="background: rgba(34, 197, 94, 0.15); color: var(--signal-positive); padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600;">
+                                Dark Pool
+                            </span>
+                            {% else %}
+                            <span style="background: rgba(234, 179, 8, 0.15); color: var(--signal-neutral); padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600;">
+                                Volume Spike
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: var(--space-3) var(--space-4); text-align: right; font-size: 0.875rem; font-variant-numeric: tabular-nums;">
+                            {{ "{:,}".format(s.volume) if s.volume else "—" }}
+                        </td>
+                        <td style="padding: var(--space-3) var(--space-4); text-align: right;">
+                            {% if s.volume_ratio %}
+                            <span style="font-weight: 600; color: {% if s.volume_ratio >= 5 %}var(--signal-positive){% elif s.volume_ratio >= 3 %}var(--signal-neutral){% else %}var(--text-primary){% endif %};">
+                                {{ "%.1f"|format(s.volume_ratio) }}×
+                            </span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td style="padding: var(--space-3) var(--space-4); text-align: right; font-size: 0.875rem;">
+                            {% if s.price_move_pct is not none %}
+                            <span style="color: {% if s.price_move_pct < 0.5 %}var(--signal-positive){% else %}var(--text-muted){% endif %};">
+                                {{ "%.2f"|format(s.price_move_pct) }}%
+                            </span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td style="padding: var(--space-3) var(--space-4); font-size: 0.8125rem; color: var(--text-muted); max-width: 300px;">
+                            <span title="{{ s.description }}">
+                                {{ s.description[:80] if s.description else "" }}{% if s.description and s.description|length > 80 %}…{% endif %}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="card" style="text-align: center; padding: var(--space-16);">
+        <div style="font-size: 2.5rem; margin-bottom: var(--space-4);">📊</div>
+        <h3 style="margin: 0 0 var(--space-2) 0;">No Block Activity Detected</h3>
+        <p style="color: var(--text-muted); margin: 0 0 var(--space-6) 0; font-size: 0.875rem;">
+            No unusual volume anomalies found in the last {{ days }} days.
+            Run a scan to check for recent block trades.
+        </p>
+        <form method="post" action="/dark-pool/scan">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-primary" onclick="startScan(event)">
+                Run Scan Now
+            </button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function startScan(event) {
+    event.preventDefault();
+    document.getElementById('scanBtn').disabled = true;
+    document.getElementById('scanBtn').textContent = 'Scanning...';
+    document.getElementById('scanningState').style.display = 'block';
+    const form = document.getElementById('scanForm');
+    fetch(form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        credentials: 'same-origin',
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('scanningState').style.display = 'none';
+        document.getElementById('scanBtn').disabled = false;
+        document.getElementById('scanBtn').textContent = 'Scan Watchlist';
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Scan failed: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(() => {
+        document.getElementById('scanningState').style.display = 'none';
+        document.getElementById('scanBtn').disabled = false;
+        document.getElementById('scanBtn').textContent = 'Scan Watchlist';
+        window.location.reload();
+    });
+}
+
+function filterSignals(type) {
+    const rows = document.querySelectorAll('.signal-row');
+    rows.forEach(row => {
+        row.style.display = (type === 'all' || row.dataset.type === type) ? '' : 'none';
+    });
+    ['all', 'dark', 'spike'].forEach(id => {
+        const btn = document.getElementById('filter-' + id);
+        if (btn) {
+            btn.style.background = 'var(--bg-tertiary)';
+            btn.style.color = 'var(--text-muted)';
+        }
+    });
+    const activeId = type === 'all' ? 'filter-all' : type === 'dark_pool_proxy' ? 'filter-dark' : 'filter-spike';
+    const activeBtn = document.getElementById(activeId);
+    if (activeBtn) {
+        activeBtn.style.background = 'var(--accent-primary)';
+        activeBtn.style.color = 'white';
+    }
+}
+</script>
+{% endblock %}

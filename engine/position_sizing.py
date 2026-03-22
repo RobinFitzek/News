@@ -34,6 +34,59 @@ class PositionSizer:
             'max_sector_pct': 30.0,         # Max in one sector
         }
     
+    def _get_portfolio_tickers(self) -> list:
+        """Fetch current open portfolio positions from DB."""
+        try:
+            from core.database import db
+            rows = db.query(
+                "SELECT DISTINCT ticker FROM portfolio_trades WHERE exit_date IS NULL"
+            ) or []
+            return [r['ticker'] for r in rows if r.get('ticker')]
+        except Exception:
+            return []
+
+    def get_correlation_adjustment(self, ticker: str, portfolio_tickers: list) -> dict:
+        """
+        Calculate a correlation-based size multiplier for a new position.
+
+        Fetches the average pairwise correlation between `ticker` and all current
+        portfolio holdings and returns:
+            multiplier = max(0.5, 1 - avg_correlation)
+
+        Minimum of 0.5 prevents over-dilution in very diversified portfolios.
+        """
+        if not portfolio_tickers:
+            return {"multiplier": 1.0, "avg_correlation": 0.0, "note": "No existing positions"}
+
+        try:
+            from engine.correlation_analyzer import correlation_analyzer
+            all_tickers = list(set(portfolio_tickers + [ticker]))
+            matrix = correlation_analyzer.get_correlation_matrix(all_tickers)
+            if matrix is None or ticker not in matrix.columns:
+                return {"multiplier": 1.0, "avg_correlation": 0.0, "note": "Correlation data unavailable"}
+
+            corrs = []
+            for pt in portfolio_tickers:
+                if pt in matrix.columns and pt != ticker:
+                    val = matrix.loc[ticker, pt]
+                    if not (isinstance(val, float) and (val != val)):  # not NaN
+                        corrs.append(abs(float(val)))
+
+            if not corrs:
+                return {"multiplier": 1.0, "avg_correlation": 0.0, "note": "No valid correlation pairs"}
+
+            avg_corr = sum(corrs) / len(corrs)
+            # Scale: 0 correlation → 1.0 multiplier, 1.0 correlation → 0.5 multiplier
+            multiplier = max(0.5, 1.0 - avg_corr)
+            return {
+                "multiplier": round(multiplier, 3),
+                "avg_correlation": round(avg_corr, 3),
+                "note": f"Based on {len(corrs)} portfolio pair(s)",
+            }
+        except Exception as e:
+            logger.debug(f"Correlation adjustment failed for {ticker}: {e}")
+            return {"multiplier": 1.0, "avg_correlation": 0.0, "note": f"Error: {e}"}
+
     def calculate_position_size(
         self,
         ticker: str,
@@ -42,6 +95,7 @@ class PositionSizer:
         avg_win: float = None,
         avg_loss: float = None,
         portfolio_value: float = 100000,
+        apply_correlation_adjustment: bool = True,
     ) -> Dict:
         """
         Calculate recommended position size for a trade.
@@ -86,37 +140,55 @@ class PositionSizer:
         conf_multiplier = signal_confidence / 70  # Baseline is 70% confidence
         conf_adjusted = vol_adjusted * min(conf_multiplier, 1.5)  # Cap at 1.5x
         
-        # Apply limits
-        final_pct = max(
+        # Apply limits (before correlation)
+        raw_final_pct = max(
             self.config['min_position_pct'],
             min(self.config['max_position_pct'], conf_adjusted)
         )
-        
+
+        # Correlation-aware adjustment: scale down if new position is highly
+        # correlated with existing holdings (item #35).
+        corr_info = {"multiplier": 1.0, "avg_correlation": 0.0, "note": "Not applied"}
+        if apply_correlation_adjustment:
+            portfolio_tickers = self._get_portfolio_tickers()
+            corr_info = self.get_correlation_adjustment(ticker, portfolio_tickers)
+            corr_adjusted_pct = raw_final_pct * corr_info["multiplier"]
+        else:
+            corr_adjusted_pct = raw_final_pct
+
+        # Re-apply floor after correlation shrinkage
+        final_pct = max(self.config['min_position_pct'], corr_adjusted_pct)
+
         # Round to sensible precision
         final_pct = round(final_pct, 1)
-        
+        raw_final_pct = round(raw_final_pct, 1)
+
         # Calculate dollar amounts
         position_value = portfolio_value * (final_pct / 100)
         current_price = vol_data.get('current_price', 0)
         shares = int(position_value / current_price) if current_price > 0 else 0
-        
+
         # Risk assessment
         risk_level = 'low' if final_pct <= 3 else 'medium' if final_pct <= 6 else 'high'
-        
+
         return {
             'ticker': ticker,
             'recommended_pct': final_pct,
+            'raw_kelly_pct': raw_final_pct,  # pre-correlation size for comparison
             'position_value': round(position_value, 2),
             'shares': shares,
             'current_price': current_price,
             'risk_level': risk_level,
-            
+
             # Breakdown
             'kelly_raw': round(kelly_pct, 2),
             'kelly_fractional': round(fractional_kelly, 2),
             'volatility_adj': round(vol_adjusted, 2),
             'confidence_adj': round(conf_adjusted, 2),
-            
+
+            # Correlation adjustment (item #35)
+            'correlation_adjustment': corr_info,
+
             # Inputs used
             'inputs': {
                 'signal_confidence': signal_confidence,
@@ -125,7 +197,7 @@ class PositionSizer:
                 'avg_loss': avg_loss,
                 'annual_volatility': round(annual_vol, 1),
             },
-            
+
             # Limits applied
             'limits': {
                 'max_position': self.config['max_position_pct'],

@@ -299,6 +299,38 @@
                     <code style="font-size: 0.75rem; color: var(--text-secondary);">curl {{ request.base_url }}api/watchlist -H "Authorization: Bearer sk_..."</code>
                 </div>
             </div>
+
+            <!-- Ollama Local LLM Fallback -->
+            <div class="card" style="margin-bottom: var(--space-6);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4); padding-bottom: var(--space-4); border-bottom: 1px solid var(--border-light);">
+                    <div>
+                        <h3 style="margin: 0 0 var(--space-1) 0;">Ollama — Local LLM Fallback</h3>
+                        <p style="font-size: 0.75rem; color: var(--text-muted); margin: 0;">When your monthly Gemini budget is exhausted, analyses automatically fall back to a locally-running Ollama model. Requires <a href="https://ollama.ai" target="_blank" rel="noopener" style="color: var(--accent);">Ollama</a> installed on this machine.</p>
+                    </div>
+                    <label class="checkbox-wrapper" style="margin-left: var(--space-6); flex-shrink: 0;">
+                        <input type="checkbox" name="ollama_enabled" {% if settings.ollama_enabled %}checked{% endif %}>
+                        <div class="checkbox-custom"></div>
+                        <span class="checkbox-label">Enable Fallback</span>
+                    </label>
+                </div>
+                <div class="grid grid-3" style="gap: var(--space-5);">
+                    <div>
+                        <label>Ollama Host</label>
+                        <input type="text" name="ollama_host" value="{{ settings.ollama_host|default('http://localhost:11434') }}" placeholder="http://localhost:11434">
+                        <small style="color:var(--text-muted); font-size:0.7rem;">Default: http://localhost:11434</small>
+                    </div>
+                    <div>
+                        <label>Model Name</label>
+                        <input type="text" name="ollama_model" value="{{ settings.ollama_model|default('llama3') }}" placeholder="llama3">
+                        <small style="color:var(--text-muted); font-size:0.7rem;">Run <code>ollama list</code> to see available models</small>
+                    </div>
+                    <div style="display: flex; flex-direction: column; justify-content: flex-end;">
+                        <button type="button" onclick="testOllamaConnection()" class="btn btn-secondary" style="width: 100%;">Test Connection</button>
+                        <div id="ollama-status" style="font-size: 0.7rem; margin-top: var(--space-2); color: var(--text-muted);"></div>
+                    </div>
+                </div>
+            </div>
+
         </div>
 
         <!-- ═══ PANEL: AUTO-DISCOVERY ════════════════════ -->
@@ -424,6 +456,14 @@
         <!-- Scheduler Settings -->
         <div class="card" style="margin-bottom: var(--space-8);">
             <h3 style="margin: 0 0 var(--space-5) 0;">Scheduler</h3>
+            <div class="info-block" style="background: var(--surface-2, rgba(255,255,255,0.04)); border: 1px solid var(--border-light); border-radius: 8px; padding: var(--space-4); margin-bottom: var(--space-5); font-size: 0.75rem; color: var(--text-muted); line-height: 1.6;">
+                <strong style="color: var(--text-secondary);">Adaptive Scan Frequency (Watchlist Tiers)</strong><br>
+                Tickers in your watchlist have tiers that control how frequently they are re-analysed:<br>
+                &bull; <strong>Tier 1</strong> — scanned on <em>every</em> scheduled cycle (highest priority holdings).<br>
+                &bull; <strong>Tier 2</strong> — scanned on every <em>second</em> cycle (~2× the scan interval).<br>
+                &bull; <strong>Tier 3</strong> — scanned <em>weekly</em> only, regardless of scan interval.<br>
+                Assign tiers from the Watchlist page. Lower-tier tickers still receive intraday-breakout and geopolitical re-triggers.
+            </div>
             <div class="grid grid-3">
                 <div>
                     <label>Scan Interval (Hours)</label>
@@ -1865,6 +1905,28 @@ def run(context: dict, settings: dict) -> dict:
         indicator.style.height = itemRect.height + 'px';
         indicator.style.transform = 'translateY(' + translateY + 'px)';
         nav.classList.add('has-indicator');
+    }
+
+    // ─── Ollama Connection Test ───
+    function testOllamaConnection() {
+        var statusEl = document.getElementById('ollama-status');
+        statusEl.style.color = 'var(--text-muted)';
+        statusEl.textContent = 'Testing…';
+        fetch('/api/ollama/health')
+            .then(function(r) { return r.json(); })
+            .then(function(d) {
+                if (d.available) {
+                    statusEl.style.color = 'var(--color-success, #22c55e)';
+                    statusEl.textContent = '✓ Connected — models: ' + (d.models || []).join(', ');
+                } else {
+                    statusEl.style.color = 'var(--color-danger, #ef4444)';
+                    statusEl.textContent = '✗ Not reachable — is Ollama running?';
+                }
+            })
+            .catch(function() {
+                statusEl.style.color = 'var(--color-danger, #ef4444)';
+                statusEl.textContent = '✗ Health check request failed';
+            });
     }
 
     // ─── Panel Switching ───

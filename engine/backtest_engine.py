@@ -83,12 +83,29 @@ class BacktestEngine:
     # Public API
     # ------------------------------------------------------------------
 
-    def run(self, tickers: List[str] = None, months: int = 24) -> int:
+    def run(self, tickers: List[str] = None, months: int = 24,
+            slippage_pct: float = 0.001, commission_eur: float = 1.0,
+            avg_trade_size_eur: float = 1000.0) -> int:
         """
         Main entry point. Downloads history, replays monthly signals,
         measures forward returns, computes accuracy, optimises weights.
+
+        Args:
+            tickers: Tickers to backtest. Defaults to all sector peers.
+            months: Lookback window in months.
+            slippage_pct: One-way slippage as a fraction (default 0.001 = 0.1%).
+            commission_eur: Fixed commission per trade in EUR (default €1).
+            avg_trade_size_eur: Average trade size used to convert commission_eur to pct.
+
         Returns the run_id.
         """
+        # Convert explicit cost params → BPS (round-trip = 2× one-way costs)
+        commission_pct = commission_eur / avg_trade_size_eur if avg_trade_size_eur > 0 else 0.001
+        total_cost_pct = (slippage_pct + commission_pct) * 2  # entry + exit
+        self.TRANSACTION_COST_BPS = round(total_cost_pct * 10000)  # store for reporting
+        self._slippage_pct = slippage_pct
+        self._commission_eur = commission_eur
+
         if tickers is None:
             # Use all sector peer tickers (~88 unique)
             seen = set()
@@ -688,6 +705,11 @@ class BacktestEngine:
         # Sharpe Ratio (annualized, treating each signal as ~monthly)
         sharpe = (mean_ret / std_ret * np.sqrt(12)) if std_ret > 0 else 0.0
 
+        # Sortino Ratio (annualized, uses only downside deviation)
+        downside = net_returns[net_returns < 0]
+        downside_std = float(np.std(downside)) if len(downside) > 1 else std_ret
+        sortino = (mean_ret / downside_std * np.sqrt(12)) if downside_std > 0 else 0.0
+
         # Max Drawdown (cumulative returns)
         cum = np.cumsum(net_returns / 100)
         peak = np.maximum.accumulate(cum)
@@ -720,6 +742,7 @@ class BacktestEngine:
 
         return {
             'sharpe_ratio': round(sharpe, 2),
+            'sortino_ratio': round(sortino, 2),
             'max_drawdown': round(max_dd, 2),
             'profit_factor': round(profit_factor, 2) if profit_factor is not None else None,
             'volatility': volatility,
@@ -734,6 +757,8 @@ class BacktestEngine:
             'gross_return': gross_return,
             'net_return': net_return,
             'transaction_cost_bps': self.TRANSACTION_COST_BPS,
+            'slippage_pct': getattr(self, '_slippage_pct', 0.001),
+            'commission_eur': getattr(self, '_commission_eur', 1.0),
         }
 
     def _calculate_accuracy(self, results: List[Dict]) -> Dict:

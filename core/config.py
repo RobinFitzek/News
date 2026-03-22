@@ -218,6 +218,11 @@ DEFAULT_SETTINGS = {
     "deep_sleep_end": "07:00",
     "deep_sleep_intensity": "deep",
     "deep_sleep_full_weekends": False,
+
+    # Ollama — local LLM fallback when Gemini budget is exhausted
+    "ollama_enabled": False,
+    "ollama_host": "http://localhost:11434",
+    "ollama_model": "llama3",
 }
 
 # Web Server

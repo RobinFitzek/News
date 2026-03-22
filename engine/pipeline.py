@@ -374,6 +374,13 @@ class DailyPipeline:
             except Exception as e:
                 self.logger.error(f"Failed to log scheduler run: {e}")
 
+            # Process new auto-trade signals immediately after each scan cycle
+            try:
+                from engine.auto_paper_trader import auto_paper_trader
+                auto_paper_trader.process_new_signals()
+            except Exception as e:
+                self.logger.warning(f"Auto-paper-trader signal processing failed: {e}")
+
             return final_reports
 
         except Exception as e:
