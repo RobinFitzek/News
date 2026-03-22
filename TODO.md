@@ -150,7 +150,7 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 ```
 [x] Add last_scanned_at to watchlist table
 [x] In pipeline, filter tickers by tier and cycle count
-[ ] Document tier behavior in Settings UI
+[x] Document tier behavior in Settings UI
 ```
 
 ### 13. AI-generated weekly letter
@@ -175,11 +175,11 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Note:** Outbound Telegram webhooks already exist — this adds inbound command handling.
 **Effort:** L · **Impact:** High (on-the-go access without opening dashboard)
 ```
-[ ] Add python-telegram-bot to requirements.txt
-[ ] Create clients/telegram_bot.py with command handlers
-[ ] Register /analyze, /watchlist, /geo, /toppicks commands
-[ ] Add bot polling job to scheduler (or webhook mode)
-[ ] Add bot token setting in Settings UI
+[x] Add python-telegram-bot to requirements.txt
+[x] Create clients/telegram_bot.py with command handlers
+[x] Register /analyze, /watchlist, /geo, /toppicks commands
+[x] Add bot polling job to scheduler (or webhook mode)
+[x] Add bot token setting in Settings UI
 ```
 
 ### 15. Price breakout → auto-trigger analysis
@@ -191,7 +191,7 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 [x] In check_price_alerts, detect ±3% intraday move
 [x] On trigger, call swarm.analyze_single_stock(ticker) in background thread
 [x] Log breakout as anomaly in analysis result
-[ ] Add intraday_trigger_pct setting in Settings UI
+[x] Add intraday_trigger_pct setting in Settings UI
 ```
 
 ---
@@ -235,9 +235,9 @@ pattern = rf"{header}:\s*(.*?)(?=\n(?:Risk Score|Geo-Risiko|Bull Case|Bear Case|
 **Description:** Current dedup is hash-based (same signal type = skip). Missing: if AAPL fired STRONG_BUY on Monday, suppress re-alert Tuesday unless signal flips direction, risk score changes by >2 points, or new geopolitical context appeared since last alert. "Alert fatigue" kills usefulness faster than anything else.
 **Effort:** S · **Impact:** High (daily usability)
 ```
-[ ] Track last_alert_signal + last_alert_score per ticker in DB
-[ ] Gate re-alert: only fire if direction changed OR |score_delta| >= 2 OR new geo event since last alert
-[ ] Add alert cooldown hours setting in Settings UI
+[x] Track last_alert_signal + last_alert_score per ticker in DB
+[x] Gate re-alert: only fire if direction changed OR |score_delta| >= 2 OR new geo event since last alert
+[x] Add alert cooldown hours setting in Settings UI
 ```
 
 ### 20. Geo-risk overlay badge on watchlist table
@@ -296,18 +296,18 @@ These must come from DB settings.
 **Changes to `engine/auto_paper_trader.py`:**
 ```
 [x] _init_table, process_new_signals, check_open_positions, get_performance_summary
-[ ] Read TP/SL/max_days/signal_filter/max_positions from db.get_setting() instead of hardcoded
-[ ] Add position_size_pct support: shares = (portfolio_value * pos_pct) / entry_price
-[ ] Add max_open_positions guard: skip entry if open count >= limit
-[ ] Add dedup guard: skip entry if ticker already has an open auto-paper trade
-[ ] Expose get_trade_log(limit=50) → list of closed trades with all fields
-[ ] Expose manual_close(trade_id) → force-close a specific open position at current price
+[x] Read TP/SL/max_days/signal_filter/max_positions from db.get_setting() instead of hardcoded
+[x] Add position_size_pct support: shares = (portfolio_value * pos_pct) / entry_price
+[x] Add max_open_positions guard: skip entry if open count >= limit
+[x] Add dedup guard: skip entry if ticker already has an open auto-paper trade
+[x] Expose get_trade_log(limit=50) → list of closed trades with all fields
+[x] Expose manual_close(trade_id) → force-close a specific open position at current price
 ```
 
 **Scheduler wiring:**
 ```
-[ ] Call auto_paper_trader.process_new_signals() at end of every main scan
-[ ] Call auto_paper_trader.check_open_positions() on every price-alert tick (15-min)
+[x] Call auto_paper_trader.process_new_signals() at end of every main scan
+[x] Call auto_paper_trader.check_open_positions() on every price-alert tick (15-min)
 ```
 
 ---
@@ -319,48 +319,48 @@ Add **Auto-Trade** section to `templates/settings.html` in a new
 
 **UI layout:**
 ```
-[ ] Master toggle: "Enable Auto-Trading" (checkbox → auto_trade_enabled)
+[x] Master toggle: "Enable Auto-Trading" (checkbox → auto_trade_enabled)
     ⚠ Warning banner when enabled: "This enters trades automatically.
       Use paper mode until you trust the signals."
 
-[ ] Mode selector (radio):
+[x] Mode selector (radio):
     ○ Paper only   ← safe, default
     ○ Alpaca       ← locked with 🔒 icon until trust gate met
     ○ IBKR         ← locked with 🔒 icon until trust gate met
 
-[ ] Signal filter (radio):
+[x] Signal filter (radio):
     ○ STRONG only (STRONG_BUY / STRONG_SELL)
     ○ All signals  (BUY / SELL / STRONG_*)
 
-[ ] Risk parameters (number inputs, collapsed when disabled):
+[x] Risk parameters (number inputs, collapsed when disabled):
     Take-profit %     (default 8,  range 1–50)
     Stop-loss %       (default 4,  range 1–25)
     Max days open     (default 30, range 1–90)
     Position size %   (default 5,  range 1–20)
     Max open positions (default 10, range 1–50)
 
-[ ] Confirmation toggle:
+[x] Confirmation toggle:
     "Require confirmation before each trade" (→ auto_trade_require_confirm)
     Sub-label: "Sends Telegram/email with Approve/Skip. Expires in 5 min."
 
-[ ] Trust gate progress bar (JS-loaded via GET /api/auto-trade/trust-gate):
+[x] Trust gate progress bar (JS-loaded via GET /api/auto-trade/trust-gate):
     ████████░░  18 / 20 trades  ·  Win rate: 58.3% ✓
     "Live mode unlocks at 20 trades with ≥55% win rate"
     🔒 red when not met, 🔓 green when met
 
-[ ] Broker credentials (hidden unless mode = alpaca/ibkr):
+[x] Broker credentials (hidden unless mode = alpaca/ibkr):
     Alpaca:  API Key (pw field), API Secret (pw field),
              Base URL (default https://paper-api.alpaca.markets)
     IBKR:    TWS Host (default 127.0.0.1), Port (7497 paper/7496 live),
              Client ID (default 1)
 
-[ ] Save + status message
+[x] Save + status message
 ```
 
 **New routes:**
 ```
-[ ] POST /settings/save-auto-trade   — save all auto_trade_* settings + broker creds
-[ ] GET  /api/auto-trade/trust-gate  — {closed, win_rate, trusted, needed_trades, needed_win_rate}
+[x] POST /settings/save-auto-trade   — save all auto_trade_* settings + broker creds
+[x] GET  /api/auto-trade/trust-gate  — {closed, win_rate, trusted, needed_trades, needed_win_rate}
 ```
 
 ---
@@ -401,14 +401,14 @@ Date        Ticker  Dir   Entry $  Exit $   P&L%   Closed By
 
 **New API endpoints:**
 ```
-[ ] GET  /api/auto-trade/status           — {enabled, mode, open_positions, performance, trust_gate}
-[ ] GET  /api/auto-trade/positions        — list of open auto_paper_trades with live P&L
-[ ] GET  /api/auto-trade/log?page=1       — paginated closed trade history
-[ ] POST /api/auto-trade/close/<id>       — force-close specific position
-[ ] POST /api/auto-trade/toggle           — flip enabled/disabled master switch
-[ ] GET  /api/auto-trade/pending-confirm  — list pending confirmation requests
-[ ] POST /api/auto-trade/confirm/<token>  — approve a pending trade (executes entry)
-[ ] POST /api/auto-trade/skip/<token>     — skip/decline a pending trade
+[x] GET  /api/auto-trade/status           — {enabled, mode, open_positions, performance, trust_gate}
+[x] GET  /api/auto-trade/positions        — list of open auto_paper_trades with live P&L
+[x] GET  /api/auto-trade/log?page=1       — paginated closed trade history
+[x] POST /api/auto-trade/close/<id>       — force-close specific position
+[x] POST /api/auto-trade/toggle           — flip enabled/disabled master switch
+[x] GET  /api/auto-trade/pending-confirm  — list pending confirmation requests
+[x] POST /api/auto-trade/confirm/<token>  — approve a pending trade (executes entry)
+[x] POST /api/auto-trade/skip/<token>     — skip/decline a pending trade
 ```
 
 ---
@@ -467,14 +467,14 @@ Expires in 5 minutes
 
 **Changes:**
 ```
-[ ] Add auto_trade_pending table (init in AutoPaperTrader._init_table)
-[ ] Add create_pending_confirmation(analysis_id, ticker, ...) method
-[ ] Add confirm_trade(token) → execute entry, mark approved
-[ ] POST /api/auto-trade/propose endpoint (creates pending + fires notification)
-[ ] Telegram bot: handle callback_query for Approve/Skip inline buttons
-[ ] Email: render confirm/skip signed URLs in notification template
-[ ] Dashboard JS: Auto-Execute button state machine
-[ ] Scheduler job every 5 min: mark expired where expires_at < now()
+[x] Add auto_trade_pending table (init in AutoPaperTrader._init_table)
+[x] Add create_pending_confirmation(analysis_id, ticker, ...) method
+[x] Add confirm_trade(token) → execute entry, mark approved
+[x] POST /api/auto-trade/propose endpoint (creates pending + fires notification)
+[x] Telegram bot: handle callback_query for Approve/Skip inline buttons
+[x] Email: render confirm/skip signed URLs in notification template
+[x] Dashboard JS: Auto-Execute button state machine
+[x] Scheduler job every 5 min: mark expired where expires_at < now()
 ```
 
 ---
@@ -514,12 +514,12 @@ Risk gate: ❌ BLOCKED — Tech sector 31% > limit 30%
 
 **Changes:**
 ```
-[ ] Add _run_risk_gate(ticker, proposed_size_usd) → {allowed, reason, checks[]}
-[ ] Call gate before every entry in process_new_signals() and confirm_trade()
-[ ] Extend auto_paper_trades table: add blocked_reason TEXT column
-[ ] Log blocked entries to auto_paper_trades with status='blocked'
-[ ] Inject gate summary into confirmation notification
-[ ] GET /api/auto-trade/risk-gate-status — live gate check result for UI
+[x] Add _run_risk_gate(ticker, proposed_size_usd) → {allowed, reason, checks[]}
+[x] Call gate before every entry in process_new_signals() and confirm_trade()
+[x] Extend auto_paper_trades table: add blocked_reason TEXT column
+[x] Log blocked entries to auto_paper_trades with status='blocked'
+[x] Inject gate summary into confirmation notification
+[x] GET /api/auto-trade/risk-gate-status — live gate check result for UI
 ```
 
 ---
@@ -605,11 +605,11 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 #### Phase 7 — Observability & Performance Tracking (S effort)
 
 ```
-[ ] Auto-trade equity curve: separate orange line on paper_trading.html equity chart
-[ ] Weekly AI Letter digest: "Auto-trader: 3 opened, 2 closed, avg +1.8%"
-[ ] Dashboard mini-widget: "⚡ Auto this week: 2 open · 1 closed +5.2%"
-[ ] GET /api/export/auto-trades — CSV (id, ticker, direction, entry, exit, pnl, reason, date)
-[ ] Telegram bot /autostatus command: "4 open · 23 closed · 62% win · +18.3% total"
+[x] Auto-trade equity curve: separate orange line on paper_trading.html equity chart
+[x] Weekly AI Letter digest: "Auto-trader: 3 opened, 2 closed, avg +1.8%"
+[x] Dashboard mini-widget: "⚡ Auto this week: 2 open · 1 closed +5.2%"
+[x] GET /api/export/auto-trades — CSV (id, ticker, direction, entry, exit, pnl, reason, date)
+[x] Telegram bot /autostatus command: "4 open · 23 closed · 62% win · +18.3% total"
 ```
 
 ---
@@ -696,8 +696,8 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 [x] Compute: 2y/10y spread (inverted = recession signal), VIX term structure slope, HYG/LQD credit spread
 [x] Store daily snapshot in new macro_snapshots table
 [x] Inject macro context into Stage 3 Gemini prompt (alongside geo_block)
-[ ] Add /macro page with charts: yield curve, VIX term, credit spread over 90d
-[ ] Add macro badge to dashboard (e.g., "Yield curve inverted — recession watch")
+[x] Add /macro page with charts: yield curve, VIX term, credit spread over 90d
+[x] Add macro badge to dashboard (e.g., "Yield curve inverted — recession watch")
 ```
 
 ### 23. Earnings calendar — pre/post earnings logic
@@ -710,7 +710,7 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 [x] In pipeline: warn Stage 3 when earnings within 5 days (inject as risk factor)
 [x] Suppress STRONG_BUY for earnings-imminent tickers unless risk_score < 5
 [x] Track post-earnings drift: after earnings, flag ticker for re-analysis at +1d, +3d, +5d
-[ ] Show earnings countdown badge on watchlist and stock_detail
+[x] Show earnings countdown badge on watchlist and stock_detail
 ```
 
 ### 24. Alternative sentiment — Reddit / Google Trends
@@ -758,11 +758,11 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** A flat list of 50 tickers becomes unmanageable. Groups (ETFs, Tech, Energy, Speculative) with per-group risk budgets, aggregate geo-exposure summaries, and group-level signal summaries. Also enables tiered scan frequency per group.
 **Effort:** M · **Impact:** High (daily usability at scale)
 ```
-[ ] Add group column to watchlist table (with default "Uncategorized")
-[ ] CRUD endpoints: POST /api/watchlist/groups, PATCH /api/watchlist/{ticker}/group
-[ ] Render watchlist grouped with collapsible sections
-[ ] Show per-group aggregate: avg risk score, avg geo risk, signal distribution
-[ ] Add group filter dropdown on watchlist and discoveries pages
+[x] Add group column to watchlist table (with default "Uncategorized")
+[x] CRUD endpoints: POST /api/watchlist/groups, PATCH /api/watchlist/{ticker}/group
+[x] Render watchlist grouped with collapsible sections
+[x] Show per-group aggregate: avg risk score, avg geo risk, signal distribution
+[x] Add group filter dropdown on watchlist and discoveries pages
 ```
 
 ### 28. Confidence decay visualization
@@ -770,10 +770,10 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** `staleness_tracker.py` tracks signal age but the dashboard doesn't show it visually. A simple age indicator (green → yellow → red as signal ages past verification window) would make it immediately obvious which analyses need refreshing without reading timestamps.
 **Effort:** S · **Impact:** Medium (reduces stale-analysis risk)
 ```
-[ ] Add staleness_days computed field to watchlist API response
-[ ] Color-code last_analyzed badge: green <2d, yellow 2-7d, red >7d
-[ ] Add "Stale" filter on watchlist to show only tickers not analyzed in >5d
-[ ] Tooltip: "Last analyzed X days ago — click to re-run"
+[x] Add staleness_days computed field to watchlist API response
+[x] Color-code last_analyzed badge: green <2d, yellow 2-7d, red >7d
+[x] Add "Stale" filter on watchlist to show only tickers not analyzed in >5d
+[x] Tooltip: "Last analyzed X days ago — click to re-run"
 ```
 
 ### 29. API key budget health card (dashboard widget)
@@ -802,10 +802,10 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** The web dashboard could be a Progressive Web App (add `manifest.json` + service worker with push subscription). This enables native-style push notifications without requiring a Telegram bot setup. The notification content already exists (alerts, geo events, breakouts).
 **Effort:** M · **Impact:** Medium (mobile usability)
 ```
-[ ] Add manifest.json (name, icons, theme_color, display: standalone)
-[ ] Create static/service-worker.js with push notification handler
-[ ] POST /api/push/subscribe endpoint (stores push subscription in DB)
-[ ] Trigger push on: STRONG_BUY/SELL alert, geo severity >= 8, intraday breakout
+[x] Add manifest.json (name, icons, theme_color, display: standalone)
+[x] Create static/service-worker.js with push notification handler
+[x] POST /api/push/subscribe endpoint (stores push subscription in DB)
+[x] Trigger push on: STRONG_BUY/SELL alert, geo severity >= 8, intraday breakout
 [ ] Add "Enable notifications" button to dashboard
 ```
 
@@ -818,11 +818,11 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** Current backtesting accuracy numbers are likely optimistic because bid-ask spread, slippage, and commissions are not modeled. A clean vectorized backtest (pandas rolling) with realistic fill assumptions (0.1% slippage, €1 commission) would make signal validation credible enough to actually trust for real capital allocation.
 **Effort:** L · **Impact:** High (credibility of all accuracy metrics)
 ```
-[ ] Add slippage_pct and commission_eur parameters to backtest_engine
+[x] Add slippage_pct and commission_eur parameters to backtest_engine
 [ ] Use vectorized pandas operations instead of row-by-row loops
-[ ] Walk-forward split: 70% in-sample fit, 30% out-of-sample test
-[ ] Report: net-of-costs Sharpe, Sortino, max drawdown, win rate, avg hold
-[ ] Compare gross vs net-of-costs returns side by side in backtest.html
+[x] Walk-forward split: 70% in-sample fit, 30% out-of-sample test
+[x] Report: net-of-costs Sharpe, Sortino, max drawdown, win rate, avg hold
+[x] Compare gross vs net-of-costs returns side by side in backtest.html
 ```
 
 ### 33. Two-factor authentication (TOTP)
@@ -831,12 +831,12 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Effort:** M · **Impact:** High (security — API keys are valuable)
 **Dependencies:** `pyotp`, `qrcode` (both small, pure-Python)
 ```
-[ ] Add pyotp + qrcode to requirements.txt
-[ ] Add totp_secret column to users table
-[ ] GET /settings/2fa/setup — generate secret, render QR code
-[ ] POST /settings/2fa/enable — verify TOTP code, store secret
-[ ] Inject TOTP verification step into login flow after password check
-[ ] Allow 2FA bypass via backup codes (generate 8 one-time codes on setup)
+[x] Add pyotp + qrcode to requirements.txt
+[x] Add totp_secret column to users table
+[x] GET /settings/2fa/setup — generate secret, render QR code
+[x] POST /settings/2fa/enable — verify TOTP code, store secret
+[x] Inject TOTP verification step into login flow after password check
+[x] Allow 2FA bypass via backup codes (generate 8 one-time codes on setup)
 ```
 
 ### 34. CLI mode — headless analysis without web server
@@ -848,7 +848,7 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 [x] Commands: analyze <TICKER>, scan (run full pipeline), geo (latest geo scan), watchlist (list)
 [x] Reuse existing engine/ and clients/ directly — no HTTP layer
 [x] Output: colored terminal table (rich library) or plain JSON with --json flag
-[ ] Add to README as usage example
+[x] Add to README as usage example
 ```
 
 ### 35. Correlation-aware position sizing
@@ -856,11 +856,11 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** `correlation_analyzer.py` computes the matrix but position sizing doesn't use it. A Kelly-adjusted position size that accounts for portfolio correlation (if AAPL and MSFT are 0.85 correlated, the second position should be smaller) would meaningfully improve the risk management math vs the current flat max-position-pct approach.
 **Effort:** M · **Impact:** Medium (portfolio risk quality)
 ```
-[ ] In position_sizing.py, fetch current portfolio correlation from correlation_analyzer
-[ ] Scale position size down by correlation factor: size *= (1 - avg_corr_with_portfolio)
-[ ] Cap: minimum 50% of base size (prevent over-dilution for very diversified portfolios)
-[ ] Show adjusted position size in stock_detail alongside raw Kelly size
-[ ] Document the formula in Settings help text
+[x] In position_sizing.py, fetch current portfolio correlation from correlation_analyzer
+[x] Scale position size down by correlation factor: size *= (1 - avg_corr_with_portfolio)
+[x] Cap: minimum 50% of base size (prevent over-dilution for very diversified portfolios)
+[x] Show adjusted position size in stock_detail alongside raw Kelly size
+[x] Document the formula in Settings help text
 ```
 
 ### 36. Export — PDF report and CSV history
@@ -885,12 +885,12 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** "Which of my holdings are most exposed to a Chinese tariff escalation?" or "What's my portfolio's effective sector tilt?" answered by Gemini against live DB data. Not a chatbot — a structured query interface on the analyze page. The data is all there (geo exposure, sector weights, correlation, risk scores, analysis history). This would be the highest-leverage UX addition because it collapses 10 minutes of dashboard clicking into one question.
 **Effort:** M · **Impact:** Very High (unique, differentiating feature)
 ```
-[ ] Create engine/portfolio_qa.py: builds context from DB (current holdings, latest analyses, geo scores, sector weights) and passes to Gemini with user query
-[ ] POST /api/portfolio/ask endpoint: accepts free-text question, returns Gemini answer
-[ ] Add query input box to analyze.html ("Ask about your portfolio...")
-[ ] Inject structured context: holdings JSON, sector distribution, top geo exposures, last geo scan summary
-[ ] Rate-limit: 1 query per 30s, deducted from Gemini budget
-[ ] Show source data used in answer (which tickers/analyses informed the response)
+[x] Create engine/portfolio_qa.py: builds context from DB (current holdings, latest analyses, geo scores, sector weights) and passes to Gemini with user query
+[x] POST /api/portfolio/ask endpoint: accepts free-text question, returns Gemini answer
+[x] Add query input box to analyze.html ("Ask about your portfolio...")
+[x] Inject structured context: holdings JSON, sector distribution, top geo exposures, last geo scan summary
+[x] Rate-limit: 1 query per 30s, deducted from Gemini budget
+[x] Show source data used in answer (which tickers/analyses informed the response)
 ```
 
 ### 38. Continuous news NLP scoring (free, no LLM)
@@ -899,13 +899,13 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Effort:** L · **Impact:** High (continuous monitoring, zero API cost)
 **Dependencies:** `transformers` + `torch` for FinBERT, or `vaderSentiment` (pure Python, lighter)
 ```
-[ ] Create engine/nlp_scorer.py with VADER sentiment scorer (zero dependency on GPU)
-[ ] Fetch RSS feeds (Reuters, AP, MarketWatch) and match headlines to watchlist tickers by name/ticker mention
-[ ] Score each mention: compound score -1.0 to +1.0
-[ ] Store hourly snapshot in ticker_sentiment table (ticker, score, headline_count, timestamp)
-[ ] In pipeline Stage 1: inject NLP score delta as anomaly when |delta_vs_last_analysis| > 0.3
-[ ] Dashboard widget: "Sentiment Movers" — tickers with biggest NLP score shift in last 24h
-[ ] Weekly job: compare NLP scores to actual signal outcomes for calibration
+[x] Create engine/nlp_scorer.py with VADER sentiment scorer (zero dependency on GPU)
+[x] Fetch RSS feeds (Reuters, AP, MarketWatch) and match headlines to watchlist tickers by name/ticker mention
+[x] Score each mention: compound score -1.0 to +1.0
+[x] Store hourly snapshot in ticker_sentiment table (ticker, score, headline_count, timestamp)
+[x] In pipeline Stage 1: inject NLP score delta as anomaly when |delta_vs_last_analysis| > 0.3
+[x] Dashboard widget: "Sentiment Movers" — tickers with biggest NLP score shift in last 24h
+[x] Weekly job: compare NLP scores to actual signal outcomes for calibration
 ```
 
 ### 39. Geopolitical scenario stress testing
@@ -917,9 +917,9 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
     { name, keywords, sector_impacts: {energy: +0.15, tech: -0.10, ...}, historical_analog }
 [x] Scenario runner: cross with portfolio sector weights → estimated portfolio impact %
 [x] Auto-trigger: when geo scan severity >= 8, find matching scenario by keyword overlap, run it
-[ ] Show scenario result card on dashboard when triggered: "Taiwan scenario match — estimated portfolio impact: -4.2%"
+[x] Show scenario result card on dashboard when triggered: "Taiwan scenario match — estimated portfolio impact: -4.2%"
 [x] Manual trigger: POST /api/scenarios/run?name=taiwan_blockade
-[ ] Add /scenarios page showing all presets with portfolio impact preview
+[x] Add /scenarios page showing all presets with portfolio impact preview
 ```
 
 ### 40. Pairs trading / statistical arbitrage
@@ -928,13 +928,13 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Effort:** L · **Impact:** Medium (new strategy class, complements directional signals)
 **Dependencies:** `statsmodels` (for Engle-Granger cointegration test — likely already installed or trivial to add)
 ```
-[ ] Create engine/pairs_trader.py: run Engle-Granger cointegration test on all watchlist pairs
-[ ] Filter: only pairs with p-value < 0.05 and >90d of shared history
-[ ] Monitor spread z-score daily: flag when |z| > 2.0
-[ ] Signal: z > +2 = short spread (long B, short A), z < -2 = long spread (long A, short B)
-[ ] Store cointegrated pairs + current z-score in pairs_signals table
-[ ] Add /pairs page: show active pairs with spread chart, current z-score, entry/exit levels
-[ ] Weekly retest: recheck cointegration (pairs break down over time)
+[x] Create engine/pairs_trader.py: run Engle-Granger cointegration test on all watchlist pairs
+[x] Filter: only pairs with p-value < 0.05 and >90d of shared history
+[x] Monitor spread z-score daily: flag when |z| > 2.0
+[x] Signal: z > +2 = short spread (long B, short A), z < -2 = long spread (long A, short B)
+[x] Store cointegrated pairs + current z-score in pairs_signals table
+[x] Add /pairs page: show active pairs with spread chart, current z-score, entry/exit levels
+[x] Weekly retest: recheck cointegration (pairs break down over time)
 ```
 
 ### 41. Self-hosted LLM fallback (Ollama)
@@ -943,12 +943,12 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Effort:** M · **Impact:** High (eliminates hard budget cutoffs mid-month)
 **Dependencies:** `ollama` Python library (calls local Ollama daemon — user installs Ollama separately)
 ```
-[ ] Create clients/ollama_client.py: generate(prompt, model='llama3') via Ollama REST API (localhost:11434)
-[ ] In gemini_client.py: when monthly budget exhausted, fall back to ollama_client
-[ ] Add ollama_enabled and ollama_model settings
-[ ] Label fallback analyses in DB: source='ollama' vs source='gemini'
-[ ] Show "(local model)" badge on analysis cards generated via Ollama
-[ ] Health check: ping Ollama at startup, warn in settings if not available
+[x] Create clients/ollama_client.py: generate(prompt, model='llama3') via Ollama REST API (localhost:11434)
+[x] In gemini_client.py: when monthly budget exhausted, fall back to ollama_client
+[x] Add ollama_enabled and ollama_model settings
+[x] Label fallback analyses in DB: source='ollama' vs source='gemini'
+[x] Show "(local model)" badge on analysis cards generated via Ollama
+[x] Health check: ping Ollama at startup, warn in settings if not available
 ```
 
 ### 42. Programmatic API access (personal API key)
@@ -956,14 +956,14 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** The dashboard has REST endpoints but they're session-auth only. A personal API key system (generated in Settings, bearer token on requests) would allow integrating Stockholm into external tools — Notion automations, Obsidian daily notes, custom scripts, Raycast plugins, n8n workflows. Costs almost nothing to implement and completely changes the integration story.
 **Effort:** S · **Impact:** High (ecosystem / integration potential)
 ```
-[ ] Add api_keys table (key_hash, label, created_at, last_used_at, scopes)
-[ ] POST /api/keys/generate endpoint (returns key once, then stores hash only)
-[ ] GET /api/keys → list user's keys (label + last_used)
-[ ] DELETE /api/keys/{id} → revoke
-[ ] Middleware: accept Authorization: Bearer <key> header on all /api/* endpoints
-[ ] Scope system: read-only vs full access (start with read-only only)
-[ ] Show API key management section in settings.html with copy button
-[ ] Document example: curl /api/watchlist -H "Authorization: Bearer sk_..."
+[x] Add api_keys table (key_hash, label, created_at, last_used_at, scopes)
+[x] POST /api/keys/generate endpoint (returns key once, then stores hash only)
+[x] GET /api/keys → list user's keys (label + last_used)
+[x] DELETE /api/keys/{id} → revoke
+[x] Middleware: accept Authorization: Bearer <key> header on all /api/* endpoints
+[x] Scope system: read-only vs full access (start with read-only only)
+[x] Show API key management section in settings.html with copy button
+[x] Document example: curl /api/watchlist -H "Authorization: Bearer sk_..."
 ```
 42.5. External Plugin Manager UI in Settings  
     - Files: UI components, settings API  
@@ -987,7 +987,7 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 [x] Weekly job: check for new corporate actions on all watchlist tickers
 [x] Retroactively adjust cost basis in portfolio_trades for pre-split entries
 [x] Add dividend income tracking: when ex-date passes, credit dividend to paper portfolio cash
-[ ] Show corporate action timeline on stock_detail.html
+[x] Show corporate action timeline on stock_detail.html
 [x] Alert via webhook when a watchlist ticker announces a split or special dividend
 ```
 
@@ -1000,12 +1000,12 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** Deeper than sector-level geo exposure: for each watchlist ticker, map its top 5 suppliers and key customers. If a supplier appears in the geo scan (e.g., TSMC when a Taiwan event fires), automatically flag the downstream holding even if it's not directly mentioned. One-time Perplexity call per ticker ("Who are the key suppliers and customers of {company}?"), cached in DB, refreshed quarterly.
 **Effort:** M · **Impact:** High (catches indirect geo exposure missed by direct sector heuristics)
 ```
-[ ] Create engine/supply_chain.py: query Perplexity for supplier/customer graph per ticker
-[ ] Add supply_chain_map table: ticker, supplier_ticker, relationship_type, cached_at
-[ ] In geo scan: after scoring direct exposure, cross-check supplier list against flagged regions
-[ ] Elevate geo_risk_score if a key supplier is in a flagged region (+2 pts, max 10)
+[x] Create engine/supply_chain.py: query Perplexity for supplier/customer graph per ticker
+[x] Add supply_chain_map table: ticker, supplier_ticker, relationship_type, cached_at
+[x] In geo scan: after scoring direct exposure, cross-check supplier list against flagged regions
+[x] Elevate geo_risk_score if a key supplier is in a flagged region (+2 pts, max 10)
 [ ] Show supply chain dependencies on stock_detail.html
-[ ] Quarterly refresh job: re-fetch for tickers not updated in >90 days
+[x] Quarterly refresh job: re-fetch for tickers not updated in >90 days
 ```
 
 ### 45. Economic moat scoring
@@ -1013,12 +1013,12 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** A dedicated Gemini sub-prompt within Stage 3 that explicitly scores 1–10 on the five Buffett moat types: network effects, switching costs, cost advantage, intangible assets, efficient scale. A stock with a high risk score but a 9/10 moat is a very different hold decision than one with the same risk score and no moat. The bull/bear synthesis gestures at this but doesn't score it systematically.
 **Effort:** M · **Impact:** High (fundamental quality filter — separates "risky but great business" from "risky and weak business")
 ```
-[ ] Add moat_scoring sub-prompt to Stage 3 Gemini call (or as a Stage 2.5 step)
-[ ] Parse 5 moat scores from response: network_effects, switching_costs, cost_advantage, intangibles, efficient_scale
-[ ] Add moat_score (composite 1–10) + moat_breakdown (JSON) columns to analysis_history
-[ ] Show moat radar chart on stock_detail.html (pentagon/spider chart via Chart.js)
-[ ] Use moat_score as signal modifier: dampen STRONG_SELL for moat_score > 8 (quality override)
-[ ] Add moat column to watchlist table for at-a-glance view
+[x] Add moat_scoring sub-prompt to Stage 3 Gemini call (or as a Stage 2.5 step)
+[x] Parse 5 moat scores from response: network_effects, switching_costs, cost_advantage, intangibles, efficient_scale
+[x] Add moat_score (composite 1–10) + moat_breakdown (JSON) columns to analysis_history
+[x] Show moat radar chart on stock_detail.html (pentagon/spider chart via Chart.js)
+[x] Use moat_score as signal modifier: dampen STRONG_SELL for moat_score > 8 (quality override)
+[x] Add moat column to watchlist table for at-a-glance view
 ```
 
 ### 46. Portfolio-level anomaly detection
@@ -1026,13 +1026,13 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** Current anomaly detection is per-ticker. Missing: detecting when the portfolio as a whole shows unusual patterns — all holdings down simultaneously (systemic event vs idiosyncratic), correlation spike across normally uncorrelated positions (regime change signal), or portfolio beta suddenly doubling. This is a different signal class than any individual ticker analysis. `var_calculator.py` and `correlation_analyzer.py` have the ingredients.
 **Effort:** M · **Impact:** High (systemic risk detection is blind spot of per-ticker approach)
 ```
-[ ] Create engine/portfolio_anomaly.py: compute rolling portfolio-level metrics (correlation dispersion, average beta, common factor exposure)
-[ ] Detect: >70% of holdings in same direction intraday (systemic flag)
-[ ] Detect: rolling 20d average pairwise correlation spikes >0.2 above 90d baseline (regime change)
-[ ] Detect: effective portfolio beta > 1.5 * target_beta (leverage creep)
-[ ] Store portfolio_anomalies table: type, severity, triggered_at, description
-[ ] Alert via webhook/email when portfolio anomaly fires
-[ ] Show portfolio anomaly banner on dashboard when active
+[x] Create engine/portfolio_anomaly.py: compute rolling portfolio-level metrics (correlation dispersion, average beta, common factor exposure)
+[x] Detect: >70% of holdings in same direction intraday (systemic flag)
+[x] Detect: rolling 20d average pairwise correlation spikes >0.2 above 90d baseline (regime change)
+[x] Detect: effective portfolio beta > 1.5 * target_beta (leverage creep)
+[x] Store portfolio_anomalies table: type, severity, triggered_at, description
+[x] Alert via webhook/email when portfolio anomaly fires
+[x] Show portfolio anomaly banner on dashboard when active
 ```
 
 ### 47. Cross-asset composite signals
@@ -1041,11 +1041,11 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Dependencies:** Requires macro_tracker.py (#22) to be implemented first.
 **Effort:** S · **Impact:** High (once macro data exists, composites are pattern-matching on top)
 ```
-[ ] Define composite signal patterns as config dicts: { name, conditions: [{series, direction, threshold}], min_match }
-[ ] Patterns to implement: "Flight to Safety" (gold+, VIX+, equities-), "Risk-On Surge" (equities+, VIX-, credit spreads-), "Inflation Spike" (gold+, bonds-, DXY-)
-[ ] After each macro snapshot, evaluate all patterns and fire if min_match conditions met
-[ ] Store composite signals in macro_composite_signals table
-[ ] Alert with composite name when triggered (distinct alert type from individual macro alerts)
+[x] Define composite signal patterns as config dicts: { name, conditions: [{series, direction, threshold}], min_match }
+[x] Patterns to implement: "Flight to Safety" (gold+, VIX+, equities-), "Risk-On Surge" (equities+, VIX-, credit spreads-), "Inflation Spike" (gold+, bonds-, DXY-)
+[x] After each macro snapshot, evaluate all patterns and fire if min_match conditions met
+[x] Store composite signals in macro_composite_signals table
+[x] Alert with composite name when triggered (distinct alert type from individual macro alerts)
 [ ] Show active composite signal badge on dashboard
 ```
 
@@ -1058,7 +1058,7 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 [x] Store as JSON in learning_stats or a separate model_metadata table
 [x] Add GET /api/learning/feature-importance endpoint
 [x] Add feature importance bar chart to learning.html (sorted descending)
-[ ] Show "Top 3 predictive features" summary card on dashboard learning section
+[x] Show "Top 3 predictive features" summary card on dashboard learning section
 ```
 
 ---
@@ -1088,11 +1088,11 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 **Dependencies:** `engine/corporate_actions.py`, database
 **Effort:** XS · **Impact:** Medium (financial accuracy)
 ```
-[ ] Create GET /corporate-actions route in app.py
-[ ] Create templates/corporate_actions.html with table (date, ticker, action_type, details)
-[ ] Add navigation link in base.html
-[ ] Add filters: by ticker, by type (dividend/split/merger), by date range
-[ ] Show dividend sum by ticker for tax reporting
+[x] Create GET /corporate-actions route in app.py
+[x] Create templates/corporate_actions.html with table (date, ticker, action_type, details)
+[x] Add navigation link in base.html
+[x] Add filters: by ticker, by type (dividend/split/merger), by date range
+[x] Show dividend sum by ticker for tax reporting
 ```
 
 ### 51. Watchlist Groups & Tags
@@ -1100,11 +1100,11 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 **Description:** Current watchlist only supports tier (1/2/3). Add ability to tag stocks by strategy (e.g., "Tech Growth", "Dividend", "Value Turnaround", "Momentum"). Improves organization for traders managing >20 stocks. Database schema ready, just need UI.
 **Effort:** S · **Impact:** Medium (user experience)
 ```
-[ ] Add watchlist_tags table: (tag_id, user, tag_name, color_hex, created_at)
-[ ] Add watchlist_stock_tags junction table: (stock_id, tag_id)
-[ ] Add tag management UI to /watchlist (add/delete/rename tags)
-[ ] Show tag filters in watchlist view (multi-select, color-coded)
-[ ] Save selected tags in localStorage for persistence
+[x] Add watchlist_tags table: (tag_id, user, tag_name, color_hex, created_at)
+[x] Add watchlist_stock_tags junction table: (stock_id, tag_id)
+[x] Add tag management UI to /watchlist (add/delete/rename tags)
+[x] Show tag filters in watchlist view (multi-select, color-coded)
+[x] Save selected tags in localStorage for persistence
 ```
 
 ### 52. Dark Pool & Institutional Block Trade Activity Page
@@ -1113,11 +1113,11 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 **Dependencies:** `engine/institutional_tracker.py`
 **Effort:** S · **Impact:** Medium (signal generation)
 ```
-[ ] Create GET /dark-pool route in app.py (list all stocks with recent block activity)
-[ ] Create GET /dark-pool/{ticker} route for ticker detail
-[ ] Create templates/dark_pool.html with time-series chart (cumulative blocks)
-[ ] Show volume vs typical, date, price at time of block
-[ ] Add filter: min block size (1M shares, 5M, 10M+)
+[x] Create GET /dark-pool route in app.py (list all stocks with recent block activity)
+[x] Create GET /dark-pool/{ticker} route for ticker detail
+[x] Create templates/dark_pool.html with time-series chart (cumulative blocks)
+[x] Show volume vs typical, date, price at time of block
+[x] Add filter: min block size (1M shares, 5M, 10M+)
 [ ] Add "Alert if block exceeds threshold" feature
 ```
 
@@ -1127,11 +1127,11 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 **Dependencies:** `engine/staleness_tracker.py`
 **Effort:** S · **Impact:** Low (UX improvement)
 ```
-[ ] Add staleness_metadata to analysis detail page
-[ ] Show confidence decay curve (analysis_date → today with 50% decay at 5 days)
-[ ] Add "Re-analyze" button if stale
-[ ] Show visual indicator (green/yellow/red) based on age
-[ ] Add to analysis history table: "Age" column with decay %
+[x] Add staleness_metadata to analysis detail page
+[x] Show confidence decay curve (analysis_date → today with 50% decay at 5 days)
+[x] Add "Re-analyze" button if stale
+[x] Show visual indicator (green/yellow/red) based on age
+[x] Add to analysis history table: "Age" column with decay %
 ```
 
 ### 54. Economic Moat Scoring Dashboard
@@ -1140,13 +1140,13 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 **Dependencies:** New `engine/moat_scorer.py`
 **Effort:** M · **Impact:** Medium (stock selection)
 ```
-[ ] Create engine/moat_scorer.py with moat_score() function
-[ ] Score factors: P/E stability (3yr stddev), margin consistency, FCF trend, dividend history
-[ ] Combine into single 0-100 moat score
-[ ] Add GET /api/moat/{ticker} endpoint
-[ ] Create templates/moat_analysis.html (ranked list with breakdown)
-[ ] Show moat score on stock detail pages
-[ ] Add "Moat Score" column to watchlist view
+[x] Create engine/moat_scorer.py with moat_score() function
+[x] Score factors: P/E stability (3yr stddev), margin consistency, FCF trend, dividend history
+[x] Combine into single 0-100 moat score
+[x] Add GET /api/moat/{ticker} endpoint
+[x] Create templates/moat_analysis.html (ranked list with breakdown)
+[x] Show moat score on stock detail pages
+[x] Add "Moat Score" column to watchlist view
 ```
 
 ### 55. Portfolio Anomaly Detection Dashboard
@@ -1155,13 +1155,13 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 **Dependencies:** `engine/portfolio_analyzer.py`, real-time price data
 **Effort:** M · **Impact:** Medium (risk awareness)
 ```
-[ ] Calculate daily portfolio correlation vs SPY
-[ ] Detect when beta > expected (systemic risk)
-[ ] Detect sector concentration (e.g., 60% in Tech)
-[ ] Create GET /api/portfolio/anomaly-detection endpoint
-[ ] Create templates/portfolio_anomaly.html
-[ ] Show: correlation chart, beta trend, sector concentration pie chart
-[ ] Alert if portfolio correlation > 0.9 or < 0.3 (unexpected)
+[x] Calculate daily portfolio correlation vs SPY
+[x] Detect when beta > expected (systemic risk)
+[x] Detect sector concentration (e.g., 60% in Tech)
+[x] Create GET /api/portfolio/anomaly-detection endpoint
+[x] Create templates/portfolio_anomaly.html
+[x] Show: correlation chart, beta trend, sector concentration pie chart
+[x] Alert if portfolio correlation > 0.9 or < 0.3 (unexpected)
 ```
 
 ### 56. Natural Language Q&A for Portfolio
@@ -1184,14 +1184,14 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 **Dependencies:** New `engine/news_sentiment.py`, RSS feeds or newsapi.org (free tier)
 **Effort:** M · **Impact:** Medium (narrative tracking)
 ```
-[ ] Create engine/news_sentiment.py with VADER-based scorer
-[ ] Fetch news via newsapi.org or RSS feeds (free sources)
-[ ] Score each headline: positive/neutral/negative
-[ ] Track rolling 7-day sentiment trend per ticker
-[ ] Create GET /api/sentiment/{ticker} endpoint
-[ ] Create templates/news_sentiment.html (sentiment trend chart)
-[ ] Add "Sentiment Score" to stock detail page
-[ ] Alert if sentiment flips sharply (bullish → bearish)
+[x] Create engine/news_sentiment.py with VADER-based scorer
+[x] Fetch news via newsapi.org or RSS feeds (free sources)
+[x] Score each headline: positive/neutral/negative
+[x] Track rolling 7-day sentiment trend per ticker
+[x] Create GET /api/sentiment/{ticker} endpoint
+[x] Create templates/news_sentiment.html (sentiment trend chart)
+[x] Add "Sentiment Score" to stock detail page
+[x] Alert if sentiment flips sharply (bullish → bearish)
 ```
 
 ### 58. Supply Chain Risk Mapper (Advanced)
@@ -1200,14 +1200,14 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 **Dependencies:** Supply chain graph (manually curated or from commercial sources), `engine/supply_chain_mapper.py`
 **Effort:** L · **Impact:** High (institutional edge)
 ```
-[ ] Curate supply chain relationships (TSMC → NVDA, AAPL, AMD, etc.)
-[ ] Store in database or JSON (supply_chain_relationships table)
-[ ] Create engine/supply_chain_mapper.py
+[x] Curate supply chain relationships (TSMC → NVDA, AAPL, AMD, etc.)
+[x] Store in database or JSON (supply_chain_relationships table)
+[x] Create engine/supply_chain_mapper.py
 [ ] For each watchlist ticker, trace upstream/downstream exposure
-[ ] Create GET /api/supply-chain/{ticker} endpoint
+[x] Create GET /api/supply-chain/{ticker} endpoint
 [ ] Create templates/supply_chain.html with network graph visualization
 [ ] Show: "If TSMC falls 5%, estimated NVDA impact: -2.3%"
-[ ] Add supply chain alerts to geopolitical scanner
+[x] Add supply chain alerts to geopolitical scanner
 ```
 
 ### 59. Mobile PWA (Push Notifications & Offline)
@@ -1215,11 +1215,11 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 **Description:** Convert app to Progressive Web App (PWA) with offline support and push notifications. Enables installing app on home screen and getting browser notifications for alerts.
 **Effort:** L · **Impact:** Medium (user experience)
 ```
-[ ] Create service_worker.js for offline caching (cache analysis pages, watchlist)
-[ ] Add manifest.json (app name, icons, theme color)
-[ ] Implement push notifications via Web Push API
-[ ] Backend: store subscription endpoints, send push for signals
-[ ] Add "Install app" prompt in base.html
+[x] Create service_worker.js for offline caching (cache analysis pages, watchlist)
+[x] Add manifest.json (app name, icons, theme color)
+[x] Implement push notifications via Web Push API
+[x] Backend: store subscription endpoints, send push for signals
+[x] Add "Install app" prompt in base.html
 [ ] Test on iOS (PWA support is limited) and Android
 ```
 

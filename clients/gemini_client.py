@@ -261,6 +261,17 @@ class AdaptiveGeminiClient:
             if fallback and self.budget_tracker.can_afford_request('gemini', fallback):
                 tier = fallback
             else:
+                # Try local Ollama fallback before giving up
+                try:
+                    from clients.ollama_client import ollama_client
+                    if ollama_client.is_enabled():
+                        self.logger.info("Gemini budget exhausted — falling back to Ollama")
+                        result = ollama_client.generate(prompt)
+                        if not result.startswith("  "):
+                            # Tag result so callers/DB can mark source='ollama'
+                            return f"__source:ollama__\n{result}"
+                except Exception as oe:
+                    self.logger.debug(f"Ollama fallback failed: {oe}")
                 return "  Gemini Budget für heute erschöpft."
 
         config = self.models.get(tier, self.models.get('flash-1.5'))

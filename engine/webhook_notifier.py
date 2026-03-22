@@ -195,6 +195,15 @@ class WebhookNotifier:
         sent = False
         sent |= self.telegram.send(msg)
         sent |= self.discord.send(msg.replace("*", "**").replace("`", "`"))
+
+        # Also fire Web Push for STRONG signals (#31/#59)
+        if signal in ("STRONG_BUY", "STRONG_SELL"):
+            try:
+                from engine.push_notifier import push_signal_alert
+                push_signal_alert(ticker, signal, confidence)
+            except Exception:
+                pass
+
         return sent
 
     def send_earnings_alert(self, ticker: str, alert_message: str) -> bool:

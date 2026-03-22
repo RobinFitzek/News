@@ -392,6 +392,42 @@ class InvestmentScheduler:
             replace_existing=True
         )
 
+        # NLP sentiment scoring — every hour during market hours (#38/#57)
+        self.scheduler.add_job(
+            self.run_nlp_sentiment_scoring,
+            CronTrigger(hour='9-17', minute=5, timezone=self.timezone),
+            id='nlp_sentiment',
+            name='NLP Sentiment Scoring',
+            replace_existing=True
+        )
+
+        # Weekly pairs-trading cointegration scan (#40) — Saturday 08:00
+        self.scheduler.add_job(
+            self.run_pairs_scan,
+            CronTrigger(day_of_week='sat', hour=8, minute=0, timezone=self.timezone),
+            id='pairs_scan',
+            name='Pairs Trading Cointegration Scan',
+            replace_existing=True
+        )
+
+        # Quarterly supply chain refresh (#44/#58) — 1st of Jan/Apr/Jul/Oct at 07:00
+        self.scheduler.add_job(
+            self.run_supply_chain_refresh,
+            CronTrigger(month='1,4,7,10', day=1, hour=7, minute=0, timezone=self.timezone),
+            id='supply_chain_refresh',
+            name='Supply Chain Quarterly Refresh',
+            replace_existing=True
+        )
+
+        # Daily dark pool / volume anomaly scan (#52) — weekdays at 18:00 (after market close)
+        self.scheduler.add_job(
+            self.run_dark_pool_scan,
+            CronTrigger(day_of_week='mon-fri', hour=18, minute=0, timezone=self.timezone),
+            id='dark_pool_scan',
+            name='Dark Pool Volume Anomaly Scan',
+            replace_existing=True
+        )
+
         # Weekly 13F institutional holdings refresh (#25) — Friday 18:00
         # EDGAR 13F filings are quarterly; refreshing weekly ensures we catch new filings
         # shortly after the Feb/May/Aug/Nov 15 EDGAR deadline.
@@ -672,6 +708,44 @@ class InvestmentScheduler:
         except Exception as e:
             print(f"(Error) Weekly letter failed: {e}")
 
+    def run_nlp_sentiment_scoring(self):
+        """Score watchlist ticker sentiment from RSS headlines (#38/#57)."""
+        try:
+            from engine.nlp_scorer import run_hourly_scoring, ensure_schema
+            ensure_schema()
+            results = run_hourly_scoring()
+            if results:
+                print(f"NLP sentiment: scored {len(results)} tickers")
+        except Exception as e:
+            print(f"(Error) NLP sentiment scoring failed: {e}")
+
+    def run_pairs_scan(self):
+        """Weekly cointegration scan for pairs trading (#40)."""
+        try:
+            from engine.pairs_trader import run_weekly_scan
+            pairs = run_weekly_scan()
+            print(f"Pairs trading scan: {len(pairs)} cointegrated pairs found")
+        except Exception as e:
+            print(f"(Error) Pairs trading scan failed: {e}")
+
+    def run_supply_chain_refresh(self):
+        """Quarterly refresh of supply chain data for stale watchlist tickers (#44/#58)."""
+        try:
+            from engine.supply_chain import refresh_stale_tickers
+            refreshed = refresh_stale_tickers()
+            print(f"Supply chain refresh: {refreshed} tickers updated")
+        except Exception as e:
+            print(f"(Error) Supply chain refresh failed: {e}")
+
+    def run_dark_pool_scan(self):
+        """Daily dark pool / volume anomaly scan for watchlist tickers (#52)."""
+        try:
+            from engine.dark_pool_tracker import scan_watchlist
+            count = scan_watchlist()
+            print(f"Dark pool scan: {count} signals detected")
+        except Exception as e:
+            print(f"(Error) Dark pool scan failed: {e}")
+
     def check_hit_rates(self):
         """Check discovery hit rates and log outcomes. Also flags stale data."""
         try:
@@ -774,6 +848,20 @@ class InvestmentScheduler:
             # Also scan watchlist for intraday breakouts → auto-analysis
             trigger_pct = float(db.get_setting('intraday_trigger_pct') or 3.0)
             self._check_intraday_breakouts(threshold_pct=trigger_pct)
+
+            # Check open auto-paper-trade positions for TP/SL/time exits on every 15-min tick
+            try:
+                from engine.auto_paper_trader import auto_paper_trader
+                auto_paper_trader.check_open_positions()
+            except Exception as e:
+                print(f"(Warning) Auto-paper-trader position check failed: {e}")
+
+            # Portfolio-level anomaly detection (#46/#55) — run on every 15-min tick
+            try:
+                from engine.portfolio_anomaly import run_anomaly_checks
+                run_anomaly_checks()
+            except Exception as e:
+                print(f"(Warning) Portfolio anomaly check failed: {e}")
         except Exception as e:
             print(f"(Error) Price alert check failed: {e}")
 
@@ -797,6 +885,16 @@ class InvestmentScheduler:
                       f"vix={snap.get('vix')}, spread={snap.get('spread_2y10y')}")
         except Exception as e:
             print(f"(Error) Macro snapshot failed: {e}")
+
+        # Evaluate composite cross-asset signals after each snapshot (#47)
+        try:
+            from engine.composite_signals import evaluate_composite_signals
+            triggered = evaluate_composite_signals()
+            if triggered:
+                names = ", ".join(s["pattern_name"] for s in triggered)
+                print(f"Composite signals triggered: {names}")
+        except Exception as e:
+            print(f"(Warning) Composite signal evaluation failed: {e}")
 
     def run_health_check(self):
         """Run daily health checks and weekly cleanups."""

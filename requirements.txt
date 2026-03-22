@@ -42,3 +42,12 @@ networkx>=3.0
 
 # PDF export (#36)
 weasyprint>=60.0
+
+# NLP sentiment scoring (#38/#57)
+vaderSentiment>=3.3.2
+
+# Statistical analysis — pairs trading, cointegration (#40)
+statsmodels>=0.14.0
+
+# PWA Web Push notifications (#31/#59)
+pywebpush>=2.0.0
