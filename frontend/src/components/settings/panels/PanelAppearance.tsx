@@ -5,8 +5,10 @@ import styles from './Panel.module.css'
 import panelStyles from './PanelAppearance.module.css'
 
 export function PanelAppearance() {
-  const { theme, glowIntensity, depthEffects, setTheme, setGlowIntensity, setDepthEffects } =
-    useThemeStore()
+  const {
+    theme, glowIntensity, depthEffects, showLoadingScreen, particleField,
+    setTheme, setGlowIntensity, setDepthEffects, setShowLoadingScreen, setParticleField,
+  } = useThemeStore()
 
   return (
     <div className={styles.panelContent}>
@@ -48,13 +50,45 @@ export function PanelAppearance() {
           <div className={styles.toggleRow}>
             <div>
               <div className={styles.toggleLabel}>Depth Effects</div>
-              <div className={styles.toggleSub}>Parallax and shadow depth</div>
+              <div className={styles.toggleSub}>Parallax, radiance, and shadow depth</div>
             </div>
             <label className={styles.toggle}>
               <input
                 type="checkbox"
                 checked={depthEffects}
                 onChange={e => setDepthEffects(e.target.checked)}
+              />
+              <span className={styles.toggleTrack} />
+              <span className={styles.toggleThumb} />
+            </label>
+          </div>
+
+          <div className={styles.toggleRow}>
+            <div>
+              <div className={styles.toggleLabel}>Particle Field</div>
+              <div className={styles.toggleSub}>Ambient drifting particles in background</div>
+            </div>
+            <label className={styles.toggle}>
+              <input
+                type="checkbox"
+                checked={particleField}
+                onChange={e => setParticleField(e.target.checked)}
+              />
+              <span className={styles.toggleTrack} />
+              <span className={styles.toggleThumb} />
+            </label>
+          </div>
+
+          <div className={styles.toggleRow}>
+            <div>
+              <div className={styles.toggleLabel}>Loading Screen</div>
+              <div className={styles.toggleSub}>Mercury diffusion intro on app start</div>
+            </div>
+            <label className={styles.toggle}>
+              <input
+                type="checkbox"
+                checked={showLoadingScreen}
+                onChange={e => setShowLoadingScreen(e.target.checked)}
               />
               <span className={styles.toggleTrack} />
               <span className={styles.toggleThumb} />

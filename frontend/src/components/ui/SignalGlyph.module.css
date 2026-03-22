@@ -1,0 +1,26 @@
+.glyph {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+  transition:
+    transform 200ms var(--ease-breathe),
+    filter 200ms var(--ease-breathe);
+  cursor: default;
+}
+
+.glyph:hover {
+  transform: scale(1.2);
+  filter: drop-shadow(0 0 6px currentColor);
+}
+
+/* Signal-specific color assignments */
+.buy { color: var(--glow-positive); }
+.sell { color: var(--glow-negative); }
+.hold { color: var(--glow-neutral); }
+.watch { color: var(--glow-gold); }
+
+@media (prefers-reduced-motion: reduce) {
+  .glyph:hover {
+    transform: none;
+  }
+}

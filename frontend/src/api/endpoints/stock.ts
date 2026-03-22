@@ -166,3 +166,20 @@ export function useAnalysisDetail(analysisId: string | null) {
     enabled: !!analysisId,
   })
 }
+
+// ── Financials (for stock comparison) ───────────────────────────────────────
+
+export interface FinancialsData {
+  ticker: string
+  revenue_quarterly: { date: string; value: number }[]
+  earnings_quarterly: { date: string; value: number }[]
+}
+
+export function useFinancials(ticker: string) {
+  return useQuery<FinancialsData>({
+    queryKey: ['financials', ticker],
+    queryFn: () => api.get(`/api/financials/${ticker}`).then(r => r.data),
+    staleTime: 300_000,
+    enabled: !!ticker,
+  })
+}

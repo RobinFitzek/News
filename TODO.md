@@ -1236,6 +1236,90 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 
 ---
 
+## Frontend — React SPA Rewrite
+
+> **Status:** Complete. All 28 pages ported from Jinja2 to React 18 + TypeScript. Jinja2 templates remain for legacy/fallback.
+
+### Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | React 18.3 + TypeScript 5.5 |
+| Routing | React Router 6 (client-side SPA) |
+| State | Zustand 5 (theme, toasts) |
+| Data Fetching | TanStack Query 5 (React Query) |
+| HTTP | Axios with CSRF interceptor |
+| Animation | Framer Motion 11 |
+| Charts | Chart.js 4 + react-chartjs-2 |
+| Build | Vite 5 → `/static/react/` |
+| Styling | CSS Modules + glassmorphic design tokens |
+
+### Pages — Implementation Status
+
+```
+[x] LoginPage — session auth with TOTP support
+[x] TotpPage — 6-digit TOTP + backup code entry
+[x] TwoFactorSetupPage — QR code, backup codes, enable/disable
+[x] DashboardPage — system command center, market regime, benchmarks, geo radar, economic calendar
+[x] SettingsPage — 7 tabbed panels (API, Scheduler, Analysis, Budget, Security, Appearance, Plugins)
+[x] WatchlistPage — full CRUD, tier filter, sort, notes, sparklines, CSV import
+[x] AnalyzePage — ticker submission form with CSRF
+[x] StockDetailPage — multi-tab (overview, chart, earnings, peers, sentiment, patterns)
+[x] HistoryPage — analysis history table with CSV/JSON export
+[x] DiscoveriesPage — auto-discovery grid, status filters, promote/dismiss, stats
+[x] DiscoverPage — manual AI discovery (sector, focus, limit), result cards, add to watchlist
+[x] TopPicksPage — ranked picks table, win streaks, recent signals, learning stats
+[x] InsiderActivityPage — insider signals table, scan trigger
+[x] PortfolioPage — holdings, trade log, add trade modal, summary metrics, CSV export
+[x] PaperTradingPage — positions, trades, equity metrics, CSV export
+[x] TrustPage — trust gate status, 4 check cards, signal accuracy breakdown
+[x] LearningPage — weight suggestions, feature importance, signal accuracy, apply weights
+[x] CrosscheckPage — crosscheck history with verdicts and confidence
+[x] GeoHistoryPage — severity summary, events table, region/sector breakdown
+[x] SectorScreenPage — sector cards with momentum, signals, risk, top picks
+[x] BacktestPage — date range form, progress bar, results, apply weights, export
+[x] JournalPage — trade journal entries, add/close/delete
+[x] CompareStocksPage — side-by-side comparison of up to 5 tickers with normalized chart
+[x] MacroPage — yield curve, VIX, DXY, regime, 90-day chart, economic calendar events
+[x] CorporateActionsPage — dividends, splits, mergers with ticker/type filters, dividend summary
+[x] GraveyardPage — removed tickers, post-removal performance, win rate
+[x] ScenariosPage — geopolitical stress-test cards with per-sector impact bars, run scenario, portfolio impact
+[x] ArchitecturePage — pipeline flow, AI agents, data sources, risk gates, auto-trade flow, tech stack
+[x] NotFoundPage — 404 with back-to-dashboard link
+```
+
+### Components
+
+```
+[x] Layout: RootLayout, Sidebar (animated collapse), Navbar, PageHeader, StatusPill
+[x] UI: Button, Card (glassmorphic + glow), Badge, Modal, Spinner, Toast, ProgressBar
+[x] UI: MetricCard, Delta, StatusDot, Divider, Kbd, CopyToast
+[x] Dashboard: SystemCommandCenter, GeoRadarCard, MarketRegimeCard, IntelStrip, EconomicCalendarCard, BenchmarkCard
+[x] Settings: PanelAppearance, PanelSecurity, PanelAPIConnections, PanelScheduler, PanelPlugins, PanelAnalysis, PanelBudget
+[x] Keyboard overlay (KbdOverlay), Luminary theme toggle
+```
+
+### API Layer
+
+```
+[x] Axios client with session auth (withCredentials) + CSRF interceptor
+[x] CSRF singleton with in-flight deduplication
+[x] TanStack Query client with stale/gc configuration
+[x] 24 endpoint modules: auth, watchlist, portfolio, stock, discovery, insider, learning, backtest, journal, macro, geopolitical, graveyard, corporateActions, settings, budget, plugins, providers, scheduler, status, logs, topPicks, history, paperTrading, personalKeys
+```
+
+### Router & Navigation
+
+```
+[x] 28 routes in React Router (SPA catch-all in FastAPI serves index.html)
+[x] AuthGuard wrapper for protected routes
+[x] Animated sidebar with 5 nav groups + settings/logout
+[x] Vite dev server proxies /api to FastAPI (port 8000)
+[x] Production build to /static/react/ with code splitting (react-vendor, motion, query, charts)
+```
+
+---
+
 ## Completed
 
 ```
@@ -1250,6 +1334,100 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 [x] Geopolitisches Radar card + exposure heatmap — dashboard.html
 [x] GET /api/geopolitical + GET /api/geopolitical/exposure — app.py
 [x] README rewrite — README.md
+[x] React SPA frontend — 28 pages, 25 API endpoint modules, full component library
+```
+
+---
+
+## Frontend — React SPA Rewrite
+
+Full migration from Jinja2 templates to a React 18 Single Page Application.
+
+**Tech Stack:** React 18, TypeScript, Vite, TanStack Query (React Query), Zustand, Framer Motion, Chart.js, Axios, CSS Modules
+
+**Build:** `cd frontend && npm run build` → outputs to `static/react/`
+
+### Pages — Completed
+```
+[x] LoginPage — username/password + TOTP redirect, split layout, market indices strip
+[x] TotpPage — 6-digit TOTP entry, backup code toggle, auto-submit
+[x] TwoFactorSetupPage — QR code display, backup codes, verification, disable 2FA
+[x] DashboardPage — System command center, market regime, benchmarks, intelligence strip, geo radar
+[x] WatchlistPage — Full CRUD, tier filters, sort, export, notes modal, CSV import
+[x] AnalyzePage — Ticker submission form, CSRF handling
+[x] HistoryPage — Analysis history table, ticker filter, CSV/JSON export
+[x] SettingsPage — 7 tabbed panels (API, Scheduler, Analysis, Budget, Security, Appearance, Plugins)
+[x] LogsPage — Active alerts, scheduler logs, login security stats
+[x] DiscoveriesPage — Auto-discovery results grid, status filtering, promote/dismiss, strategy stats
+[x] TopPicksPage — Rankings table, recent signals, learning stats
+[x] InsiderActivityPage — Signals table, scan trigger, significance scores
+[x] PortfolioPage — Holdings table, trade log, add trade modal, export
+[x] PaperTradingPage — Positions, trades, summary metrics, export
+[x] TrustPage — Gate status, 4 check cards, signal accuracy breakdown
+[x] LearningPage — Weight suggestions, feature importance, apply weights
+[x] CrosscheckPage — Crosscheck history with verdicts
+[x] GeoHistoryPage — Severity summary, events table
+[x] SectorScreenPage — Sector cards with momentum/signals
+[x] BacktestPage — Date range form, progress bar, results metrics, apply weights
+[x] JournalPage — Add entry, entries list, close/delete, P&L tracking
+[x] StockDetailPage — Multi-tab (Overview, Chart, Earnings, Peers, Sentiment, Patterns)
+[x] DiscoverPage — AI stock discovery form (sector/focus/count), results grid, add to watchlist
+[x] CompareStocksPage — Side-by-side comparison (2-5 tickers), normalized price chart, metrics table
+[x] GraveyardPage — Removed tickers, post-removal performance, win rate analysis
+[x] ArchitecturePage — Visual system overview (pipeline, AI agents, data sources, risk gates, tech stack)
+[x] MacroPage — Macro dashboard, yield spread/VIX chart, upcoming central bank events
+[x] CorporateActionsPage — Dividends & actions ledger, filters, dividend income summary
+[x] NotFoundPage — 404 with navigation
+```
+
+### Infrastructure — Completed
+```
+[x] React Router with AuthGuard — protected routes, SPA catch-all in FastAPI
+[x] Axios API client — session auth, CSRF interceptor, 401/403 error handling
+[x] TanStack Query — data fetching with stale times, cache invalidation
+[x] Zustand stores — theme (dark/light/system, sidebar state), toast notifications
+[x] CSS Modules — component-scoped styles following glassmorphic design tokens
+[x] Vite build — code splitting (react-vendor, motion, query, charts), proxy dev server
+[x] Sidebar navigation — 5 nav groups, animated collapse, SVG icons, status pill
+[x] 23 API endpoint modules — typed hooks for all backend endpoints
+```
+
+### Remaining Work
+```
+[ ] Settings panel parity — Settings page covers ~50% of Jinja2 settings.html features
+[ ] Architecture page customization — drag-and-drop rearrangeable sections (future)
+[x] ScenariosPage — standalone geopolitical scenario stress-testing + GET /api/scenarios endpoint
+```
+
+### Breathe Design Language — Implementation Status
+```
+[x] Phase 1 — Radiance: inter-element light reflection system
+    - useRadiance hook (proximity engine, 120px range, edge detection)
+    - RadianceProvider (React context + shared SVG defs with refraction filter)
+    - Card integration (radiance prop, edge glow receiver, breathing animation)
+[x] Phase 2 — SVG Signal Glyphs & Micro-Charts
+    - SignalGlyph (BUY/SELL/HOLD/WATCH geometric SVG symbols via <use href>)
+    - SparkBar (pure SVG 8-bar inline micro-charts)
+    - Delta (SVG directional arrows replacing text ▲/▼)
+[x] Phase 3 — Enhanced Glass & Particle Field
+    - Luminary particle field (40 SVG circles with seeded drift)
+    - Orb breathing animation (opacity/blur pulse on gold + ice orbs)
+    - Card hover enhancements (3px lift, deeper shadow, glow brighten)
+    - Void shimmer sweep (12s CSS animation on shell overlay)
+[x] Phase 4 — Mercury Diffusion Loading Screen
+    - TextDiffuser (noise chars → real text with wave reveal)
+    - DiffuseSword (ASCII geometric sword line-by-line emergence)
+    - MercuryLoading (full-screen intro: sword + title + subtitle + dots)
+    - RootLayout integration (2.8s intro, blur+fade exit)
+[x] Phase 5 — Component Polish
+    - Button glass material (backdrop-filter blur, hover lift)
+    - Toast glass material (24px blur, saturate, inset specular, hover glow)
+[x] Phase 6 — Settings Integration
+    - Loading screen toggle in Settings (Mercury diffusion on/off)
+    - Particle field toggle in Settings (ambient dots on/off)
+    - Fixed data-depth attribute ("on"/"off" vs broken "true"/"false")
+    - Glow intensity slider already wired to --glow-intensity CSS property
+    - All settings persisted to localStorage
 ```
 
 ---
@@ -1271,7 +1449,7 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 > data that speaks without shouting. Sharp edges. Clean structure. Everything earns its place.
 >
 > **Effort:** L (full design system rewrite) · **Impact:** Very High (complete visual identity)
-> **Status:** Spec complete — ready for implementation
+> **Status:** Phases 1–5 implemented in React frontend. Phase 6 (settings integration) remaining.
 
 ---
 

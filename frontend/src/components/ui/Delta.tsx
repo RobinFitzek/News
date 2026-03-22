@@ -8,6 +8,36 @@ interface DeltaProps {
   className?: string
 }
 
+function ArrowUp() {
+  return (
+    <svg
+      width="8"
+      height="10"
+      viewBox="0 0 8 10"
+      className={styles.arrow}
+      aria-hidden="true"
+    >
+      <polygon points="0,7 4,1 8,7" fill="currentColor" />
+      <rect x="3" y="6" width="2" height="4" fill="currentColor" />
+    </svg>
+  )
+}
+
+function ArrowDown() {
+  return (
+    <svg
+      width="8"
+      height="10"
+      viewBox="0 0 8 10"
+      className={styles.arrow}
+      aria-hidden="true"
+    >
+      <polygon points="0,3 4,9 8,3" fill="currentColor" />
+      <rect x="3" y="0" width="2" height="4" fill="currentColor" />
+    </svg>
+  )
+}
+
 export function Delta({ value, sign, showArrow = true, className }: DeltaProps) {
   const resolved = sign ?? (
     typeof value === 'number'
@@ -17,8 +47,8 @@ export function Delta({ value, sign, showArrow = true, className }: DeltaProps) 
 
   return (
     <span className={clsx(styles.delta, styles[resolved], className)}>
-      {showArrow && resolved === 'positive' && '▲ '}
-      {showArrow && resolved === 'negative' && '▼ '}
+      {showArrow && resolved === 'positive' && <ArrowUp />}
+      {showArrow && resolved === 'negative' && <ArrowDown />}
       {value}
     </span>
   )

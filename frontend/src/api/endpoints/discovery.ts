@@ -77,3 +77,45 @@ export function useDismissDiscovery() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['discoveries'] }),
   })
 }
+
+// ── Manual AI Discovery (Perplexity) ────────────────────────────────────────
+
+export interface DiscoverParams {
+  sector?: string
+  focus?: string
+  limit?: number
+}
+
+export interface DiscoveredStock {
+  ticker: string
+  name?: string
+  score: number
+  reason: string
+  catalyst: string
+}
+
+export interface DiscoverResult {
+  success: boolean
+  stocks: DiscoveredStock[]
+  error?: string
+  raw_analysis?: string
+  timestamp?: string
+  api_usage?: number
+}
+
+export function useRunDiscover() {
+  return useMutation<DiscoverResult, Error, DiscoverParams>({
+    mutationFn: async (params) => {
+      const form = new FormData()
+      if (params.sector) form.append('sector', params.sector)
+      form.append('focus', params.focus ?? 'balanced')
+      form.append('limit', String(params.limit ?? 5))
+      // CSRF token is injected by the axios interceptor for POST requests
+      const { data: csrfData } = await api.get('/api/csrf-token')
+      form.append('csrf_token', csrfData.token)
+      return api.post('/discover', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }).then(r => r.data)
+    },
+  })
+}

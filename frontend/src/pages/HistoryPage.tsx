@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { SignalGlyph } from '@/components/ui/SignalGlyph'
 import { Spinner } from '@/components/ui/Spinner'
 import type { SignalType } from '@/types/api'
 import styles from './HistoryPage.module.css'
@@ -13,7 +14,12 @@ import styles from './HistoryPage.module.css'
 function SignalBadge({ signal }: { signal: SignalType }) {
   if (!signal) return null
   const v = signal === 'BUY' ? 'success' : signal === 'SELL' ? 'danger' : 'neutral'
-  return <Badge variant={v}>{signal}</Badge>
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+      <SignalGlyph signal={signal} size={14} />
+      <Badge variant={v}>{signal}</Badge>
+    </span>
+  )
 }
 
 function RiskCell({ value }: { value: number | null }) {

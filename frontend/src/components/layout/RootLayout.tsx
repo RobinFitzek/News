@@ -1,19 +1,39 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useEffect } from 'react'
 import { Luminary } from './Luminary'
+import { RadianceProvider } from './RadianceProvider'
 import { Sidebar } from './Sidebar'
 import { CopyToast } from './CopyToast'
 import { KbdOverlay } from './KbdOverlay'
 import { ToastContainer } from '@/components/ui/Toast'
+import { MercuryLoading } from '@/components/ui/MercuryLoading'
 import { useThemeStore } from '@/stores/themeStore'
+import { useThemeInit } from '@/hooks/useTheme'
 import styles from './RootLayout.module.css'
 
 export function RootLayout() {
+  useThemeInit()
   const location = useLocation()
   const sidebarExpanded = useThemeStore(s => s.sidebarExpanded)
+  const showLoadingScreen = useThemeStore(s => s.showLoadingScreen)
+  const [appReady, setAppReady] = useState(false)
+  const [loadingDone, setLoadingDone] = useState(() => !showLoadingScreen)
+
+  // Mark app as ready after a minimum display time for the loading experience
+  useEffect(() => {
+    if (!showLoadingScreen) return
+    const timer = setTimeout(() => setAppReady(true), 2800)
+    return () => clearTimeout(timer)
+  }, [showLoadingScreen])
 
   return (
     <div className={styles.root}>
+      {/* Mercury diffusion loading screen — first visit only */}
+      {!loadingDone && (
+        <MercuryLoading ready={appReady} onDone={() => setLoadingDone(true)} />
+      )}
+
       {/* Atmospheric layers */}
       <Luminary />
       <div className={styles.shell} aria-hidden="true" />
@@ -40,9 +60,11 @@ export function RootLayout() {
               ease: [0.34, 1.2, 0.64, 1],
             }}
           >
-            <div className="main-container">
-              <Outlet />
-            </div>
+            <RadianceProvider>
+              <div className="main-container">
+                <Outlet />
+              </div>
+            </RadianceProvider>
           </motion.main>
         </AnimatePresence>
       </motion.div>

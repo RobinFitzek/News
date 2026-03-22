@@ -22,8 +22,10 @@
   background: radial-gradient(circle, var(--glow-gold) 0%, transparent 60%);
   filter: blur(80px);
   opacity: calc(0.25 * var(--glow-intensity, 0.6));
-  animation: luminaryDrift var(--duration-float) ease-in-out infinite alternate;
-  will-change: transform;
+  animation:
+    luminaryDrift var(--duration-float) ease-in-out infinite alternate,
+    orbBreathe 4s ease-in-out infinite alternate;
+  will-change: transform, opacity;
 }
 
 .orbB {
@@ -36,11 +38,57 @@
   background: radial-gradient(circle, var(--glow-ice) 0%, transparent 60%);
   filter: blur(60px);
   opacity: calc(0.18 * var(--glow-intensity, 0.6));
-  animation: luminaryDrift var(--duration-float) ease-in-out infinite alternate-reverse;
-  will-change: transform;
+  animation:
+    luminaryDrift var(--duration-float) ease-in-out infinite alternate-reverse,
+    orbBreathe 5s ease-in-out infinite alternate-reverse;
+  will-change: transform, opacity;
+}
+
+/* ── Particle field — 40 drifting SVG dots ─────────────────────────── */
+
+.particleField {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.particle {
+  animation: particleDrift linear infinite alternate;
 }
 
 @keyframes luminaryDrift {
   0%   { transform: translate(-40px, -40px); }
   100% { transform: translate(40px, 40px); }
+}
+
+@keyframes orbBreathe {
+  0%   { opacity: var(--orb-opacity-lo, 0.15); filter: blur(80px); }
+  100% { opacity: var(--orb-opacity-hi, 0.3);  filter: blur(70px); }
+}
+
+@keyframes particleDrift {
+  0%   { transform: translate(0, 0); }
+  100% { transform: translate(var(--drift-dx, 10px), var(--drift-dy, 10px)); }
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .orbA, .orbB {
+    animation: none;
+  }
+
+  .particleField {
+    display: none;
+  }
+}
+
+/* ── Hide particles on mobile ──────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .particleField {
+    display: none;
+  }
 }

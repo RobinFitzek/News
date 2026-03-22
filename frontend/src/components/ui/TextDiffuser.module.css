@@ -1,0 +1,28 @@
+.diffuser {
+  font-family: var(--font-mono);
+  display: inline-block;
+  white-space: pre;
+}
+
+.noise {
+  color: var(--text-ghost);
+  opacity: 0.6;
+  transition: color 80ms ease, opacity 80ms ease;
+}
+
+.resolved {
+  color: var(--text-primary);
+  opacity: 1;
+  transition: color 150ms var(--ease-breathe), opacity 150ms var(--ease-breathe);
+}
+
+.done .resolved {
+  text-shadow: 0 0 8px rgba(238, 232, 220, 0.15);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .noise,
+  .resolved {
+    transition: none;
+  }
+}
