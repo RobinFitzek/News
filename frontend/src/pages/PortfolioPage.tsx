@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import clsx from 'clsx'
 import { usePortfolio, useAddTrade } from '@/api/endpoints/portfolioTracker'
 import type { AddTradePayload } from '@/api/endpoints/portfolioTracker'
+import { usePortfolioAsk } from '@/api/endpoints/portfolio'
+import type { PortfolioQAResponse } from '@/api/endpoints/portfolio'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -45,11 +47,15 @@ const DEFAULT_FORM: AddTradePayload = {
 export function PortfolioPage() {
   const { data, isLoading } = usePortfolio()
   const addTradeMut = useAddTrade()
+  const askMut = usePortfolioAsk()
   const { addToast } = useToastStore()
 
   const [showModal, setShowModal] = useState(false)
   const [showTradeLog, setShowTradeLog] = useState(false)
   const [form, setForm] = useState<AddTradePayload>(DEFAULT_FORM)
+  const [question, setQuestion] = useState('')
+  const [qaResult, setQaResult] = useState<PortfolioQAResponse | null>(null)
+  const qaInputRef = useRef<HTMLInputElement>(null)
 
   const summary = data?.summary
   const holdings = summary?.holdings ?? []
@@ -381,6 +387,85 @@ export function PortfolioPage() {
           </Button>
         </div>
       </Modal>
+
+      {/* Portfolio Q&A Widget (#56) */}
+      <Card className={styles.qaCard} glow="neutral">
+        <div className={styles.qaHeader}>
+          <span className={styles.qaTitle}>Ask about your portfolio</span>
+          <Badge variant="neutral" size="xs">AI</Badge>
+        </div>
+        <div className={styles.qaInputRow}>
+          <input
+            ref={qaInputRef}
+            className={styles.qaInput}
+            placeholder="e.g. Which holdings are most exposed to tariff risk?"
+            value={question}
+            onChange={e => setQuestion(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && question.trim()) {
+                askMut.mutate(question.trim(), {
+                  onSuccess: (result) => {
+                    setQaResult(result)
+                    if (result.rate_limited) {
+                      addToast('Rate limited — wait 30s between queries', 'warning')
+                    }
+                  },
+                  onError: () => addToast('Failed to get answer', 'error'),
+                })
+              }
+            }}
+            disabled={askMut.isPending}
+          />
+          <Button
+            variant="primary"
+            size="md"
+            loading={askMut.isPending}
+            disabled={!question.trim()}
+            onClick={() => {
+              if (!question.trim()) return
+              askMut.mutate(question.trim(), {
+                onSuccess: (result) => {
+                  setQaResult(result)
+                  if (result.rate_limited) {
+                    addToast('Rate limited — wait 30s between queries', 'warning')
+                  }
+                },
+                onError: () => addToast('Failed to get answer', 'error'),
+              })
+            }}
+          >
+            Ask
+          </Button>
+        </div>
+
+        <AnimatePresence>
+          {qaResult && (
+            <motion.div
+              className={styles.qaResult}
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+            >
+              {qaResult.error ? (
+                <div className={styles.qaError}>{qaResult.error}</div>
+              ) : (
+                <>
+                  <div className={styles.qaAnswer}>{qaResult.answer}</div>
+                  {qaResult.sources && qaResult.sources.length > 0 && (
+                    <div className={styles.qaSources}>
+                      <span className={styles.qaSourcesLabel}>Sources:</span>
+                      {qaResult.sources.map((s, i) => (
+                        <Badge key={i} variant="ghost" size="xs">{s}</Badge>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </Card>
 
       <div style={{ height: 'var(--space-16)' }} />
     </>

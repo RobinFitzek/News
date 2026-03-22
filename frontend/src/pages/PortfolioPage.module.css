@@ -300,3 +300,89 @@
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
+
+/* ── Portfolio Q&A Widget (#56) ──────────────────────────────────────────── */
+
+.qaCard {
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.qaHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.qaTitle {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.qaInputRow {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.qaInput {
+  flex: 1;
+  padding: 10px var(--space-3);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-family: var(--font-body);
+  transition: border-color var(--duration-fast) var(--ease-smooth);
+}
+.qaInput:focus {
+  outline: none;
+  border-color: var(--border-highlight);
+}
+.qaInput::placeholder {
+  color: var(--text-ghost);
+  font-style: italic;
+}
+.qaInput:disabled {
+  opacity: 0.5;
+}
+
+.qaResult {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-primary);
+  overflow: hidden;
+}
+
+.qaAnswer {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.qaError {
+  font-size: var(--text-sm);
+  color: var(--signal-negative);
+}
+
+.qaSources {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.qaSourcesLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

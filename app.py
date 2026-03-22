@@ -3540,6 +3540,18 @@ async def api_portfolio_ask(request: Request, username: str = Depends(require_ap
 
     from engine.portfolio_qa import ask as portfolio_ask
     result = portfolio_ask(question)
+
+    # Audit log for training (#56)
+    try:
+        audit_log.log(
+            "portfolio_question_asked",
+            username=username,
+            ip=request.client.host if request.client else "unknown",
+            details={"question": question, "rate_limited": result.get("rate_limited", False)},
+        )
+    except Exception:
+        pass
+
     return result
 
 # ==================== PORTFOLIO BENCHMARK ====================
