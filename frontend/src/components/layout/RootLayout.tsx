@@ -1,20 +1,35 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useEffect } from 'react'
 import { Luminary } from './Luminary'
 import { RadianceProvider } from './RadianceProvider'
 import { Sidebar } from './Sidebar'
 import { CopyToast } from './CopyToast'
 import { KbdOverlay } from './KbdOverlay'
 import { ToastContainer } from '@/components/ui/Toast'
+import { MercuryLoading } from '@/components/ui/MercuryLoading'
 import { useThemeStore } from '@/stores/themeStore'
 import styles from './RootLayout.module.css'
 
 export function RootLayout() {
   const location = useLocation()
   const sidebarExpanded = useThemeStore(s => s.sidebarExpanded)
+  const [appReady, setAppReady] = useState(false)
+  const [loadingDone, setLoadingDone] = useState(false)
+
+  // Mark app as ready after a minimum display time for the loading experience
+  useEffect(() => {
+    const timer = setTimeout(() => setAppReady(true), 2800)
+    return () => clearTimeout(timer)
+  }, [])
 
   return (
     <div className={styles.root}>
+      {/* Mercury diffusion loading screen — first visit only */}
+      {!loadingDone && (
+        <MercuryLoading ready={appReady} onDone={() => setLoadingDone(true)} />
+      )}
+
       {/* Atmospheric layers */}
       <Luminary />
       <div className={styles.shell} aria-hidden="true" />
