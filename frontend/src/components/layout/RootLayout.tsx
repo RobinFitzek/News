@@ -14,14 +14,16 @@ import styles from './RootLayout.module.css'
 export function RootLayout() {
   const location = useLocation()
   const sidebarExpanded = useThemeStore(s => s.sidebarExpanded)
+  const showLoadingScreen = useThemeStore(s => s.showLoadingScreen)
   const [appReady, setAppReady] = useState(false)
-  const [loadingDone, setLoadingDone] = useState(false)
+  const [loadingDone, setLoadingDone] = useState(() => !showLoadingScreen)
 
   // Mark app as ready after a minimum display time for the loading experience
   useEffect(() => {
+    if (!showLoadingScreen) return
     const timer = setTimeout(() => setAppReady(true), 2800)
     return () => clearTimeout(timer)
-  }, [])
+  }, [showLoadingScreen])
 
   return (
     <div className={styles.root}>

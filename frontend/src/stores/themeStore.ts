@@ -5,10 +5,14 @@ interface ThemeStore {
   theme: 'dark' | 'light' | 'system'
   glowIntensity: number
   depthEffects: boolean
+  showLoadingScreen: boolean
+  particleField: boolean
   sidebarExpanded: boolean
   setTheme: (theme: ThemeStore['theme']) => void
   setGlowIntensity: (v: number) => void
   setDepthEffects: (v: boolean) => void
+  setShowLoadingScreen: (v: boolean) => void
+  setParticleField: (v: boolean) => void
   setSidebarExpanded: (v: boolean) => void
   toggleSidebar: () => void
   applyTheme: () => void
@@ -27,6 +31,8 @@ export const useThemeStore = create<ThemeStore>()(
       theme: 'dark',
       glowIntensity: 0.6,
       depthEffects: true,
+      showLoadingScreen: true,
+      particleField: true,
       sidebarExpanded: true,
 
       setTheme: (theme) => {
@@ -41,7 +47,14 @@ export const useThemeStore = create<ThemeStore>()(
 
       setDepthEffects: (v) => {
         set({ depthEffects: v })
-        document.documentElement.setAttribute('data-depth', String(v))
+        document.documentElement.setAttribute('data-depth', v ? 'on' : 'off')
+      },
+
+      setShowLoadingScreen: (v) => set({ showLoadingScreen: v }),
+
+      setParticleField: (v) => {
+        set({ particleField: v })
+        document.documentElement.setAttribute('data-particles', v ? 'on' : 'off')
       },
 
       setSidebarExpanded: (v) => set({ sidebarExpanded: v }),
@@ -49,11 +62,12 @@ export const useThemeStore = create<ThemeStore>()(
       toggleSidebar: () => set(s => ({ sidebarExpanded: !s.sidebarExpanded })),
 
       applyTheme: () => {
-        const { theme, glowIntensity, depthEffects } = get()
+        const { theme, glowIntensity, depthEffects, particleField } = get()
         const resolved = resolveTheme(theme)
         document.documentElement.setAttribute('data-theme', resolved)
         document.documentElement.style.setProperty('--glow-intensity', String(glowIntensity))
-        document.documentElement.setAttribute('data-depth', String(depthEffects))
+        document.documentElement.setAttribute('data-depth', depthEffects ? 'on' : 'off')
+        document.documentElement.setAttribute('data-particles', particleField ? 'on' : 'off')
         // Update meta theme-color
         const meta = document.querySelector('meta[name="theme-color"]')
         if (meta) {
@@ -67,6 +81,8 @@ export const useThemeStore = create<ThemeStore>()(
         theme: state.theme,
         glowIntensity: state.glowIntensity,
         depthEffects: state.depthEffects,
+        showLoadingScreen: state.showLoadingScreen,
+        particleField: state.particleField,
         sidebarExpanded: state.sidebarExpanded,
       }),
     }

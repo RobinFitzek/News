@@ -1,5 +1,6 @@
 import { motion, useMotionValue, useSpring } from 'framer-motion'
 import { useEffect, useMemo } from 'react'
+import { useThemeStore } from '@/stores/themeStore'
 import styles from './Luminary.module.css'
 
 /* Deterministic pseudo-random from seed (mulberry32) */
@@ -47,6 +48,7 @@ export function Luminary() {
   const x = useSpring(rawX, { stiffness: 40, damping: 20 })
   const y = useSpring(rawY, { stiffness: 40, damping: 20 })
   const particles = useMemo(generateParticles, [])
+  const showParticles = useThemeStore(s => s.particleField)
 
   useEffect(() => {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -65,7 +67,7 @@ export function Luminary() {
       <div className={styles.orbA} />
       <div className={styles.orbB} />
       {/* Particle field — 40 SVG dots drifting slowly */}
-      <svg className={styles.particleField} viewBox="0 0 100 100" preserveAspectRatio="none">
+      {showParticles && <svg className={styles.particleField} viewBox="0 0 100 100" preserveAspectRatio="none">
         {particles.map((p, i) => (
           <circle
             key={i}
@@ -83,7 +85,7 @@ export function Luminary() {
             className={styles.particle}
           />
         ))}
-      </svg>
+      </svg>}
     </motion.div>
   )
 }
