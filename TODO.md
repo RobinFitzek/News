@@ -1422,10 +1422,12 @@ Full migration from Jinja2 templates to a React 18 Single Page Application.
 [x] Phase 5 — Component Polish
     - Button glass material (backdrop-filter blur, hover lift)
     - Toast glass material (24px blur, saturate, inset specular, hover glow)
-[ ] Phase 6 — Settings Integration (future)
-    - Loading screen toggle in Settings
-    - Parallax/depth effects toggle integration
-    - Glow intensity slider wired to radiance engine
+[x] Phase 6 — Settings Integration
+    - Loading screen toggle in Settings (Mercury diffusion on/off)
+    - Particle field toggle in Settings (ambient dots on/off)
+    - Fixed data-depth attribute ("on"/"off" vs broken "true"/"false")
+    - Glow intensity slider already wired to --glow-intensity CSS property
+    - All settings persisted to localStorage
 ```
 
 ---
