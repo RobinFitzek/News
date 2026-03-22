@@ -146,6 +146,62 @@
   border-color: var(--border-highlight);
 }
 
+/* ── Equity Curve Chart ──────────────────────────────────────────────────── */
+
+.chartWrapper {
+  position: relative;
+  height: 260px;
+  padding: var(--space-4);
+}
+
+/* ── Risk Metrics ────────────────────────────────────────────────────────── */
+
+.riskRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+@media (max-width: 768px) {
+  .riskRow { grid-template-columns: 1fr; }
+}
+
+.riskCard {
+  padding: var(--space-4);
+}
+
+.riskMetrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+
+@media (max-width: 480px) {
+  .riskMetrics { grid-template-columns: repeat(2, 1fr); }
+}
+
+.riskMetric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.riskLabel {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.riskValue {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
 .reasonText {
   color: var(--text-muted);
   font-size: var(--text-xs);

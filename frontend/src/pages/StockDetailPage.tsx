@@ -22,6 +22,13 @@ import {
   useAnalysisDetail,
 } from '@/api/endpoints/stock'
 import { useSmartMoney } from '@/api/endpoints/institutional'
+import {
+  useDCF,
+  useMoat,
+  useCatalysts,
+  useOptionsFlow,
+  useSupplyChain,
+} from '@/api/endpoints/stockExtras'
 import type { SentimentHeadline } from '@/api/endpoints/stock'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Card } from '@/components/ui/Card'
@@ -37,14 +44,17 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type TabKey = 'overview' | 'chart' | 'earnings' | 'peers' | 'sentiment'
+type TabKey = 'overview' | 'chart' | 'earnings' | 'peers' | 'sentiment' | 'valuation' | 'options' | 'supply'
 
 const TABS: { key: TabKey; label: string }[] = [
-  { key: 'overview',  label: 'Overview' },
-  { key: 'chart',     label: 'Chart' },
-  { key: 'earnings',  label: 'Earnings' },
-  { key: 'peers',     label: 'Peers' },
-  { key: 'sentiment', label: 'Sentiment' },
+  { key: 'overview',   label: 'Overview' },
+  { key: 'chart',      label: 'Chart' },
+  { key: 'earnings',   label: 'Earnings' },
+  { key: 'peers',      label: 'Peers' },
+  { key: 'sentiment',  label: 'Sentiment' },
+  { key: 'valuation',  label: 'Valuation' },
+  { key: 'options',    label: 'Options' },
+  { key: 'supply',     label: 'Supply Chain' },
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -545,6 +555,248 @@ function SentimentTab({ ticker }: { ticker: string }) {
   )
 }
 
+// ── Valuation tab (DCF + Moat + Catalysts) ───────────────────────────────────
+
+function ValuationTab({ ticker }: { ticker: string }) {
+  const { data: dcf, isLoading: dcfLoading } = useDCF(ticker)
+  const { data: moat, isLoading: moatLoading } = useMoat(ticker)
+  const { data: cats, isLoading: catsLoading } = useCatalysts(ticker)
+
+  return (
+    <div>
+      {/* DCF */}
+      <p className={styles.sectionTitle}>DCF Fair Value</p>
+      {dcfLoading ? <LoadingPanel /> : dcf && !dcf.error ? (
+        <Card animate className={styles.signalCard}>
+          <div className={styles.statsGrid}>
+            <div className={styles.riskItem}>
+              <span className={styles.riskItemLabel}>Fair Value</span>
+              <span className={styles.riskItemValue}>
+                {dcf.fair_value !== null ? `$${formatNum(dcf.fair_value)}` : '—'}
+              </span>
+            </div>
+            <div className={styles.riskItem}>
+              <span className={styles.riskItemLabel}>Current Price</span>
+              <span className={styles.riskItemValue}>
+                {dcf.current_price !== null ? `$${formatNum(dcf.current_price)}` : '—'}
+              </span>
+            </div>
+            <div className={styles.riskItem}>
+              <span className={styles.riskItemLabel}>Upside</span>
+              <span className={clsx(
+                styles.riskItemValue,
+                dcf.upside_pct !== null && dcf.upside_pct > 0 ? styles.positive :
+                dcf.upside_pct !== null && dcf.upside_pct < 0 ? styles.negative : ''
+              )}>
+                {dcf.upside_pct !== null ? `${dcf.upside_pct >= 0 ? '+' : ''}${formatNum(dcf.upside_pct)}%` : '—'}
+              </span>
+            </div>
+          </div>
+          <div className={styles.riskRow} style={{ marginTop: 'var(--space-3)' }}>
+            <div className={styles.riskItem}>
+              <span className={styles.riskItemLabel}>Growth Rate</span>
+              <span className={styles.mono}>{dcf.growth_rate !== null ? `${formatNum(dcf.growth_rate * 100)}%` : '—'}</span>
+            </div>
+            <div className={styles.riskItem}>
+              <span className={styles.riskItemLabel}>Discount Rate</span>
+              <span className={styles.mono}>{formatNum(dcf.discount_rate * 100)}%</span>
+            </div>
+          </div>
+        </Card>
+      ) : <EmptyPanel message="No DCF data available." />}
+
+      {/* Moat */}
+      <p className={styles.sectionTitle}>Economic Moat</p>
+      {moatLoading ? <LoadingPanel /> : moat && !moat.error ? (
+        <Card animate>
+          <div style={{ padding: 'var(--space-4)' }}>
+            <div className={styles.signalRow}>
+              <span className={styles.signalLabel}>Moat Grade</span>
+              <Badge variant={moat.moat_score >= 7 ? 'success' : moat.moat_score >= 4 ? 'neutral' : 'danger'}>
+                {moat.moat_grade} ({moat.moat_score}/10)
+              </Badge>
+            </div>
+            {moat.factors.length > 0 && (
+              <div className={styles.headlineList}>
+                {moat.factors.map(f => (
+                  <div key={f.name} className={styles.headline}>
+                    <div className={styles.headlineTitle}>{f.name}</div>
+                    <div className={styles.confidenceBarTrack}>
+                      <div
+                        className={clsx(
+                          styles.confidenceBarFill,
+                          f.score / f.max >= 0.7 ? styles.high :
+                          f.score / f.max >= 0.4 ? styles.medium : styles.low
+                        )}
+                        style={{ width: `${(f.score / f.max) * 100}%` }}
+                      />
+                    </div>
+                    <span className={styles.mono} style={{ fontSize: 'var(--text-xs)' }}>
+                      {f.score}/{f.max}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      ) : <EmptyPanel message="No moat data available." />}
+
+      {/* Catalysts */}
+      <p className={styles.sectionTitle}>Upcoming Catalysts</p>
+      {catsLoading ? <LoadingPanel /> : cats && !cats.error && cats.catalysts.length > 0 ? (
+        <div className={styles.headlineList}>
+          {cats.catalysts.map((c, i) => (
+            <Card key={i} animate delay={i * 0.04}>
+              <div style={{ padding: 'var(--space-3) var(--space-4)' }}>
+                <div className={styles.headlineMeta}>
+                  <Badge variant="neutral" size="xs">{c.type}</Badge>
+                  <span className={styles.headlineSource}>{c.date}</span>
+                </div>
+                <div className={styles.headlineTitle} style={{ marginTop: 'var(--space-1)' }}>
+                  {c.name}
+                </div>
+                {c.detail && (
+                  <span className={styles.muted} style={{ fontSize: 'var(--text-xs)' }}>{c.detail}</span>
+                )}
+              </div>
+            </Card>
+          ))}
+        </div>
+      ) : <EmptyPanel message="No upcoming catalysts found." />}
+    </div>
+  )
+}
+
+// ── Options Flow tab ─────────────────────────────────────────────────────────
+
+function OptionsTab({ ticker }: { ticker: string }) {
+  const { data, isLoading, isError } = useOptionsFlow(ticker)
+
+  if (isLoading) return <LoadingPanel />
+  if (isError) return <ErrorPanel message="Failed to load options data." />
+  if (!data || data.error) return <EmptyPanel message={data?.error ?? 'No options data.'} />
+
+  const s = data.summary
+
+  return (
+    <div>
+      {s && (
+        <div className={styles.statsGrid}>
+          <Card animate delay={0.05}>
+            <MetricCard label="Total Volume" value={s.total_volume?.toLocaleString() ?? '—'} mono />
+          </Card>
+          <Card animate delay={0.08}>
+            <MetricCard label="Put/Call Ratio" value={formatNum(s.put_call_ratio)} mono />
+          </Card>
+          <Card animate delay={0.11}>
+            <MetricCard label="IV" value={s.implied_volatility ? `${formatNum(s.implied_volatility * 100)}%` : '—'} mono />
+          </Card>
+        </div>
+      )}
+
+      {data.unusual_activity.length > 0 && (
+        <>
+          <p className={styles.sectionTitle}>Unusual Activity</p>
+          <Card className={styles.tableCard} animate>
+            <div className={styles.tableWrapper}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th className={styles.right}>Strike</th>
+                    <th>Expiry</th>
+                    <th className={styles.right}>Volume</th>
+                    <th className={styles.right}>OI</th>
+                    <th className={styles.right}>Premium</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.unusual_activity.map((u, i) => (
+                    <motion.tr
+                      key={i}
+                      className={styles.row}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.04, duration: 0.3 }}
+                    >
+                      <td>
+                        <Badge variant={u.type.toLowerCase().includes('call') ? 'success' : 'danger'} size="xs">
+                          {u.type}
+                        </Badge>
+                      </td>
+                      <td className={clsx('right', styles.mono)}>${formatNum(u.strike)}</td>
+                      <td className={styles.mono}>{u.expiry}</td>
+                      <td className={clsx('right', styles.mono)}>{u.volume.toLocaleString()}</td>
+                      <td className={clsx('right', styles.mono)}>{u.open_interest.toLocaleString()}</td>
+                      <td className={clsx('right', styles.mono)}>{formatLargeNumber(u.premium)}</td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </>
+      )}
+
+      {data.unusual_activity.length === 0 && (
+        <EmptyPanel message="No unusual options activity detected." />
+      )}
+    </div>
+  )
+}
+
+// ── Supply Chain tab ─────────────────────────────────────────────────────────
+
+function SupplyChainTab({ ticker }: { ticker: string }) {
+  const { data, isLoading, isError } = useSupplyChain(ticker)
+
+  if (isLoading) return <LoadingPanel />
+  if (isError) return <ErrorPanel message="Failed to load supply chain." />
+  if (!data || data.error) return <EmptyPanel message={data?.error ?? 'No supply chain data.'} />
+
+  const sections = [
+    { label: 'Suppliers', items: data.suppliers, variant: 'neutral' as const },
+    { label: 'Customers', items: data.customers, variant: 'success' as const },
+    { label: 'Partners', items: data.partners, variant: 'gold' as const },
+  ]
+
+  return (
+    <div>
+      {sections.map(sec => sec.items.length > 0 && (
+        <div key={sec.label}>
+          <p className={styles.sectionTitle}>{sec.label}</p>
+          <div className={styles.headlineList}>
+            {sec.items.map((item, i) => (
+              <motion.div
+                key={`${item.name}-${i}`}
+                className={styles.headline}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.04, duration: 0.3 }}
+              >
+                <div className={styles.headlineMeta}>
+                  <Badge variant={sec.variant} size="xs">{sec.label.slice(0, -1)}</Badge>
+                  {item.ticker && (
+                    <span className={clsx(styles.mono, styles.positive)}>{item.ticker}</span>
+                  )}
+                </div>
+                <div className={styles.headlineTitle}>{item.name}</div>
+                {item.detail && (
+                  <span className={styles.muted} style={{ fontSize: 'var(--text-xs)' }}>{item.detail}</span>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      ))}
+      {sections.every(s => s.items.length === 0) && (
+        <EmptyPanel message="No supply chain data found." />
+      )}
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function StockDetailPage() {
@@ -628,6 +880,15 @@ export function StockDetailPage() {
             )}
             {activeTab === 'sentiment' && (
               <SentimentTab ticker={safeT} />
+            )}
+            {activeTab === 'valuation' && (
+              <ValuationTab ticker={safeT} />
+            )}
+            {activeTab === 'options' && (
+              <OptionsTab ticker={safeT} />
+            )}
+            {activeTab === 'supply' && (
+              <SupplyChainTab ticker={safeT} />
             )}
           </motion.div>
         </AnimatePresence>

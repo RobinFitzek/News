@@ -5,6 +5,13 @@ import { usePortfolio, useAddTrade } from '@/api/endpoints/portfolioTracker'
 import type { AddTradePayload } from '@/api/endpoints/portfolioTracker'
 import { usePortfolioAsk } from '@/api/endpoints/portfolio'
 import type { PortfolioQAResponse } from '@/api/endpoints/portfolio'
+import {
+  usePortfolioVaR,
+  usePortfolioCorrelation,
+  usePortfolioConcentration,
+  useDrawdown,
+  useRebalancingPlan,
+} from '@/api/endpoints/portfolioRisk'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -40,6 +47,234 @@ const DEFAULT_FORM: AddTradePayload = {
   fees: 0,
   notes: '',
   currency: 'USD',
+}
+
+// ── Risk Analytics ────────────────────────────────────────────────────────────
+
+function PortfolioRiskSection() {
+  const { data: varData } = usePortfolioVaR()
+  const { data: corrData } = usePortfolioCorrelation()
+  const { data: concData } = usePortfolioConcentration()
+  const { data: ddData } = useDrawdown()
+  const { data: rebalData } = useRebalancingPlan()
+  const [showRebal, setShowRebal] = useState(false)
+
+  return (
+    <>
+      <p className={styles.sectionTitle} style={{ marginTop: 'var(--space-6)' }}>
+        Risk Analytics
+      </p>
+
+      {/* VaR + Drawdown row */}
+      <div className={styles.riskGrid}>
+        {varData && !varData.error && (
+          <Card delay={0}>
+            <div className={styles.riskCard}>
+              <span className={styles.riskCardTitle}>Value at Risk</span>
+              <div className={styles.riskMetrics}>
+                <div className={styles.riskMetric}>
+                  <span className={styles.riskMetricLabel}>VaR 95%</span>
+                  <span className={clsx(styles.riskMetricValue, styles.negative)}>
+                    {fmtCurrency(varData.var_95)}
+                  </span>
+                </div>
+                <div className={styles.riskMetric}>
+                  <span className={styles.riskMetricLabel}>VaR 99%</span>
+                  <span className={clsx(styles.riskMetricValue, styles.negative)}>
+                    {fmtCurrency(varData.var_99)}
+                  </span>
+                </div>
+                <div className={styles.riskMetric}>
+                  <span className={styles.riskMetricLabel}>CVaR 95%</span>
+                  <span className={clsx(styles.riskMetricValue, styles.negative)}>
+                    {fmtCurrency(varData.cvar_95)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {ddData && !ddData.error && (
+          <Card delay={0.05}>
+            <div className={styles.riskCard}>
+              <span className={styles.riskCardTitle}>Drawdown</span>
+              <div className={styles.riskMetrics}>
+                <div className={styles.riskMetric}>
+                  <span className={styles.riskMetricLabel}>Max DD</span>
+                  <span className={clsx(styles.riskMetricValue, styles.negative)}>
+                    {fmt(ddData.max_drawdown)}%
+                  </span>
+                </div>
+                <div className={styles.riskMetric}>
+                  <span className={styles.riskMetricLabel}>Current DD</span>
+                  <span className={clsx(styles.riskMetricValue, ddData.current_drawdown < -5 ? styles.negative : '')}>
+                    {fmt(ddData.current_drawdown)}%
+                  </span>
+                </div>
+                {ddData.recovery_days !== null && (
+                  <div className={styles.riskMetric}>
+                    <span className={styles.riskMetricLabel}>Recovery</span>
+                    <span className={styles.riskMetricValue}>{ddData.recovery_days}d</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </Card>
+        )}
+      </div>
+
+      {/* Concentration */}
+      {concData && !concData.error && (
+        <Card className={styles.tableCard} animate={false}>
+          <div className={styles.sectionHeader}>
+            <span className={styles.sectionTitle}>Concentration</span>
+            {concData.warnings.length > 0 && (
+              <Badge variant="warning" size="xs">{concData.warnings.length} warnings</Badge>
+            )}
+          </div>
+          <div className={styles.concentrationGrid}>
+            <div className={styles.riskMetric}>
+              <span className={styles.riskMetricLabel}>Top Position</span>
+              <span className={styles.riskMetricValue}>{fmt(concData.top_position_weight)}%</span>
+            </div>
+            <div className={styles.riskMetric}>
+              <span className={styles.riskMetricLabel}>HHI</span>
+              <span className={styles.riskMetricValue}>{fmt(concData.herfindahl_index, 4)}</span>
+            </div>
+          </div>
+          {concData.sector_exposure.length > 0 && (
+            <div className={styles.sectorBars}>
+              {concData.sector_exposure.map(s => (
+                <div key={s.sector} className={styles.sectorBar}>
+                  <span className={styles.sectorBarLabel}>{s.sector}</span>
+                  <div className={styles.sectorBarTrack}>
+                    <div
+                      className={styles.sectorBarFill}
+                      style={{ width: `${Math.min(s.weight, 100)}%` }}
+                    />
+                  </div>
+                  <span className={styles.sectorBarValue}>{fmt(s.weight)}%</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {concData.warnings.length > 0 && (
+            <div className={styles.warningsList}>
+              {concData.warnings.map((w, i) => (
+                <div key={i} className={styles.warningItem}>{w}</div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Correlation Matrix */}
+      {corrData && !corrData.error && corrData.tickers.length >= 2 && (
+        <Card className={styles.tableCard} animate={false}>
+          <div className={styles.sectionHeader}>
+            <span className={styles.sectionTitle}>Correlation Matrix</span>
+          </div>
+          <div className={styles.tableWrapper}>
+            <table className={styles.corrTable}>
+              <thead>
+                <tr>
+                  <th />
+                  {corrData.tickers.map(t => (
+                    <th key={t} className={styles.corrHeader}>{t}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {corrData.tickers.map((rowT, ri) => (
+                  <tr key={rowT}>
+                    <td className={styles.corrRowLabel}>{rowT}</td>
+                    {corrData.matrix[ri].map((val, ci) => {
+                      const abs = Math.abs(val)
+                      const color = ri === ci
+                        ? 'transparent'
+                        : val > 0.7
+                          ? `rgba(232,96,96,${abs * 0.3})`
+                          : val < -0.3
+                            ? `rgba(78,232,138,${abs * 0.3})`
+                            : `rgba(107,184,255,${abs * 0.15})`
+                      return (
+                        <td
+                          key={ci}
+                          className={styles.corrCell}
+                          style={{ backgroundColor: color }}
+                        >
+                          {ri === ci ? '1.00' : val.toFixed(2)}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {/* Rebalancing Plan */}
+      {rebalData && !rebalData.error && rebalData.count > 0 && (
+        <Card className={styles.tableCard} animate={false}>
+          <button
+            className={styles.tradeLogToggle}
+            onClick={() => setShowRebal(v => !v)}
+          >
+            <span className={clsx(styles.toggleIcon, showRebal && styles.open)}>▶</span>
+            Rebalancing Plan
+            <span className={styles.tradeCount}>{rebalData.count} actions</span>
+          </button>
+          <AnimatePresence>
+            {showRebal && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+                style={{ overflow: 'hidden' }}
+              >
+                <div className={styles.tableWrapper}>
+                  <table className={styles.tradeTable}>
+                    <thead>
+                      <tr>
+                        <th>Ticker</th>
+                        <th>Action</th>
+                        <th>Current %</th>
+                        <th>Target %</th>
+                        <th>Shares</th>
+                        <th>Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rebalData.plan.map(r => (
+                        <tr key={r.ticker} className={styles.tradeRow}>
+                          <td><span className={styles.ticker}>{r.ticker}</span></td>
+                          <td>
+                            <Badge variant={r.action === 'BUY' ? 'success' : r.action === 'SELL' ? 'danger' : 'neutral'}>
+                              {r.action}
+                            </Badge>
+                          </td>
+                          <td><span className={styles.mono}>{fmt(r.current_weight)}%</span></td>
+                          <td><span className={styles.mono}>{fmt(r.target_weight)}%</span></td>
+                          <td><span className={styles.mono}>{r.delta_shares >= 0 ? '+' : ''}{r.delta_shares}</span></td>
+                          <td><span className={clsx(styles.mono, r.delta_value >= 0 ? styles.positive : styles.negative)}>
+                            {r.delta_value >= 0 ? '+' : ''}{fmtCurrency(r.delta_value)}
+                          </span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </Card>
+      )}
+    </>
+  )
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -275,6 +510,9 @@ export function PortfolioPage() {
           </Card>
         </>
       )}
+
+      {/* Risk Analytics Section */}
+      <PortfolioRiskSection />
 
       {/* Add Trade Modal */}
       <Modal
