@@ -10,6 +10,8 @@ import type { Discovery, DiscoveryStatus } from '@/api/endpoints/discovery'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
+import { SignalGlyph } from '@/components/ui/SignalGlyph'
+import type { SignalType as GlyphSignal } from '@/components/ui/SignalGlyph'
 import { Button } from '@/components/ui/Button'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { Spinner } from '@/components/ui/Spinner'
@@ -105,7 +107,12 @@ function DiscoveryCard({
 
         {/* Signal label */}
         {signal && (
-          <div className={styles.signal}>{signal}</div>
+          <div className={styles.signal} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {(['BUY','SELL','HOLD','WATCH'] as GlyphSignal[]).includes(signal.toUpperCase() as GlyphSignal) && (
+              <SignalGlyph signal={signal.toUpperCase() as GlyphSignal} size={14} />
+            )}
+            {signal}
+          </div>
         )}
 
         {/* Score bar */}

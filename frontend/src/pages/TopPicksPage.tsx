@@ -5,6 +5,8 @@ import type { TopPick } from '@/api/endpoints/topPicks'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
+import { SignalGlyph } from '@/components/ui/SignalGlyph'
+import type { SignalType as GlyphSignal } from '@/components/ui/SignalGlyph'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { Spinner } from '@/components/ui/Spinner'
 import styles from './TopPicksPage.module.css'
@@ -20,6 +22,11 @@ function signalVariant(signal: string): 'success' | 'danger' | 'neutral' {
   if (s === 'BUY') return 'success'
   if (s === 'SELL') return 'danger'
   return 'neutral'
+}
+
+const GLYPH_SIGNALS = new Set(['BUY', 'SELL', 'HOLD', 'WATCH'])
+function isGlyphSignal(s: string): s is GlyphSignal {
+  return GLYPH_SIGNALS.has(s.toUpperCase())
 }
 
 function formatTs(ts: string): string {
@@ -142,9 +149,12 @@ export function TopPicksPage() {
                           <span className={styles.mono}>{pick.avg_confidence.toFixed(1)}%</span>
                         </td>
                         <td>
-                          <Badge variant={signalVariant(pick.last_signal)}>
-                            {pick.last_signal}
-                          </Badge>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            {isGlyphSignal(pick.last_signal) && <SignalGlyph signal={pick.last_signal} size={14} />}
+                            <Badge variant={signalVariant(pick.last_signal)}>
+                              {pick.last_signal}
+                            </Badge>
+                          </span>
                         </td>
                         <td>
                           <span className={styles.timestamp}>
@@ -201,7 +211,10 @@ export function TopPicksPage() {
                     <Card className={styles.signalCard} delay={i * 0.04}>
                       <div className={styles.signalCardTicker}>{sig.ticker}</div>
                       <div className={styles.signalCardMeta}>
-                        <Badge variant={signalVariant(sig.signal)}>{sig.signal}</Badge>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          {isGlyphSignal(sig.signal) && <SignalGlyph signal={sig.signal as GlyphSignal} size={14} />}
+                          <Badge variant={signalVariant(sig.signal)}>{sig.signal}</Badge>
+                        </span>
                         <span className={styles.signalConfidence}>
                           {sig.confidence.toFixed(1)}%
                         </span>
