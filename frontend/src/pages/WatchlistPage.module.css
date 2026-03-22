@@ -134,6 +134,79 @@
   justify-content: flex-end;
 }
 
+/* ── Controls Row ──────────────────────────────────────────────────────── */
+
+.controlsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.sortFilterRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sortSelect {
+  padding: 5px 10px;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-smooth);
+}
+.sortSelect:focus {
+  outline: none;
+  border-color: var(--border-highlight);
+}
+.sortSelect option { background: var(--bg-secondary); }
+
+.sortDirBtn {
+  padding: 5px 10px;
+  font-size: var(--text-sm);
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid var(--border-primary);
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-smooth),
+    border-color var(--duration-fast) var(--ease-smooth);
+}
+.sortDirBtn:hover {
+  color: var(--text-secondary);
+  border-color: var(--border-highlight);
+}
+
+.sortableHeader {
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--duration-fast) var(--ease-smooth);
+}
+.sortableHeader:hover { color: var(--text-secondary); }
+
+/* ── Count Row ─────────────────────────────────────────────────────────── */
+
+.countRow {
+  margin-bottom: var(--space-3);
+}
+
+.countLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ── Empty State ───────────────────────────────────────────────────────── */
+
 .emptyState {
   display: flex;
   align-items: center;

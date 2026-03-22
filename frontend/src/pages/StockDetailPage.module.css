@@ -80,6 +80,20 @@
 
 /* ── Signal card ─────────────────────────────────────────────────────────── */
 
+.smartMoneyCard {
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-3);
+}
+.smartMoneyRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.smartMoneyText {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
 .signalCard {
   padding: var(--space-5, 1.25rem) var(--space-6, 1.5rem);
   margin-bottom: var(--space-4);

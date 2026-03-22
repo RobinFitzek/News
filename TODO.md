@@ -731,11 +731,11 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** The `institutional_tracker.py` exists but 13F filings (quarterly, free from SEC EDGAR) are the real source for big money moves. Tracking when Berkshire, Bridgewater, Citadel, or Tiger Global add/drop positions is a high-signal data point. The existing `sec_edgar_client.py` already handles EDGAR — extend it.
 **Effort:** M · **Impact:** High (smart money tracking)
 ```
-[ ] Add get_13f_filings(cik) to sec_edgar_client.py
-[ ] Track top 20 institutional filers (hardcoded CIKs for Berkshire, Bridgewater, etc.)
-[ ] Store holding changes in institutional_holdings table
-[ ] Show "Smart Money" badge on stock_detail when a top-20 filer added position this quarter
-[ ] Weekly job: refresh 13F data after EDGAR quarterly deadline (Feb/May/Aug/Nov 15)
+[x] Add get_13f_filings(cik) to sec_edgar_client.py
+[x] Track top 20 institutional filers (hardcoded CIKs for Berkshire, Bridgewater, etc.)
+[x] Store holding changes in institutional_holdings table
+[x] Show "Smart Money" badge on stock_detail when a top-20 filer added position this quarter
+[x] Weekly job: refresh 13F data after EDGAR quarterly deadline (Feb/May/Aug/Nov 15)
 ```
 
 ### 26. Dark pool / unusual block trade detection

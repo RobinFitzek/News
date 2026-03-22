@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { useWatchlist, useAddToWatchlist, useRemoveFromWatchlist } from '@/api/endpoints/watchlist'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -13,6 +13,12 @@ import type { WatchlistTier, SignalType } from '@/types/api'
 import styles from './WatchlistPage.module.css'
 import clsx from 'clsx'
 
+// ── Sort/Filter types ────────────────────────────────────────────────────────
+
+type SortKey = 'ticker' | 'tier' | 'signal_age' | 'geo_risk'
+type SortDir = 'asc' | 'desc'
+type FilterMode = 'all' | 'alerts_only' | 'stale_only' | 'discovered'
+
 const TIERS: { value: WatchlistTier | 'all'; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'core', label: 'Core Holdings' },
@@ -20,6 +26,34 @@ const TIERS: { value: WatchlistTier | 'all'; label: string }[] = [
   { value: 'research', label: 'Research' },
   { value: 'earnings_play', label: 'Earnings Play' },
 ]
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: 'ticker', label: 'Ticker' },
+  { value: 'tier', label: 'Tier' },
+  { value: 'signal_age', label: 'Signal Age' },
+  { value: 'geo_risk', label: 'Geo Risk' },
+]
+
+const FILTER_OPTIONS: { value: FilterMode; label: string }[] = [
+  { value: 'all', label: 'Show All' },
+  { value: 'alerts_only', label: 'Alerts Only' },
+  { value: 'stale_only', label: 'Stale (>5d)' },
+]
+
+// ── localStorage persistence ─────────────────────────────────────────────────
+
+function loadPref<T>(key: string, fallback: T): T {
+  try {
+    const v = localStorage.getItem(`watchlist_${key}`)
+    return v ? JSON.parse(v) : fallback
+  } catch { return fallback }
+}
+
+function savePref(key: string, value: unknown) {
+  try { localStorage.setItem(`watchlist_${key}`, JSON.stringify(value)) } catch {}
+}
+
+// ── Subcomponents ────────────────────────────────────────────────────────────
 
 function SignalBadge({ signal }: { signal: SignalType }) {
   if (!signal) return null
@@ -32,19 +66,75 @@ function SignalBadge({ signal }: { signal: SignalType }) {
   )
 }
 
+// ── Main Component ───────────────────────────────────────────────────────────
+
 export function WatchlistPage() {
   const { data: items, isLoading } = useWatchlist()
   const addMut = useAddToWatchlist()
   const removeMut = useRemoveFromWatchlist()
   const { addToast } = useToastStore()
 
-  const [tier, setTier] = useState<WatchlistTier | 'all'>('all')
+  const [tier, setTier] = useState<WatchlistTier | 'all'>(() => loadPref('tier', 'all'))
+  const [sortKey, setSortKey] = useState<SortKey>(() => loadPref('sortKey', 'ticker'))
+  const [sortDir, setSortDir] = useState<SortDir>(() => loadPref('sortDir', 'asc'))
+  const [filterMode, setFilterMode] = useState<FilterMode>(() => loadPref('filterMode', 'all'))
   const [newTicker, setNewTicker] = useState('')
   const [newName, setNewName] = useState('')
 
-  const filtered = (items ?? []).filter(
-    item => tier === 'all' || item.tier === tier
-  )
+  // Persist preferences
+  const updateTier = useCallback((v: WatchlistTier | 'all') => { setTier(v); savePref('tier', v) }, [])
+  const updateSort = useCallback((key: SortKey) => {
+    setSortKey(prev => {
+      if (prev === key) {
+        const newDir = sortDir === 'asc' ? 'desc' : 'asc'
+        setSortDir(newDir)
+        savePref('sortDir', newDir)
+        return prev
+      }
+      setSortDir('asc')
+      savePref('sortDir', 'asc')
+      savePref('sortKey', key)
+      return key
+    })
+  }, [sortDir])
+  const updateFilter = useCallback((v: FilterMode) => { setFilterMode(v); savePref('filterMode', v) }, [])
+
+  // Filter + sort pipeline
+  const processed = useMemo(() => {
+    let list = [...(items ?? [])]
+
+    // Tier filter
+    if (tier !== 'all') list = list.filter(i => i.tier === tier)
+
+    // Mode filter
+    if (filterMode === 'alerts_only') {
+      list = list.filter(i => i.signal && (i.signal.includes('BUY') || i.signal.includes('SELL')))
+    } else if (filterMode === 'stale_only') {
+      list = list.filter(i => i.days_since_analysis === null || i.days_since_analysis > 5)
+    }
+
+    // Sort
+    list.sort((a, b) => {
+      let cmp = 0
+      switch (sortKey) {
+        case 'ticker':
+          cmp = a.ticker.localeCompare(b.ticker)
+          break
+        case 'tier':
+          cmp = (a.tier ?? '').localeCompare(b.tier ?? '')
+          break
+        case 'signal_age':
+          cmp = (a.days_since_analysis ?? 999) - (b.days_since_analysis ?? 999)
+          break
+        case 'geo_risk':
+          cmp = (b.geo_risk_score ?? 0) - (a.geo_risk_score ?? 0)
+          break
+      }
+      return sortDir === 'desc' ? -cmp : cmp
+    })
+
+    return list
+  }, [items, tier, sortKey, sortDir, filterMode])
 
   async function handleAdd() {
     if (!newTicker.trim()) return
@@ -68,6 +158,9 @@ export function WatchlistPage() {
 
   const staleColor = (days: number | null) =>
     days === null ? '' : days <= 2 ? 'positive' : days <= 7 ? 'warning' : 'negative'
+
+  const sortArrow = (key: SortKey) =>
+    sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
 
   return (
     <>
@@ -105,17 +198,62 @@ export function WatchlistPage() {
         </div>
       </Card>
 
-      {/* Tier filters */}
-      <div className={styles.filters}>
-        {TIERS.map(t => (
-          <button
-            key={t.value}
-            className={clsx(styles.filterTab, tier === t.value && styles.activeTab)}
-            onClick={() => setTier(t.value)}
+      {/* Controls row: tier filters + sort + filter mode */}
+      <div className={styles.controlsRow}>
+        {/* Tier filters */}
+        <div className={styles.filters}>
+          {TIERS.map(t => (
+            <button
+              key={t.value}
+              className={clsx(styles.filterTab, tier === t.value && styles.activeTab)}
+              onClick={() => updateTier(t.value)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Sort + Filter controls */}
+        <div className={styles.sortFilterRow}>
+          <select
+            className={styles.sortSelect}
+            value={filterMode}
+            onChange={e => updateFilter(e.target.value as FilterMode)}
           >
-            {t.label}
+            {FILTER_OPTIONS.map(f => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+          <select
+            className={styles.sortSelect}
+            value={sortKey}
+            onChange={e => updateSort(e.target.value as SortKey)}
+          >
+            {SORT_OPTIONS.map(s => (
+              <option key={s.value} value={s.value}>Sort: {s.label}</option>
+            ))}
+          </select>
+          <button
+            className={styles.sortDirBtn}
+            onClick={() => {
+              const d = sortDir === 'asc' ? 'desc' : 'asc'
+              setSortDir(d)
+              savePref('sortDir', d)
+            }}
+            title={sortDir === 'asc' ? 'Ascending' : 'Descending'}
+          >
+            {sortDir === 'asc' ? '↑' : '↓'}
           </button>
-        ))}
+        </div>
+      </div>
+
+      {/* Count badge */}
+      <div className={styles.countRow}>
+        <span className={styles.countLabel}>
+          {processed.length} ticker{processed.length !== 1 ? 's' : ''}
+          {tier !== 'all' && ` in ${tier.replace('_', ' ')}`}
+          {filterMode !== 'all' && ` · ${filterMode.replace('_', ' ')}`}
+        </span>
       </div>
 
       {/* Table */}
@@ -127,17 +265,25 @@ export function WatchlistPage() {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>Ticker</th>
+                  <th className={styles.sortableHeader} onClick={() => updateSort('ticker')}>
+                    Ticker{sortArrow('ticker')}
+                  </th>
                   <th>Name</th>
-                  <th>Tier</th>
+                  <th className={styles.sortableHeader} onClick={() => updateSort('tier')}>
+                    Tier{sortArrow('tier')}
+                  </th>
                   <th>Signal</th>
-                  <th>Geo Risk</th>
-                  <th>Last Analyzed</th>
-                  <th></th>
+                  <th className={styles.sortableHeader} onClick={() => updateSort('geo_risk')}>
+                    Geo Risk{sortArrow('geo_risk')}
+                  </th>
+                  <th className={styles.sortableHeader} onClick={() => updateSort('signal_age')}>
+                    Last Analyzed{sortArrow('signal_age')}
+                  </th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((item, i) => (
+                {processed.map((item, i) => (
                   <motion.tr
                     key={item.ticker}
                     initial={{ opacity: 0, y: 8 }}
@@ -188,6 +334,9 @@ export function WatchlistPage() {
                     </td>
                     <td>
                       <div className={styles.actions}>
+                        <a href={`/stock/${item.ticker}`}>
+                          <Button variant="secondary" size="sm">View</Button>
+                        </a>
                         <a href={`/analyze?ticker=${item.ticker}`}>
                           <Button variant="secondary" size="sm">Analyze</Button>
                         </a>
@@ -205,7 +354,7 @@ export function WatchlistPage() {
               </tbody>
             </table>
 
-            {filtered.length === 0 && (
+            {processed.length === 0 && (
               <div className={styles.emptyState}>
                 <p>No tickers in this category.</p>
               </div>

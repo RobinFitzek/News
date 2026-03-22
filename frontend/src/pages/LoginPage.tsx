@@ -7,8 +7,13 @@ import styles from './LoginPage.module.css'
 
 type LoginError = 'invalid' | 'locked' | null
 
-// Minimal market indices for the left panel — static display
-const INDICES = [
+interface MarketIndex {
+  label: string
+  value: string
+  change: string
+}
+
+const FALLBACK_INDICES: MarketIndex[] = [
   { label: 'S&P 500', value: '—', change: '' },
   { label: 'NASDAQ', value: '—', change: '' },
   { label: 'DOW', value: '—', change: '' },
@@ -21,6 +26,7 @@ export function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<LoginError>(null)
   const [lockMinutes, setLockMinutes] = useState(0)
+  const [indices, setIndices] = useState<MarketIndex[]>(FALLBACK_INDICES)
   const navigate = useNavigate()
 
   // Kick off CSRF fetch early
@@ -30,6 +36,23 @@ export function LoginPage() {
       .then(r => r.json())
       .then((d: { token: string }) => setCsrfToken(d.token))
       .catch(() => {})
+  }, [])
+
+  // Try to load live market data (works if session cookie still valid)
+  useEffect(() => {
+    fetch('/api/market-regime', { credentials: 'include' })
+      .then(r => { if (!r.ok) throw new Error(); return r.json() })
+      .then((d: { spy_price?: number; spy_change_pct?: number; vix?: number; vix_change_pct?: number; nasdaq_price?: number; nasdaq_change_pct?: number; dow_price?: number; dow_change_pct?: number }) => {
+        const fmt = (v: number | undefined) => v !== undefined ? v.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '—'
+        const pct = (v: number | undefined) => v !== undefined ? `${v >= 0 ? '+' : ''}${v.toFixed(2)}%` : ''
+        setIndices([
+          { label: 'S&P 500', value: fmt(d.spy_price), change: pct(d.spy_change_pct) },
+          { label: 'NASDAQ', value: fmt(d.nasdaq_price), change: pct(d.nasdaq_change_pct) },
+          { label: 'DOW', value: fmt(d.dow_price), change: pct(d.dow_change_pct) },
+          { label: 'VIX', value: fmt(d.vix), change: pct(d.vix_change_pct) },
+        ])
+      })
+      .catch(() => { /* Not authenticated — keep fallback dashes */ })
   }, [])
 
   async function handleSubmit(e: FormEvent) {
@@ -122,10 +145,15 @@ export function LoginPage() {
 
         {/* Market strip at bottom */}
         <div className={styles.marketStrip}>
-          {INDICES.map(idx => (
+          {indices.map(idx => (
             <div key={idx.label} className={styles.marketItem}>
               <span className={styles.marketLabel}>{idx.label}</span>
               <span className={styles.marketValue}>{idx.value}</span>
+              {idx.change && (
+                <span className={idx.change.startsWith('+') ? styles.marketUp : styles.marketDown}>
+                  {idx.change}
+                </span>
+              )}
             </div>
           ))}
         </div>

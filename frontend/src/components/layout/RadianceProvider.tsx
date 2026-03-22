@@ -60,6 +60,35 @@ export function RadianceProvider({ children }: RadianceProviderProps) {
             />
           </filter>
 
+          {/* Glass frosted blur — soft light diffusion for glass panels */}
+          <filter id="glass-diffuse" x="-5%" y="-5%" width="110%" height="110%">
+            <feGaussianBlur in="SourceGraphic" stdDeviation="0.5" result="blur" />
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="1.2"
+              numOctaves="3"
+              seed="17"
+              result="noise"
+            />
+            <feDisplacementMap
+              in="blur"
+              in2="noise"
+              scale="1"
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+          </filter>
+
+          {/* Aurora glow — soft radial gradient for background light */}
+          <radialGradient id="aurora-glow-green" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="var(--glow-positive)" stopOpacity="0.08" />
+            <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+          </radialGradient>
+          <radialGradient id="aurora-glow-blue" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="var(--glow-neutral)" stopOpacity="0.06" />
+            <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+          </radialGradient>
+
           {/* Signal glyph symbols — referenced via <use href="#signal-buy"> */}
           <symbol id="signal-buy" viewBox="0 0 16 16">
             <title>Buy Signal</title>

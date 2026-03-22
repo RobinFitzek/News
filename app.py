@@ -3540,6 +3540,18 @@ async def api_portfolio_ask(request: Request, username: str = Depends(require_ap
 
     from engine.portfolio_qa import ask as portfolio_ask
     result = portfolio_ask(question)
+
+    # Audit log for training (#56)
+    try:
+        audit_log.log(
+            "portfolio_question_asked",
+            username=username,
+            ip=request.client.host if request.client else "unknown",
+            details={"question": question, "rate_limited": result.get("rate_limited", False)},
+        )
+    except Exception:
+        pass
+
     return result
 
 # ==================== PORTFOLIO BENCHMARK ====================
@@ -4951,15 +4963,39 @@ async def api_options_flow(request: Request, ticker: str, username: str = Depend
 
 @app.get("/api/institutional/{ticker}")
 async def api_institutional(request: Request, ticker: str, username: str = Depends(require_api_key_or_session)):
-    """Get institutional holder data and ownership changes."""
+    """Get institutional holder data, ownership changes, and smart money activity."""
     from engine.institutional_tracker import institutional_tracker
     try:
         holders = institutional_tracker.get_institutional_holders(ticker)
         changes = institutional_tracker.get_ownership_changes(ticker)
+        smart_money = institutional_tracker.get_smart_money_activity(ticker)
         return {
             "holders": holders,
             "changes": changes,
+            "smart_money": smart_money,
         }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/smart-money/{ticker}")
+async def api_smart_money(request: Request, ticker: str, username: str = Depends(require_api_key_or_session)):
+    """Lightweight smart money badge check for a ticker (queries local DB only)."""
+    from engine.institutional_tracker import institutional_tracker
+    try:
+        return institutional_tracker.get_smart_money_activity(ticker)
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/smart-money/refresh")
+async def api_refresh_13f(request: Request, username: str = Depends(require_api_key_or_session)):
+    """Manually trigger 13F data refresh for all top filers."""
+    from engine.institutional_tracker import institutional_tracker
+    try:
+        results = institutional_tracker.refresh_top_filer_holdings()
+        total = sum(results.values())
+        return {"filers_refreshed": len(results), "total_holdings": total, "details": results}
     except Exception as e:
         return {"error": str(e)}
 

@@ -19,8 +19,9 @@ export function AnalyzePage() {
   }, [])
 
   function handleSubmit() {
+    // Form POSTs to /analyze — page navigates away on success.
+    // Keep isPending true until the component unmounts.
     setIsPending(true)
-    setTimeout(() => setIsPending(false), 3000)
   }
 
   return (

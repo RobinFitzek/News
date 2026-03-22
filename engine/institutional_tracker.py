@@ -50,6 +50,10 @@ class InstitutionalTracker:
                     UNIQUE(filer_name, ticker, filing_date)
                 )
             """)
+            db.execute("""
+                CREATE INDEX IF NOT EXISTS idx_inst_holdings_ticker_date
+                ON institutional_holdings(ticker, filing_date)
+            """)
         except Exception as e:
             logger.error(f"Failed to create institutional_holdings table: {e}")
 

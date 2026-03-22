@@ -4,6 +4,7 @@
   align-items: center;
   gap: var(--space-1);
   text-align: center;
+  position: relative;
 }
 
 .value {
@@ -12,6 +13,7 @@
   font-weight: 500;
   color: var(--text-primary);
   line-height: 1;
+  transition: text-shadow var(--duration-normal) var(--ease-smooth);
 }
 
 .value.large {
@@ -24,16 +26,55 @@
   font-family: var(--font-mono);
 }
 
+/* Value glow on hover — subtle luminous text effect */
+.metric:hover .value {
+  text-shadow: 0 0 20px rgba(238, 232, 220, 0.12);
+}
+
 .delta {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-weight: 500;
   line-height: 1;
+  position: relative;
 }
 
-.delta.positive { color: var(--signal-positive); }
-.delta.negative { color: var(--signal-negative); }
-.delta.neutral  { color: var(--text-muted); }
+.delta.positive {
+  color: var(--signal-positive);
+}
+.delta.negative {
+  color: var(--signal-negative);
+}
+.delta.neutral {
+  color: var(--text-muted);
+}
+
+/* Pulse ring for positive/negative deltas */
+.delta.positive::before,
+.delta.negative::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(0.8);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.delta.positive::before {
+  background: var(--signal-positive);
+  box-shadow: 0 0 6px var(--glow-positive);
+  animation: ring-pulse 3s ease-out infinite;
+}
+
+.delta.negative::before {
+  background: var(--signal-negative);
+  box-shadow: 0 0 6px var(--glow-negative);
+  animation: ring-pulse 3s ease-out infinite;
+}
 
 .label {
   font-size: var(--text-xs);
@@ -41,4 +82,17 @@
   text-transform: uppercase;
   letter-spacing: 0.06em;
   font-family: var(--font-mono);
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .delta.positive::before,
+  .delta.negative::before {
+    animation: none;
+  }
+
+  .metric:hover .value {
+    text-shadow: none;
+  }
 }

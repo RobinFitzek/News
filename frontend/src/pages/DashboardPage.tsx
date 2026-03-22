@@ -5,6 +5,8 @@ import { MarketRegimeCard } from '@/components/dashboard/MarketRegimeCard'
 import { BenchmarkCard } from '@/components/dashboard/BenchmarkCard'
 import { IntelStrip } from '@/components/dashboard/IntelStrip'
 import { EconomicCalendarCard } from '@/components/dashboard/EconomicCalendarCard'
+import { SectorMomentumCard } from '@/components/dashboard/SectorMomentumCard'
+import { AutoTradeCard } from '@/components/dashboard/AutoTradeCard'
 import { GeoRadarCard } from '@/components/dashboard/GeoRadarCard'
 import styles from './DashboardPage.module.css'
 
@@ -63,16 +65,24 @@ export function DashboardPage() {
           <EconomicCalendarCard />
         </motion.div>
         <motion.div variants={itemVariants}>
-          {/* SectorMomentumCard — placeholder until built */}
-          <div className={styles.sectorPlaceholder}>
-            <span className={styles.sectorLabel}>Sector Momentum</span>
-            <p className={styles.sectorSub}>Loading sector data…</p>
-          </div>
+          <SectorMomentumCard />
         </motion.div>
       </motion.div>
 
-      {/* Geopolitical radar */}
-      <GeoRadarCard />
+      {/* Geopolitical radar + auto-trade */}
+      <motion.div
+        className={styles.contextRow}
+        variants={containerVariants}
+        initial="initial"
+        animate="animate"
+      >
+        <motion.div variants={itemVariants}>
+          <GeoRadarCard />
+        </motion.div>
+        <motion.div variants={itemVariants}>
+          <AutoTradeCard />
+        </motion.div>
+      </motion.div>
 
       {/* Bottom padding */}
       <div className={styles.bottomSpacer} />

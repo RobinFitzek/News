@@ -20,28 +20,4 @@
   .contextRow { grid-template-columns: 1fr; }
 }
 
-.sectorPlaceholder {
-  padding: var(--space-5);
-  background: var(--bg-card);
-  border: 1px solid var(--border-primary);
-  height: 100%;
-  min-height: 200px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.sectorLabel {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.sectorSub {
-  font-size: var(--text-sm);
-  color: var(--text-muted);
-}
-
 .bottomSpacer { height: var(--space-16); }

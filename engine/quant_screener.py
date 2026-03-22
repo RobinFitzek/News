@@ -1025,6 +1025,34 @@ class QuantScreener:
                 'description': f"Negative FCF yield of {quality['fcf_yield']}% — burning cash"
             })
 
+        # Dark pool / block trade anomalies (#26)
+        try:
+            from engine.dark_pool_tracker import get_ticker_signals
+            ticker = valuation.get('ticker') or technicals.get('ticker', '')
+            if ticker:
+                dp_signals = get_ticker_signals(ticker, days=7)
+                dark_pool_hits = [s for s in dp_signals if s.get('signal_type') == 'dark_pool_proxy']
+                volume_spike_hits = [s for s in dp_signals if s.get('signal_type') == 'volume_spike']
+                if dark_pool_hits:
+                    best = max(dark_pool_hits, key=lambda s: s.get('volume_ratio', 0))
+                    anomalies.append({
+                        'metric': 'Dark Pool Activity',
+                        'value': best.get('volume_ratio', 0),
+                        'direction': 'positive',
+                        'description': f"Unusual block activity detected — {best.get('volume_ratio', 0):.1f}x avg volume with minimal price movement"
+                    })
+                elif volume_spike_hits:
+                    best = max(volume_spike_hits, key=lambda s: s.get('volume_ratio', 0))
+                    if best.get('volume_ratio', 0) >= 5.0:
+                        anomalies.append({
+                            'metric': 'Block Trade Spike',
+                            'value': best.get('volume_ratio', 0),
+                            'direction': 'positive',
+                            'description': f"Major volume spike — {best.get('volume_ratio', 0):.1f}x avg, likely institutional block trade"
+                        })
+        except Exception:
+            pass
+
         return anomalies
 
     def _determine_signal(self, composite: int, anomalies: List[Dict], variant: str) -> str:

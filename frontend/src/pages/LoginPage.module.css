@@ -145,6 +145,18 @@
   font-variant-numeric: tabular-nums;
 }
 
+.marketUp {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: rgba(107, 255, 158, 0.5);
+}
+
+.marketDown {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  color: rgba(255, 107, 107, 0.5);
+}
+
 /* ── Right panel ─────────────────────────────── */
 .right {
   display: flex;
