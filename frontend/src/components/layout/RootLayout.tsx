@@ -9,9 +9,11 @@ import { KbdOverlay } from './KbdOverlay'
 import { ToastContainer } from '@/components/ui/Toast'
 import { MercuryLoading } from '@/components/ui/MercuryLoading'
 import { useThemeStore } from '@/stores/themeStore'
+import { useThemeInit } from '@/hooks/useTheme'
 import styles from './RootLayout.module.css'
 
 export function RootLayout() {
+  useThemeInit()
   const location = useLocation()
   const sidebarExpanded = useThemeStore(s => s.sidebarExpanded)
   const showLoadingScreen = useThemeStore(s => s.showLoadingScreen)
