@@ -127,7 +127,7 @@
   --duration-normal: 400ms;
   --duration-slow: 600ms;
   --duration-cinematic: 1200ms;
-  --parallax-strength: 4px;
+  --parallax-strength: 8px;
 
   --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.6);
   --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.5);

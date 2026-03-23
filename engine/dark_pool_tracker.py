@@ -24,6 +24,7 @@ VOLUME_SPIKE_MULTIPLIER = 3.0     # >3× avg volume = potential block
 LOW_MOVE_THRESHOLD_PCT = 0.5      # price move <0.5% despite high volume = dark pool signal
 HISTORY_DAYS = 30                 # days of history for avg volume calculation
 CACHE_HOURS = 6                   # hours before re-checking a ticker
+BLOCK_TRADE_THRESHOLD_USD = 5_000_000  # flag if estimated block value > $5M
 
 
 # ---------------------------------------------------------------------------
@@ -42,6 +43,8 @@ def ensure_schema() -> None:
                 avg_volume_20d  INTEGER,
                 volume_ratio    REAL,
                 price_move_pct  REAL,
+                estimated_value REAL DEFAULT 0,
+                is_large_block  INTEGER DEFAULT 0,
                 signal_type     TEXT NOT NULL,  -- 'volume_spike' | 'dark_pool_proxy' | 'smart_money'
                 description     TEXT,
                 detected_at     TEXT NOT NULL,
@@ -53,6 +56,15 @@ def ensure_schema() -> None:
             "CREATE INDEX IF NOT EXISTS idx_dark_pool_ticker "
             "ON dark_pool_signals (ticker, signal_date DESC)"
         )
+        # Migrate: add columns if missing (existing DBs)
+        try:
+            db.execute("ALTER TABLE dark_pool_signals ADD COLUMN estimated_value REAL DEFAULT 0")
+        except Exception:
+            pass
+        try:
+            db.execute("ALTER TABLE dark_pool_signals ADD COLUMN is_large_block INTEGER DEFAULT 0")
+        except Exception:
+            pass
     except Exception as e:
         logger.debug(f"dark_pool_tracker.ensure_schema: {e}")
 
@@ -96,9 +108,12 @@ def _analyze_ticker(ticker: str) -> list[dict]:
                 vol_ratio = vol / avg_vol_20
                 price_move_pct = abs((close - open_p) / open_p * 100) if open_p > 0 else 0
 
+                # Estimate trade value (volume × closing price)
+                estimated_value = vol * close if close > 0 else 0
+                is_large_block = estimated_value >= BLOCK_TRADE_THRESHOLD_USD
+
                 if vol_ratio >= VOLUME_SPIKE_MULTIPLIER:
                     if price_move_pct < LOW_MOVE_THRESHOLD_PCT:
-                        # High volume + tiny price move = classic dark pool / iceberg order
                         signal_type = "dark_pool_proxy"
                         desc = (
                             f"Volume {vol_ratio:.1f}× avg with only {price_move_pct:.2f}% price move — "
@@ -110,6 +125,8 @@ def _analyze_ticker(ticker: str) -> list[dict]:
                             f"Volume {vol_ratio:.1f}× avg ({vol:,} vs {avg_vol_20:,} avg) — "
                             f"unusual block trade activity"
                         )
+                    if is_large_block:
+                        desc += f" [${estimated_value / 1e6:.1f}M block]"
                     signals.append({
                         "ticker": ticker.upper(),
                         "signal_date": date_str,
@@ -117,6 +134,8 @@ def _analyze_ticker(ticker: str) -> list[dict]:
                         "avg_volume_20d": avg_vol_20,
                         "volume_ratio": round(vol_ratio, 2),
                         "price_move_pct": round(price_move_pct, 2),
+                        "estimated_value": round(estimated_value, 2),
+                        "is_large_block": is_large_block,
                         "signal_type": signal_type,
                         "description": desc,
                     })
@@ -140,12 +159,15 @@ def _save_signals(signals: list[dict]) -> None:
                 """
                 INSERT INTO dark_pool_signals
                     (ticker, signal_date, volume, avg_volume_20d, volume_ratio,
-                     price_move_pct, signal_type, description, detected_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     price_move_pct, estimated_value, is_large_block,
+                     signal_type, description, detected_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(ticker, signal_date, signal_type) DO UPDATE SET
                     volume=excluded.volume,
                     volume_ratio=excluded.volume_ratio,
                     price_move_pct=excluded.price_move_pct,
+                    estimated_value=excluded.estimated_value,
+                    is_large_block=excluded.is_large_block,
                     description=excluded.description,
                     detected_at=excluded.detected_at
                 """,
@@ -156,6 +178,8 @@ def _save_signals(signals: list[dict]) -> None:
                     s.get("avg_volume_20d"),
                     s.get("volume_ratio"),
                     s.get("price_move_pct"),
+                    s.get("estimated_value", 0),
+                    1 if s.get("is_large_block") else 0,
                     s["signal_type"],
                     s.get("description"),
                     now,
@@ -246,3 +270,15 @@ def get_top_signals(days: int = 7, top_n: int = 20) -> list[dict]:
         reverse=True,
     )
     return all_signals[:top_n]
+
+
+def get_large_block_trades(days: int = 2, threshold_usd: float = BLOCK_TRADE_THRESHOLD_USD) -> list[dict]:
+    """
+    Return signals where estimated trade value exceeds threshold (default $5M)
+    within the last N days. Used for high-priority alerting.
+    """
+    all_signals = get_all_recent_signals(days=days)
+    return [
+        s for s in all_signals
+        if s.get("estimated_value", 0) >= threshold_usd
+    ]

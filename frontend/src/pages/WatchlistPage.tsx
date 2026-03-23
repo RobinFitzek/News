@@ -1,6 +1,8 @@
 import { useState, useMemo, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { useWatchlist, useAddToWatchlist, useRemoveFromWatchlist } from '@/api/endpoints/watchlist'
+import { useWatchlist, useAddToWatchlist, useRemoveFromWatchlist, useSaveWatchlistNote } from '@/api/endpoints/watchlist'
+import api from '@/api/client'
+import { queryClient } from '@/api/queryClient'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -15,7 +17,7 @@ import clsx from 'clsx'
 
 // ── Sort/Filter types ────────────────────────────────────────────────────────
 
-type SortKey = 'ticker' | 'tier' | 'signal_age' | 'geo_risk'
+type SortKey = 'ticker' | 'tier' | 'signal_age' | 'geo_risk' | 'performance' | 'volatility'
 type SortDir = 'asc' | 'desc'
 type FilterMode = 'all' | 'alerts_only' | 'stale_only' | 'discovered'
 
@@ -30,14 +32,17 @@ const TIERS: { value: WatchlistTier | 'all'; label: string }[] = [
 const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'ticker', label: 'Ticker' },
   { value: 'tier', label: 'Tier' },
+  { value: 'performance', label: 'Performance' },
   { value: 'signal_age', label: 'Signal Age' },
   { value: 'geo_risk', label: 'Geo Risk' },
+  { value: 'volatility', label: 'Volatility' },
 ]
 
 const FILTER_OPTIONS: { value: FilterMode; label: string }[] = [
   { value: 'all', label: 'Show All' },
   { value: 'alerts_only', label: 'Alerts Only' },
   { value: 'stale_only', label: 'Stale (>5d)' },
+  { value: 'discovered', label: 'Discovered' },
 ]
 
 // ── localStorage persistence ─────────────────────────────────────────────────
@@ -72,7 +77,10 @@ export function WatchlistPage() {
   const { data: items, isLoading } = useWatchlist()
   const addMut = useAddToWatchlist()
   const removeMut = useRemoveFromWatchlist()
+  const noteMut = useSaveWatchlistNote()
   const { addToast } = useToastStore()
+  const [editingNote, setEditingNote] = useState<string | null>(null)
+  const [noteText, setNoteText] = useState('')
 
   const [tier, setTier] = useState<WatchlistTier | 'all'>(() => loadPref('tier', 'all'))
   const [sortKey, setSortKey] = useState<SortKey>(() => loadPref('sortKey', 'ticker'))
@@ -111,6 +119,8 @@ export function WatchlistPage() {
       list = list.filter(i => i.signal && (i.signal.includes('BUY') || i.signal.includes('SELL')))
     } else if (filterMode === 'stale_only') {
       list = list.filter(i => i.days_since_analysis === null || i.days_since_analysis > 5)
+    } else if (filterMode === 'discovered') {
+      list = list.filter(i => i.signal === 'BUY' || i.signal === 'WATCH')
     }
 
     // Sort
@@ -123,10 +133,16 @@ export function WatchlistPage() {
         case 'tier':
           cmp = (a.tier ?? '').localeCompare(b.tier ?? '')
           break
+        case 'performance':
+          cmp = (a.confidence ?? 0) - (b.confidence ?? 0)
+          break
         case 'signal_age':
           cmp = (a.days_since_analysis ?? 999) - (b.days_since_analysis ?? 999)
           break
         case 'geo_risk':
+          cmp = (b.geo_risk_score ?? 0) - (a.geo_risk_score ?? 0)
+          break
+        case 'volatility':
           cmp = (b.geo_risk_score ?? 0) - (a.geo_risk_score ?? 0)
           break
       }
@@ -153,6 +169,27 @@ export function WatchlistPage() {
       addToast(`${ticker} removed`, 'info')
     } catch {
       addToast('Failed to remove ticker', 'error')
+    }
+  }
+
+  async function handleArchive(ticker: string) {
+    try {
+      await api.post(`/watchlist/archive/${ticker}`)
+      queryClient.invalidateQueries({ queryKey: ['watchlist'] })
+      addToast(`${ticker} archived`, 'info')
+    } catch {
+      addToast('Failed to archive ticker', 'error')
+    }
+  }
+
+  async function handleSaveNote(ticker: string) {
+    try {
+      await noteMut.mutateAsync({ ticker, note: noteText })
+      addToast('Note saved', 'success')
+      setEditingNote(null)
+      setNoteText('')
+    } catch {
+      addToast('Failed to save note', 'error')
     }
   }
 
@@ -343,11 +380,44 @@ export function WatchlistPage() {
                         <Button
                           variant="ghost"
                           size="sm"
+                          onClick={() => {
+                            setEditingNote(item.ticker)
+                            setNoteText(item.note ?? '')
+                          }}
+                          title="Add note"
+                        >
+                          Note
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleArchive(item.ticker)}
+                          title="Archive ticker"
+                        >
+                          Archive
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => handleRemove(item.ticker)}
                         >
                           Remove
                         </Button>
                       </div>
+                      {editingNote === item.ticker && (
+                        <div className={styles.noteEditor}>
+                          <input
+                            className={styles.input}
+                            placeholder="Add a note..."
+                            value={noteText}
+                            onChange={e => setNoteText(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleSaveNote(item.ticker)}
+                            autoFocus
+                          />
+                          <Button variant="primary" size="sm" onClick={() => handleSaveNote(item.ticker)}>Save</Button>
+                          <Button variant="ghost" size="sm" onClick={() => setEditingNote(null)}>Cancel</Button>
+                        </div>
+                      )}
                     </td>
                   </motion.tr>
                 ))}
