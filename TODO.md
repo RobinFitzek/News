@@ -743,10 +743,10 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Description:** Finviz and stockanalysis.com expose unusual block trades (>$1M single transactions) without requiring a paid feed. A simple scraper checking these for watchlist tickers would add an institutional signal layer with zero API cost. Complement to the insider tracker.
 **Effort:** M · **Impact:** Medium
 ```
-[ ] Scrape finviz.com/quote.ashx block trade section for watchlist tickers
-[ ] Flag if block trade > $5M on a single ticker in last 48h
-[ ] Add as anomaly type in Stage 1 quant output
-[ ] Show in stock_detail as "Unusual block activity detected"
+[x] Volume-based block trade detection for watchlist tickers (yfinance proxy)
+[x] Flag if estimated block trade > $5M on a single ticker in last 48h
+[x] Add as anomaly type in Stage 1 quant output
+[x] Show in stock_detail as "Unusual block activity detected"
 ```
 
 ---
@@ -806,7 +806,7 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 [x] Create static/service-worker.js with push notification handler
 [x] POST /api/push/subscribe endpoint (stores push subscription in DB)
 [x] Trigger push on: STRONG_BUY/SELL alert, geo severity >= 8, intraday breakout
-[ ] Add "Enable notifications" button to dashboard
+[x] Add "Enable notifications" button to dashboard
 ```
 
 ---
@@ -819,7 +819,7 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 **Effort:** L · **Impact:** High (credibility of all accuracy metrics)
 ```
 [x] Add slippage_pct and commission_eur parameters to backtest_engine
-[ ] Use vectorized pandas operations instead of row-by-row loops
+[x] Use vectorized pandas operations instead of row-by-row loops
 [x] Walk-forward split: 70% in-sample fit, 30% out-of-sample test
 [x] Report: net-of-costs Sharpe, Sortino, max drawdown, win rate, avg hold
 [x] Compare gross vs net-of-costs returns side by side in backtest.html
@@ -971,7 +971,7 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
     - Effort: 5  
     - Impact: Medium  
     - Dependencies: Requires completion of the new settings design.  
-    - Checklist: [ ] 
+    - Checklist: [x]
 
 ---
 
@@ -1004,7 +1004,7 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 [x] Add supply_chain_map table: ticker, supplier_ticker, relationship_type, cached_at
 [x] In geo scan: after scoring direct exposure, cross-check supplier list against flagged regions
 [x] Elevate geo_risk_score if a key supplier is in a flagged region (+2 pts, max 10)
-[ ] Show supply chain dependencies on stock_detail.html
+[x] Show supply chain dependencies on stock_detail.html
 [x] Quarterly refresh job: re-fetch for tickers not updated in >90 days
 ```
 
@@ -1046,7 +1046,7 @@ ib_insync>=0.9.86          # only imported when mode=ibkr
 [x] After each macro snapshot, evaluate all patterns and fire if min_match conditions met
 [x] Store composite signals in macro_composite_signals table
 [x] Alert with composite name when triggered (distinct alert type from individual macro alerts)
-[ ] Show active composite signal badge on dashboard
+[x] Show active composite signal badge on dashboard
 ```
 
 ### 48. Feature importance from meta-labeler
@@ -1118,7 +1118,7 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 [x] Create templates/dark_pool.html with time-series chart (cumulative blocks)
 [x] Show volume vs typical, date, price at time of block
 [x] Add filter: min block size (1M shares, 5M, 10M+)
-[ ] Add "Alert if block exceeds threshold" feature
+[x] Add "Alert if block exceeds threshold" feature (>$5M estimated value)
 ```
 
 ### 53. Confidence Decay Visualization
@@ -1170,12 +1170,12 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 **Dependencies:** `clients/provider_registry.py` (Claude/Gemini access)
 **Effort:** M · **Impact:** Medium (user experience)
 ```
-[ ] Create POST /api/portfolio/ask endpoint
-[ ] Parse user question with LLM: "get_best_performer" vs "get_sector_concentration" vs "get_loss_leaders"
-[ ] Query portfolio_history and construct answer
-[ ] Return formatted response + supporting data
-[ ] Add Q&A widget to dashboard sidebar or portfolio page
-[ ] Store questions in audit log for training
+[x] Create POST /api/portfolio/ask endpoint
+[x] Parse user question with LLM: "get_best_performer" vs "get_sector_concentration" vs "get_loss_leaders"
+[x] Query portfolio_history and construct answer
+[x] Return formatted response + supporting data
+[x] Add Q&A widget to dashboard sidebar or portfolio page
+[x] Store questions in audit log for training
 ```
 
 ### 57. Real-time News & Sentiment Dashboard
@@ -1203,10 +1203,10 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 [x] Curate supply chain relationships (TSMC → NVDA, AAPL, AMD, etc.)
 [x] Store in database or JSON (supply_chain_relationships table)
 [x] Create engine/supply_chain_mapper.py
-[ ] For each watchlist ticker, trace upstream/downstream exposure
+[x] For each watchlist ticker, trace upstream/downstream exposure
 [x] Create GET /api/supply-chain/{ticker} endpoint
-[ ] Create templates/supply_chain.html with network graph visualization
-[ ] Show: "If TSMC falls 5%, estimated NVDA impact: -2.3%"
+[x] Create templates/supply_chain.html with network graph visualization
+[x] Show: "If TSMC falls 5%, estimated NVDA impact: -2.3%"
 [x] Add supply chain alerts to geopolitical scanner
 ```
 
@@ -1220,7 +1220,7 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 [x] Implement push notifications via Web Push API
 [x] Backend: store subscription endpoints, send push for signals
 [x] Add "Install app" prompt in base.html
-[ ] Test on iOS (PWA support is limited) and Android
+[x] Test on iOS (PWA support is limited) and Android
 ```
 
 ### 60. Watchlist Smart Sorting & Filtering
@@ -1228,10 +1228,10 @@ These features have backend API endpoints but no dedicated frontend pages. Liste
 **Description:** Add sorting/filtering: by signal recency, by volatility, by sector, by performance (YTD, 1M), by tier. Current view is just a simple list. Makes watchlist management easier.
 **Effort:** XS · **Impact:** Low (UX improvement)
 ```
-[ ] Add sort dropdowns: "By Tier", "By Performance", "By Signal Age", "By Volatility"
-[ ] Add filter toggles: "Show Only Tier 1", "Show Only Alerts", "Show Only Discovered"
-[ ] Save sort preference in localStorage
-[ ] Add "Quick Actions" column: Add Note, Archive, Remove
+[x] Add sort dropdowns: "By Tier", "By Performance", "By Signal Age", "By Volatility"
+[x] Add filter toggles: "Show Only Tier 1", "Show Only Alerts", "Show Only Discovered"
+[x] Save sort preference in localStorage
+[x] Add "Quick Actions" column: Add Note, Archive, Remove
 ```
 
 ---
@@ -1460,7 +1460,7 @@ all later work references. Incomplete tokens will cascade into broken components
 
 #### 1.1 CSS Token Architecture — `static/css/modern.css`
 
-- [ ] **Depth tokens** — Define the Z-space vocabulary used by every component layer:
+- [x] **Depth tokens** — Define the Z-space vocabulary used by every component layer:
   - `--z-luminary: 0` — The light source (background)
   - `--z-shell: 1` — The frosted site background
   - `--z-void: 2` — Air between shell and cards
@@ -1468,7 +1468,7 @@ all later work references. Incomplete tokens will cascade into broken components
   - `--z-elevated: 4` — Modals, dropdowns, tooltips
   - `--z-overlay: 5` — Loading screen, full-screen overlays
 
-- [ ] **Glass material tokens** — Precision values for every glass surface:
+- [x] **Glass material tokens** — Precision values for every glass surface:
   - `--glass-blur-near: blur(8px)` · `--glass-blur-mid: blur(20px)` · `--glass-blur-far: blur(36px)`
   - `--glass-saturation: saturate(160%)` — Color amplification through glass
   - `--glass-tint-dark: rgba(255,255,255,0.05)` — Dark mode panel fill
@@ -1477,21 +1477,21 @@ all later work references. Incomplete tokens will cascade into broken components
   - `--glass-border-shadow: rgba(0,0,0,0.18)` — Bottom/right depth rim
   - `--glass-specular: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 50%)` — Surface shine
 
-- [ ] **Glow tokens** — The Oxygen light color system:
+- [x] **Glow tokens** — The Oxygen light color system:
   - Signal glows: `--glow-positive: #6BFF9E` · `--glow-negative: #FF6B6B` · `--glow-neutral: #6BB8FF`
   - Light sources dark: `--glow-gold: #FFD87A` (warm) · `--glow-ice: #A8D8FF` (cool)
   - Light sources light: `--glow-amber: #FFB347` (warm) · `--glow-sky: #B8DAFF` (cool)
   - `--glow-intensity: 0.6` — User-adjustable multiplier (controlled by Settings slider)
   - `--glow-radius-near: 120px` · `--glow-radius-far: 400px`
 
-- [ ] **Motion tokens** — The Breathe timing manifesto:
+- [x] **Motion tokens** — The Breathe timing manifesto:
   - `--ease-breathe: cubic-bezier(0.34, 1.2, 0.64, 1)` — Spring overshoot, the signature curve
   - `--ease-defuse: cubic-bezier(0.16, 1, 0.3, 1)` — Mercury dissolution (noise → form)
   - `--ease-sink: cubic-bezier(0.4, 0, 1, 1)` — Elements settling into depth
   - `--duration-diffuse: 600ms` · `--duration-breathe: 4000ms` · `--duration-float: 6000ms`
   - `--parallax-strength: 8px` — Max card depth shift on mouse movement
 
-- [ ] **Typography tokens** — Add display weight precision to existing font stack:
+- [x] **Typography tokens** — Add display weight precision to existing font stack:
   - Enforce Source Serif 4 only for hero numbers and major section headers
   - DM Sans for all body/UI — tighten tracking to `letter-spacing: -0.01em`
   - JetBrains Mono for all financial data: tickers, percentages, timestamps, deltas
@@ -1499,14 +1499,14 @@ all later work references. Incomplete tokens will cascade into broken components
 
 #### 1.2 New Color Palette
 
-- [ ] **Dark Mode "The Deep"** — Void with ultraviolet undertone, not pure black:
+- [x] **Dark Mode "The Deep"** — Void with ultraviolet undertone, not pure black:
   - `--bg-primary: #080810` · `--bg-secondary: #0E0E1A` · `--bg-tertiary: #141426`
   - `--text-primary: #EEE8DC` — Warm off-white, readable through smoke glass
   - `--text-secondary: #9990A0` — Muted lavender-grey
   - `--border-primary: rgba(255,255,255,0.07)` · `--border-highlight: rgba(255,255,255,0.14)`
   - Signal: positive `#4EE88A` · negative `#E86060` · neutral `#60A8E8` — restrained, not neon
 
-- [ ] **Light Mode "The Breath"** — Nordic morning paper, warm cream:
+- [x] **Light Mode "The Breath"** — Nordic morning paper, warm cream:
   - `--bg-primary: #F5F0E8` · `--bg-secondary: #EDE8DF` · `--bg-tertiary: #E4DFD4`
   - `--text-primary: #18141E` — Near-black with violet depth
   - `--text-secondary: #5C5468` — Muted plum-grey

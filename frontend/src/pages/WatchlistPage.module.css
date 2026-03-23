@@ -132,6 +132,14 @@
   display: flex;
   gap: var(--space-2);
   justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.noteEditor {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin-top: var(--space-2);
 }
 
 /* ── Controls Row ──────────────────────────────────────────────────────── */
