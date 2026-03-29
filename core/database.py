@@ -876,6 +876,34 @@ class Database:
             )
 
         # Schema migrations (idempotent ALTER TABLE additions)
+        # LSTM trade log table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS lstm_trade_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker TEXT NOT NULL,
+                entered_at TEXT NOT NULL,
+                expected_return_pct REAL,
+                hold_days INTEGER,
+                confidence REAL,
+                actual_return_pct REAL,
+                verified INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_lstm_log_ticker ON lstm_trade_log(ticker)")
+
+        # Graham screen results cache
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS graham_screen_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                screened_at TEXT NOT NULL,
+                aaa_yield REAL,
+                discount_factor REAL,
+                results_json TEXT,
+                UNIQUE(screened_at)
+            )
+        """)
+
         migrations = [
             "ALTER TABLE geopolitical_events ADD COLUMN is_delta INTEGER DEFAULT 1",
             # Alert dedup tracking (#19)

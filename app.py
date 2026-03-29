@@ -6081,6 +6081,255 @@ async def api_paper_trading(
     return {"summary": summary, "trades": trades or [], "settings": settings}
 
 
+# ==================== GRAHAM SCREENER ====================
+
+@app.get("/api/graham/screen")
+async def api_graham_screen(
+    request: Request,
+    discount: float = 0.2,
+    max_positions: int = 50,
+    username: str = Depends(require_auth)
+):
+    """Graham intrinsic value screen across watchlist. discount=margin of safety (0.0–0.9)."""
+    from engine.graham_screener import graham_screener
+    tickers = [row["ticker"] for row in db.get_watchlist()]
+    if not tickers:
+        return {"error": "Watchlist is empty"}
+    discount = max(0.0, min(discount, 0.9))
+    return graham_screener.screen_watchlist(tickers, discount_factor=discount,
+                                             max_positions=max_positions)
+
+
+@app.get("/api/graham/ticker/{ticker}")
+async def api_graham_ticker(
+    ticker: str,
+    request: Request,
+    discount: float = 0.2,
+    username: str = Depends(require_auth)
+):
+    """Graham intrinsic value for a single ticker."""
+    from engine.graham_screener import graham_screener
+    return graham_screener.screen_ticker(ticker.upper(), discount_factor=discount)
+
+
+@app.get("/api/graham/backtest")
+async def api_graham_backtest(
+    request: Request,
+    discount: float = 0.2,
+    max_positions: int = 50,
+    holding_days: int = 252,
+    username: str = Depends(require_auth)
+):
+    """Graham back test across watchlist tickers."""
+    from engine.graham_screener import graham_screener
+    tickers = [row["ticker"] for row in db.get_watchlist()]
+    if not tickers:
+        return {"error": "Watchlist is empty"}
+    return graham_screener.backtest(tickers, discount_factor=discount,
+                                    max_positions=max_positions, holding_days=holding_days)
+
+
+@app.get("/api/graham/aaa-yield")
+async def api_graham_aaa_yield(request: Request, username: str = Depends(require_auth)):
+    """Return current AAA bond yield used in Graham formula."""
+    from engine.graham_screener import graham_screener
+    yield_val = graham_screener.fetch_aaa_yield()
+    return {"aaa_yield_pct": yield_val, "source": "FRED DAAA"}
+
+
+# ==================== FEAR & GREED ====================
+
+@app.get("/api/fear-greed/current")
+async def api_fear_greed_current(request: Request, username: str = Depends(require_auth)):
+    """Current CNN Fear & Greed index value."""
+    from engine.fear_greed_tracker import fear_greed_tracker
+    value = fear_greed_tracker.get_current_fear_greed()
+    label = fear_greed_tracker.get_fg_label(value) if value is not None else None
+    vix = fear_greed_tracker.get_latest_vix_features()
+    return {"fg_value": value, "fg_label": label, **vix, "fetched_at": datetime.now().isoformat()}
+
+
+@app.get("/api/fear-greed/history")
+async def api_fear_greed_history(request: Request, username: str = Depends(require_auth)):
+    """Historical Fear & Greed data (from 2011)."""
+    from engine.fear_greed_tracker import fear_greed_tracker
+    df = fear_greed_tracker.fetch_fear_greed_history()
+    if df.empty:
+        return {"data": [], "error": "Could not fetch Fear & Greed history"}
+    df["date"] = df["date"].astype(str)
+    return {"data": df.to_dict(orient="records"), "count": len(df)}
+
+
+@app.get("/api/fear-greed/sensitivity/{ticker}")
+async def api_fg_sensitivity(
+    ticker: str,
+    request: Request,
+    lookback: int = 60,
+    username: str = Depends(require_auth)
+):
+    """60-day rolling F&G sensitivity factor for a ticker (positive=risk-on, negative=defensive)."""
+    from engine.fear_greed_tracker import fear_greed_tracker
+    factor = fear_greed_tracker.get_fg_sensitivity_factor(ticker.upper(), lookback_days=lookback)
+    return {
+        "ticker": ticker.upper(),
+        "fg_sensitivity": factor,
+        "lookback_days": lookback,
+        "interpretation": (
+            "Risk-on (correlated with greed)" if factor and factor > 0.3
+            else "Defensive (anti-correlated with fear)" if factor and factor < -0.3
+            else "Neutral" if factor is not None else "Insufficient data"
+        )
+    }
+
+
+@app.get("/api/fear-greed/features/{ticker}")
+async def api_fg_features(
+    ticker: str,
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """All F&G + VIX features for a ticker (input snapshot for LSTM model)."""
+    from engine.fear_greed_tracker import fear_greed_tracker
+    features = fear_greed_tracker.get_features_for_ticker(ticker.upper())
+    return {"ticker": ticker.upper(), **features}
+
+
+# ==================== POLITICIAN TRADES ====================
+
+@app.get("/api/politicians/recent")
+async def api_politicians_recent(
+    request: Request,
+    ticker: str = None,
+    days: int = 30,
+    username: str = Depends(require_auth)
+):
+    """Recent Senate trade disclosures, optionally filtered by ticker."""
+    from engine.politician_tracker import politician_tracker
+    trades = politician_tracker.get_recent_trades(ticker=ticker, days=days)
+    return {"trades": trades, "count": len(trades)}
+
+
+@app.get("/api/politicians/top-tickers")
+async def api_politicians_top_tickers(
+    request: Request,
+    days: int = 90,
+    top_n: int = 20,
+    username: str = Depends(require_auth)
+):
+    """Most actively traded tickers by politicians in the last N days."""
+    from engine.politician_tracker import politician_tracker
+    return {"tickers": politician_tracker.get_top_traded_tickers(days=days, top_n=top_n)}
+
+
+@app.get("/api/politicians/features/{ticker}")
+async def api_politicians_features(
+    ticker: str,
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """9 political trade features for a ticker (today)."""
+    from engine.politician_tracker import politician_tracker
+    from datetime import date
+    features = politician_tracker.get_features_for_date(ticker.upper(), date.today())
+    return {"ticker": ticker.upper(), "date": date.today().isoformat(), **features}
+
+
+# ==================== LSTM PREDICTOR ====================
+
+@app.get("/api/lstm/predict/{ticker}")
+async def api_lstm_predict(
+    ticker: str,
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """LSTM buy signal prediction for a single ticker (requires trained model)."""
+    from engine.lstm_predictor import lstm_predictor
+    return lstm_predictor.predict(ticker.upper())
+
+
+@app.get("/api/lstm/signals")
+async def api_lstm_signals(request: Request, username: str = Depends(require_auth)):
+    """LSTM buy signals across entire watchlist."""
+    from engine.lstm_predictor import lstm_predictor
+    tickers = [row["ticker"] for row in db.get_watchlist()]
+    if not tickers:
+        return {"signals": [], "error": "Watchlist empty"}
+    signals = lstm_predictor.get_buy_signals(tickers)
+    return {"signals": signals, "count": len(signals), "threshold": 0.50}
+
+
+@app.post("/api/lstm/train")
+async def api_lstm_train(
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """
+    Trigger LSTM training on the watchlist (runs synchronously — may take several minutes).
+    POST body (optional JSON): {"epochs": 20, "years_back": 3}
+    """
+    from engine.lstm_predictor import lstm_predictor
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    epochs = int(body.get("epochs", 20))
+    years_back = int(body.get("years_back", 3))
+    tickers = [row["ticker"] for row in db.get_watchlist()]
+    if not tickers:
+        return {"error": "Watchlist empty"}
+    result = lstm_predictor.train(tickers, epochs=epochs, years_back=years_back)
+    return result
+
+
+@app.get("/api/lstm/performance")
+async def api_lstm_performance(request: Request, username: str = Depends(require_auth)):
+    """LSTM trade log performance metrics: CAGR, max drawdown, win rate."""
+    from engine.lstm_predictor import lstm_predictor
+    return lstm_predictor.get_performance_metrics()
+
+
+@app.get("/api/lstm/trade-history")
+async def api_lstm_trade_history(
+    request: Request,
+    limit: int = 100,
+    username: str = Depends(require_auth)
+):
+    """LSTM trade history log (expected vs actual returns, hold periods)."""
+    from engine.lstm_predictor import lstm_predictor
+    trades = lstm_predictor.get_trade_history(limit=limit)
+    return {"trades": trades, "count": len(trades)}
+
+
+# ==================== BACKTEST RANDOM BASELINE ====================
+
+@app.post("/api/backtest/random-baseline")
+async def api_backtest_random_baseline(
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """
+    Run 500-simulation random portfolio baseline against latest backtest results.
+    POST body (optional): {"n_simulations": 500, "portfolio_size": 20}
+    """
+    from engine.backtest_engine import BacktestEngine
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    n_sim = int(body.get("n_simulations", 500))
+    port_size = int(body.get("portfolio_size", 20))
+
+    # Fetch latest backtest results from DB
+    rows = db.query("SELECT * FROM backtest_results ORDER BY test_date DESC LIMIT 5000")
+    if not rows:
+        return {"error": "No backtest results found. Run a backtest first."}
+
+    engine = BacktestEngine()
+    # Convert DB rows to expected format
+    results = [dict(r) for r in rows]
+    return engine.run_random_baseline(results, n_simulations=n_sim, portfolio_size=port_size)
+
+
 # SPA catch-all — serve React index.html for all non-API routes
 _REACT_INDEX = Path(__file__).parent / "static" / "react" / "index.html"
 

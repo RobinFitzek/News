@@ -1184,15 +1184,101 @@ class BacktestEngine:
 
         avg_turnover = round(float(np.mean(monthly_turnover)), 1) if monthly_turnover else 0
 
+        # CAGR: annualized compound growth from monthly net returns
+        cagr = None
+        if len(net_arr) >= 2:
+            try:
+                equity_curve = np.cumprod(1 + net_arr / 100)
+                years = len(net_arr) / 12.0
+                cagr = round((float(equity_curve[-1]) ** (1 / max(years, 0.1)) - 1) * 100, 2)
+            except Exception:
+                pass
+
         return {
             'total_return_gross': total_return_gross,
             'total_return_net': total_return_net,
+            'cagr_pct': cagr,
             'sharpe': sharpe,
             'max_drawdown': max_dd,
             'num_months': len(monthly_returns_gross),
+            'completed_trades': len(with_fwd),
             'avg_monthly_return_net': round(mean_net, 2),
             'avg_turnover_per_month': avg_turnover,
             'transaction_cost_bps': self.TRANSACTION_COST_BPS,
+        }
+
+    # ------------------------------------------------------------------
+    # Random Baseline (500 simulations)
+    # ------------------------------------------------------------------
+
+    def run_random_baseline(self, results: List[Dict], n_simulations: int = 500,
+                             portfolio_size: int = 20) -> Dict:
+        """
+        Run N random portfolio simulations to create a statistical baseline.
+        Each simulation randomly buys/sells stocks from the ticker universe every month.
+        Returns histogram data showing distribution of random returns vs the model.
+
+        This tells us how many standard deviations above random our model is.
+        """
+        # Get all tickers that have forward return data
+        with_fwd = [r for r in results if r.get('forward_20d_return') is not None]
+        if len(with_fwd) < portfolio_size:
+            return {'error': 'Insufficient data for random baseline', 'n_simulations': 0}
+
+        # Group by month
+        by_month: Dict[str, List[Dict]] = {}
+        for r in with_fwd:
+            month_key = r['test_date'][:7]
+            by_month.setdefault(month_key, []).append(r)
+
+        months = sorted(by_month.keys())
+        if not months:
+            return {'error': 'No monthly data available', 'n_simulations': 0}
+
+        sim_total_returns = []
+
+        for _ in range(n_simulations):
+            monthly_returns = []
+            for month_key in months:
+                pool = by_month[month_key]
+                k = min(portfolio_size, len(pool))
+                chosen = np.random.choice(len(pool), size=k, replace=False)
+                month_ret = np.mean([pool[i]['forward_20d_return'] for i in chosen])
+                monthly_returns.append(month_ret)
+
+            arr = np.array(monthly_returns)
+            total_ret = float(np.sum(arr))
+            sim_total_returns.append(total_ret)
+
+        sim_arr = np.array(sim_total_returns)
+        mean_random = float(np.mean(sim_arr))
+        std_random = float(np.std(sim_arr))
+
+        # Equal-weight buy-and-hold all tickers with data (white line benchmark)
+        equal_weight_return = float(np.mean([r['forward_20d_return'] for r in with_fwd])) * len(months)
+
+        # How many std devs is our model above random?
+        model_port = self._simulate_portfolio(results)
+        model_return = model_port.get('total_return_net', 0)
+        z_score = (model_return - mean_random) / max(std_random, 0.01)
+
+        # Build histogram buckets (20 bins)
+        hist_counts, hist_edges = np.histogram(sim_arr, bins=20)
+
+        return {
+            'n_simulations': n_simulations,
+            'portfolio_size': portfolio_size,
+            'mean_random_return': round(mean_random, 2),
+            'std_random_return': round(std_random, 2),
+            'equal_weight_return': round(equal_weight_return, 2),
+            'model_return': round(model_return, 2),
+            'z_score_vs_random': round(z_score, 2),
+            'pct_simulations_beaten': round(float(np.mean(sim_arr < model_return)) * 100, 1),
+            'histogram': {
+                'counts': hist_counts.tolist(),
+                'bin_edges': [round(e, 2) for e in hist_edges.tolist()],
+            },
+            'all_returns': [round(r, 2) for r in sim_total_returns],
         }
 
     # ------------------------------------------------------------------
