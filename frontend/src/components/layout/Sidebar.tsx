@@ -42,6 +42,10 @@ const ICONS = {
   graveyard: 'M8 2v4m8-4v4m-9 4h10M5 6h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z',
   compare: 'M16 3h5v5M8 3H3v5m18 8v5h-5M3 16v5h5M21 3l-7 7M3 3l7 7m4 4 7 7M3 21l7-7',
   architecture: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
+  graham: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1 14V8m-3 4h8',
+  fearGreed: 'M12 2a10 10 0 0 1 10 10c0 2.4-.85 4.6-2.26 6.33M12 6v6l4 2M4.93 4.93l1.41 1.41',
+  politicians: 'M17 20h5v-2a3 3 0 0 0-5.36-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 0 1 5.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 0 1 9.288 0M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
+  lstm: 'M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1',
   settings: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z',
   logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
   chevronLeft: 'M15 18l-6-6 6-6',
@@ -89,6 +93,14 @@ const NAV_GROUPS: { items: NavItem[] }[] = [
       { to: '/crosscheck',  label: 'Fact-Check',   icon: 'crosscheck' },
       { to: '/backtest',    label: 'Backtest',     icon: 'backtest' },
       { to: '/stock/compare', label: 'Compare',    icon: 'compare' },
+    ],
+  },
+  {
+    items: [
+      { to: '/graham',             label: 'Graham Value',   icon: 'graham' },
+      { to: '/fear-greed',         label: 'Fear & Greed',   icon: 'fearGreed' },
+      { to: '/politician-trades',  label: 'Senate Trades',  icon: 'politicians' },
+      { to: '/lstm',               label: 'LSTM Model',     icon: 'lstm' },
     ],
   },
   {
