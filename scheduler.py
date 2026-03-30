@@ -583,6 +583,36 @@ class InvestmentScheduler:
             replace_existing=True
         )
 
+        # Daily Graham screen (07:30 on weekdays)
+        self.scheduler.add_job(
+            self.run_graham_screen,
+            CronTrigger(day_of_week='mon-fri', hour=7, minute=30,
+                        timezone=self.timezone),
+            id='graham_screen',
+            name='Graham Value Screen',
+            replace_existing=True
+        )
+
+        # Daily Fear & Greed + VIX snapshot (08:00)
+        self.scheduler.add_job(
+            self.run_fear_greed_snapshot,
+            CronTrigger(day_of_week='mon-fri', hour=8, minute=0,
+                        timezone=self.timezone),
+            id='fear_greed_snapshot',
+            name='Fear & Greed Snapshot',
+            replace_existing=True
+        )
+
+        # Daily Senate trades refresh (06:00)
+        self.scheduler.add_job(
+            self.run_politician_refresh,
+            CronTrigger(day_of_week='mon-fri', hour=6, minute=0,
+                        timezone=self.timezone),
+            id='politician_refresh',
+            name='Senate Trade Data Refresh',
+            replace_existing=True
+        )
+
         self.scheduler.start()
         self.is_running = True
         print(f"Scheduler started: Daily every {self.interval_hours}h, Weekly Sun 20:00, Monthly 28th 18:00")
@@ -1137,6 +1167,48 @@ class InvestmentScheduler:
             db.log_scheduler_run(tickers_scanned=0, alerts_sent=0, errors="", duration=0)
         except Exception as e:
             print(f"(Error) DB backup failed: {e}")
+
+    def run_graham_screen(self):
+        """Daily Graham intrinsic value screen across watchlist."""
+        try:
+            from engine.graham_screener import graham_screener
+            tickers = [row["ticker"] for row in db.get_watchlist()]
+            if not tickers:
+                return
+            result = graham_screener.screen_watchlist(tickers, discount_factor=0.2)
+            buy_count = result.get("buy_candidates", 0)
+            print(f"Graham screen: {result['iv_calculable']}/{len(tickers)} IV-calculable, "
+                  f"{buy_count} buy candidates (AAA yield: {result['aaa_yield']}%)")
+        except Exception as e:
+            print(f"(Error) Graham screen failed: {e}")
+
+    def run_fear_greed_snapshot(self):
+        """Daily Fear & Greed + VIX snapshot."""
+        try:
+            from engine.fear_greed_tracker import fear_greed_tracker
+            value = fear_greed_tracker.get_current_fear_greed()
+            vix = fear_greed_tracker.get_latest_vix_features()
+            label = fear_greed_tracker.get_fg_label(value) if value is not None else "N/A"
+            print(f"Fear & Greed: {value:.1f} ({label}) | "
+                  f"VIX={vix.get('vix'):.1f} MA10={vix.get('vix_ma10'):.1f}")
+        except Exception as e:
+            print(f"(Error) Fear & Greed snapshot failed: {e}")
+
+    def run_politician_refresh(self):
+        """Daily Senate trade data refresh."""
+        try:
+            from engine.politician_tracker import politician_tracker
+            # Force cache refresh
+            politician_tracker._raw_cache = None
+            politician_tracker._cache_time = None
+            politician_tracker._by_ticker = None
+            trades = politician_tracker.fetch_senate_trades()
+            top = politician_tracker.get_top_traded_tickers(days=30, top_n=5)
+            ticker_str = ", ".join(t["ticker"] for t in top[:5])
+            print(f"Senate trades: {len(trades)} records loaded. "
+                  f"Top 5 (30d): {ticker_str}")
+        except Exception as e:
+            print(f"(Error) Politician refresh failed: {e}")
 
     def trigger_manual_scan(self):
         """Trigger an immediate scan in background"""

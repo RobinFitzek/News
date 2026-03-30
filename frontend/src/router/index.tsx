@@ -30,6 +30,10 @@ import { ArchitecturePage } from '@/pages/ArchitecturePage'
 import { MacroPage } from '@/pages/MacroPage'
 import { CorporateActionsPage } from '@/pages/CorporateActionsPage'
 import { ScenariosPage } from '@/pages/ScenariosPage'
+import { GrahamPage } from '@/pages/GrahamPage'
+import { FearGreedPage } from '@/pages/FearGreedPage'
+import { PoliticianTradesPage } from '@/pages/PoliticianTradesPage'
+import { LSTMPage } from '@/pages/LSTMPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 
 export const router = createBrowserRouter([
@@ -75,6 +79,10 @@ export const router = createBrowserRouter([
       { path: 'macro',                 element: <MacroPage /> },
       { path: 'corporate-actions',     element: <CorporateActionsPage /> },
       { path: 'scenarios',             element: <ScenariosPage /> },
+      { path: 'graham',                element: <GrahamPage /> },
+      { path: 'fear-greed',            element: <FearGreedPage /> },
+      { path: 'politician-trades',     element: <PoliticianTradesPage /> },
+      { path: 'lstm',                  element: <LSTMPage /> },
       { path: '*',                     element: <NotFoundPage /> },
     ],
   },

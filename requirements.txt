@@ -51,3 +51,7 @@ statsmodels>=0.14.0
 
 # PWA Web Push notifications (#31/#59)
 pywebpush>=2.0.0
+
+# LSTM Stock Predictor — install CPU-only build to avoid heavy CUDA download:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch>=2.0.0
