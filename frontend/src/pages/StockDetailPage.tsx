@@ -29,6 +29,9 @@ import {
   useOptionsFlow,
   useSupplyChain,
 } from '@/api/endpoints/stockExtras'
+import { useGrahamTicker } from '@/api/endpoints/graham'
+import { useFGSensitivity, useFearGreedCurrent } from '@/api/endpoints/fearGreed'
+import { usePoliticianTrades } from '@/api/endpoints/politicians'
 import type { SentimentHeadline } from '@/api/endpoints/stock'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Card } from '@/components/ui/Card'
@@ -44,7 +47,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip,
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type TabKey = 'overview' | 'chart' | 'earnings' | 'peers' | 'sentiment' | 'valuation' | 'options' | 'supply'
+type TabKey = 'overview' | 'chart' | 'earnings' | 'peers' | 'sentiment' | 'valuation' | 'options' | 'supply' | 'signals'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'overview',   label: 'Overview' },
@@ -55,6 +58,7 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'valuation',  label: 'Valuation' },
   { key: 'options',    label: 'Options' },
   { key: 'supply',     label: 'Supply Chain' },
+  { key: 'signals',    label: 'Signals' },
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -797,6 +801,248 @@ function SupplyChainTab({ ticker }: { ticker: string }) {
   )
 }
 
+// ── Signals tab (Graham + F&G sensitivity + Senate trades) ───────────────────
+
+function SignalsTab({ ticker }: { ticker: string }) {
+  const { data: graham, isLoading: grahamLoading } = useGrahamTicker(ticker, 0.2)
+  const { data: fg } = useFearGreedCurrent()
+  const { data: sens, isLoading: sensLoading } = useFGSensitivity(ticker, 60)
+  const { data: polData, isLoading: polLoading } = usePoliticianTrades(ticker, 90)
+
+  const trades = polData?.trades ?? []
+
+  // ── Graham section ────────────────────────────────────────────────────────
+  const grahamUpside = graham?.upside_pct ?? null
+  const grahamIV = graham?.intrinsic_value ?? null
+  const grahamPrice = graham?.current_price ?? null
+  const grahamBuyThreshold = graham?.buy_threshold ?? null
+
+  // Position price on 0–2× IV track (IV = 50%)
+  const pricePosPct = grahamIV && grahamPrice
+    ? Math.min(Math.max((grahamPrice / (grahamIV * 2)) * 100, 0), 100)
+    : null
+  const thresholdPosPct = grahamIV && grahamBuyThreshold
+    ? Math.min(Math.max((grahamBuyThreshold / (grahamIV * 2)) * 100, 0), 100)
+    : null
+
+  // ── F&G sensitivity ───────────────────────────────────────────────────────
+  const sensFactor = sens?.fg_sensitivity ?? null
+  // Map [-1, 1] → [0, 100]% for the bar marker
+  const sensPosPct = sensFactor !== null ? ((sensFactor + 1) / 2) * 100 : null
+  const sensColor = sensFactor === null ? 'var(--text-muted)'
+    : sensFactor > 0.3 ? 'var(--signal-positive)'
+    : sensFactor < -0.3 ? 'var(--signal-negative)'
+    : 'var(--signal-warning)'
+
+  function fmtAmount(v: number) {
+    if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`
+    if (v >= 1_000) return `$${(v / 1_000).toFixed(0)}K`
+    return `$${v.toFixed(0)}`
+  }
+
+  return (
+    <div>
+      {/* Graham Intrinsic Value */}
+      <p className={styles.sectionTitle}>Graham Intrinsic Value</p>
+      {grahamLoading ? <LoadingPanel /> : graham ? (
+        <Card animate className={styles.signalCard}>
+          <div className={styles.signalRow}>
+            <span className={styles.signalLabel}>Signal</span>
+            <Badge variant={graham.buy_signal ? 'success' : 'neutral'}>
+              {graham.buy_signal ? 'BUY' : 'HOLD'}
+            </Badge>
+            <span className={styles.signalLabel} style={{ marginLeft: 'auto' }}>
+              {graham.reason}
+            </span>
+          </div>
+
+          <div className={styles.riskRow}>
+            <div className={styles.riskItem}>
+              <span className={styles.riskItemLabel}>Intrinsic Value</span>
+              <span className={styles.riskItemValue}>
+                {grahamIV !== null ? `$${grahamIV.toFixed(2)}` : '—'}
+              </span>
+            </div>
+            <div className={styles.riskItem}>
+              <span className={styles.riskItemLabel}>Current Price</span>
+              <span className={styles.riskItemValue}>
+                {grahamPrice !== null ? `$${grahamPrice.toFixed(2)}` : '—'}
+              </span>
+            </div>
+            <div className={styles.riskItem}>
+              <span className={styles.riskItemLabel}>Upside</span>
+              <span className={clsx(styles.riskItemValue,
+                grahamUpside !== null && grahamUpside > 0 ? styles.positive :
+                grahamUpside !== null && grahamUpside < 0 ? styles.negative : ''
+              )}>
+                {grahamUpside !== null ? `${grahamUpside >= 0 ? '+' : ''}${grahamUpside.toFixed(1)}%` : '—'}
+              </span>
+            </div>
+            <div className={styles.riskItem}>
+              <span className={styles.riskItemLabel}>TTM EPS</span>
+              <span className={styles.mono}>
+                {graham.ttm_eps !== null ? `$${graham.ttm_eps.toFixed(2)}` : '—'}
+              </span>
+            </div>
+            <div className={styles.riskItem}>
+              <span className={styles.riskItemLabel}>Growth Rate</span>
+              <span className={styles.mono}>
+                {graham.growth_rate !== null ? `${(graham.growth_rate * 100).toFixed(1)}%` : '—'}
+              </span>
+            </div>
+          </div>
+
+          {/* Price vs IV track */}
+          {pricePosPct !== null && grahamIV !== null && (
+            <div style={{ marginTop: 'var(--space-4)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-1)' }}>
+                <span className={styles.muted} style={{ fontSize: 'var(--text-xs)', fontFamily: 'var(--font-mono)' }}>$0</span>
+                <span className={styles.muted} style={{ fontSize: 'var(--text-xs)', fontFamily: 'var(--font-mono)' }}>IV ${grahamIV.toFixed(0)} (50%)</span>
+                <span className={styles.muted} style={{ fontSize: 'var(--text-xs)', fontFamily: 'var(--font-mono)' }}>2× IV</span>
+              </div>
+              <div style={{ position: 'relative', height: '6px', background: 'var(--bg-secondary)' }}>
+                {/* Buy threshold marker */}
+                {thresholdPosPct !== null && (
+                  <div style={{
+                    position: 'absolute',
+                    left: `${thresholdPosPct}%`,
+                    top: '-4px',
+                    bottom: '-4px',
+                    width: '1px',
+                    background: 'var(--border-highlight)',
+                    opacity: 0.6,
+                  }} title={`Buy threshold $${grahamBuyThreshold?.toFixed(2)}`} />
+                )}
+                {/* Price dot */}
+                <div style={{
+                  position: 'absolute',
+                  left: `${pricePosPct}%`,
+                  top: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  width: '10px',
+                  height: '10px',
+                  background: graham.buy_signal ? 'var(--signal-positive)' : 'var(--signal-negative)',
+                }} title={`Current price $${grahamPrice?.toFixed(2)}`} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-1)' }}>
+                <span className={styles.muted} style={{ fontSize: '10px', fontFamily: 'var(--font-mono)' }}>
+                  ▲ price &nbsp;│&nbsp; │ buy threshold
+                </span>
+              </div>
+            </div>
+          )}
+        </Card>
+      ) : <EmptyPanel message="Graham data unavailable — EPS or growth data missing." />}
+
+      {/* Fear & Greed Sensitivity */}
+      <p className={styles.sectionTitle}>Fear &amp; Greed Sensitivity (60d)</p>
+      {sensLoading ? <LoadingPanel /> : (
+        <Card animate className={styles.signalCard}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-5)' }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}>
+                <span className={styles.muted} style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', minWidth: 32 }}>−1</span>
+                <div style={{ flex: 1, position: 'relative', height: '4px', background: 'var(--bg-secondary)' }}>
+                  <div style={{
+                    position: 'absolute',
+                    left: '50%',
+                    top: '-3px',
+                    bottom: '-3px',
+                    width: '1px',
+                    background: 'var(--border-highlight)',
+                  }} />
+                  {sensPosPct !== null && (
+                    <div style={{
+                      position: 'absolute',
+                      left: `${sensPosPct}%`,
+                      top: '50%',
+                      transform: 'translate(-50%, -50%)',
+                      width: '10px',
+                      height: '10px',
+                      background: sensColor,
+                      transition: 'left 0.5s var(--ease-defuse)',
+                    }} />
+                  )}
+                </div>
+                <span className={styles.muted} style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', minWidth: 20 }}>+1</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--text-ghost)' }}>
+                <span>Inverse</span>
+                <span>Neutral</span>
+                <span>Aligned</span>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xl)', fontWeight: 600, color: sensColor }}>
+                {sensFactor !== null ? sensFactor.toFixed(2) : '—'}
+              </div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
+                {sens?.interpretation ?? 'No data'}
+              </div>
+            </div>
+          </div>
+          {fg?.fg_value !== null && (
+            <div style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-primary)', display: 'flex', gap: 'var(--space-4)' }}>
+              <span className={styles.muted} style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)' }}>
+                Current F&amp;G: <span style={{ color: 'var(--text-secondary)' }}>{fg.fg_value?.toFixed(0)} — {fg.fg_label}</span>
+              </span>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Senate Trades */}
+      <p className={styles.sectionTitle}>Senate Disclosures (90d)</p>
+      {polLoading ? <LoadingPanel /> : trades.length === 0 ? (
+        <EmptyPanel message={`No Senate trades filed for ${ticker} in the last 90 days.`} />
+      ) : (
+        <Card className={styles.tableCard} animate>
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Senator</th>
+                  <th>Type</th>
+                  <th>Asset</th>
+                  <th className={styles.right}>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trades.slice(0, 20).map((t, i) => (
+                  <motion.tr
+                    key={`${t.date}-${t.senator}-${i}`}
+                    className={styles.row}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.03, duration: 0.2 }}
+                  >
+                    <td className={styles.mono} style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                      {new Date(t.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </td>
+                    <td style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>{t.senator}</td>
+                    <td>
+                      <Badge variant={t.is_buy ? 'success' : t.is_sell ? 'danger' : 'neutral'}>
+                        {t.is_buy ? 'BUY' : t.is_sell ? 'SELL' : (t.tx_type || 'OTHER').toUpperCase()}
+                      </Badge>
+                    </td>
+                    <td className={clsx(styles.mono, styles.muted)} style={{ fontSize: 'var(--text-xs)' }}>
+                      {t.asset_type || '—'}
+                    </td>
+                    <td className={clsx(styles.mono, 'right')} style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+                      {fmtAmount(t.amount_mid)}
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+    </div>
+  )
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function StockDetailPage() {
@@ -889,6 +1135,9 @@ export function StockDetailPage() {
             )}
             {activeTab === 'supply' && (
               <SupplyChainTab ticker={safeT} />
+            )}
+            {activeTab === 'signals' && (
+              <SignalsTab ticker={safeT} />
             )}
           </motion.div>
         </AnimatePresence>

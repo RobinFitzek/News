@@ -8,6 +8,8 @@ import { EconomicCalendarCard } from '@/components/dashboard/EconomicCalendarCar
 import { SectorMomentumCard } from '@/components/dashboard/SectorMomentumCard'
 import { AutoTradeCard } from '@/components/dashboard/AutoTradeCard'
 import { GeoRadarCard } from '@/components/dashboard/GeoRadarCard'
+import { FearGreedDashCard } from '@/components/dashboard/FearGreedDashCard'
+import { GrahamDashCard } from '@/components/dashboard/GrahamDashCard'
 import styles from './DashboardPage.module.css'
 
 const containerVariants = {
@@ -81,6 +83,21 @@ export function DashboardPage() {
         </motion.div>
         <motion.div variants={itemVariants}>
           <AutoTradeCard />
+        </motion.div>
+      </motion.div>
+
+      {/* Sentiment + value row */}
+      <motion.div
+        className={styles.contextRow}
+        variants={containerVariants}
+        initial="initial"
+        animate="animate"
+      >
+        <motion.div variants={itemVariants}>
+          <FearGreedDashCard />
+        </motion.div>
+        <motion.div variants={itemVariants}>
+          <GrahamDashCard />
         </motion.div>
       </motion.div>
 
