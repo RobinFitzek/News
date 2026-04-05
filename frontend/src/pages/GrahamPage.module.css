@@ -1,37 +1,102 @@
+/* ── Header actions ──────────────────────────── */
 .headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.mosSelector {
   display: flex;
   align-items: center;
   gap: var(--space-3);
 }
 
-.select {
-  height: 36px;
-  padding: 0 var(--space-3);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
-  color: var(--text-primary);
-  font-size: var(--text-sm);
+.mosLabel {
   font-family: var(--font-mono);
-  cursor: pointer;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
-.statsRow {
+.mosGroup {
+  display: flex;
+  border: 1px solid var(--border-primary);
+}
+
+.mosBtn,
+.mosActive {
+  height: 30px;
+  padding: 0 var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  border: none;
+  border-right: 1px solid var(--border-primary);
+  transition: background var(--duration-fast) var(--ease-smooth),
+              color var(--duration-fast) var(--ease-smooth);
+}
+
+.mosBtn:last-child,
+.mosActive:last-child {
+  border-right: none;
+}
+
+.mosBtn {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.mosBtn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.mosActive {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+/* ── Metrics row ─────────────────────────────── */
+.metricsRow {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-3);
+  gap: var(--space-4);
   margin-bottom: var(--space-6);
 }
 
+/* ── Backtest card ───────────────────────────── */
 .backtestCard {
-  margin-bottom: var(--space-6);
-  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+  overflow: hidden;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.cardTitle {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
 }
 
 .backtestGrid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-4) var(--space-6);
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0;
+}
+
+.btMetric {
+  padding: var(--space-4) var(--space-5);
+  border-right: 1px solid var(--border-primary);
+}
+
+.btMetric:last-child {
+  border-right: none;
 }
 
 .btLabel {
@@ -50,50 +115,55 @@
   color: var(--text-primary);
 }
 
-.tabRow {
-  display: flex;
-  gap: var(--space-2);
-  margin-bottom: var(--space-4);
+/* ── Table card ──────────────────────────────── */
+.tableCard {
+  overflow: hidden;
+  margin-bottom: var(--space-6);
 }
 
-.tab, .tabActive {
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-md);
+.tabRow {
+  display: flex;
+  gap: 0;
+}
+
+.tab,
+.tabActive {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  padding: 0 var(--space-4);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   cursor: pointer;
-  border: 1px solid var(--border-primary);
+  border: none;
+  border-bottom: 2px solid transparent;
   transition: all var(--duration-fast) var(--ease-smooth);
 }
 
 .tab {
   background: transparent;
   color: var(--text-muted);
+  border-bottom-color: transparent;
 }
 
 .tab:hover {
-  color: var(--text-primary);
-  background: var(--bg-hover);
+  color: var(--text-secondary);
 }
 
 .tabActive {
-  background: var(--accent-primary);
-  color: var(--text-on-accent, #fff);
-  border-color: var(--accent-primary);
+  background: transparent;
+  color: var(--text-primary);
+  border-bottom-color: var(--text-primary);
 }
 
-.section { margin-bottom: var(--space-6); }
-
-.sectionTitle {
-  font-family: var(--font-mono);
+.tabCount {
   font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  margin-bottom: var(--space-3);
+  color: inherit;
+  opacity: 0.6;
 }
 
-.tableCard { overflow: hidden; }
+/* ── Table ───────────────────────────────────── */
 .tableWrapper { overflow-x: auto; }
 
 .table {
@@ -126,40 +196,59 @@
 .row:last-child { border-bottom: none; }
 .row td { padding: var(--space-3) var(--space-4); vertical-align: middle; }
 
+/* ── Cell types ──────────────────────────────── */
 .ticker {
   font-family: var(--font-mono);
-  font-weight: 500;
-  color: var(--text-primary);
+  font-weight: 600;
   font-size: var(--text-base);
+  color: var(--text-primary);
 }
 
-.mono {
+.num {
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
 
-.muted { color: var(--text-muted); font-family: var(--font-mono); font-size: var(--text-xs); }
-.positive { color: var(--signal-positive); font-family: var(--font-mono); font-size: var(--text-sm); font-weight: 500; }
-.negative { color: var(--signal-negative); font-family: var(--font-mono); font-size: var(--text-sm); font-weight: 500; }
-
-.emptyState {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-3);
-  padding: var(--space-16);
+.muted {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   color: var(--text-muted);
 }
 
-.emptyIcon { font-size: 2.5rem; opacity: 0.4; }
+.positive {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--signal-positive);
+}
+
+.negative {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--signal-negative);
+}
+
+/* ── Empty / loading states ──────────────────── */
+.emptyState {
+  padding: var(--space-12) var(--space-8);
+  text-align: center;
+}
+
+.emptyTitle {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+}
 
 .emptyText {
   font-size: var(--text-sm);
   color: var(--text-muted);
-  text-align: center;
-  line-height: 1.6;
+  max-width: 480px;
+  margin: 0 auto;
+  line-height: 1.7;
 }
 
 .loading {

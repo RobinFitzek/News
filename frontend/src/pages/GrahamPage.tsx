@@ -12,10 +12,10 @@ import { useToastStore } from '@/stores/toastStore'
 import styles from './GrahamPage.module.css'
 
 const DISCOUNT_OPTIONS = [
-  { value: 0.0, label: '0% — At IV' },
-  { value: 0.2, label: '20% Margin' },
-  { value: 0.5, label: '50% Margin' },
-  { value: 0.9, label: '90% Margin' },
+  { value: 0.0, label: '0%' },
+  { value: 0.2, label: '20%' },
+  { value: 0.5, label: '50%' },
+  { value: 0.9, label: '90%' },
 ]
 
 function fmtPrice(v: number | null) {
@@ -23,19 +23,14 @@ function fmtPrice(v: number | null) {
   return `$${v.toFixed(2)}`
 }
 
-function fmtPct(v: number | null, suffix = '%') {
+function fmtPct(v: number | null) {
   if (v == null) return '—'
-  const sign = v > 0 ? '+' : ''
-  return `${sign}${v.toFixed(1)}${suffix}`
+  return `${v > 0 ? '+' : ''}${v.toFixed(1)}%`
 }
 
 function UpsideCell({ v }: { v: number | null }) {
   if (v == null) return <span className={styles.muted}>—</span>
-  return (
-    <span className={v >= 0 ? styles.positive : styles.negative}>
-      {fmtPct(v)}
-    </span>
-  )
+  return <span className={v >= 0 ? styles.positive : styles.negative}>{fmtPct(v)}</span>
 }
 
 export function GrahamPage() {
@@ -56,9 +51,9 @@ export function GrahamPage() {
   async function handleBacktest() {
     setBacktestRunning(true)
     try {
-      const result = await backtestMut.mutateAsync({ discount, max_positions: 50, holding_days: 252 })
-      setBacktestResult(result)
-      addToast('Graham backtest complete', 'success')
+      const r = await backtestMut.mutateAsync({ discount, max_positions: 50, holding_days: 252 })
+      setBacktestResult(r)
+      addToast('Backtest complete', 'success')
     } catch {
       addToast('Backtest failed', 'error')
     } finally {
@@ -70,180 +65,179 @@ export function GrahamPage() {
     <>
       <PageHeader
         title="Graham Value Screen"
-        subtitle="Benjamin Graham intrinsic value formula: V = EPS × (8.5 + 2g) × 4.4 / Y"
+        subtitle="V = EPS × (8.5 + 2g) × 4.4 / Y — AAA bond yield sourced live from FRED"
         actions={
           <div className={styles.headerActions}>
-            <select
-              className={styles.select}
-              value={discount}
-              onChange={e => setDiscount(Number(e.target.value))}
-            >
-              {DISCOUNT_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-            <Button
-              variant="secondary"
-              size="md"
-              loading={backtestRunning}
-              onClick={handleBacktest}
-            >
-              Run Backtest
+            <div className={styles.mosSelector}>
+              <span className={styles.mosLabel}>Margin of Safety</span>
+              <div className={styles.mosGroup}>
+                {DISCOUNT_OPTIONS.map(o => (
+                  <button
+                    key={o.value}
+                    className={discount === o.value ? styles.mosActive : styles.mosBtn}
+                    onClick={() => setDiscount(o.value)}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <Button variant="secondary" size="md" loading={backtestRunning} onClick={handleBacktest}>
+              Backtest
             </Button>
           </div>
         }
       />
 
-      {/* Stats row */}
-      <div className={styles.statsRow}>
-        <Card delay={0}>
-          <MetricCard
-            label="AAA Bond Yield"
-            value={yieldData ? `${yieldData.aaa_yield_pct.toFixed(2)}%` : '—'}
-            mono
-          />
-        </Card>
-        <Card delay={0.05}>
-          <MetricCard
-            label="IV-Calculable"
-            value={data ? `${data.iv_calculable} / ${data.total_screened}` : '—'}
-            mono
-          />
-        </Card>
-        <Card delay={0.1} glow="positive">
-          <MetricCard
-            label="Buy Candidates"
-            value={data?.buy_candidates ?? '—'}
-            mono
-          />
-        </Card>
-        <Card delay={0.15}>
-          <MetricCard
-            label="Margin of Safety"
-            value={`${(discount * 100).toFixed(0)}%`}
-            mono
-          />
-        </Card>
+      {/* Metrics row */}
+      <div className={styles.metricsRow}>
+        <MetricCard
+          label="AAA Bond Yield"
+          value={yieldData ? `${yieldData.aaa_yield_pct.toFixed(2)}%` : '—'}
+          mono
+        />
+        <MetricCard
+          label="Screened"
+          value={data ? `${data.total_screened}` : '—'}
+          mono
+        />
+        <MetricCard
+          label="IV Calculable"
+          value={data ? `${data.iv_calculable}` : '—'}
+          mono
+        />
+        <MetricCard
+          label="Buy Candidates"
+          value={data?.buy_candidates ?? '—'}
+          delta={discount > 0 ? `${(discount * 100).toFixed(0)}% margin of safety` : undefined}
+          deltaSign="neutral"
+          mono
+        />
       </div>
 
-      {/* Backtest result */}
+      {/* Backtest results */}
       {backtestResult && (
         <Card delay={0} className={styles.backtestCard}>
-          <div className={styles.sectionTitle}>Backtest Results</div>
+          <div className={styles.cardHeader}>
+            <span className={styles.cardTitle}>Backtest Results</span>
+            <Badge variant="ghost">
+              {backtestResult.iv_calculable_tickers} IV-calculable tickers · fair benchmark
+            </Badge>
+          </div>
           <div className={styles.backtestGrid}>
-            <div>
-              <div className={styles.btLabel}>Trades</div>
-              <div className={styles.btValue}>{backtestResult.trades}</div>
-            </div>
-            <div>
-              <div className={styles.btLabel}>IV-Calculable Tickers</div>
-              <div className={styles.btValue}>{backtestResult.iv_calculable_tickers}</div>
-            </div>
-            <div>
-              <div className={styles.btLabel}>Avg Return</div>
-              <div className={backtestResult.avg_forward_return_pct >= 0 ? styles.positive : styles.negative}>
-                {fmtPct(backtestResult.avg_forward_return_pct)}
+            {[
+              { label: 'Trades', value: backtestResult.trades, neutral: true },
+              { label: 'Avg Return', value: fmtPct(backtestResult.avg_forward_return_pct), sign: backtestResult.avg_forward_return_pct },
+              { label: 'Win Rate', value: fmtPct(backtestResult.win_rate_pct), neutral: true },
+              { label: 'Benchmark', value: fmtPct(backtestResult.benchmark_return_pct), sign: backtestResult.benchmark_return_pct },
+              { label: 'Alpha', value: fmtPct(backtestResult.alpha_vs_benchmark), sign: backtestResult.alpha_vs_benchmark },
+              { label: 'AAA Yield', value: `${backtestResult.aaa_yield?.toFixed(2)}%`, neutral: true },
+            ].map(m => (
+              <div key={m.label} className={styles.btMetric}>
+                <div className={styles.btLabel}>{m.label}</div>
+                <div className={
+                  m.neutral ? styles.btValue
+                  : m.sign >= 0 ? styles.positive
+                  : styles.negative
+                }>{m.value}</div>
               </div>
-            </div>
-            <div>
-              <div className={styles.btLabel}>Win Rate</div>
-              <div className={styles.btValue}>{fmtPct(backtestResult.win_rate_pct)}</div>
-            </div>
-            <div>
-              <div className={styles.btLabel}>Benchmark (IV-filtered)</div>
-              <div className={styles.btValue}>{fmtPct(backtestResult.benchmark_return_pct)}</div>
-            </div>
-            <div>
-              <div className={styles.btLabel}>Alpha vs Benchmark</div>
-              <div className={backtestResult.alpha_vs_benchmark >= 0 ? styles.positive : styles.negative}>
-                {fmtPct(backtestResult.alpha_vs_benchmark)}
-              </div>
-            </div>
+            ))}
           </div>
         </Card>
       )}
 
-      {/* Tab toggle */}
-      <div className={styles.tabRow}>
-        <button
-          className={tab === 'buy' ? styles.tabActive : styles.tab}
-          onClick={() => setTab('buy')}
-        >
-          Buy Candidates ({data?.buy_candidates ?? 0})
-        </button>
-        <button
-          className={tab === 'all' ? styles.tabActive : styles.tab}
-          onClick={() => setTab('all')}
-        >
-          All IV-Calculable
-        </button>
-      </div>
+      {/* Tab + table */}
+      <Card className={styles.tableCard} delay={0.1}>
+        <div className={styles.cardHeader}>
+          <div className={styles.tabRow}>
+            <button
+              className={tab === 'buy' ? styles.tabActive : styles.tab}
+              onClick={() => setTab('buy')}
+            >
+              Buy Candidates
+              {data && <span className={styles.tabCount}>{data.buy_candidates}</span>}
+            </button>
+            <button
+              className={tab === 'all' ? styles.tabActive : styles.tab}
+              onClick={() => setTab('all')}
+            >
+              All IV-Calculable
+              {data && <span className={styles.tabCount}>{data.iv_calculable}</span>}
+            </button>
+          </div>
+          {data && (
+            <span className={styles.muted}>
+              sourced {new Date(data.screened_at).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+        </div>
 
-      {/* Table */}
-      <div className={styles.section}>
         {isLoading ? (
           <div className={styles.loading}><Spinner size="lg" /></div>
         ) : rows.length === 0 ? (
-          <Card>
-            <div className={styles.emptyState}>
-              <div className={styles.emptyIcon}>◈</div>
-              <div className={styles.emptyText}>
-                No stocks match the current filter.<br />
-                Try reducing the margin of safety or add more tickers to your watchlist.
-              </div>
+          <div className={styles.emptyState}>
+            <div className={styles.emptyTitle}>No stocks match this filter</div>
+            <div className={styles.emptyText}>
+              {tab === 'buy'
+                ? 'No stocks are trading below the Graham threshold. Reduce the margin of safety or add more tickers to your watchlist.'
+                : 'Could not calculate intrinsic value for any watchlist ticker. Ensure tickers have EPS data available.'}
             </div>
-          </Card>
+          </div>
         ) : (
-          <Card className={styles.tableCard}>
-            <div className={styles.tableWrapper}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Ticker</th>
-                    <th>Signal</th>
-                    <th>Price</th>
-                    <th>Intrinsic Value</th>
-                    <th>Threshold</th>
-                    <th>Upside</th>
-                    <th>EPS (TTM)</th>
-                    <th>Growth</th>
-                    <th>Quarters</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r, i) => (
-                    <motion.tr
-                      key={r.ticker}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.03, duration: 0.25 }}
-                      className={styles.row}
-                    >
-                      <td><span className={styles.ticker}>{r.ticker}</span></td>
-                      <td>
-                        <Badge variant={r.buy_signal ? 'success' : 'neutral'}>
-                          {r.buy_signal ? 'BUY' : 'HOLD'}
-                        </Badge>
-                      </td>
-                      <td><span className={styles.mono}>{fmtPrice(r.current_price)}</span></td>
-                      <td><span className={styles.mono}>{fmtPrice(r.intrinsic_value)}</span></td>
-                      <td><span className={styles.mono}>{fmtPrice(r.buy_threshold)}</span></td>
-                      <td><UpsideCell v={r.upside_pct} /></td>
-                      <td><span className={styles.mono}>{r.ttm_eps != null ? r.ttm_eps.toFixed(2) : '—'}</span></td>
-                      <td>
-                        <span className={r.growth_rate != null && r.growth_rate > 0 ? styles.positive : styles.muted}>
-                          {r.growth_rate != null ? `${r.growth_rate.toFixed(1)}%` : '—'}
-                        </span>
-                      </td>
-                      <td><span className={styles.muted}>{r.eps_history_quarters}Q</span></td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Ticker</th>
+                  <th>Signal</th>
+                  <th>Price</th>
+                  <th>Intrinsic Value</th>
+                  <th>Threshold</th>
+                  <th>Upside</th>
+                  <th>EPS TTM</th>
+                  <th>Growth Rate</th>
+                  <th>Data</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <motion.tr
+                    key={r.ticker}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.025, duration: 0.25 }}
+                    className={styles.row}
+                  >
+                    <td><span className={styles.ticker}>{r.ticker}</span></td>
+                    <td>
+                      <Badge variant={r.buy_signal ? 'success' : 'neutral'}>
+                        {r.buy_signal ? 'BUY' : 'HOLD'}
+                      </Badge>
+                    </td>
+                    <td><span className={styles.num}>{fmtPrice(r.current_price)}</span></td>
+                    <td><span className={styles.num}>{fmtPrice(r.intrinsic_value)}</span></td>
+                    <td>
+                      <span className={styles.num} style={{ color: 'var(--signal-warning)' }}>
+                        {fmtPrice(r.buy_threshold)}
+                      </span>
+                    </td>
+                    <td><UpsideCell v={r.upside_pct} /></td>
+                    <td><span className={styles.num}>{r.ttm_eps != null ? r.ttm_eps.toFixed(2) : '—'}</span></td>
+                    <td>
+                      <span className={r.growth_rate != null && r.growth_rate > 0 ? styles.positive : styles.muted}>
+                        {r.growth_rate != null ? `${r.growth_rate.toFixed(1)}%` : '—'}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={styles.muted}>{r.eps_history_quarters}Q</span>
+                    </td>
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
-      </div>
+      </Card>
 
       <div style={{ height: 'var(--space-16)' }} />
     </>

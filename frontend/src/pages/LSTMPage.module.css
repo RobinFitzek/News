@@ -1,148 +1,142 @@
-.statsRow {
+/* ── Metrics row ─────────────────────────────── */
+.metricsRow {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-3);
+  gap: var(--space-4);
   margin-bottom: var(--space-6);
 }
 
+/* ── Training card ───────────────────────────── */
 .trainCard {
   margin-bottom: var(--space-6);
-  padding: var(--space-5);
+  overflow: hidden;
 }
 
-.trainTitle {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.cardTitle {
   font-weight: 600;
+  font-size: var(--text-sm);
   color: var(--text-primary);
-  margin-bottom: var(--space-2);
+}
+
+.trainBody {
+  padding: var(--space-5);
 }
 
 .trainNote {
   font-size: var(--text-sm);
   color: var(--text-muted);
-  line-height: 1.6;
+  line-height: 1.7;
   margin-bottom: var(--space-4);
 }
 
-.trainNote code {
+.code {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
   padding: 2px 6px;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
+  color: var(--signal-neutral);
 }
 
 .trainParams {
   display: flex;
-  gap: var(--space-6);
-  align-items: center;
+  align-items: flex-end;
+  gap: var(--space-5);
   margin-bottom: var(--space-4);
 }
 
-.paramLabel {
+.paramGroup {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
+}
+
+.paramLabel {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .paramInput {
-  width: 80px;
-  height: 34px;
+  width: 90px;
+  height: 36px;
   padding: 0 var(--space-3);
   background: var(--bg-secondary);
   border: 1px solid var(--border-primary);
-  border-radius: var(--radius-md);
   color: var(--text-primary);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
+  transition: border-color var(--duration-fast) var(--ease-smooth);
 }
 
-.trainProgress {
-  margin-top: var(--space-3);
+.paramInput:focus {
+  outline: none;
+  border-color: var(--border-highlight);
+}
+
+.trainStatus {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   font-size: var(--text-sm);
   color: var(--text-muted);
   font-style: italic;
 }
 
 .trainLog {
-  margin-top: var(--space-3);
+  margin-top: var(--space-4);
   max-height: 200px;
   overflow-y: auto;
-  background: var(--bg-secondary);
-  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
   padding: var(--space-3);
 }
 
-.trainLogLine {
+.logLine {
+  display: flex;
+  gap: var(--space-3);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--text-muted);
   line-height: 1.8;
 }
 
-.section { margin-bottom: var(--space-6); }
-
-.sectionTitle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  margin-bottom: var(--space-3);
+.logEpoch {
+  color: var(--text-ghost);
+  min-width: 40px;
 }
 
-.sectionMeta {
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
+.logSep {
+  color: var(--text-ghost);
 }
 
-.confWrapper {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.confTrack {
-  width: 120px;
-  height: 6px;
-  background: var(--bg-secondary);
-  border-radius: 99px;
-  position: relative;
+/* ── Chart card ──────────────────────────────── */
+.chartCard {
+  margin-bottom: var(--space-6);
   overflow: hidden;
 }
 
-.confFill {
-  height: 100%;
-  border-radius: 99px;
-  transition: width 0.4s var(--ease-smooth);
+.chartWrapper {
+  height: 200px;
+  padding: var(--space-4) var(--space-5);
 }
 
-.confThreshold {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: var(--border-primary);
+/* ── Table card ──────────────────────────────── */
+.tableCard {
+  margin-bottom: var(--space-6);
+  overflow: hidden;
 }
 
-.confVal {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  min-width: 44px;
-}
-
-.tableCard { overflow: hidden; }
 .tableWrapper { overflow-x: auto; }
 
 .table {
@@ -175,25 +169,103 @@
 .row:last-child { border-bottom: none; }
 .row td { padding: var(--space-3) var(--space-4); vertical-align: middle; }
 
-.ticker { font-family: var(--font-mono); font-weight: 600; color: var(--text-primary); font-size: var(--text-base); }
-.mono { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-secondary); }
-.muted { color: var(--text-muted); font-family: var(--font-mono); font-size: var(--text-xs); }
-.timestamp { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-muted); white-space: nowrap; }
-.positive { color: var(--signal-positive); font-family: var(--font-mono); font-size: var(--text-sm); font-weight: 500; }
-.negative { color: var(--signal-negative); font-family: var(--font-mono); font-size: var(--text-sm); font-weight: 500; }
+/* ── Cell types ──────────────────────────────── */
+.ticker {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: var(--text-base);
+  color: var(--text-primary);
+}
 
-.emptyState {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-3);
-  padding: var(--space-16);
+.num {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.muted {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   color: var(--text-muted);
 }
 
-.emptyIcon { font-size: 2.5rem; opacity: 0.4; }
-.emptyText { font-size: var(--text-sm); color: var(--text-muted); text-align: center; line-height: 1.6; }
+.timestamp {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.positive {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--signal-positive);
+}
+
+.negative {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--signal-negative);
+}
+
+/* ── Confidence cell ─────────────────────────── */
+.confCell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.confTrack {
+  width: 100px;
+  height: 4px;
+  background: var(--bg-secondary);
+  position: relative;
+  overflow: visible;
+}
+
+.confFill {
+  height: 100%;
+  transition: width 0.4s var(--ease-defuse);
+}
+
+.confLine {
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  height: 10px;
+  width: 1px;
+  background: var(--border-highlight);
+}
+
+.confNum {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  min-width: 42px;
+}
+
+/* ── Empty states ────────────────────────────── */
+.emptyState {
+  padding: var(--space-12) var(--space-8);
+  text-align: center;
+}
+
+.emptyTitle {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+}
+
+.emptyText {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  max-width: 480px;
+  margin: 0 auto;
+  line-height: 1.7;
+}
 
 .loading {
   display: flex;
