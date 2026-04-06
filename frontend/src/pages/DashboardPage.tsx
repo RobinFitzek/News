@@ -10,6 +10,7 @@ import { AutoTradeCard } from '@/components/dashboard/AutoTradeCard'
 import { GeoRadarCard } from '@/components/dashboard/GeoRadarCard'
 import { FearGreedDashCard } from '@/components/dashboard/FearGreedDashCard'
 import { GrahamDashCard } from '@/components/dashboard/GrahamDashCard'
+import { LSTMSignalsDashCard } from '@/components/dashboard/LSTMSignalsDashCard'
 import styles from './DashboardPage.module.css'
 
 const containerVariants = {
@@ -38,19 +39,15 @@ export function DashboardPage() {
       {/* System command center */}
       <SystemCommandCenter />
 
-      {/* Primary row — market + portfolio */}
+      {/* Primary row — market regime + benchmark */}
       <motion.div
         className={styles.primaryRow}
         variants={containerVariants}
         initial="initial"
         animate="animate"
       >
-        <motion.div variants={itemVariants}>
-          <MarketRegimeCard />
-        </motion.div>
-        <motion.div variants={itemVariants}>
-          <BenchmarkCard />
-        </motion.div>
+        <motion.div variants={itemVariants}><MarketRegimeCard /></motion.div>
+        <motion.div variants={itemVariants}><BenchmarkCard /></motion.div>
       </motion.div>
 
       {/* Intelligence summary strip */}
@@ -63,27 +60,8 @@ export function DashboardPage() {
         initial="initial"
         animate="animate"
       >
-        <motion.div variants={itemVariants}>
-          <EconomicCalendarCard />
-        </motion.div>
-        <motion.div variants={itemVariants}>
-          <SectorMomentumCard />
-        </motion.div>
-      </motion.div>
-
-      {/* Geopolitical radar + auto-trade */}
-      <motion.div
-        className={styles.contextRow}
-        variants={containerVariants}
-        initial="initial"
-        animate="animate"
-      >
-        <motion.div variants={itemVariants}>
-          <GeoRadarCard />
-        </motion.div>
-        <motion.div variants={itemVariants}>
-          <AutoTradeCard />
-        </motion.div>
+        <motion.div variants={itemVariants}><EconomicCalendarCard /></motion.div>
+        <motion.div variants={itemVariants}><SectorMomentumCard /></motion.div>
       </motion.div>
 
       {/* Sentiment + value row */}
@@ -93,11 +71,30 @@ export function DashboardPage() {
         initial="initial"
         animate="animate"
       >
-        <motion.div variants={itemVariants}>
-          <FearGreedDashCard />
-        </motion.div>
-        <motion.div variants={itemVariants}>
-          <GrahamDashCard />
+        <motion.div variants={itemVariants}><FearGreedDashCard /></motion.div>
+        <motion.div variants={itemVariants}><GrahamDashCard /></motion.div>
+      </motion.div>
+
+      {/* AI signals + geo row */}
+      <motion.div
+        className={styles.contextRow}
+        variants={containerVariants}
+        initial="initial"
+        animate="animate"
+      >
+        <motion.div variants={itemVariants}><LSTMSignalsDashCard /></motion.div>
+        <motion.div variants={itemVariants}><GeoRadarCard /></motion.div>
+      </motion.div>
+
+      {/* Auto-trade row */}
+      <motion.div
+        className={styles.contextRow}
+        variants={containerVariants}
+        initial="initial"
+        animate="animate"
+      >
+        <motion.div variants={itemVariants} style={{ gridColumn: '1 / -1' }}>
+          <AutoTradeCard />
         </motion.div>
       </motion.div>
 

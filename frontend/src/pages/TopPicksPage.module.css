@@ -78,6 +78,16 @@
   font-size: var(--text-base);
 }
 
+.tickerLink {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: var(--text-base);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-smooth);
+}
+.tickerLink:hover { color: var(--signal-positive); }
+
 .mono {
   font-family: var(--font-mono);
   font-size: var(--text-sm);
