@@ -219,6 +219,11 @@ DEFAULT_SETTINGS = {
     "deep_sleep_intensity": "deep",
     "deep_sleep_full_weekends": False,
 
+    # CPU C-state overnight mode
+    # When enabled: converts continuous IntervalTrigger jobs to market-hours CronTriggers
+    # and suspends remaining interval jobs during deep sleep → CPU can reach C6/C7/C8 overnight.
+    "cstate_overnight_mode": True,
+
     # Ollama — local LLM fallback when Gemini budget is exhausted
     "ollama_enabled": False,
     "ollama_host": "http://localhost:11434",

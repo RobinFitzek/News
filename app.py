@@ -5767,11 +5767,28 @@ async def get_settings_data(
         SCAN_INTERVAL_HOURS, GEO_SCAN_INTERVAL_HOURS,
         PERPLEXITY_MONTHLY_BUDGET_EUR, GEMINI_MONTHLY_BUDGET_EUR
     )
+
+    def _bool(v) -> bool:
+        if v is None:
+            return False
+        if isinstance(v, bool):
+            return v
+        return str(v).lower() in ('true', '1', 'yes')
+
     return {
         "scheduler": {
-            "scan_interval_hours": SCAN_INTERVAL_HOURS,
+            "scan_interval_hours": db.get_setting("scan_interval_hours") or SCAN_INTERVAL_HOURS,
             "geo_scan_interval_hours": GEO_SCAN_INTERVAL_HOURS,
             "daily_limit": 10,
+            "active_hours_start": db.get_setting("active_hours_start") or "08:00",
+            "active_hours_end": db.get_setting("active_hours_end") or "22:00",
+            # Deep sleep / C-state
+            "deep_sleep_enabled": _bool(db.get_setting("deep_sleep_enabled")),
+            "deep_sleep_start": db.get_setting("deep_sleep_start") or "22:00",
+            "deep_sleep_end": db.get_setting("deep_sleep_end") or "07:00",
+            "deep_sleep_intensity": db.get_setting("deep_sleep_intensity") or "deep",
+            "deep_sleep_full_weekends": _bool(db.get_setting("deep_sleep_full_weekends")),
+            "cstate_overnight_mode": _bool(db.get_setting("cstate_overnight_mode") if db.get_setting("cstate_overnight_mode") is not None else True),
         },
         "budget": {
             "perplexity_monthly_eur": PERPLEXITY_MONTHLY_BUDGET_EUR,
@@ -5827,8 +5844,35 @@ async def save_settings_json(
     """Save settings via JSON — for React SPA"""
     _verify_spa_csrf(request)
     data = await request.json()
-    # Delegate to existing settings handler logic or just acknowledge
-    return {"status": "saved", "section": data.get("section")}
+    section = data.get("section")
+
+    if section == "scheduler":
+        if "scan_interval_hours" in data:
+            db.set_setting("scan_interval_hours", int(data["scan_interval_hours"]))
+        if "active_hours_start" in data:
+            db.set_setting("active_hours_start", str(data["active_hours_start"]))
+        if "active_hours_end" in data:
+            db.set_setting("active_hours_end", str(data["active_hours_end"]))
+        if "deep_sleep_enabled" in data:
+            db.set_setting("deep_sleep_enabled", bool(data["deep_sleep_enabled"]))
+        if "deep_sleep_start" in data:
+            db.set_setting("deep_sleep_start", str(data["deep_sleep_start"]))
+        if "deep_sleep_end" in data:
+            db.set_setting("deep_sleep_end", str(data["deep_sleep_end"]))
+        if "deep_sleep_intensity" in data:
+            db.set_setting("deep_sleep_intensity", str(data["deep_sleep_intensity"]))
+        if "deep_sleep_full_weekends" in data:
+            db.set_setting("deep_sleep_full_weekends", bool(data["deep_sleep_full_weekends"]))
+        if "cstate_overnight_mode" in data:
+            db.set_setting("cstate_overnight_mode", bool(data["cstate_overnight_mode"]))
+        # Reload scheduler so new intervals take effect without restart
+        try:
+            from scheduler import scheduler as sched_instance
+            sched_instance.reload_settings()
+        except Exception:
+            pass
+
+    return {"status": "saved", "section": section}
 
 
 # ── Analysis History ────────────────────────────────────────────────────────
