@@ -32,6 +32,7 @@ import {
 import { useGrahamTicker } from '@/api/endpoints/graham'
 import { useFGSensitivity, useFearGreedCurrent } from '@/api/endpoints/fearGreed'
 import { usePoliticianTrades } from '@/api/endpoints/politicians'
+import { useLSTMPredict } from '@/api/endpoints/lstm'
 import type { SentimentHeadline } from '@/api/endpoints/stock'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Card } from '@/components/ui/Card'
@@ -807,6 +808,7 @@ function SignalsTab({ ticker }: { ticker: string }) {
   const { data: graham, isLoading: grahamLoading } = useGrahamTicker(ticker, 0.2)
   const { data: fg } = useFearGreedCurrent()
   const { data: sens, isLoading: sensLoading } = useFGSensitivity(ticker, 60)
+  const { data: lstm, isLoading: lstmLoading } = useLSTMPredict(ticker)
   const { data: polData, isLoading: polLoading } = usePoliticianTrades(ticker, 90)
 
   const trades = polData?.trades ?? []
@@ -989,6 +991,60 @@ function SignalsTab({ ticker }: { ticker: string }) {
             </div>
           )}
         </Card>
+      )}
+
+      {/* LSTM Prediction */}
+      <p className={styles.sectionTitle}>LSTM Model Signal</p>
+      {lstmLoading ? <LoadingPanel /> : lstm && !lstm.error ? (
+        <Card animate className={styles.signalCard}>
+          <div className={styles.signalRow}>
+            <span className={styles.signalLabel}>Signal</span>
+            <Badge variant={lstm.buy_signal ? 'success' : 'neutral'}>
+              {lstm.buy_signal ? 'BUY' : 'HOLD'}
+            </Badge>
+            <span className={styles.signalLabel} style={{ marginLeft: 'auto' }}>
+              threshold {(lstm.threshold * 100).toFixed(0)}%
+            </span>
+          </div>
+
+          <div className={styles.confidenceRow}>
+            <span className={styles.confidenceLabel}>Confidence</span>
+            {/* 100px track with tick at 50% threshold */}
+            <div style={{ flex: 1, position: 'relative', height: '6px', background: 'var(--bg-secondary)' }}>
+              {/* threshold tick */}
+              <div style={{
+                position: 'absolute',
+                left: `${lstm.threshold * 100}%`,
+                top: '-3px', bottom: '-3px',
+                width: '1px',
+                background: 'var(--border-highlight)',
+              }} />
+              {/* confidence fill */}
+              {lstm.confidence !== null && (
+                <div
+                  className={clsx(
+                    styles.confidenceBarFill,
+                    lstm.confidence >= 70 ? styles.high :
+                    lstm.confidence >= 40 ? styles.medium : styles.low
+                  )}
+                  style={{ width: `${lstm.confidence}%`, height: '100%' }}
+                />
+              )}
+            </div>
+            <span className={styles.confidenceValue}>
+              {lstm.confidence !== null ? `${lstm.confidence.toFixed(1)}%` : '—'}
+            </span>
+          </div>
+
+          <p className={styles.muted} style={{ fontSize: 'var(--text-xs)', marginTop: 'var(--space-2)' }}>
+            28-feature LSTM (price, fundamentals, VIX 10/20/30d, F&amp;G sensitivity, Senate activity).
+            Predicts ≥5% return over 20 days.
+          </p>
+        </Card>
+      ) : lstm?.error ? (
+        <EmptyPanel message={`LSTM unavailable: ${lstm.error}`} />
+      ) : (
+        <EmptyPanel message="LSTM model not trained yet — go to LSTM Model page to train." />
       )}
 
       {/* Senate Trades */}

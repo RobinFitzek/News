@@ -151,3 +151,83 @@
   color: var(--text-primary);
   border-color: var(--border-highlight);
 }
+
+/* ── Random Baseline Card ──────────────────────────────────────────────────── */
+
+.baselineCard {
+  margin-bottom: var(--space-6);
+}
+
+.baselineMetrics {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+@media (max-width: 900px) {
+  .baselineMetrics { grid-template-columns: repeat(3, 1fr); }
+}
+
+.baselineBadgeRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.baselineNote {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* Histogram */
+.histogramWrap {
+  border-top: 1px solid var(--border-primary);
+  padding-top: var(--space-4);
+}
+
+.histogramLabel {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: var(--space-3);
+}
+
+.histogram {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 80px;
+}
+
+.histBar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: 100%;
+  position: relative;
+}
+
+.histFill {
+  width: 100%;
+  min-height: 1px;
+  transition: height 0.4s var(--ease-smooth);
+}
+
+.histTick {
+  position: absolute;
+  bottom: -18px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-ghost);
+  white-space: nowrap;
+  transform: translateX(-50%);
+  left: 50%;
+}
