@@ -204,6 +204,16 @@
   color: var(--text-primary);
 }
 
+.tickerLink {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-smooth);
+}
+.tickerLink:hover { color: var(--signal-positive); }
+
 .num {
   font-family: var(--font-mono);
   font-size: var(--text-sm);

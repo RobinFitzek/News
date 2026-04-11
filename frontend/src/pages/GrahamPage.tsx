@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import { useGrahamScreen, useGrahamAAAYield, useGrahamBacktest } from '@/api/endpoints/graham'
 import type { GrahamResult } from '@/api/endpoints/graham'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -208,7 +209,7 @@ export function GrahamPage() {
                     transition={{ delay: i * 0.025, duration: 0.25 }}
                     className={styles.row}
                   >
-                    <td><span className={styles.ticker}>{r.ticker}</span></td>
+                    <td><Link to={`/stock/${r.ticker}`} className={styles.tickerLink}>{r.ticker}</Link></td>
                     <td>
                       <Badge variant={r.buy_signal ? 'success' : 'neutral'}>
                         {r.buy_signal ? 'BUY' : 'HOLD'}

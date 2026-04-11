@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { SystemCommandCenter } from '@/components/dashboard/SystemCommandCenter'
 import { MarketRegimeCard } from '@/components/dashboard/MarketRegimeCard'
 import { BenchmarkCard } from '@/components/dashboard/BenchmarkCard'
@@ -37,7 +38,9 @@ export function DashboardPage() {
       />
 
       {/* System command center */}
-      <SystemCommandCenter />
+      <ErrorBoundary label="System command center unavailable">
+        <SystemCommandCenter />
+      </ErrorBoundary>
 
       {/* Primary row — market regime + benchmark */}
       <motion.div
@@ -46,12 +49,22 @@ export function DashboardPage() {
         initial="initial"
         animate="animate"
       >
-        <motion.div variants={itemVariants}><MarketRegimeCard /></motion.div>
-        <motion.div variants={itemVariants}><BenchmarkCard /></motion.div>
+        <motion.div variants={itemVariants}>
+          <ErrorBoundary label="Market regime unavailable">
+            <MarketRegimeCard />
+          </ErrorBoundary>
+        </motion.div>
+        <motion.div variants={itemVariants}>
+          <ErrorBoundary label="Benchmark unavailable">
+            <BenchmarkCard />
+          </ErrorBoundary>
+        </motion.div>
       </motion.div>
 
       {/* Intelligence summary strip */}
-      <IntelStrip />
+      <ErrorBoundary label="Intel strip unavailable">
+        <IntelStrip />
+      </ErrorBoundary>
 
       {/* Context row — sector + calendar */}
       <motion.div
@@ -60,8 +73,16 @@ export function DashboardPage() {
         initial="initial"
         animate="animate"
       >
-        <motion.div variants={itemVariants}><EconomicCalendarCard /></motion.div>
-        <motion.div variants={itemVariants}><SectorMomentumCard /></motion.div>
+        <motion.div variants={itemVariants}>
+          <ErrorBoundary label="Economic calendar unavailable">
+            <EconomicCalendarCard />
+          </ErrorBoundary>
+        </motion.div>
+        <motion.div variants={itemVariants}>
+          <ErrorBoundary label="Sector momentum unavailable">
+            <SectorMomentumCard />
+          </ErrorBoundary>
+        </motion.div>
       </motion.div>
 
       {/* Sentiment + value row */}
@@ -71,8 +92,16 @@ export function DashboardPage() {
         initial="initial"
         animate="animate"
       >
-        <motion.div variants={itemVariants}><FearGreedDashCard /></motion.div>
-        <motion.div variants={itemVariants}><GrahamDashCard /></motion.div>
+        <motion.div variants={itemVariants}>
+          <ErrorBoundary label="Fear & Greed unavailable">
+            <FearGreedDashCard />
+          </ErrorBoundary>
+        </motion.div>
+        <motion.div variants={itemVariants}>
+          <ErrorBoundary label="Graham screen unavailable">
+            <GrahamDashCard />
+          </ErrorBoundary>
+        </motion.div>
       </motion.div>
 
       {/* AI signals + geo row */}
@@ -82,8 +111,16 @@ export function DashboardPage() {
         initial="initial"
         animate="animate"
       >
-        <motion.div variants={itemVariants}><LSTMSignalsDashCard /></motion.div>
-        <motion.div variants={itemVariants}><GeoRadarCard /></motion.div>
+        <motion.div variants={itemVariants}>
+          <ErrorBoundary label="LSTM signals unavailable">
+            <LSTMSignalsDashCard />
+          </ErrorBoundary>
+        </motion.div>
+        <motion.div variants={itemVariants}>
+          <ErrorBoundary label="Geo radar unavailable">
+            <GeoRadarCard />
+          </ErrorBoundary>
+        </motion.div>
       </motion.div>
 
       {/* Auto-trade row */}
@@ -94,7 +131,9 @@ export function DashboardPage() {
         animate="animate"
       >
         <motion.div variants={itemVariants} style={{ gridColumn: '1 / -1' }}>
-          <AutoTradeCard />
+          <ErrorBoundary label="Auto-trade unavailable">
+            <AutoTradeCard />
+          </ErrorBoundary>
         </motion.div>
       </motion.div>
 

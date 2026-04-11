@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import { usePoliticianTrades, usePoliticianTopTickers } from '@/api/endpoints/politicians'
 import type { PoliticianTrade, TopTicker } from '@/api/endpoints/politicians'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -206,13 +207,9 @@ export function PoliticianTradesPage() {
                     >
                       <td><span className={styles.timestamp}>{formatDate(t.date)}</span></td>
                       <td>
-                        <span
-                          className={styles.ticker}
-                          onClick={() => selectTicker(t.ticker)}
-                          style={{ cursor: 'pointer' }}
-                        >
+                        <Link to={`/stock/${t.ticker}`} className={styles.tickerLink}>
                           {t.ticker}
-                        </span>
+                        </Link>
                       </td>
                       <td><span className={styles.senator}>{t.senator}</span></td>
                       <td><Badge variant={txVariant(t)}>{txLabel(t)}</Badge></td>
