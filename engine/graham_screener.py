@@ -30,8 +30,12 @@ class GrahamScreener:
     Screens hundreds of stocks and identifies those trading below IV.
     """
 
+    _SCREEN_CACHE_TTL = 600  # 10 minutes
+
     def __init__(self):
         self._aaa_cache: Optional[Tuple[float, datetime]] = None  # (yield, fetched_at)
+        # (discount_factor, tickers_key) -> (result, fetched_at)
+        self._screen_cache: Dict[Tuple, Tuple[Dict, datetime]] = {}
 
     # ── AAA Bond Yield ─────────────────────────────────────────────────────────
 
@@ -230,8 +234,16 @@ class GrahamScreener:
                           max_positions: int = 50) -> Dict:
         """
         Screen multiple tickers and return ranked buy candidates.
-        Only includes tickers with calculable intrinsic value (for fair benchmarking).
+        Results are cached for _SCREEN_CACHE_TTL seconds per (discount_factor, tickers) key.
         """
+        cache_key = (round(discount_factor, 2), tuple(sorted(tickers)))
+        cached = self._screen_cache.get(cache_key)
+        if cached:
+            result, fetched_at = cached
+            age = (datetime.now() - fetched_at).total_seconds()
+            if age < self._SCREEN_CACHE_TTL:
+                return result
+
         aaa_yield = self.fetch_aaa_yield()
         results = []
         iv_calculable = []
@@ -251,7 +263,7 @@ class GrahamScreener:
             key=lambda x: x["upside_pct"] or 0, reverse=True
         )[:max_positions]
 
-        return {
+        output = {
             "screened_at": datetime.now().isoformat(),
             "aaa_yield": aaa_yield,
             "discount_factor": discount_factor,
@@ -262,6 +274,8 @@ class GrahamScreener:
             "results": results,
             "buy_list": buy_candidates,
         }
+        self._screen_cache[cache_key] = (output, datetime.now())
+        return output
 
     # ── Backtest ───────────────────────────────────────────────────────────────
 

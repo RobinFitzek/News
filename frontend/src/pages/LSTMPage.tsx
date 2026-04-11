@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import { Chart, registerables } from 'chart.js'
 import {
   useLSTMSignals, useLSTMPerformance, useLSTMTradeHistory, useLSTMTrain,
@@ -311,7 +312,7 @@ export function LSTMPage() {
                     transition={{ delay: i * 0.04, duration: 0.25 }}
                     className={styles.row}
                   >
-                    <td><span className={styles.ticker}>{s.ticker}</span></td>
+                    <td><Link to={`/stock/${s.ticker}`} className={styles.tickerLink}>{s.ticker}</Link></td>
                     <td>
                       <Badge variant={s.buy_signal ? 'success' : 'neutral'}>
                         {s.buy_signal ? 'BUY' : 'HOLD'}
@@ -358,7 +359,7 @@ export function LSTMPage() {
                     transition={{ delay: Math.min(i * 0.02, 0.5) }}
                     className={styles.row}
                   >
-                    <td><span className={styles.ticker}>{t.ticker}</span></td>
+                    <td><Link to={`/stock/${t.ticker}`} className={styles.tickerLink}>{t.ticker}</Link></td>
                     <td><span className={styles.timestamp}>{formatDate(t.entered_at)}</span></td>
                     <td><span className={styles.num}>{(t.confidence * 100).toFixed(1)}%</span></td>
                     <td>
