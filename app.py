@@ -177,8 +177,12 @@ async def serve_react_spa(full_path: str):
 # ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
-def run_server():
-    """Run the web server using uvicorn."""
+def run_server(*, log_level: str = "warning") -> None:
+    """Run the web server using uvicorn.
+
+    :param log_level: uvicorn log level. Callers can pass ``"debug"`` when
+        dev mode is enabled without having to duplicate the HTTPS branch.
+    """
     from core.config import CERT_FILE, KEY_FILE
 
     if ENABLE_HTTPS:
@@ -193,12 +197,12 @@ def run_server():
             port=WEB_PORT,
             ssl_certfile=str(CERT_FILE),
             ssl_keyfile=str(KEY_FILE),
-            log_level="warning",
+            log_level=log_level,
         )
     else:
         print(f"[WARNING] HTTP server starting on http://{WEB_HOST}:{WEB_PORT}")
         print("[WARNING] Enable HTTPS in .env for secure connections!")
-        uvicorn.run(app, host=WEB_HOST, port=WEB_PORT, log_level="warning")
+        uvicorn.run(app, host=WEB_HOST, port=WEB_PORT, log_level=log_level)
 
 
 if __name__ == "__main__":
