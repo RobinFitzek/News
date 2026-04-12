@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { useWatchlist, useAddToWatchlist, useRemoveFromWatchlist, useSaveWatchlistNote } from '@/api/endpoints/watchlist'
+import { useGrahamScreen } from '@/api/endpoints/graham'
 import api from '@/api/client'
 import { queryClient } from '@/api/queryClient'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -75,7 +76,17 @@ function SignalBadge({ signal }: { signal: SignalType }) {
 
 export function WatchlistPage() {
   const { data: items, isLoading } = useWatchlist()
+  const { data: grahamScreen } = useGrahamScreen(0.2, true)
   const addMut = useAddToWatchlist()
+
+  // Build ticker → graham result map for O(1) lookup
+  const grahamMap = useMemo(() => {
+    const m = new Map<string, { buy_signal: boolean; upside_pct: number | null; intrinsic_value: number | null }>()
+    for (const r of grahamScreen?.results ?? []) {
+      m.set(r.ticker, { buy_signal: r.buy_signal, upside_pct: r.upside_pct, intrinsic_value: r.intrinsic_value })
+    }
+    return m
+  }, [grahamScreen])
   const removeMut = useRemoveFromWatchlist()
   const noteMut = useSaveWatchlistNote()
   const { addToast } = useToastStore()
@@ -310,6 +321,7 @@ export function WatchlistPage() {
                     Tier{sortArrow('tier')}
                   </th>
                   <th>Signal</th>
+                  <th>Graham IV</th>
                   <th className={styles.sortableHeader} onClick={() => updateSort('geo_risk')}>
                     Geo Risk{sortArrow('geo_risk')}
                   </th>
@@ -348,6 +360,29 @@ export function WatchlistPage() {
                       ) : (
                         <span className={styles.muted}>—</span>
                       )}
+                    </td>
+                    <td>
+                      {(() => {
+                        const g = grahamMap.get(item.ticker)
+                        if (!g || g.intrinsic_value === null) return <span className={styles.muted}>—</span>
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Badge variant={g.buy_signal ? 'success' : 'ghost'}>
+                              {g.buy_signal ? 'BUY' : 'HOLD'}
+                            </Badge>
+                            {g.upside_pct !== null && (
+                              <span style={{
+                                fontFamily: 'var(--font-mono)',
+                                fontSize: 'var(--text-xs)',
+                                color: g.upside_pct >= 0 ? 'var(--signal-positive)' : 'var(--signal-negative)',
+                                fontWeight: 600,
+                              }}>
+                                {g.upside_pct >= 0 ? '+' : ''}{g.upside_pct.toFixed(0)}%
+                              </span>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td>
                       {item.geo_risk_score !== null ? (

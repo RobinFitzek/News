@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { SystemCommandCenter } from '@/components/dashboard/SystemCommandCenter'
 import { MarketRegimeCard } from '@/components/dashboard/MarketRegimeCard'
 import { BenchmarkCard } from '@/components/dashboard/BenchmarkCard'
@@ -8,6 +9,9 @@ import { EconomicCalendarCard } from '@/components/dashboard/EconomicCalendarCar
 import { SectorMomentumCard } from '@/components/dashboard/SectorMomentumCard'
 import { AutoTradeCard } from '@/components/dashboard/AutoTradeCard'
 import { GeoRadarCard } from '@/components/dashboard/GeoRadarCard'
+import { FearGreedDashCard } from '@/components/dashboard/FearGreedDashCard'
+import { GrahamDashCard } from '@/components/dashboard/GrahamDashCard'
+import { LSTMSignalsDashCard } from '@/components/dashboard/LSTMSignalsDashCard'
 import styles from './DashboardPage.module.css'
 
 const containerVariants = {
@@ -34,9 +38,11 @@ export function DashboardPage() {
       />
 
       {/* System command center */}
-      <SystemCommandCenter />
+      <ErrorBoundary label="System command center unavailable">
+        <SystemCommandCenter />
+      </ErrorBoundary>
 
-      {/* Primary row — market + portfolio */}
+      {/* Primary row — market regime + benchmark */}
       <motion.div
         className={styles.primaryRow}
         variants={containerVariants}
@@ -44,15 +50,21 @@ export function DashboardPage() {
         animate="animate"
       >
         <motion.div variants={itemVariants}>
-          <MarketRegimeCard />
+          <ErrorBoundary label="Market regime unavailable">
+            <MarketRegimeCard />
+          </ErrorBoundary>
         </motion.div>
         <motion.div variants={itemVariants}>
-          <BenchmarkCard />
+          <ErrorBoundary label="Benchmark unavailable">
+            <BenchmarkCard />
+          </ErrorBoundary>
         </motion.div>
       </motion.div>
 
       {/* Intelligence summary strip */}
-      <IntelStrip />
+      <ErrorBoundary label="Intel strip unavailable">
+        <IntelStrip />
+      </ErrorBoundary>
 
       {/* Context row — sector + calendar */}
       <motion.div
@@ -62,14 +74,18 @@ export function DashboardPage() {
         animate="animate"
       >
         <motion.div variants={itemVariants}>
-          <EconomicCalendarCard />
+          <ErrorBoundary label="Economic calendar unavailable">
+            <EconomicCalendarCard />
+          </ErrorBoundary>
         </motion.div>
         <motion.div variants={itemVariants}>
-          <SectorMomentumCard />
+          <ErrorBoundary label="Sector momentum unavailable">
+            <SectorMomentumCard />
+          </ErrorBoundary>
         </motion.div>
       </motion.div>
 
-      {/* Geopolitical radar + auto-trade */}
+      {/* Sentiment + value row */}
       <motion.div
         className={styles.contextRow}
         variants={containerVariants}
@@ -77,10 +93,47 @@ export function DashboardPage() {
         animate="animate"
       >
         <motion.div variants={itemVariants}>
-          <GeoRadarCard />
+          <ErrorBoundary label="Fear & Greed unavailable">
+            <FearGreedDashCard />
+          </ErrorBoundary>
         </motion.div>
         <motion.div variants={itemVariants}>
-          <AutoTradeCard />
+          <ErrorBoundary label="Graham screen unavailable">
+            <GrahamDashCard />
+          </ErrorBoundary>
+        </motion.div>
+      </motion.div>
+
+      {/* AI signals + geo row */}
+      <motion.div
+        className={styles.contextRow}
+        variants={containerVariants}
+        initial="initial"
+        animate="animate"
+      >
+        <motion.div variants={itemVariants}>
+          <ErrorBoundary label="LSTM signals unavailable">
+            <LSTMSignalsDashCard />
+          </ErrorBoundary>
+        </motion.div>
+        <motion.div variants={itemVariants}>
+          <ErrorBoundary label="Geo radar unavailable">
+            <GeoRadarCard />
+          </ErrorBoundary>
+        </motion.div>
+      </motion.div>
+
+      {/* Auto-trade row */}
+      <motion.div
+        className={styles.contextRow}
+        variants={containerVariants}
+        initial="initial"
+        animate="animate"
+      >
+        <motion.div variants={itemVariants} style={{ gridColumn: '1 / -1' }}>
+          <ErrorBoundary label="Auto-trade unavailable">
+            <AutoTradeCard />
+          </ErrorBoundary>
         </motion.div>
       </motion.div>
 

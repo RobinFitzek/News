@@ -307,6 +307,16 @@ export interface SettingsData {
     auto_discovery_enabled: boolean
     auto_trading_enabled: boolean
     daily_limit: number
+    // Active hours
+    active_hours_start: string
+    active_hours_end: string
+    // Deep sleep / C-state
+    deep_sleep_enabled: boolean
+    deep_sleep_start: string
+    deep_sleep_end: string
+    deep_sleep_intensity: string
+    deep_sleep_full_weekends: boolean
+    cstate_overnight_mode: boolean
   }
   analysis: {
     confidence_threshold: number

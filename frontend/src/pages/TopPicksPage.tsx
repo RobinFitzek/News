@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import clsx from 'clsx'
+import { Link } from 'react-router-dom'
 import { useTopPicks } from '@/api/endpoints/topPicks'
 import type { TopPick } from '@/api/endpoints/topPicks'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -137,7 +138,9 @@ export function TopPicksPage() {
                           <span className={styles.rank}>{i + 1}</span>
                         </td>
                         <td>
-                          <span className={styles.ticker}>{pick.ticker}</span>
+                          <Link to={`/stock/${pick.ticker}`} className={styles.tickerLink}>
+                            {pick.ticker}
+                          </Link>
                         </td>
                         <td>
                           <span className={styles.mono}>{pick.predictions_count}</span>

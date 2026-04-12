@@ -235,3 +235,94 @@
   transform: translateX(16px);
   background: var(--bg-primary);
 }
+
+/* Button-style toggle (used when toggle is a <button> element) */
+.toggle[role='switch'] {
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-primary);
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s, border-color 0.2s;
+  padding: 0;
+}
+.toggle[role='switch']::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 12px;
+  height: 12px;
+  background: var(--text-muted);
+  transition: transform 0.2s, background 0.2s;
+}
+.toggle[role='switch'].toggleOn {
+  background: var(--signal-positive);
+  border-color: var(--signal-positive);
+}
+.toggle[role='switch'].toggleOn::after {
+  transform: translateX(16px);
+  background: var(--bg-primary);
+}
+.toggle:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Overnight job status grid */
+.sectionSub {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: var(--space-4);
+}
+
+.overnightInfo {
+  margin-top: var(--space-5);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-primary);
+}
+
+.overnightTitle {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: var(--space-3);
+}
+
+.overnightGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.overnightRow {
+  display: grid;
+  grid-template-columns: 8px 1fr 1fr;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-primary);
+}
+.overnightRow:last-child { border-bottom: none; }
+
+.overnightDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.overnightJob {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.overnightReason {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  text-align: right;
+}

@@ -42,3 +42,30 @@ export function useApplyWeights() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['backtest-results'] }),
   })
 }
+
+export interface RandomBaseline {
+  n_simulations: number
+  portfolio_size: number
+  mean_random_return: number
+  std_random_return: number
+  z_score_vs_random: number | null
+  pct_simulations_beaten: number | null
+  histogram: {
+    bins: number[]
+    bin_edges: number[]
+    strategy_return: number
+    strategy_bin_idx: number | null
+  } | null
+  strategy_return: number
+}
+
+export function useRandomBaseline() {
+  return useMutation<RandomBaseline, Error, { results: BacktestResults; n_simulations?: number }>({
+    mutationFn: ({ results, n_simulations = 500 }) =>
+      api.post('/api/backtest/random-baseline', {
+        total_return_pct: results.total_return_pct,
+        total_trades: results.total_trades,
+        n_simulations,
+      }).then(r => r.data),
+  })
+}

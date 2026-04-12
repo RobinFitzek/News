@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import clsx from 'clsx'
+import { Link } from 'react-router-dom'
 import { useInsiderActivity, useScanInsiderActivity } from '@/api/endpoints/insider'
 import type { InsiderSignal } from '@/api/endpoints/insider'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -156,7 +157,7 @@ export function InsiderActivityPage() {
                           className={styles.row}
                         >
                           <td>
-                            <span className={styles.ticker}>{sig.ticker}</span>
+                            <Link to={`/stock/${sig.ticker}`} className={styles.tickerLink}>{sig.ticker}</Link>
                           </td>
                           <td>
                             <span className={styles.insiderName}>{sig.insider_name}</span>

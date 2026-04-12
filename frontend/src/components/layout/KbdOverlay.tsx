@@ -12,6 +12,12 @@ const shortcuts = [
   { keys: ['g', 'a'], label: 'Analyze Stock', to: '/analyze' },
   { keys: ['g', 's'], label: 'Settings',      to: '/settings' },
   { keys: ['g', 'l'], label: 'Learning',      to: '/learning' },
+  { keys: ['g', 'r'], label: 'Graham Value',  to: '/graham' },
+  { keys: ['g', 'f'], label: 'Fear & Greed',  to: '/fear-greed' },
+  { keys: ['g', 'n'], label: 'Senate Trades', to: '/politician-trades' },
+  { keys: ['g', 'm'], label: 'LSTM Model',    to: '/lstm' },
+  { keys: ['g', 'b'], label: 'Backtest',      to: '/backtest' },
+  { keys: ['g', 't'], label: 'Top Picks',     to: '/top-picks' },
 ]
 
 export function KbdOverlay() {
