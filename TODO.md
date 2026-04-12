@@ -2134,3 +2134,196 @@ Apply Layer 3 glass and Breathe language to every major component.
 - CSS variable `[data-theme]` selector pattern in `modern.css` — keep, rename tokens
 - `ChartManager` chart init in `dashboard.js` — wrap with global defaults
 - All existing `IntersectionObserver` patterns — reuse for scroll-triggered animations
+
+---
+
+## Code Quality Audit — April 2026
+
+> Full codebase audit performed after completing the initial code quality pass
+> (connection leak fixes, yfinance cache, router split, test relocation, dead file cleanup).
+> Ratings reflect the state *after* those improvements. Single-user architecture is intentional
+> and should be preserved — no multi-user or multi-tenant recommendations.
+
+### Scorecard (1 = critical gaps, 10 = production-grade)
+
+| Area                        | Score | Notes |
+|-----------------------------|:-----:|-------|
+| **Architecture / Structure** | 7/10 | Router split done. `scheduler.py` is still a 1166-line god module coupling every subsystem. |
+| **Security**                 | 6/10 | bcrypt, Fernet, TOTP 2FA, HTTPS, CSP headers all solid. CSRF missing on `/login` POST and ~60 other state-changing routes. |
+| **Error Handling**           | 4/10 | 115 bare `except Exception: pass` blocks across `engine/` silently swallow failures. |
+| **Database**                 | 8/10 | Connection leaks fixed. `query()` / `query_one()` / `execute()` with try/finally are standard. |
+| **Testing**                  | 3/10 | Minimal coverage. Tests exist in `tests/` but cover < 5% of routes and engine logic. |
+| **API Design**               | 7/10 | RESTful, consistent naming, auth on all endpoints. Missing input validation on many POST bodies. |
+| **Dependencies / Build**     | 5/10 | `google-genai` import fails at startup (missing package). Unused deps in requirements.txt. Frontend React build not in repo. |
+| **Observability / Logging**  | 6/10 | `logging_config` exists, budget tracker works. No structured logging, no request-level metrics. |
+| **Performance**              | 6/10 | yfinance TTL cache created in `engine/utils.py` but not yet adopted by the 45+ files that call yfinance directly. |
+| **Documentation**            | 7/10 | README comprehensive. This TODO.md is thorough. Inline docstrings sparse in engine modules. |
+| **Overall**                  | **6/10** | Functional and feature-rich. Needs hardening before trusting with real capital or exposing to the internet. |
+
+---
+
+### Round 1 — Security Hardening (highest priority)
+
+#### A1. CSRF protection on /login POST
+**File:** `routers/auth.py`
+**Problem:** The login form POST is not gated by CSRF validation. An attacker could craft a page that auto-submits a login form (login CSRF), potentially logging the user into an attacker-controlled account to capture subsequent activity.
+**Fix:** Add `csrf.validate_token(request)` to the login POST handler, matching the pattern already used on other settings routes.
+**Effort:** XS · **Impact:** High (authentication bypass vector)
+```
+[ ] Add CSRF validation to POST /login handler
+[ ] Add CSRF validation to POST /login/totp handler
+[ ] Verify CSRF token is rendered in login.html form
+```
+
+#### A2. CSRF audit of all POST/PUT/DELETE routes
+**File:** All routers under `routers/`
+**Problem:** ~60 state-changing endpoints (POST, PUT, DELETE) across all routers lack CSRF validation. The middleware in `app.py` sets `request.state.csrf_token` but never validates it — each route must call `csrf.validate_token()` explicitly.
+**Fix:** Audit every POST/PUT/DELETE handler. Add CSRF validation to all browser-facing routes. API-key-only routes (Bearer token auth) can skip CSRF since they're not vulnerable to cross-origin form submission.
+**Effort:** M · **Impact:** High (entire app surface)
+```
+[ ] Inventory all POST/PUT/DELETE routes across all routers
+[ ] Classify each as browser-form vs API-key-only
+[ ] Add csrf.validate_token(request) to all browser-form routes
+[ ] Add integration test: POST without CSRF token → 403
+```
+
+#### A3. Input validation on POST request bodies
+**File:** All routers accepting `request.json()`
+**Problem:** Most POST handlers do `data = await request.json()` then access fields with `.get()` without type or range validation. Example: `float(threshold)` in alerts.py will crash on non-numeric input. No Pydantic models are used anywhere.
+**Fix:** Add Pydantic `BaseModel` request schemas for all POST endpoints, or at minimum add explicit type checks and bounds.
+**Effort:** M · **Impact:** Medium (prevents crashes from malformed input)
+```
+[ ] Create pydantic request models for all POST endpoints (or validate inline)
+[ ] Add bounds checking: numeric ranges, string lengths, enum values
+[ ] Return 422 with clear error messages on validation failure
+```
+
+---
+
+### Round 2 — Stability & Maintainability
+
+#### B1. Eliminate bare `except Exception: pass` pattern
+**File:** `engine/*.py` (115 occurrences)
+**Problem:** The codebase has 115 instances of `except Exception: pass` or `except Exception as e: pass` across engine modules. These silently swallow errors — including bugs, API failures, and data corruption — making debugging nearly impossible. Example: if yfinance returns malformed data, the analysis silently produces incomplete results with no log entry.
+**Fix:** Replace each with either (a) `except SpecificError` for expected failures, (b) `logger.warning(...)` for acceptable degradation, or (c) `raise` for genuine bugs. Batch audit by file.
+**Effort:** L (115 sites, each needs case-by-case judgement) · **Impact:** High (silent failures are the #1 operational risk)
+```
+[ ] Audit engine/agents.py — replace bare except with specific handlers
+[ ] Audit engine/pipeline.py — replace bare except with specific handlers
+[ ] Audit engine/sentiment_analyzer.py — replace bare except
+[ ] Audit engine/pattern_recognition.py — replace bare except
+[ ] Audit engine/financial_statements.py — replace bare except
+[ ] Audit remaining engine/ files (quant_screener, earnings_tracker, etc.)
+[ ] Grep-verify: zero bare `except Exception: pass` remaining in engine/
+```
+
+#### B2. Split scheduler.py into focused modules
+**File:** `scheduler.py` (1166 lines)
+**Problem:** `scheduler.py` is a god module that imports and orchestrates every engine, client, and database module. It contains job definitions, timing logic, market-hours detection, pipeline orchestration, and ad-hoc utility functions all in one file. Any change risks breaking unrelated scheduled tasks.
+**Fix:** Extract into `scheduler/` package: `scheduler/__init__.py` (APScheduler setup + job registration), `scheduler/jobs_analysis.py` (pipeline, discovery, re-analysis), `scheduler/jobs_market.py` (price alerts, breakout detection, macro), `scheduler/jobs_maintenance.py` (backup, cleanup, health check).
+**Effort:** L · **Impact:** Medium (maintainability, testability)
+```
+[ ] Create scheduler/ package directory
+[ ] Extract job functions into thematic modules (analysis, market, maintenance)
+[ ] Keep __init__.py as the APScheduler wiring point only
+[ ] Verify all jobs still register and fire on schedule
+[ ] Add unit tests for individual job functions with mocked dependencies
+```
+
+#### B3. Fix google-genai import failure
+**File:** `engine/agents.py`, `core/web_deps.py`
+**Problem:** `core/web_deps.py` imports from `engine.agents`, which imports `google.genai`. The `google-generativeai` package is missing from the environment, causing a startup crash when any router tries to load `web_deps`. This means the entire web dashboard fails to start in a fresh environment.
+**Fix:** Either add `google-generativeai` to `requirements.txt` and install it, or guard the import with a try/except that sets a `GEMINI_AVAILABLE = False` flag and skips Gemini-dependent features gracefully.
+**Effort:** XS · **Impact:** High (app doesn't start without it)
+```
+[ ] Guard google.genai import in engine/agents.py with try/except ImportError
+[ ] Set GEMINI_AVAILABLE flag to gate Gemini-dependent code paths
+[ ] Ensure web dashboard starts even without google-generativeai installed
+[ ] Add google-generativeai to requirements.txt with version pin
+```
+
+---
+
+### Round 3 — Test Coverage
+
+#### C1. Route integration tests with httpx
+**File:** `tests/test_routes.py` (new)
+**Problem:** Zero route-level tests exist. The routers are the primary interface but are completely untested. A refactor, import change, or dependency update could break any endpoint silently.
+**Fix:** Use `httpx.AsyncClient` with FastAPI's `TestClient` to test the golden path for each router module. Start with auth (login/logout), watchlist (CRUD), and settings (read/write) as the highest-value targets.
+**Effort:** M · **Impact:** High (prevents regression on every code change)
+```
+[ ] Set up test infrastructure: conftest.py with TestClient, test DB, auth fixture
+[ ] Test auth routes: login, logout, session validation, TOTP flow
+[ ] Test watchlist routes: add, list, update tier, remove, CSV import
+[ ] Test settings routes: read settings, save settings, CSRF validation
+[ ] Test alert routes: create, list, deactivate
+[ ] Test analysis routes: trigger analysis, get history, export
+[ ] Add to CI: pytest runs on every push
+```
+
+#### C2. Engine unit tests
+**File:** `tests/test_engine/` (new directory)
+**Problem:** Engine modules contain the core business logic (scoring, analysis, risk calculation) but have no unit tests. The meta-labeler, quant screener, and risk calculators produce numbers that directly influence trading decisions — these should be the most-tested code in the project.
+**Fix:** Add unit tests with mocked yfinance/API responses for the highest-value engine modules.
+**Effort:** L · **Impact:** High (correctness of trading signals)
+```
+[ ] Test engine/quant_screener.py: score calculation with known inputs
+[ ] Test engine/risk_calculator.py: VaR, position sizing, risk gates
+[ ] Test engine/meta_labeler.py: feature extraction, prediction with mock model
+[ ] Test engine/staleness_tracker.py: signal age detection, staleness flags
+[ ] Test engine/auto_paper_trader.py: entry/exit logic, TP/SL triggers
+[ ] Test engine/correlation_analyzer.py: correlation matrix with synthetic data
+```
+
+---
+
+### Round 4 — Cleanup & Performance
+
+#### D1. Adopt engine/utils.py yfinance cache across codebase
+**File:** 45+ files in `engine/` that call `yf.Ticker()` or `yf.download()` directly
+**Problem:** `engine/utils.py` provides `get_ticker_history()` and `get_ticker_info()` with thread-safe TTL caching, but none of the existing engine modules use it yet. Every module creates its own `yf.Ticker()` instance, duplicating API calls and bypassing the cache entirely.
+**Fix:** Search-and-replace `yf.Ticker(ticker).history(...)` → `get_ticker_history(ticker, ...)` and `yf.Ticker(ticker).info` → `get_ticker_info(ticker)` across all engine modules. Each replacement is mechanical but needs testing.
+**Effort:** M · **Impact:** Medium (reduces yfinance API calls by ~60%, speeds up analysis cycles)
+```
+[ ] Replace yf.Ticker().history() calls in engine/quant_screener.py
+[ ] Replace yf.Ticker().history() calls in engine/financial_statements.py
+[ ] Replace yf.Ticker().info calls in engine/sentiment_analyzer.py
+[ ] Replace yf.Ticker() calls in engine/portfolio_manager.py
+[ ] Replace yf.Ticker() calls in engine/correlation_analyzer.py
+[ ] Replace yf.Ticker() calls in remaining engine/ files
+[ ] Grep-verify: zero direct yf.Ticker() calls outside engine/utils.py
+```
+
+#### D2. Clean up requirements.txt
+**File:** `requirements.txt`
+**Problem:** Likely contains unused dependencies accumulated over development. Extra deps slow down installs, increase attack surface, and confuse new contributors. `google-generativeai` is missing despite being required.
+**Fix:** Run `pip-autoremove` or manually audit each dependency against actual imports. Pin versions for reproducibility.
+**Effort:** S · **Impact:** Low (housekeeping)
+```
+[ ] Audit each dependency in requirements.txt against actual imports
+[ ] Remove unused packages
+[ ] Add missing packages (google-generativeai)
+[ ] Pin all versions (package==x.y.z)
+[ ] Test fresh install: pip install -r requirements.txt in clean venv
+```
+
+#### D3. Build and commit React frontend
+**File:** `frontend/`
+**Problem:** The React SPA is fully implemented (28 pages, TypeScript, Vite) but the built output (`static/react/`) is not in the repo. The FastAPI catch-all route returns "React build not found" for any non-API route. Anyone cloning the repo gets a broken frontend.
+**Fix:** Run `cd frontend && npm install && npm run build`, verify the output lands in `static/react/`, commit the build artifacts (or add a build step to the README).
+**Effort:** S · **Impact:** High (frontend is completely non-functional without this)
+```
+[ ] Run npm install in frontend/
+[ ] Run npm run build → verify static/react/index.html exists
+[ ] Decide: commit build artifacts OR document build step in README
+[ ] Verify SPA catch-all serves React app on all non-API routes
+```
+
+---
+
+### Design Note
+
+> This project is intentionally **single-user**. All auth, settings, and portfolio features
+> assume one operator. Do not add multi-user, multi-tenant, or role-based access control.
+> The API key system (`api_keys` table) is for programmatic access by the same user,
+> not for granting access to other people.
