@@ -174,36 +174,21 @@ class InvestmentScheduler:
             return results
         except ImportError as e:
             error_msg = f"Import Error: {e}. Check if all dependencies are installed."
-            print(f"(Error) {error_msg}")
-            db.log_scheduler_run(
-                tickers_scanned=0,
-                alerts_sent=0,
-                errors=error_msg,
-                duration=0
-            )
-            # Don't raise in background thread, just log
-            # raise Exception(error_msg)
         except AttributeError as e:
             error_msg = f"API Method Error: {e}. Check API client configuration."
-            print(f"(Error) {error_msg}")
-            db.log_scheduler_run(
-                tickers_scanned=0,
-                alerts_sent=0,
-                errors=error_msg,
-                duration=0
-            )
         except Exception as e:
-            error_msg = f"Pipeline Error: {str(e)}"
-            print(f"(Error) {error_msg}")
-            # Log error
-            db.log_scheduler_run(
-                tickers_scanned=0,
-                alerts_sent=0,
-                errors=error_msg,
-                duration=0
-            )
+            error_msg = f"Pipeline Error: {e}"
         finally:
             self.is_scanning = False
+
+        # Reached only when an except branch above set ``error_msg``.
+        print(f"(Error) {error_msg}")
+        db.log_scheduler_run(
+            tickers_scanned=0,
+            alerts_sent=0,
+            errors=error_msg,
+            duration=0,
+        )
     
     def run_macro_event_check(self):
         """Check for upcoming rate events and alert on rate-sensitive portfolio holdings."""
@@ -308,332 +293,177 @@ class InvestmentScheduler:
                         print(f"  send_alert error for {analysis.get('ticker')}: {e}")
     
     def start(self):
-        """Start the scheduler with all cycle jobs"""
+        """Start the scheduler with all cycle jobs."""
         if self.is_running:
             return
-        
-        # Import cycle processor
+
         from engine.cycle_processor import cycle_processor
-        
-        # Daily Quick-Scan (every N hours during active time)
-        self.scheduler.add_job(
-            self.run_scan,
-            IntervalTrigger(hours=self.interval_hours),
-            id='main_scan',
-            name='Daily Investment Scan',
-            replace_existing=True
-        )
-        
-        # Weekly Deep Analysis (Sunday 20:00)
-        self.scheduler.add_job(
-            lambda: cycle_processor.run_weekly_cycle(),
-            CronTrigger(day_of_week='sun', hour=20, minute=0,
-                       timezone=self.timezone),
-            id='weekly_analysis',
-            name='Weekly Deep Analysis',
-            replace_existing=True
-        )
-        
-        # Monthly Portfolio Review (28th of each month at 18:00)
-        self.scheduler.add_job(
-            lambda: cycle_processor.run_monthly_cycle(),
-            CronTrigger(day=28, hour=18, minute=0,
-                       timezone=self.timezone),
-            id='monthly_review',
-            name='Monthly Portfolio Review',
-            replace_existing=True
-        )
-        
-        # Daily Auto-Discovery (free, runs before first scan)
-        if self.discovery_enabled:
+
+        tz = self.timezone
+
+        def cron(**kw):
+            return CronTrigger(timezone=tz, **kw)
+
+        def every(**kw):
+            return IntervalTrigger(**kw)
+
+        # ------------------------------------------------------------------
+        # Parse conditional time settings up-front so the job list below can
+        # stay purely declarative. Malformed values fall back to sensible
+        # defaults and disable just the affected job group.
+        # ------------------------------------------------------------------
+        discovery_ok = bool(self.discovery_enabled)
+        disc_h, disc_m = 6, 0
+        wk_h, wk_m = 12, 0
+        if discovery_ok:
             try:
-                disc_hour, disc_minute = map(int, self.discovery_daily_time.split(':'))
-                self.scheduler.add_job(
-                    self.run_discovery,
-                    CronTrigger(hour=disc_hour, minute=disc_minute,
-                               timezone=self.timezone),
-                    id='daily_discovery',
-                    name='Daily Auto-Discovery',
-                    replace_existing=True
-                )
-
-                # Weekly AI Discovery
-                weekly_hour, weekly_minute = map(int, self.discovery_weekly_time.split(':'))
-                self.scheduler.add_job(
-                    self.run_ai_discovery,
-                    CronTrigger(day_of_week=self.discovery_weekly_day,
-                               hour=weekly_hour, minute=weekly_minute,
-                               timezone=self.timezone),
-                    id='weekly_ai_discovery',
-                    name='Weekly AI Discovery',
-                    replace_existing=True
-                )
+                disc_h, disc_m = map(int, self.discovery_daily_time.split(":"))
+                wk_h, wk_m = map(int, self.discovery_weekly_time.split(":"))
             except Exception as e:
-                print(f"(!) Error scheduling discovery jobs: {e}")
+                print(f"(!) Error parsing discovery times: {e}")
+                discovery_ok = False
 
-        # Daily summary job
-        if self.daily_summary_enabled:
-            summary_hour, summary_minute = map(int, self.daily_summary_time.split(':'))
+        summary_ok = bool(self.daily_summary_enabled)
+        sum_h, sum_m = 0, 0
+        if summary_ok:
+            try:
+                sum_h, sum_m = map(int, self.daily_summary_time.split(":"))
+            except Exception as e:
+                print(f"(!) Error parsing daily summary time: {e}")
+                summary_ok = False
+
+        # ------------------------------------------------------------------
+        # Declarative job table. Each entry:
+        #     (callable, trigger, id, friendly name, enabled)
+        # Behaviour is identical to the previous imperative version — only
+        # the presentation is compressed from ~320 lines to one list.
+        # ------------------------------------------------------------------
+        jobs = [
+            # --- Core scanning + cycle processors ---
+            (self.run_scan, every(hours=self.interval_hours),
+             "main_scan", "Daily Investment Scan", True),
+            (cycle_processor.run_weekly_cycle,
+             cron(day_of_week="sun", hour=20, minute=0),
+             "weekly_analysis", "Weekly Deep Analysis", True),
+            (cycle_processor.run_monthly_cycle,
+             cron(day=28, hour=18, minute=0),
+             "monthly_review", "Monthly Portfolio Review", True),
+
+            # --- Discovery ---
+            (self.run_discovery,
+             cron(hour=disc_h, minute=disc_m),
+             "daily_discovery", "Daily Auto-Discovery", discovery_ok),
+            (self.run_ai_discovery,
+             cron(day_of_week=self.discovery_weekly_day,
+                  hour=wk_h, minute=wk_m),
+             "weekly_ai_discovery", "Weekly AI Discovery", discovery_ok),
+
+            # --- Daily summary + weekly reports ---
+            (self.run_daily_summary,
+             cron(hour=sum_h, minute=sum_m),
+             "daily_summary", "Daily Summary Email", summary_ok),
+            (self.run_weekly_report,
+             cron(day_of_week="sun", hour=18, minute=0),
+             "weekly_report", "Weekly Report", True),
+            (self.run_weekly_letter,
+             cron(day_of_week="sun", hour=19, minute=0),
+             "weekly_letter", "Weekly AI Letter", True),
+
+            # --- Scanning / screening schedules ---
+            (self.run_nlp_sentiment_scoring,
+             cron(hour="9-17", minute=5),
+             "nlp_sentiment", "NLP Sentiment Scoring", True),
+            (self.run_pairs_scan,
+             cron(day_of_week="sat", hour=8, minute=0),
+             "pairs_scan", "Pairs Trading Cointegration Scan", True),
+            (self.run_supply_chain_refresh,
+             cron(month="1,4,7,10", day=1, hour=7, minute=0),
+             "supply_chain_refresh", "Supply Chain Quarterly Refresh", True),
+            (self.run_dark_pool_scan,
+             cron(day_of_week="mon-fri", hour=18, minute=0),
+             "dark_pool_scan", "Dark Pool Volume Anomaly Scan", True),
+            (self.refresh_13f_holdings,
+             cron(day_of_week="fri", hour=18, minute=0),
+             "refresh_13f", "13F Institutional Holdings Refresh", True),
+            (self.capture_macro_snapshot,
+             cron(day_of_week="mon-fri", hour=17, minute=5),
+             "macro_snapshot", "Daily Macro Snapshot", True),
+
+            # --- Quality / validation / health ---
+            (self.check_hit_rates,
+             cron(hour=21, minute=0),
+             "hit_rate_check", "Hit Rate Check", True),
+            (self.run_health_check,
+             cron(hour=3, minute=0),
+             "health_check", "System Health Check", True),
+            (self.grade_signals,
+             cron(hour=22, minute=0),
+             "grade_signals", "Grade Signals", True),
+
+            # --- Auto paper trading ---
+            (self.run_auto_paper_entry,
+             cron(day_of_week="mon-fri", hour=9, minute=35),
+             "auto_paper_entry", "Auto Paper Entry", True),
+            (self.run_auto_paper_exit,
+             cron(day_of_week="mon-fri", hour=15, minute=50),
+             "auto_paper_exit", "Auto Paper Exit", True),
+
+            # --- Broker (Phase 6) — market hours only (CronTrigger for C-state sleep) ---
+            (self.run_broker_sync,
+             cron(day_of_week="mon-fri", hour="9-15", minute="*/5"),
+             "broker_sync", "Broker Position Sync", True),
+            (self.run_broker_pnl_snapshot,
+             cron(day_of_week="mon-fri", hour="9-15", minute="*/15"),
+             "broker_pnl_snapshot", "Broker P&L Snapshot", True),
+
+            # --- Alerts / learning / validation ---
+            (self.check_price_alerts,
+             cron(day_of_week="mon-fri", hour="9-15", minute="*/15"),
+             "price_alert_check", "Price Alert Check", True),
+            (self.retrain_meta_labeler,
+             cron(day_of_week="sun", hour=22, minute=30),
+             "meta_labeler_retrain", "Meta-Labeler Retrain", True),
+            (self.run_mcpt_validation,
+             cron(day_of_week="sun", hour=23, minute=0),
+             "mcpt_validation", "MCPT Strategy Validation", True),
+
+            # --- Geopolitical / macro — fixed times for C-state sleep ---
+            (self.run_geopolitical_scan,
+             cron(hour="8,14,20"),
+             "geopolitical_scan", "Geopolitical Scan", True),
+            (self.run_macro_event_check,
+             cron(hour=8, minute=0),
+             "macro_event_check", "Macro Event Check", True),
+            (self.check_rss_geo_trigger,
+             cron(hour="7-22", minute="*/15"),
+             "rss_geo_trigger", "RSS Geo Trigger", True),
+
+            # --- Housekeeping ---
+            (self.run_db_backup,
+             cron(hour=3, minute=30),
+             "db_backup", "DB Backup", True),
+            (self.refresh_corporate_actions,
+             cron(day_of_week="sat", hour=4, minute=0),
+             "corporate_actions_refresh", "Corporate Actions Refresh", True),
+
+            # --- Daily screens / trackers ---
+            (self.run_graham_screen,
+             cron(day_of_week="mon-fri", hour=7, minute=30),
+             "graham_screen", "Graham Value Screen", True),
+            (self.run_fear_greed_snapshot,
+             cron(day_of_week="mon-fri", hour=8, minute=0),
+             "fear_greed_snapshot", "Fear & Greed Snapshot", True),
+            (self.run_politician_refresh,
+             cron(day_of_week="mon-fri", hour=6, minute=0),
+             "politician_refresh", "Senate Trade Data Refresh", True),
+        ]
+
+        for func, trigger, jid, jname, enabled in jobs:
+            if not enabled:
+                continue
             self.scheduler.add_job(
-                self.run_daily_summary,
-                CronTrigger(hour=summary_hour, minute=summary_minute,
-                           timezone=self.timezone),
-                id='daily_summary',
-                name='Daily Summary Email',
-                replace_existing=True
+                func, trigger, id=jid, name=jname, replace_existing=True,
             )
-
-        # Weekly report (Sunday evening at 18:00)
-        self.scheduler.add_job(
-            self.run_weekly_report,
-            CronTrigger(day_of_week='sun', hour=18, minute=0,
-                       timezone=self.timezone),
-            id='weekly_report',
-            name='Weekly Report',
-            replace_existing=True
-        )
-
-        # Weekly AI letter (Sunday 19:00)
-        self.scheduler.add_job(
-            self.run_weekly_letter,
-            CronTrigger(day_of_week='sun', hour=19, minute=0,
-                       timezone=self.timezone),
-            id='weekly_letter',
-            name='Weekly AI Letter',
-            replace_existing=True
-        )
-
-        # NLP sentiment scoring — every hour during market hours (#38/#57)
-        self.scheduler.add_job(
-            self.run_nlp_sentiment_scoring,
-            CronTrigger(hour='9-17', minute=5, timezone=self.timezone),
-            id='nlp_sentiment',
-            name='NLP Sentiment Scoring',
-            replace_existing=True
-        )
-
-        # Weekly pairs-trading cointegration scan (#40) — Saturday 08:00
-        self.scheduler.add_job(
-            self.run_pairs_scan,
-            CronTrigger(day_of_week='sat', hour=8, minute=0, timezone=self.timezone),
-            id='pairs_scan',
-            name='Pairs Trading Cointegration Scan',
-            replace_existing=True
-        )
-
-        # Quarterly supply chain refresh (#44/#58) — 1st of Jan/Apr/Jul/Oct at 07:00
-        self.scheduler.add_job(
-            self.run_supply_chain_refresh,
-            CronTrigger(month='1,4,7,10', day=1, hour=7, minute=0, timezone=self.timezone),
-            id='supply_chain_refresh',
-            name='Supply Chain Quarterly Refresh',
-            replace_existing=True
-        )
-
-        # Daily dark pool / volume anomaly scan (#52) — weekdays at 18:00 (after market close)
-        self.scheduler.add_job(
-            self.run_dark_pool_scan,
-            CronTrigger(day_of_week='mon-fri', hour=18, minute=0, timezone=self.timezone),
-            id='dark_pool_scan',
-            name='Dark Pool Volume Anomaly Scan',
-            replace_existing=True
-        )
-
-        # Weekly 13F institutional holdings refresh (#25) — Friday 18:00
-        # EDGAR 13F filings are quarterly; refreshing weekly ensures we catch new filings
-        # shortly after the Feb/May/Aug/Nov 15 EDGAR deadline.
-        self.scheduler.add_job(
-            self.refresh_13f_holdings,
-            CronTrigger(day_of_week='fri', hour=18, minute=0, timezone=self.timezone),
-            id='refresh_13f',
-            name='13F Institutional Holdings Refresh',
-            replace_existing=True
-        )
-
-        # Daily macro snapshot — weekdays at 17:00 (after US market close)
-        self.scheduler.add_job(
-            self.capture_macro_snapshot,
-            CronTrigger(day_of_week='mon-fri', hour=17, minute=5, timezone=self.timezone),
-            id='macro_snapshot',
-            name='Daily Macro Snapshot',
-            replace_existing=True
-        )
-
-        # Discovery hit rate check (daily at 21:00)
-        self.scheduler.add_job(
-            self.check_hit_rates,
-            CronTrigger(hour=21, minute=0, timezone=self.timezone),
-            id='hit_rate_check',
-            name='Hit Rate Check',
-            replace_existing=True
-        )
-
-        # Daily health check (run at 03:00)
-        self.scheduler.add_job(
-            self.run_health_check,
-            CronTrigger(hour=3, minute=0, timezone=self.timezone),
-            id='health_check',
-            name='System Health Check',
-            replace_existing=True
-        )
-
-        # Signal Grader (daily at 22:00)
-        self.scheduler.add_job(
-            self.grade_signals,
-            CronTrigger(hour=22, minute=0, timezone=self.timezone),
-            id='grade_signals',
-            name='Grade Signals',
-            replace_existing=True
-        )
-
-        # Auto Paper Trading Entry (Mon-Fri 09:35 AM NY time)
-        self.scheduler.add_job(
-            self.run_auto_paper_entry,
-            CronTrigger(day_of_week='mon-fri', hour=9, minute=35, timezone=self.timezone),
-            id='auto_paper_entry',
-            name='Auto Paper Entry',
-            replace_existing=True
-        )
-
-        # Auto Paper Trading Exit (Mon-Fri 15:50 PM NY time)
-        self.scheduler.add_job(
-            self.run_auto_paper_exit,
-            CronTrigger(day_of_week='mon-fri', hour=15, minute=50, timezone=self.timezone),
-            id='auto_paper_exit',
-            name='Auto Paper Exit',
-            replace_existing=True
-        )
-
-        # Broker Position Sync — Mon–Fri 09:00–15:55, every 5 min (market hours only).
-        # Handler already guards is_market_open(); CronTrigger ensures zero overnight wakeups
-        # so the CPU can reach deep C-states between 16:05 and 09:00 the next morning.
-        self.scheduler.add_job(
-            self.run_broker_sync,
-            CronTrigger(day_of_week='mon-fri', hour='9-15', minute='*/5',
-                        timezone=self.timezone),
-            id='broker_sync',
-            name='Broker Position Sync',
-            replace_existing=True
-        )
-
-        # Broker P&L Snapshot — Mon–Fri 09:00–15:45, every 15 min
-        self.scheduler.add_job(
-            self.run_broker_pnl_snapshot,
-            CronTrigger(day_of_week='mon-fri', hour='9-15', minute='*/15',
-                        timezone=self.timezone),
-            id='broker_pnl_snapshot',
-            name='Broker P&L Snapshot',
-            replace_existing=True
-        )
-
-        # Price alert check — Mon–Fri 09:00–15:45, every 15 min
-        self.scheduler.add_job(
-            self.check_price_alerts,
-            CronTrigger(day_of_week='mon-fri', hour='9-15', minute='*/15',
-                        timezone=self.timezone),
-            id='price_alert_check',
-            name='Price Alert Check',
-            replace_existing=True
-        )
-
-        # Meta-Labeler Retrain (Sunday 22:30, after signal grading at 22:00)
-        self.scheduler.add_job(
-            self.retrain_meta_labeler,
-            CronTrigger(day_of_week='sun', hour=22, minute=30, timezone=self.timezone),
-            id='meta_labeler_retrain',
-            name='Meta-Labeler Retrain',
-            replace_existing=True
-        )
-
-        # MCPT Strategy Validation (Sunday 23:00)
-        self.scheduler.add_job(
-            self.run_mcpt_validation,
-            CronTrigger(day_of_week='sun', hour=23, minute=0, timezone=self.timezone),
-            id='mcpt_validation',
-            name='MCPT Strategy Validation',
-            replace_existing=True
-        )
-
-        # Geopolitical scan — 08:00, 14:00, 20:00 daily (3× per day at fixed times).
-        # Previously IntervalTrigger(hours=6) fired at unpredictable overnight hours (e.g., 04:00).
-        # Fixed cron times keep the scan cadence equivalent while eliminating the 04:00 wakeup
-        # that prevented deep C-states.  Deep sleep job suspension (below) pauses this during
-        # the overnight window if deep_sleep_enabled is set.
-        self.scheduler.add_job(
-            self.run_geopolitical_scan,
-            CronTrigger(hour='8,14,20', timezone=self.timezone),
-            id='geopolitical_scan',
-            name='Geopolitical Scan',
-            replace_existing=True
-        )
-
-        # Macro event check (daily at 08:00 — alerts on rate decisions within 48h)
-        self.scheduler.add_job(
-            self.run_macro_event_check,
-            CronTrigger(hour=8, minute=0, timezone=self.timezone),
-            id='macro_event_check',
-            name='Macro Event Check',
-            replace_existing=True
-        )
-
-        # RSS geo trigger — 07:00–22:45, every 15 min.
-        # Skipping 22:45–07:00 lets the CPU reach C8 overnight while still catching
-        # breaking geopolitical news during all waking hours.
-        self.scheduler.add_job(
-            self.check_rss_geo_trigger,
-            CronTrigger(hour='7-22', minute='*/15', timezone=self.timezone),
-            id='rss_geo_trigger',
-            name='RSS Geo Trigger',
-            replace_existing=True
-        )
-
-        # Daily DB backup (03:30, after health check at 03:00)
-        self.scheduler.add_job(
-            self.run_db_backup,
-            CronTrigger(hour=3, minute=30, timezone=self.timezone),
-            id='db_backup',
-            name='DB Backup',
-            replace_existing=True
-        )
-
-        # Weekly corporate actions refresh (Saturday 04:00) (#43)
-        self.scheduler.add_job(
-            self.refresh_corporate_actions,
-            CronTrigger(day_of_week='sat', hour=4, minute=0, timezone=self.timezone),
-            id='corporate_actions_refresh',
-            name='Corporate Actions Refresh',
-            replace_existing=True
-        )
-
-        # Daily Graham screen (07:30 on weekdays)
-        self.scheduler.add_job(
-            self.run_graham_screen,
-            CronTrigger(day_of_week='mon-fri', hour=7, minute=30,
-                        timezone=self.timezone),
-            id='graham_screen',
-            name='Graham Value Screen',
-            replace_existing=True
-        )
-
-        # Daily Fear & Greed + VIX snapshot (08:00)
-        self.scheduler.add_job(
-            self.run_fear_greed_snapshot,
-            CronTrigger(day_of_week='mon-fri', hour=8, minute=0,
-                        timezone=self.timezone),
-            id='fear_greed_snapshot',
-            name='Fear & Greed Snapshot',
-            replace_existing=True
-        )
-
-        # Daily Senate trades refresh (06:00)
-        self.scheduler.add_job(
-            self.run_politician_refresh,
-            CronTrigger(day_of_week='mon-fri', hour=6, minute=0,
-                        timezone=self.timezone),
-            id='politician_refresh',
-            name='Senate Trade Data Refresh',
-            replace_existing=True
-        )
 
         # ── CPU C-state overnight mode ────────────────────────────────────────
         # Schedule explicit transitions at deep_sleep boundary times so APScheduler

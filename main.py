@@ -71,36 +71,12 @@ def main():
     print("=" * 60)
     print()
     
-    # Import and run uvicorn
-    import uvicorn
-    from app import app
-    from core.config import ENABLE_HTTPS, CERT_FILE, KEY_FILE
+    # Delegate to the canonical uvicorn bootstrap in app.py so the HTTPS
+    # branching logic lives in exactly one place.
+    from app import run_server
 
-    # Check if dev mode is enabled for verbose logging
-    dev_mode = db.get_setting('development_mode') or False
-    uvicorn_log_level = "debug" if dev_mode else "warning"
-
-    if ENABLE_HTTPS:
-        if not CERT_FILE.exists() or not KEY_FILE.exists():
-            print("❌ HTTPS enabled but certificates not found!")
-            print(f"   Expected: {CERT_FILE} and {KEY_FILE}")
-            sys.exit(1)
-
-        uvicorn.run(
-            app,
-            host=WEB_HOST,
-            port=WEB_PORT,
-            ssl_certfile=str(CERT_FILE),
-            ssl_keyfile=str(KEY_FILE),
-            log_level=uvicorn_log_level
-        )
-    else:
-        uvicorn.run(
-            app,
-            host=WEB_HOST,
-            port=WEB_PORT,
-            log_level=uvicorn_log_level
-        )
+    dev_mode = bool(db.get_setting("development_mode"))
+    run_server(log_level="debug" if dev_mode else "warning")
 
 if __name__ == "__main__":
     main()
