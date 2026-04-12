@@ -1063,34 +1063,36 @@ class Database:
             raise
     
     def get_all_settings(self) -> Dict[str, Any]:
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT key, value FROM settings")
-        rows = cursor.fetchall()
-        conn.close()
-        return {row['key']: json.loads(row['value']) for row in rows}
+        rows = self.query("SELECT key, value FROM settings")
+        result = {}
+        for row in rows:
+            try:
+                result[row['key']] = json.loads(row['value'])
+            except (json.JSONDecodeError, TypeError):
+                result[row['key']] = row['value']
+        return result
     
     # === API Keys ===
     def get_api_key(self, service: str) -> Optional[str]:
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT api_key FROM api_keys WHERE service = ?", (service,))
-        row = cursor.fetchone()
-        conn.close()
+        row = self.query_one("SELECT api_key FROM api_keys WHERE service = ?", (service,))
         if row and row['api_key']:
-            return encryption.decrypt(row['api_key'])
+            try:
+                return encryption.decrypt(row['api_key'])
+            except Exception as e:
+                self.logger.error(f"Failed to decrypt API key for {service}: {e}")
+                return None
         return None
-    
+
     def set_api_key(self, service: str, api_key: str):
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        encrypted_key = encryption.encrypt(api_key)
-        cursor.execute("""
+        try:
+            encrypted_key = encryption.encrypt(api_key)
+        except Exception as e:
+            self.logger.error(f"Failed to encrypt API key for {service}: {e}")
+            raise
+        self.execute("""
             INSERT OR REPLACE INTO api_keys (service, api_key, updated_at)
             VALUES (?, ?, ?)
         """, (service, encrypted_key, datetime.now()))
-        conn.commit()
-        conn.close()
 
     # === Custom API Providers ===
     def create_api_provider(self, name: str, provider_type: str, base_url: str,
@@ -1423,10 +1425,8 @@ class Database:
 
     # === Watchlist ===
     def get_watchlist(self, active_only: bool = True, sort_by: str = "ticker", sort_order: str = "asc") -> List[Dict]:
-        conn = self._get_conn()
-        cursor = conn.cursor()
         active_filter = "WHERE w.is_active = 1" if active_only else ""
-        
+
         # Validate sort parameters to prevent SQL injection
         valid_sort_columns = {
             'tier': 'w.tier',
@@ -1438,8 +1438,8 @@ class Database:
         }
         sort_column = valid_sort_columns.get(sort_by, 'w.ticker')
         sort_direction = 'DESC' if sort_order.lower() == 'desc' else 'ASC'
-        
-        cursor.execute(f"""
+
+        return self.query(f"""
             SELECT w.*,
                    ah.signal        AS latest_signal,
                    ah.geo_risk_score AS geo_risk_score,
@@ -1460,9 +1460,6 @@ class Database:
             {active_filter}
             ORDER BY {sort_column} {sort_direction}
         """)
-        rows = cursor.fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
     
     def update_last_scanned(self, ticker: str):
         """Record the timestamp when a ticker was last analyzed by the pipeline."""
@@ -1472,21 +1469,13 @@ class Database:
         )
 
     def add_to_watchlist(self, ticker: str, name: str = ""):
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT OR REPLACE INTO watchlist (ticker, name, is_active) 
+        self.execute("""
+            INSERT OR REPLACE INTO watchlist (ticker, name, is_active)
             VALUES (?, ?, 1)
         """, (ticker.upper(), name))
-        conn.commit()
-        conn.close()
-    
+
     def remove_from_watchlist(self, ticker: str):
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE watchlist SET is_active = 0 WHERE ticker = ?", (ticker.upper(),))
-        conn.commit()
-        conn.close()
+        self.execute("UPDATE watchlist SET is_active = 0 WHERE ticker = ?", (ticker.upper(),))
     
     # === Analysis History ===
     def save_analysis(self, ticker: str, results: Dict):
@@ -1580,22 +1569,16 @@ class Database:
             raise
     
     def get_analysis_history(self, ticker: str = None, limit: int = 50) -> List[Dict]:
-        conn = self._get_conn()
-        cursor = conn.cursor()
         if ticker:
-            cursor.execute("""
-                SELECT * FROM analysis_history 
-                WHERE ticker = ? 
+            return self.query("""
+                SELECT * FROM analysis_history
+                WHERE ticker = ?
                 ORDER BY timestamp DESC LIMIT ?
             """, (ticker.upper(), limit))
-        else:
-            cursor.execute("""
-                SELECT * FROM analysis_history 
-                ORDER BY timestamp DESC LIMIT ?
-            """, (limit,))
-        rows = cursor.fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
+        return self.query("""
+            SELECT * FROM analysis_history
+            ORDER BY timestamp DESC LIMIT ?
+        """, (limit,))
     
     def get_latest_analysis(self, ticker: str) -> Optional[Dict]:
         history = self.get_analysis_history(ticker, limit=1)
@@ -1691,36 +1674,22 @@ class Database:
 
     def get_latest_geopolitical_scan(self) -> Optional[Dict]:
         """Return the most recent geopolitical scan (max 24h old), or None"""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
+        return self.query_one("""
             SELECT * FROM geopolitical_events
             WHERE timestamp >= datetime('now', '-24 hours')
             ORDER BY timestamp DESC
             LIMIT 1
         """)
-        row = cursor.fetchone()
-        conn.close()
-        return dict(row) if row else None
 
     # === Alerts ===
     def log_alert(self, ticker: str, signal: str, message: str, sent_to: str):
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO alerts (ticker, signal, message, sent_to) 
+        self.execute("""
+            INSERT INTO alerts (ticker, signal, message, sent_to)
             VALUES (?, ?, ?, ?)
         """, (ticker, signal, message, sent_to))
-        conn.commit()
-        conn.close()
-    
+
     def get_alerts(self, limit: int = 50) -> List[Dict]:
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM alerts ORDER BY sent_at DESC LIMIT ?", (limit,))
-        rows = cursor.fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
+        return self.query("SELECT * FROM alerts ORDER BY sent_at DESC LIMIT ?", (limit,))
     
     # === Corporate Actions (#43) ===
     def save_corporate_action(self, ticker: str, action_type: str, action_date: str,
@@ -1828,178 +1797,109 @@ class Database:
     # === Scheduler Log ===
     def log_scheduler_run(self, tickers_scanned: int, alerts_sent: int,
                           errors: str = "", duration: float = 0):
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
+        self.execute("""
             INSERT INTO scheduler_log (tickers_scanned, alerts_sent, errors, duration_seconds)
             VALUES (?, ?, ?, ?)
         """, (tickers_scanned, alerts_sent, errors, duration))
-        conn.commit()
-        conn.close()
-    
+
     def get_scheduler_logs(self, limit: int = 20) -> List[Dict]:
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM scheduler_log ORDER BY run_at DESC LIMIT ?", (limit,))
-        rows = cursor.fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
+        return self.query("SELECT * FROM scheduler_log ORDER BY run_at DESC LIMIT ?", (limit,))
     
     # === Investment Strategies ===
     def get_strategies(self, active_only: bool = True) -> List[Dict]:
-        conn = self._get_conn()
-        cursor = conn.cursor()
         if active_only:
-            cursor.execute("SELECT * FROM investment_strategies WHERE is_active = 1")
-        else:
-            cursor.execute("SELECT * FROM investment_strategies")
-        rows = cursor.fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
-    
+            return self.query("SELECT * FROM investment_strategies WHERE is_active = 1")
+        return self.query("SELECT * FROM investment_strategies")
+
     def get_strategy(self, name: str) -> Optional[Dict]:
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM investment_strategies WHERE name = ?", (name,))
-        row = cursor.fetchone()
-        conn.close()
-        return dict(row) if row else None
-    
+        return self.query_one("SELECT * FROM investment_strategies WHERE name = ?", (name,))
+
     def save_strategy(self, name: str, description: str, risk_tolerance: str,
                       time_horizon: str, asset_mix: str, scan_frequency: str = "daily"):
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT OR REPLACE INTO investment_strategies 
+        self.execute("""
+            INSERT OR REPLACE INTO investment_strategies
             (name, description, risk_tolerance, time_horizon, asset_mix, scan_frequency, is_active)
             VALUES (?, ?, ?, ?, ?, ?, 1)
         """, (name, description, risk_tolerance, time_horizon, asset_mix, scan_frequency))
-        conn.commit()
-        conn.close()
     
     # === Investment Categories ===
     def get_category(self, ticker: str) -> Optional[Dict]:
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM investment_categories WHERE ticker = ?", (ticker.upper(),))
-        row = cursor.fetchone()
-        conn.close()
-        return dict(row) if row else None
-    
+        return self.query_one("SELECT * FROM investment_categories WHERE ticker = ?", (ticker.upper(),))
+
     def set_category(self, ticker: str, category: str, risk_level: int = 5,
                      time_horizon: str = "medium", notes: str = ""):
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT OR REPLACE INTO investment_categories 
+        self.execute("""
+            INSERT OR REPLACE INTO investment_categories
             (ticker, category, risk_level, time_horizon, notes, updated_at)
             VALUES (?, ?, ?, ?, ?, ?)
         """, (ticker.upper(), category, risk_level, time_horizon, notes, datetime.now()))
-        conn.commit()
-        conn.close()
-    
+
     def get_tickers_by_category(self, category: str) -> List[str]:
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT ticker FROM investment_categories WHERE category = ?", (category,))
-        rows = cursor.fetchall()
-        conn.close()
+        rows = self.query("SELECT ticker FROM investment_categories WHERE category = ?", (category,))
         return [row['ticker'] for row in rows]
     
     # === Cycle Schedules ===
     def get_cycle_schedule(self, cycle_type: str) -> Optional[Dict]:
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM cycle_schedules WHERE cycle_type = ?", (cycle_type,))
-        row = cursor.fetchone()
-        conn.close()
-        return dict(row) if row else None
-    
+        return self.query_one("SELECT * FROM cycle_schedules WHERE cycle_type = ?", (cycle_type,))
+
+
     def save_cycle_result(self, cycle_type: str, strategy_id: int, tickers: str, results: str):
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO cycle_schedules 
+        self.execute("""
+            INSERT INTO cycle_schedules
             (cycle_type, strategy_id, tickers, last_run, status, results)
             VALUES (?, ?, ?, ?, 'completed', ?)
         """, (cycle_type, strategy_id, tickers, datetime.now(), results))
-        conn.commit()
-        conn.close()
-    
+
     def get_cycle_history(self, cycle_type: str = None, limit: int = 10) -> List[Dict]:
-        conn = self._get_conn()
-        cursor = conn.cursor()
         if cycle_type:
-            cursor.execute("""
-                SELECT * FROM cycle_schedules 
+            return self.query("""
+                SELECT * FROM cycle_schedules
                 WHERE cycle_type = ? ORDER BY last_run DESC LIMIT ?
             """, (cycle_type, limit))
-        else:
-            cursor.execute("SELECT * FROM cycle_schedules ORDER BY last_run DESC LIMIT ?", (limit,))
-        rows = cursor.fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
+        return self.query("SELECT * FROM cycle_schedules ORDER BY last_run DESC LIMIT ?", (limit,))
     
     # === Prompt Templates ===
     def get_prompt_template(self, name: str) -> Optional[str]:
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT template FROM prompt_templates WHERE name = ? AND is_active = 1", (name,))
-        row = cursor.fetchone()
-        conn.close()
+        row = self.query_one("SELECT template FROM prompt_templates WHERE name = ? AND is_active = 1", (name,))
         return row['template'] if row else None
-    
-    def get_prompt_for_stage(self, stage: str, strategy_type: str = "balanced", 
+
+    def get_prompt_for_stage(self, stage: str, strategy_type: str = "balanced",
                               category: str = None) -> Optional[str]:
-        conn = self._get_conn()
-        cursor = conn.cursor()
         if category:
-            cursor.execute("""
-                SELECT template FROM prompt_templates 
+            row = self.query_one("""
+                SELECT template FROM prompt_templates
                 WHERE stage = ? AND strategy_type = ? AND category = ? AND is_active = 1
             """, (stage, strategy_type, category))
         else:
-            cursor.execute("""
-                SELECT template FROM prompt_templates 
+            row = self.query_one("""
+                SELECT template FROM prompt_templates
                 WHERE stage = ? AND strategy_type = ? AND is_active = 1
             """, (stage, strategy_type))
-        row = cursor.fetchone()
-        conn.close()
         return row['template'] if row else None
-    
+
     def save_prompt_template(self, name: str, stage: str, template: str,
                               strategy_type: str = "balanced", category: str = None,
                               output_format: str = None):
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT OR REPLACE INTO prompt_templates 
+        self.execute("""
+            INSERT OR REPLACE INTO prompt_templates
             (name, stage, strategy_type, category, template, output_format, is_active)
             VALUES (?, ?, ?, ?, ?, ?, 1)
         """, (name, stage, strategy_type, category, template, output_format))
-        conn.commit()
-        conn.close()
     
     # === Portfolio Management ===
     def add_trade(self, ticker: str, trade_type: str, amount: float, price: float,
                   date: str = None, fees: float = 0, notes: str = "", analysis_id: int = None,
                   currency: str = "USD", fx_rate_at_entry: float = 1.0):
         """Record a portfolio trade (buy/sell)"""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-
         if not date:
             date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        cursor.execute("""
+        self.execute("""
             INSERT INTO portfolio_trades
             (ticker, type, amount, price, date, fees, notes, analysis_id, currency, fx_rate_at_entry)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (ticker.upper(), trade_type.upper(), amount, price, date, fees, notes, analysis_id,
               currency.upper(), fx_rate_at_entry))
-
-        conn.commit()
-        conn.close()
 
     def save_fx_snapshot(self, from_currency: str, to_currency: str, rate: float):
         """Save an FX rate snapshot."""
@@ -2038,17 +1938,9 @@ class Database:
 
     def get_trades(self, ticker: str = None) -> List[Dict]:
         """Get trading history"""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        
         if ticker:
-            cursor.execute("SELECT * FROM portfolio_trades WHERE ticker = ? ORDER BY date DESC", (ticker.upper(),))
-        else:
-            cursor.execute("SELECT * FROM portfolio_trades ORDER BY date DESC")
-            
-        rows = cursor.fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
+            return self.query("SELECT * FROM portfolio_trades WHERE ticker = ? ORDER BY date DESC", (ticker.upper(),))
+        return self.query("SELECT * FROM portfolio_trades ORDER BY date DESC")
 
     def get_portfolio_holdings(self) -> List[Dict]:
         """Calculate current portfolio holdings based on trades"""
@@ -2114,27 +2006,16 @@ class Database:
         """Get risk override for a ticker, if configured."""
         if not ticker:
             return None
-
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute(
+        return self.query_one(
             "SELECT ticker, stop_loss_pct, max_position_pct, updated_at FROM ticker_risk_overrides WHERE ticker = ?",
             (ticker.upper(),)
         )
-        row = cursor.fetchone()
-        conn.close()
-        return dict(row) if row else None
 
     def get_ticker_risk_overrides(self) -> List[Dict[str, Any]]:
         """List all ticker risk overrides."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute(
+        return self.query(
             "SELECT ticker, stop_loss_pct, max_position_pct, updated_at FROM ticker_risk_overrides ORDER BY ticker"
         )
-        rows = cursor.fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
 
     def set_ticker_risk_override(self, ticker: str,
                                  stop_loss_pct: Optional[float] = None,
@@ -2149,9 +2030,7 @@ class Database:
             self.delete_ticker_risk_override(ticker)
             return
 
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
+        self.execute("""
             INSERT INTO ticker_risk_overrides (ticker, stop_loss_pct, max_position_pct, updated_at)
             VALUES (?, ?, ?, ?)
             ON CONFLICT(ticker) DO UPDATE SET
@@ -2159,18 +2038,12 @@ class Database:
                 max_position_pct = excluded.max_position_pct,
                 updated_at = excluded.updated_at
         """, (ticker, stop_loss_pct, max_position_pct, datetime.now().isoformat()))
-        conn.commit()
-        conn.close()
 
     def delete_ticker_risk_override(self, ticker: str):
         """Delete per-ticker risk override."""
         if not ticker:
             return
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM ticker_risk_overrides WHERE ticker = ?", (ticker.upper().strip(),))
-        conn.commit()
-        conn.close()
+        self.execute("DELETE FROM ticker_risk_overrides WHERE ticker = ?", (ticker.upper().strip(),))
 
     # === Top Picks / Performance Analytics ===
     def get_top_picks(self, min_predictions: int = 5, min_accuracy: float = 0.6, limit: int = 10) -> List[Dict]:
@@ -2181,13 +2054,8 @@ class Database:
         - Average Confidence (30% weight)
         - Consistency (20% weight)
         """
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        
-        # Query to get prediction stats per ticker from prediction_outcomes table
-        # Note: prediction_outcomes is created by learning_optimizer.py
-        cursor.execute("""
-            SELECT 
+        rows = self.query("""
+            SELECT
                 ticker,
                 COUNT(*) as total_predictions,
                 AVG(CASE WHEN accuracy_score > 0.5 THEN 1 ELSE 0 END) as accuracy,
@@ -2200,9 +2068,6 @@ class Database:
             GROUP BY ticker
             HAVING COUNT(*) >= ?
         """, (min_predictions,))
-        
-        rows = cursor.fetchall()
-        conn.close()
         
         picks = []
         for row in rows:
@@ -2257,11 +2122,8 @@ class Database:
     
     def get_ticker_trust_score(self, ticker: str) -> Optional[Dict]:
         """Get trust score and stats for a specific ticker"""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT 
+        row = self.query_one("""
+            SELECT
                 ticker,
                 COUNT(*) as total_predictions,
                 AVG(CASE WHEN accuracy_score > 0.5 THEN 1 ELSE 0 END) as accuracy,
@@ -2270,9 +2132,6 @@ class Database:
             WHERE ticker = ? AND verified_at IS NOT NULL
             GROUP BY ticker
         """, (ticker.upper(),))
-        
-        row = cursor.fetchone()
-        conn.close()
         
         if not row or row['total_predictions'] < 3:
             return None
@@ -2292,11 +2151,8 @@ class Database:
     
     def get_recent_high_confidence_predictions(self, days: int = 7, min_confidence: int = 70) -> List[Dict]:
         """Get recent predictions with high confidence for trusted tickers"""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT 
+        return self.query("""
+            SELECT
                 ah.ticker,
                 ah.signal,
                 ah.confidence,
@@ -2308,11 +2164,6 @@ class Database:
             ORDER BY ah.timestamp DESC
             LIMIT 20
         """, (min_confidence, days))
-        
-        rows = cursor.fetchall()
-        conn.close()
-        
-        return [dict(row) for row in rows]
     
     def get_trusted_tickers(self, min_accuracy: float = 0.7) -> List[str]:
         """Get list of ticker symbols that have proven accuracy"""
@@ -2323,11 +2174,7 @@ class Database:
     def get_signal_pnl_summary(self) -> Dict:
         """Aggregate P&L stats from prediction_outcomes table."""
         try:
-            conn = self._get_conn()
-            cursor = conn.cursor()
-
-            # Per-signal breakdown
-            cursor.execute("""
+            by_signal = self.query("""
                 SELECT
                     signal,
                     COUNT(*) as total,
@@ -2338,10 +2185,8 @@ class Database:
                 WHERE verified_at IS NOT NULL AND actual_price_at_prediction > 0
                 GROUP BY signal
             """)
-            by_signal = [dict(row) for row in cursor.fetchall()]
 
-            # Overall stats
-            cursor.execute("""
+            overall = self.query_one("""
                 SELECT
                     COUNT(*) as total_verified,
                     SUM(CASE WHEN accuracy_score >= 0.5 THEN 1 ELSE 0 END) as total_correct,
@@ -2353,9 +2198,7 @@ class Database:
                              / actual_price_at_prediction * 100 END) as avg_sell_return
                 FROM prediction_outcomes
                 WHERE verified_at IS NOT NULL AND actual_price_at_prediction > 0
-            """)
-            overall = dict(cursor.fetchone())
-            conn.close()
+            """) or {}
 
             total = overall['total_verified'] or 0
             correct = overall['total_correct'] or 0
@@ -2375,12 +2218,7 @@ class Database:
     # === User Management (Authentication) ===
     def get_user(self, username: str) -> Optional[Dict]:
         """Get user by username"""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
-        row = cursor.fetchone()
-        conn.close()
-        return dict(row) if row else None
+        return self.query_one("SELECT * FROM users WHERE username = ?", (username,))
 
     def verify_user(self, username: str, password: str) -> bool:
         """Verify username and password"""
@@ -2393,15 +2231,11 @@ class Database:
     def update_password(self, username: str, new_password: str):
         """Update user password"""
         from core.auth import auth_manager
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
+        self.execute("""
             UPDATE users
             SET password_hash = ?, must_change_password = 0
             WHERE username = ?
         """, (auth_manager.hash_password(new_password), username))
-        conn.commit()
-        conn.close()
 
     def user_must_change_password(self, username: str) -> bool:
         """Return whether user is required to change password."""
@@ -2412,155 +2246,99 @@ class Database:
 
     def update_last_login(self, username: str):
         """Update last login timestamp"""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE users SET last_login = ? WHERE username = ?
-        """, (datetime.now(), username))
-        conn.commit()
-        conn.close()
+        self.execute("UPDATE users SET last_login = ? WHERE username = ?", (datetime.now(), username))
 
     def create_user_session(self, session_id: str, username: str,
                             created_at: str, last_activity: str, expires_at: str,
                             ip_address: str = None, user_agent: str = None):
         """Persist a user session."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
+        self.execute("""
             INSERT OR REPLACE INTO user_sessions
             (session_id, username, created_at, last_activity, expires_at, ip_address, user_agent)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         """, (session_id, username, created_at, last_activity, expires_at, ip_address, user_agent))
-        conn.commit()
-        conn.close()
 
     def get_user_session(self, session_id: str) -> Optional[Dict]:
         """Get a persisted user session by session id."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM user_sessions WHERE session_id = ?", (session_id,))
-        row = cursor.fetchone()
-        conn.close()
-        return dict(row) if row else None
+        return self.query_one("SELECT * FROM user_sessions WHERE session_id = ?", (session_id,))
 
     def get_user_sessions(self, username: str) -> List[Dict[str, Any]]:
         """List active sessions for user."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
+        return self.query("""
             SELECT session_id, username, created_at, last_activity, expires_at, ip_address, user_agent
             FROM user_sessions
             WHERE username = ?
             ORDER BY last_activity DESC
         """, (username,))
-        rows = cursor.fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
 
     def touch_user_session(self, session_id: str, last_activity: str, expires_at: str):
         """Refresh session activity + expiry (sliding timeout)."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
+        self.execute("""
             UPDATE user_sessions
             SET last_activity = ?, expires_at = ?
             WHERE session_id = ?
         """, (last_activity, expires_at, session_id))
-        conn.commit()
-        conn.close()
 
     def delete_user_session(self, session_id: str):
         """Delete a session by id."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM user_sessions WHERE session_id = ?", (session_id,))
-        conn.commit()
-        conn.close()
+        self.execute("DELETE FROM user_sessions WHERE session_id = ?", (session_id,))
 
     def delete_other_user_sessions(self, username: str, keep_session_id: str):
         """Delete all user sessions except current one."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
+        self.execute("""
             DELETE FROM user_sessions
             WHERE username = ?
               AND session_id != ?
         """, (username, keep_session_id or ''))
-        conn.commit()
-        conn.close()
 
     def delete_user_session_for_user(self, username: str, session_id: str):
         """Delete a specific session belonging to a user."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
+        self.execute("""
             DELETE FROM user_sessions
             WHERE username = ?
               AND session_id = ?
         """, (username, session_id))
-        conn.commit()
-        conn.close()
 
     def cleanup_expired_sessions(self):
         """Remove expired sessions."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM user_sessions WHERE expires_at <= ?", (datetime.now().isoformat(),))
-        conn.commit()
-        conn.close()
+        self.execute("DELETE FROM user_sessions WHERE expires_at <= ?", (datetime.now().isoformat(),))
 
     def record_login_failure(self, username: str, ip_address: str):
         """Store failed login attempt for backoff policy."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
+        self.execute("""
             INSERT INTO login_failures (username, ip_address, attempted_at)
             VALUES (?, ?, ?)
         """, ((username or '').strip().lower(), ip_address or '', datetime.now().isoformat()))
-        conn.commit()
-        conn.close()
 
     def clear_login_failures(self, username: str):
         """Clear failures after successful login."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM login_failures WHERE username = ?", ((username or '').strip().lower(),))
-        deleted = cursor.rowcount if hasattr(cursor, 'rowcount') else 0
-        conn.commit()
-        conn.close()
-        return deleted
+        with self._get_transaction() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM login_failures WHERE username = ?", ((username or '').strip().lower(),))
+            return cursor.rowcount if hasattr(cursor, 'rowcount') else 0
 
     def clear_login_failures_for_ip(self, ip_address: str):
         """Clear failures for a specific IP address."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM login_failures WHERE ip_address = ?", ((ip_address or '').strip(),))
-        deleted = cursor.rowcount if hasattr(cursor, 'rowcount') else 0
-        conn.commit()
-        conn.close()
-        return deleted
+        with self._get_transaction() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM login_failures WHERE ip_address = ?", ((ip_address or '').strip(),))
+            return cursor.rowcount if hasattr(cursor, 'rowcount') else 0
 
     def clear_recent_login_failures(self, hours: int = 24):
         """Clear login failure records in a recent time window."""
         cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM login_failures WHERE attempted_at >= ?", (cutoff,))
-        deleted = cursor.rowcount if hasattr(cursor, 'rowcount') else 0
-        conn.commit()
-        conn.close()
-        return deleted
+        with self._get_transaction() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM login_failures WHERE attempted_at >= ?", (cutoff,))
+            return cursor.rowcount if hasattr(cursor, 'rowcount') else 0
 
     def cleanup_old_login_failures(self, days: int = 30):
         """Remove stale login failure records older than retention window."""
         cutoff = (datetime.now() - timedelta(days=max(1, days))).isoformat()
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM login_failures WHERE attempted_at < ?", (cutoff,))
-        deleted = cursor.rowcount if hasattr(cursor, 'rowcount') else 0
-        conn.commit()
-        conn.close()
-        return deleted
+        with self._get_transaction() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM login_failures WHERE attempted_at < ?", (cutoff,))
+            return cursor.rowcount if hasattr(cursor, 'rowcount') else 0
 
     def get_login_lockout_info(self, username: str, ip_address: str) -> Dict[str, Any]:
         """Check if username/IP is currently lockout-blocked."""
@@ -2571,9 +2349,7 @@ class Database:
         now = datetime.now()
         window_start = (now - timedelta(minutes=window_minutes)).isoformat()
 
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
+        row = self.query_one("""
             SELECT COUNT(*) as failures, MAX(attempted_at) as last_attempt
             FROM login_failures
             WHERE attempted_at >= ?
@@ -2582,8 +2358,6 @@ class Database:
                    OR ip_address = ?
               )
         """, (window_start, (username or '').strip().lower(), ip_address or ''))
-        row = cursor.fetchone()
-        conn.close()
 
         failures = int(row['failures'] or 0) if row else 0
         last_attempt_raw = row['last_attempt'] if row else None
@@ -2628,18 +2402,14 @@ class Database:
         window_minutes = int(self.get_setting('auth_attempt_window_minutes') or 15)
         cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
 
-        conn = self._get_conn()
-        cursor = conn.cursor()
-
-        cursor.execute("""
+        total_row = self.query_one("""
             SELECT COUNT(*) as total
             FROM login_failures
             WHERE attempted_at >= ?
         """, (cutoff,))
-        total_row = cursor.fetchone()
         total_failures = int(total_row['total']) if total_row and total_row['total'] is not None else 0
 
-        cursor.execute("""
+        by_user = self.query("""
             SELECT username, COUNT(*) as failures
             FROM login_failures
             WHERE attempted_at >= ?
@@ -2648,9 +2418,8 @@ class Database:
             ORDER BY failures DESC
             LIMIT 10
         """, (cutoff,))
-        by_user = [dict(row) for row in cursor.fetchall()]
 
-        cursor.execute("""
+        by_ip = self.query("""
             SELECT ip_address, COUNT(*) as failures
             FROM login_failures
             WHERE attempted_at >= ?
@@ -2659,8 +2428,6 @@ class Database:
             ORDER BY failures DESC
             LIMIT 10
         """, (cutoff,))
-        by_ip = [dict(row) for row in cursor.fetchall()]
-        conn.close()
 
         estimated_locked_users = sum(1 for row in by_user if int(row.get('failures', 0)) >= max_attempts)
 
@@ -2677,27 +2444,19 @@ class Database:
     def get_recent_login_failures(self, limit: int = 50, hours: int = 24) -> List[Dict[str, Any]]:
         """Get recent login failure events for audit display."""
         cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
+        return self.query("""
             SELECT username, ip_address, attempted_at
             FROM login_failures
             WHERE attempted_at >= ?
             ORDER BY attempted_at DESC
             LIMIT ?
         """, (cutoff, limit))
-        rows = cursor.fetchall()
-        conn.close()
-        return [dict(row) for row in rows]
 
     # === Insider Transactions ===
     def save_insider_transaction(self, transaction: Dict):
         """Save an insider transaction to database"""
         try:
-            conn = self._get_conn()
-            cursor = conn.cursor()
-
-            cursor.execute("""
+            self.execute("""
                 INSERT OR IGNORE INTO insider_transactions (
                     ticker, insider_name, title, transaction_date, filing_date,
                     transaction_type, transaction_code, shares, price, value,
@@ -2717,10 +2476,6 @@ class Database:
                 transaction.get('significance_score'),
                 transaction.get('form4_url')
             ))
-
-            conn.commit()
-            conn.close()
-
         except Exception as e:
             self.logger.error(f"Error saving insider transaction: {e}")
 
@@ -2740,47 +2495,22 @@ class Database:
         Returns:
             List of insider transactions
         """
+        cutoff_date = (datetime.now() - timedelta(days=days_back)).isoformat()
         try:
-            conn = self._get_conn()
-            cursor = conn.cursor()
-
-            cutoff_date = (datetime.now() - timedelta(days=days_back)).isoformat()
-
             if ticker:
-                cursor.execute("""
+                rows = self.query("""
                     SELECT * FROM insider_transactions
                     WHERE ticker = ? AND transaction_date >= ?
                     ORDER BY transaction_date DESC, significance_score DESC
                 """, (ticker, cutoff_date))
             else:
-                cursor.execute("""
+                rows = self.query("""
                     SELECT * FROM insider_transactions
                     WHERE transaction_date >= ?
                     ORDER BY transaction_date DESC, significance_score DESC
                 """, (cutoff_date,))
 
-            rows = cursor.fetchall()
-            conn.close()
-
-            transactions = []
-            for row in rows:
-                transactions.append({
-                    'id': row['id'],
-                    'ticker': row['ticker'],
-                    'insider_name': row['insider_name'],
-                    'title': row['title'],
-                    'transaction_date': row['transaction_date'],
-                    'filing_date': row['filing_date'],
-                    'transaction_type': row['transaction_type'],
-                    'transaction_code': row['transaction_code'],
-                    'shares': row['shares'],
-                    'price': row['price'],
-                    'value': row['value'],
-                    'significance_score': row['significance_score'],
-                    'form4_url': row['form4_url']
-                })
-
-            return transactions
+            return rows
 
         except Exception as e:
             self.logger.error(f"Error fetching insider transactions: {e}")
@@ -2789,13 +2519,9 @@ class Database:
     def get_top_insider_signals(self, limit: int = 10) -> List[Dict]:
         """Get top insider trading signals (high significance recent transactions)"""
         try:
-            conn = self._get_conn()
-            cursor = conn.cursor()
-
-            # Get transactions from last 30 days with high significance
             cutoff_date = (datetime.now() - timedelta(days=30)).isoformat()
 
-            cursor.execute("""
+            rows = self.query("""
                 SELECT
                     ticker,
                     COUNT(*) as transaction_count,
@@ -2810,9 +2536,6 @@ class Database:
                 ORDER BY max_significance DESC, transaction_count DESC
                 LIMIT ?
             """, (cutoff_date, limit))
-
-            rows = cursor.fetchall()
-            conn.close()
 
             signals = []
             for row in rows:
@@ -2841,65 +2564,37 @@ class Database:
                      output_tokens: int, estimated_cost: float, month: str, date: str):
         """Log an API request with estimated cost."""
         try:
-            conn = self._get_conn()
-            cursor = conn.cursor()
-            cursor.execute("""
+            self.execute("""
                 INSERT INTO api_cost_log (api, model, input_tokens, output_tokens,
                                           estimated_cost, month, date)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
             """, (api, model, input_tokens, output_tokens, estimated_cost, month, date))
-            conn.commit()
-            conn.close()
         except Exception as e:
             self.logger.error(f"Error logging API cost: {e}")
 
     def get_api_spending(self, api: str, month: str) -> float:
         """Get total USD spending for an API in a given month."""
-        try:
-            conn = self._get_conn()
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT COALESCE(SUM(estimated_cost), 0) as total
-                FROM api_cost_log WHERE api = ? AND month = ?
-            """, (api, month))
-            row = cursor.fetchone()
-            conn.close()
-            return float(row['total']) if row else 0.0
-        except Exception as e:
-            self.logger.error(f"Error getting API spending: {e}")
-            return 0.0
+        row = self.query_one("""
+            SELECT COALESCE(SUM(estimated_cost), 0) as total
+            FROM api_cost_log WHERE api = ? AND month = ?
+        """, (api, month))
+        return float(row['total']) if row else 0.0
 
     def get_api_spending_day(self, api: str, date: str) -> float:
         """Get total USD spending for an API on a given date."""
-        try:
-            conn = self._get_conn()
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT COALESCE(SUM(estimated_cost), 0) as total
-                FROM api_cost_log WHERE api = ? AND date = ?
-            """, (api, date))
-            row = cursor.fetchone()
-            conn.close()
-            return float(row['total']) if row else 0.0
-        except Exception as e:
-            self.logger.error(f"Error getting API daily spending: {e}")
-            return 0.0
+        row = self.query_one("""
+            SELECT COALESCE(SUM(estimated_cost), 0) as total
+            FROM api_cost_log WHERE api = ? AND date = ?
+        """, (api, date))
+        return float(row['total']) if row else 0.0
 
     def get_api_request_count(self, api: str, date: str) -> int:
         """Get number of API requests on a given date."""
-        try:
-            conn = self._get_conn()
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT COUNT(*) as cnt FROM api_cost_log
-                WHERE api = ? AND date = ?
-            """, (api, date))
-            row = cursor.fetchone()
-            conn.close()
-            return int(row['cnt']) if row else 0
-        except Exception as e:
-            self.logger.error(f"Error getting API request count: {e}")
-            return 0
+        row = self.query_one("""
+            SELECT COUNT(*) as cnt FROM api_cost_log
+            WHERE api = ? AND date = ?
+        """, (api, date))
+        return int(row['cnt']) if row else 0
 
     # === Backtest ===
     def create_backtest_run(self, tickers_tested: int, months_tested: int) -> int:
@@ -3088,48 +2783,36 @@ class Database:
     def get_discovery_stats(self) -> Dict:
         """Get discovery statistics by status and strategy."""
         try:
-            conn = self._get_conn()
-            cursor = conn.cursor()
-
-            # Counts by status
-            cursor.execute("""
+            status_rows = self.query("""
                 SELECT status, COUNT(*) as cnt
                 FROM discovered_stocks
                 GROUP BY status
             """)
-            by_status = {row['status']: row['cnt'] for row in cursor.fetchall()}
+            by_status = {row['status']: row['cnt'] for row in status_rows}
 
-            # Counts by strategy (last 7 days)
-            cursor.execute("""
+            strategy_rows = self.query("""
                 SELECT strategy, COUNT(*) as cnt
                 FROM discovered_stocks
                 WHERE found_at >= datetime('now', '-7 days')
                 GROUP BY strategy
             """)
-            by_strategy = {row['strategy']: row['cnt'] for row in cursor.fetchall()}
+            by_strategy = {row['strategy']: row['cnt'] for row in strategy_rows}
 
-            # Last 7 days total
-            cursor.execute("""
+            week_row = self.query_one("""
                 SELECT COUNT(*) as cnt FROM discovered_stocks
                 WHERE found_at >= datetime('now', '-7 days')
             """)
-            week_total = cursor.fetchone()['cnt']
+            week_total = week_row['cnt'] if week_row else 0
 
-            # Promoted last 7 days
-            cursor.execute("""
+            promoted_row = self.query_one("""
                 SELECT COUNT(*) as cnt FROM discovered_stocks
                 WHERE status = 'promoted' AND promoted_at >= datetime('now', '-7 days')
             """)
-            week_promoted = cursor.fetchone()['cnt']
+            week_promoted = promoted_row['cnt'] if promoted_row else 0
 
-            # Last run
-            cursor.execute("""
+            last_run = self.query_one("""
                 SELECT * FROM discovery_log ORDER BY run_at DESC LIMIT 1
             """)
-            last_run_row = cursor.fetchone()
-            last_run = dict(last_run_row) if last_run_row else None
-
-            conn.close()
 
             return {
                 'by_status': by_status,
@@ -3194,24 +2877,15 @@ class Database:
 
     def get_api_spending_breakdown(self, api: str, month: str) -> list:
         """Get spending breakdown by model for an API in a month."""
-        try:
-            conn = self._get_conn()
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT model, COUNT(*) as requests,
-                       SUM(input_tokens) as total_input,
-                       SUM(output_tokens) as total_output,
-                       SUM(estimated_cost) as total_cost
-                FROM api_cost_log
-                WHERE api = ? AND month = ?
-                GROUP BY model ORDER BY total_cost DESC
-            """, (api, month))
-            rows = cursor.fetchall()
-            conn.close()
-            return [dict(row) for row in rows]
-        except Exception as e:
-            self.logger.error(f"Error getting API spending breakdown: {e}")
-            return []
+        return self.query("""
+            SELECT model, COUNT(*) as requests,
+                   SUM(input_tokens) as total_input,
+                   SUM(output_tokens) as total_output,
+                   SUM(estimated_cost) as total_cost
+            FROM api_cost_log
+            WHERE api = ? AND month = ?
+            GROUP BY model ORDER BY total_cost DESC
+        """, (api, month))
 
 
     # === Stock Notes ===
@@ -3346,21 +3020,11 @@ class Database:
 
     def list_personal_api_keys(self) -> list:
         """List all personal API keys (no hashes)."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, label, scope, created_at, last_used_at FROM personal_api_keys ORDER BY created_at DESC")
-        rows = [dict(row) for row in cursor.fetchall()]
-        conn.close()
-        return rows
+        return self.query("SELECT id, label, scope, created_at, last_used_at FROM personal_api_keys ORDER BY created_at DESC")
 
     def get_personal_api_key_by_hash(self, key_hash: str) -> Optional[dict]:
         """Look up a personal API key by its SHA-256 hash."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, label, scope, created_at, last_used_at FROM personal_api_keys WHERE key_hash = ?", (key_hash,))
-        row = cursor.fetchone()
-        conn.close()
-        return dict(row) if row else None
+        return self.query_one("SELECT id, label, scope, created_at, last_used_at FROM personal_api_keys WHERE key_hash = ?", (key_hash,))
 
     def touch_personal_api_key(self, key_hash: str):
         """Update last_used_at for a personal API key."""
@@ -3378,11 +3042,7 @@ class Database:
     def upsert_plugin(self, filename: str, name: str, plugin_type: str,
                       version: str = '1.0.0', description: str = '', author: str = '') -> int:
         """Insert or update a plugin record. Returns the plugin id."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM plugins WHERE filename = ?", (filename,))
-        existing = cursor.fetchone()
-        conn.close()
+        existing = self.query_one("SELECT id FROM plugins WHERE filename = ?", (filename,))
         if existing:
             self.execute(
                 "UPDATE plugins SET name=?, plugin_type=?, version=?, description=?, author=? WHERE filename=?",
@@ -3397,30 +3057,15 @@ class Database:
 
     def list_plugins(self) -> list:
         """List all installed plugins."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM plugins ORDER BY installed_at DESC")
-        rows = [dict(row) for row in cursor.fetchall()]
-        conn.close()
-        return rows
+        return self.query("SELECT * FROM plugins ORDER BY installed_at DESC")
 
     def get_plugin(self, plugin_id: int) -> Optional[dict]:
         """Get a single plugin by id."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM plugins WHERE id = ?", (plugin_id,))
-        row = cursor.fetchone()
-        conn.close()
-        return dict(row) if row else None
+        return self.query_one("SELECT * FROM plugins WHERE id = ?", (plugin_id,))
 
     def get_plugin_by_filename(self, filename: str) -> Optional[dict]:
         """Get a plugin by filename."""
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM plugins WHERE filename = ?", (filename,))
-        row = cursor.fetchone()
-        conn.close()
-        return dict(row) if row else None
+        return self.query_one("SELECT * FROM plugins WHERE filename = ?", (filename,))
 
     def update_plugin_settings(self, plugin_id: int, settings_json: str):
         """Save plugin settings as JSON string."""
