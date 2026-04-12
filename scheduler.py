@@ -30,8 +30,19 @@ US_MARKET_HOLIDAYS = US_MARKET_HOLIDAYS_2026
 agents = None
 
 class InvestmentScheduler:
+    # Jobs that are paused during deep sleep for CPU C-state efficiency.
+    # The 5/15-min interval jobs are already converted to market-hours CronTriggers
+    # so they never fire overnight at all.  The jobs below are the remaining ones
+    # that still use IntervalTrigger and would otherwise prevent C6/C7/C8.
+    _SLEEP_SENSITIVE_JOBS = ['main_scan', 'geopolitical_scan']
+
     def __init__(self):
-        self.scheduler = BackgroundScheduler()
+        self.scheduler = BackgroundScheduler(
+            job_defaults={
+                'coalesce': True,          # merge missed firings into one catch-up run
+                'misfire_grace_time': 600, # 10 min grace after resume from system suspend
+            }
+        )
         self.is_running = False
         self.is_scanning = False  # Track scanning state
         self._load_settings()
@@ -397,14 +408,17 @@ class InvestmentScheduler:
              cron(day_of_week="mon-fri", hour=15, minute=50),
              "auto_paper_exit", "Auto Paper Exit", True),
 
-            # --- Broker (Phase 6) ---
-            (self.run_broker_sync, every(minutes=5),
+            # --- Broker (Phase 6) — market hours only (CronTrigger for C-state sleep) ---
+            (self.run_broker_sync,
+             cron(day_of_week="mon-fri", hour="9-15", minute="*/5"),
              "broker_sync", "Broker Position Sync", True),
-            (self.run_broker_pnl_snapshot, every(minutes=15),
+            (self.run_broker_pnl_snapshot,
+             cron(day_of_week="mon-fri", hour="9-15", minute="*/15"),
              "broker_pnl_snapshot", "Broker P&L Snapshot", True),
 
             # --- Alerts / learning / validation ---
-            (self.check_price_alerts, every(minutes=15),
+            (self.check_price_alerts,
+             cron(day_of_week="mon-fri", hour="9-15", minute="*/15"),
              "price_alert_check", "Price Alert Check", True),
             (self.retrain_meta_labeler,
              cron(day_of_week="sun", hour=22, minute=30),
@@ -413,13 +427,15 @@ class InvestmentScheduler:
              cron(day_of_week="sun", hour=23, minute=0),
              "mcpt_validation", "MCPT Strategy Validation", True),
 
-            # --- Geopolitical / macro ---
-            (self.run_geopolitical_scan, every(hours=6),
+            # --- Geopolitical / macro — fixed times for C-state sleep ---
+            (self.run_geopolitical_scan,
+             cron(hour="8,14,20"),
              "geopolitical_scan", "Geopolitical Scan", True),
             (self.run_macro_event_check,
              cron(hour=8, minute=0),
              "macro_event_check", "Macro Event Check", True),
-            (self.check_rss_geo_trigger, every(minutes=15),
+            (self.check_rss_geo_trigger,
+             cron(hour="7-22", minute="*/15"),
              "rss_geo_trigger", "RSS Geo Trigger", True),
 
             # --- Housekeeping ---
@@ -449,12 +465,43 @@ class InvestmentScheduler:
                 func, trigger, id=jid, name=jname, replace_existing=True,
             )
 
+        # ── CPU C-state overnight mode ────────────────────────────────────────
+        # Schedule explicit transitions at deep_sleep boundary times so APScheduler
+        # pauses the remaining IntervalTrigger jobs (main_scan, geopolitical_scan)
+        # during the overnight window — allowing the CPU to stay in C6/C7/C8.
+        deep_sleep_on = db.get_setting('deep_sleep_enabled')
+        if deep_sleep_on:
+            try:
+                sleep_start = db.get_setting('deep_sleep_start') or '22:00'
+                sleep_end   = db.get_setting('deep_sleep_end')   or '07:00'
+                sh, sm = map(int, sleep_start.split(':'))
+                eh, em = map(int, sleep_end.split(':'))
+                self.scheduler.add_job(
+                    self._enter_deep_sleep_mode,
+                    CronTrigger(hour=sh, minute=sm, timezone=self.timezone),
+                    id='deep_sleep_enter',
+                    name='Enter Deep Sleep (C-state)',
+                    replace_existing=True
+                )
+                self.scheduler.add_job(
+                    self._exit_deep_sleep_mode,
+                    CronTrigger(hour=eh, minute=em, timezone=self.timezone),
+                    id='deep_sleep_exit',
+                    name='Exit Deep Sleep (C-state)',
+                    replace_existing=True
+                )
+            except Exception as e:
+                print(f"(!) Could not schedule deep sleep transitions: {e}")
+
         self.scheduler.start()
         self.is_running = True
-        print(
-            f"Scheduler started: Daily every {self.interval_hours}h, "
-            "Weekly Sun 20:00, Monthly 28th 18:00"
-        )
+
+        # If the scheduler starts while deep sleep is already active (e.g., after reboot),
+        # immediately pause the sleep-sensitive jobs.
+        if deep_sleep_on and self.is_deep_sleep_active():
+            self._enter_deep_sleep_mode()
+
+        print(f"Scheduler started: Daily every {self.interval_hours}h, Weekly Sun 20:00, Monthly 28th 18:00")
 
         # Start two-way Telegram bot (if enabled)
         try:
@@ -470,7 +517,9 @@ class InvestmentScheduler:
         self.scheduler.shutdown(wait=False)
         # Create a fresh scheduler instance — the old executor's thread pool
         # is permanently destroyed after shutdown() and cannot accept new jobs.
-        self.scheduler = BackgroundScheduler()
+        self.scheduler = BackgroundScheduler(
+            job_defaults={'coalesce': True, 'misfire_grace_time': 600}
+        )
         self.is_running = False
         try:
             from clients.telegram_bot import telegram_bot
@@ -1006,6 +1055,52 @@ class InvestmentScheduler:
             db.log_scheduler_run(tickers_scanned=0, alerts_sent=0, errors="", duration=0)
         except Exception as e:
             print(f"(Error) DB backup failed: {e}")
+
+    def _enter_deep_sleep_mode(self):
+        """Pause sleep-sensitive interval jobs so the CPU can reach deep C-states (C6/C7/C8).
+
+        Called automatically at deep_sleep_start time (default 22:00) and once at startup
+        if the scheduler boots during the sleep window.  The five market-hours jobs
+        (broker_sync, broker_pnl_snapshot, price_alert_check, rss_geo_trigger, and the
+        fixed-time geo scan) already use CronTriggers that don't fire overnight, so only
+        the remaining IntervalTrigger jobs need explicit suspension.
+        """
+        if not self.is_running:
+            return
+        cstate_ok = db.get_setting('cstate_overnight_mode')
+        if cstate_ok is False:  # explicitly disabled
+            return
+        paused = []
+        for job_id in self._SLEEP_SENSITIVE_JOBS:
+            try:
+                job = self.scheduler.get_job(job_id)
+                if job and job.next_run_time is not None:  # not already paused
+                    self.scheduler.pause_job(job_id)
+                    paused.append(job_id)
+            except Exception:
+                pass
+        if paused:
+            print(f"[C-state] Deep sleep → paused jobs: {', '.join(paused)}")
+        else:
+            print("[C-state] Deep sleep entered (no interval jobs to pause)")
+
+    def _exit_deep_sleep_mode(self):
+        """Resume jobs that were paused by _enter_deep_sleep_mode."""
+        if not self.is_running:
+            return
+        resumed = []
+        for job_id in self._SLEEP_SENSITIVE_JOBS:
+            try:
+                job = self.scheduler.get_job(job_id)
+                if job and job.next_run_time is None:  # currently paused
+                    self.scheduler.resume_job(job_id)
+                    resumed.append(job_id)
+            except Exception:
+                pass
+        if resumed:
+            print(f"[C-state] Deep sleep ended → resumed jobs: {', '.join(resumed)}")
+        else:
+            print("[C-state] Deep sleep ended (nothing to resume)")
 
     def run_graham_screen(self):
         """Daily Graham intrinsic value screen across watchlist."""

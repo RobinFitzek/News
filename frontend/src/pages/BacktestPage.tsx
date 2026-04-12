@@ -2,9 +2,16 @@ import { useState } from 'react'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { getCsrfToken } from '@/api/csrf'
-import { useBacktestProgress, useBacktestResults, useApplyWeights } from '@/api/endpoints/backtest'
+import {
+  useBacktestProgress,
+  useBacktestResults,
+  useApplyWeights,
+  useRandomBaseline,
+  type RandomBaseline,
+} from '@/api/endpoints/backtest'
 import { useToastStore } from '@/stores/toastStore'
 import styles from './BacktestPage.module.css'
 
@@ -15,11 +22,23 @@ export function BacktestPage() {
   const [endDate, setEndDate] = useState(TODAY)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [runId, setRunId] = useState<string | null>(null)
+  const [baseline, setBaseline] = useState<RandomBaseline | null>(null)
 
   const { addToast } = useToastStore()
   const { data: progress } = useBacktestProgress()
   const { data: results } = useBacktestResults(runId)
   const applyWeightsMut = useApplyWeights()
+  const baselineMut = useRandomBaseline()
+
+  async function handleRunBaseline() {
+    if (!results) return
+    try {
+      const res = await baselineMut.mutateAsync({ results, n_simulations: 500 })
+      setBaseline(res)
+    } catch {
+      addToast('Failed to run baseline', 'error')
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -161,6 +180,15 @@ export function BacktestPage() {
             >
               Apply Weights
             </Button>
+            <Button
+              variant="secondary"
+              size="md"
+              loading={baselineMut.isPending}
+              onClick={handleRunBaseline}
+              disabled={baselineMut.isPending}
+            >
+              vs 500 Random
+            </Button>
             <a href={`/api/export/backtest/${runId}`} className={styles.exportLink}>
               Export JSON
             </a>
@@ -168,7 +196,118 @@ export function BacktestPage() {
         </Card>
       )}
 
+      {/* Random baseline comparison */}
+      {baseline && <RandomBaselineCard baseline={baseline} />}
+
       <div style={{ height: 'var(--space-16)' }} />
     </>
   )
 }
+
+// ── Random Baseline Card ──────────────────────────────────────────────────────
+
+function RandomBaselineCard({ baseline }: { baseline: RandomBaseline }) {
+  const hist = baseline.histogram
+  const z = baseline.z_score_vs_random
+  const beatPct = baseline.pct_simulations_beaten
+
+  const zColor = z === null ? 'var(--text-muted)'
+    : z >= 1.5 ? 'var(--signal-positive)'
+    : z >= 0   ? 'var(--signal-warning)'
+    : 'var(--signal-negative)'
+
+  // Build histogram bars
+  const maxBin = hist ? Math.max(...hist.bins, 1) : 1
+  const stratBinIdx = hist?.strategy_bin_idx ?? null
+
+  return (
+    <Card className={styles.baselineCard}>
+      <div className={styles.resultsTitle}>Strategy vs 500 Random Portfolios</div>
+
+      {/* Summary metrics */}
+      <div className={styles.baselineMetrics}>
+        <div className={styles.metricItem}>
+          <div className={styles.metricLabel}>Z-Score</div>
+          <div className={styles.metricValue} style={{ color: zColor }}>
+            {z !== null ? (z >= 0 ? '+' : '') + z.toFixed(2) : '—'}
+          </div>
+        </div>
+        <div className={styles.metricItem}>
+          <div className={styles.metricLabel}>Portfolios Beaten</div>
+          <div className={styles.metricValue}
+            style={{ color: (beatPct ?? 0) >= 75 ? 'var(--signal-positive)' : 'var(--signal-warning)' }}>
+            {beatPct !== null ? `${beatPct.toFixed(0)}%` : '—'}
+          </div>
+        </div>
+        <div className={styles.metricItem}>
+          <div className={styles.metricLabel}>Random Mean</div>
+          <div className={styles.metricValue}>
+            {baseline.mean_random_return >= 0 ? '+' : ''}{baseline.mean_random_return.toFixed(1)}%
+          </div>
+        </div>
+        <div className={styles.metricItem}>
+          <div className={styles.metricLabel}>Random Std Dev</div>
+          <div className={styles.metricValue}>±{baseline.std_random_return.toFixed(1)}%</div>
+        </div>
+        <div className={styles.metricItem}>
+          <div className={styles.metricLabel}>Strategy</div>
+          <div className={clsx(styles.metricValue, baseline.strategy_return >= 0 ? styles.positive : styles.negative)}>
+            {baseline.strategy_return >= 0 ? '+' : ''}{baseline.strategy_return.toFixed(1)}%
+          </div>
+        </div>
+      </div>
+
+      {/* Significance badge */}
+      {z !== null && (
+        <div className={styles.baselineBadgeRow}>
+          <Badge variant={z >= 2 ? 'success' : z >= 1 ? 'warning' : 'neutral'}>
+            {z >= 2 ? 'Statistically Significant (p<0.05)' :
+             z >= 1 ? 'Marginally Significant (p<0.16)' :
+             'Not Significant'}
+          </Badge>
+          <span className={styles.baselineNote}>
+            {baseline.n_simulations} random portfolios · {baseline.portfolio_size} positions each
+          </span>
+        </div>
+      )}
+
+      {/* Histogram */}
+      {hist && hist.bins.length > 0 && (
+        <div className={styles.histogramWrap}>
+          <div className={styles.histogramLabel}>Distribution of random portfolio returns</div>
+          <div className={styles.histogram}>
+            {hist.bins.map((count, i) => {
+              const isStratBin = i === stratBinIdx
+              const pct = (count / maxBin) * 100
+              const binLabel = hist.bin_edges[i] !== undefined
+                ? `${hist.bin_edges[i].toFixed(0)}%`
+                : ''
+              return (
+                <div
+                  key={i}
+                  className={styles.histBar}
+                  title={`${binLabel}: ${count} portfolios${isStratBin ? ' ← strategy' : ''}`}
+                >
+                  <div
+                    className={styles.histFill}
+                    style={{
+                      height: `${pct}%`,
+                      background: isStratBin
+                        ? (baseline.strategy_return >= 0 ? 'var(--signal-positive)' : 'var(--signal-negative)')
+                        : 'rgba(255,255,255,0.15)',
+                    }}
+                  />
+                  {i % 4 === 0 && (
+                    <span className={styles.histTick}>{binLabel}</span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </Card>
+  )
+}
+
+import clsx from 'clsx'
