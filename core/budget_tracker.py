@@ -51,12 +51,13 @@ class BudgetTracker:
     # --- Cost logging ---
 
     def log_cost(self, api: str, model: str, input_tokens: int = 0,
-                 output_tokens: int = 0, extra_cost: float = 0.0):
+                 output_tokens: int = 0, extra_cost: float = 0.0,
+                 ticker: str = None):
         """Log an API request with estimated cost."""
         cost = self._estimate_cost(api, model, input_tokens, output_tokens) + extra_cost
         month = datetime.now().strftime('%Y-%m')
         today = datetime.now().strftime('%Y-%m-%d')
-        self.db.log_api_cost(api, model, input_tokens, output_tokens, cost, month, today)
+        self.db.log_api_cost(api, model, input_tokens, output_tokens, cost, month, today, ticker)
         logger.info(f"Logged cost: {api}/{model} ${cost:.6f} ({input_tokens}in/{output_tokens}out)")
         return cost
 

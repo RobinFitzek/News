@@ -57,8 +57,8 @@ class OrderManager:
                        VALUES (?, ?, ?, ?, 0, 'blocked', ?, 'auto')""",
                     (analysis_id, ticker, direction, datetime.now().isoformat(), gate["reason"])
                 )
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.warning("Unexpected error: %s", _e)
             return {"success": False, "error": gate["reason"], "trade_id": None, "order_id": None}
 
         # 2. Price
@@ -114,8 +114,8 @@ class OrderManager:
                 f"Order: {order_id or 'paper'}  ·  Status: {order_status}"
             )
             webhook_notifier.send_custom(msg)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
         logger.info(f"OrderManager: entry executed — {direction} {ticker} @ ${price:.2f} (order {order_id})")
         return {"success": True, "trade_id": trade_id, "order_id": order_id, "price": price}
@@ -193,8 +193,8 @@ class OrderManager:
                 f"PnL: {sign}{pnl_pct*100:.2f}%  ·  Reason: {reason}"
             )
             webhook_notifier.send_custom(msg)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
         logger.info(f"OrderManager: exit executed — {ticker} @ ${exit_price:.2f} ({pnl_pct*100:+.2f}%)")
         return {"success": True, "pnl_pct": round(pnl_pct * 100, 2), "order_id": order_id, "exit_price": exit_price}
@@ -241,8 +241,8 @@ class OrderManager:
                         (existing["id"],)
                     )
                     synced += 1
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.warning("Unexpected error: %s", _e)
             else:
                 # New position found at broker — insert it
                 try:
@@ -270,8 +270,8 @@ class OrderManager:
                         (datetime.now().isoformat(), trade["id"])
                     )
                     synced += 1
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.warning("Unexpected error: %s", _e)
 
         db.set_setting("broker_last_sync", datetime.now().isoformat())
         logger.info(f"OrderManager: broker sync complete — {synced} positions synced")

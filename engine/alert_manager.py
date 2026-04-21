@@ -112,8 +112,8 @@ class AlertManager:
             )
             if latest_geo and (last_geo_id is None or latest_geo['id'] > last_geo_id):
                 return True
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
         # None of the gates passed — suppress
         return False

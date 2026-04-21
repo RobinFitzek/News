@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+import re
 import uvicorn
 from datetime import datetime, timedelta
 
@@ -36,6 +37,12 @@ from engine.staleness_tracker import staleness_tracker
 from engine.ai_crosscheck import ai_crosscheck
 
 app = FastAPI(title="AI Investment Monitor", version="1.0.0")
+
+# Ticker validation: standard symbols (up to 5 chars) and class-share notation (e.g. BRK.B)
+_TICKER_RE = re.compile(r'^[A-Z]{1,10}(\.[A-Z]{1,2})?$')
+
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Configure templates with autoescape for XSS protection
 jinja_env = Environment(
@@ -97,15 +104,29 @@ async def add_security_headers(request: Request, call_next):
     # Referrer policy
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
-    # Content Security Policy
+    # Content Security Policy — no unsafe-inline for scripts; all JS comes from bundled /static/
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "script-src 'self'; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data:; "
         "connect-src 'self';"
     )
+
+    # Cache-Control: differentiate volatile vs stable API responses
+    path = request.url.path
+    if path.startswith('/api/'):
+        if any(path.startswith(p) for p in (
+            '/api/auto-trade/status', '/api/broker/', '/api/orders/'
+        )):
+            response.headers["Cache-Control"] = "no-store"
+        elif any(path.startswith(p) for p in (
+            '/api/settings', '/api/watchlist', '/api/providers'
+        )):
+            response.headers["Cache-Control"] = "private, max-age=300"
+        else:
+            response.headers["Cache-Control"] = "private, max-age=60"
 
     return response
 
@@ -1145,7 +1166,10 @@ async def add_to_watchlist(
 ):
     """Add stock to watchlist"""
     csrf.verify_token(request, csrf_token)
-    db.add_to_watchlist(ticker.upper(), name)
+    ticker_clean = ticker.upper().strip()
+    if not _TICKER_RE.match(ticker_clean):
+        raise HTTPException(status_code=400, detail="Invalid ticker symbol")
+    db.add_to_watchlist(ticker_clean, name)
     return RedirectResponse(url="/watchlist", status_code=303)
 
 @app.post("/watchlist/remove/{ticker}")
@@ -1553,6 +1577,7 @@ async def logout_single_session(
     return RedirectResponse(url="/settings?saved=1", status_code=303)
 
 @app.post("/settings/api-keys")
+@limiter.limit("10/minute")
 async def save_api_keys(request: Request, username: str = Depends(require_auth)):
     """Save API keys"""
     form = await request.form()
@@ -2150,12 +2175,27 @@ async def run_analysis(
     request: Request,
     ticker: str = Form(...),
     csrf_token: str = Form(...),
+    force: bool = Form(False),
     username: str = Depends(require_auth)
 ):
-    """Run manual analysis"""
+    """Run manual analysis — respects tier frequency unless force=True"""
     csrf.verify_token(request, csrf_token)
-    results = swarm.analyze_single_stock(ticker.upper())
-    analysis_id, signal, confidence = db.save_analysis(ticker.upper(), results)
+    ticker_upper = ticker.upper().strip()
+    if not _TICKER_RE.match(ticker_upper):
+        raise HTTPException(status_code=400, detail="Invalid ticker symbol")
+
+    if not force:
+        from engine.pipeline import should_scan_ticker
+        row = db.query_one("SELECT tier, last_scanned_at FROM watchlist WHERE ticker = ?", (ticker_upper,))
+        if row and not should_scan_ticker(row):
+            age_h = round((datetime.now() - datetime.fromisoformat(row['last_scanned_at'])).total_seconds() / 3600, 1)
+            return RedirectResponse(
+                url=f"/analyze?warning=Recently+analysed+{ticker_upper}+{age_h}h+ago.+Use+force%3D1+to+override.",
+                status_code=303
+            )
+
+    results = swarm.analyze_single_stock(ticker_upper)
+    analysis_id, signal, confidence = db.save_analysis(ticker_upper, results)
 
     # Run AI cross-check against yfinance ground truth
     try:
@@ -2165,11 +2205,11 @@ async def run_analysis(
             results.get('technical', ''),
         ]))
         if analysis_text.strip():
-            crosscheck = ai_crosscheck.check_analysis(ticker.upper(), analysis_text)
-            db.save_crosscheck(ticker.upper(), analysis_id, crosscheck)
+            crosscheck = ai_crosscheck.check_analysis(ticker_upper, analysis_text)
+            db.save_crosscheck(ticker_upper, analysis_id, crosscheck)
     except Exception as e:
         import logging
-        logging.getLogger(__name__).warning(f"Cross-check failed for {ticker}: {e}")
+        logging.getLogger(__name__).warning(f"Cross-check failed for {ticker_upper}: {e}")
 
     return RedirectResponse(url=f"/analysis/{analysis_id}", status_code=303)
 
@@ -5836,6 +5876,23 @@ async def api_remove_watchlist(
     return {"status": "removed", "ticker": ticker}
 
 
+@app.post("/api/watchlist/{ticker}/tier")
+async def api_update_watchlist_tier(
+    request: Request,
+    ticker: str,
+    username: str = Depends(require_auth)
+):
+    """Update watchlist tier — JSON endpoint for React SPA"""
+    _verify_spa_csrf(request)
+    data = await request.json()
+    tier = data.get("tier", "").lower()
+    valid_tiers = {"core", "swing", "research", "earnings_play"}
+    if tier not in valid_tiers:
+        raise HTTPException(status_code=400, detail="Invalid tier")
+    db.update_watchlist_tier(ticker.upper(), tier)
+    return {"status": "updated", "ticker": ticker.upper(), "tier": tier}
+
+
 @app.post("/api/settings/save")
 async def save_settings_json(
     request: Request,
@@ -6070,6 +6127,23 @@ async def api_delete_journal(
     _verify_spa_csrf(request)
     db.delete_journal_entry(entry_id)
     return {"status": "deleted"}
+
+
+@app.post("/api/journal/{entry_id}/edit")
+async def api_edit_journal(
+    request: Request,
+    entry_id: int,
+    username: str = Depends(require_auth)
+):
+    """Edit journal entry notes — JSON for React SPA"""
+    _verify_spa_csrf(request)
+    data = await request.json()
+    notes = data.get("notes", "").strip()
+    db.execute(
+        "UPDATE trade_journal SET notes = ? WHERE id = ?",
+        (notes, entry_id)
+    )
+    return {"status": "updated"}
 
 
 # ── Portfolio (main summary) ──────────────────────────────────────────────────

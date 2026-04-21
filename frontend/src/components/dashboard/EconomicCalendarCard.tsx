@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useMacroEvents } from '@/api/endpoints/macro'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -5,7 +6,7 @@ import { Spinner } from '@/components/ui/Spinner'
 import { format } from 'date-fns'
 import styles from './EconomicCalendarCard.module.css'
 
-export function EconomicCalendarCard() {
+const EconomicCalendarCard = memo(function EconomicCalendarCard() {
   const { data, isLoading } = useMacroEvents(14)
   const events = data?.events ?? []
 
@@ -44,4 +45,6 @@ export function EconomicCalendarCard() {
       </div>
     </Card>
   )
-}
+})
+
+export { EconomicCalendarCard }

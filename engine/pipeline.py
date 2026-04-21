@@ -49,7 +49,6 @@ class DailyPipeline:
             if kill_switch_paused:
                 msg = "Pipeline paused: accuracy kill switch active (sub-50% accuracy). Clear in Settings to resume."
                 self.logger.critical(msg)
-                print(f"  {msg}")
                 db.log_scheduler_run(tickers_scanned=0, alerts_sent=0, duration=0, errors=msg)
                 return []
 
@@ -63,7 +62,6 @@ class DailyPipeline:
                     f"Pipeline paused. Clear in Settings to resume."
                 )
                 self.logger.critical(msg)
-                print(f"  {msg}")
                 db.log_scheduler_run(tickers_scanned=0, alerts_sent=0, duration=0, errors=msg)
                 return []
         except Exception as e:
@@ -71,10 +69,8 @@ class DailyPipeline:
 
         # Calculate today's limits from budget
         limits = budget_tracker.get_pipeline_limits()
-        self.logger.info(f"Pipeline limits: {limits}")
-        print(f"  Starting Daily Analysis Cycle")
-        print(f"  Budget: Stage1={limits['stage1_max']}, Stage2={limits['stage2_max']}, "
-              f"Stage3={limits['stage3_max']}, Perplexity={limits['perplexity_max']}")
+        self.logger.info("Pipeline limits: Stage1=%s Stage2=%s Stage3=%s Perplexity=%s",
+                         limits['stage1_max'], limits['stage2_max'], limits['stage3_max'], limits['perplexity_max'])
 
         start_time = time.time()
         errors = []
@@ -91,7 +87,6 @@ class DailyPipeline:
                         f"limit=-{risk_gate.get('threshold_pct', 10):.2f}%"
                     )
                     self.logger.warning(msg)
-                    print(f"  ⛔ {msg}")
                     db.log_scheduler_run(
                         tickers_scanned=0,
                         alerts_sent=0,
@@ -156,11 +151,11 @@ class DailyPipeline:
                 scan_list = watchlist_tickers[:limits['stage1_max']]
             elif variant == "aggressive":
                 scan_list = watchlist_tickers[:limits['stage1_max']]
-                print("  Aggressive Mode: Watchlist + Discovery Context")
+                self.logger.info("Aggressive Mode: Watchlist + Discovery Context")
             else:
                 scan_list = watchlist_tickers[:limits['stage1_max']]
 
-            print(f"  Variant: {variant} | Scanning: {len(scan_list)} tickers")
+            self.logger.info("Variant: %s | Scanning: %d tickers", variant, len(scan_list))
 
             # === STAGE 1: Quant Screening (zero API cost) ===
             scan_progress.set_stage1(len(scan_list))
@@ -208,7 +203,7 @@ class DailyPipeline:
                     except Exception as e:
                         self.logger.debug(f"Failed to record quant-only prediction for {ticker}: {e}")
 
-            print(f"\n  Promoting {len(stage2_candidates)} candidates to Stage 2 (limit: {limits['stage2_max']})")
+            self.logger.info("Promoting %d candidates to Stage 2 (limit: %d)", len(stage2_candidates), limits['stage2_max'])
 
             full_results = []
 
@@ -248,7 +243,7 @@ class DailyPipeline:
             stage3_provider_cfg = db.get_api_provider_for_role('stage3_synthesis')
             stage3_provider_label = stage3_provider_cfg.get('name') if stage3_provider_cfg else 'Gemini'
             scan_progress.set_stage3(len(stage3_candidates), provider_label=stage3_provider_label)
-            print(f"\n  Promoting {len(stage3_candidates)} finalists to Stage 3 (limit: {limits['stage3_max']})")
+            self.logger.info("Promoting %d finalists to Stage 3 (limit: %d)", len(stage3_candidates), limits['stage3_max'])
 
             final_reports = []
             for s3_idx, candidate in enumerate(stage3_candidates):
@@ -350,17 +345,16 @@ class DailyPipeline:
                     for report in final_reports:
                         report['concentration_warnings'] = conc['warnings']
                         report['diversification_score'] = conc['diversification_score']
-                    print(f"  Concentration check: score={conc['diversification_score']}, {len(conc['warnings'])} warnings")
+                    self.logger.info("Concentration check: score=%s, %d warnings", conc['diversification_score'], len(conc['warnings']))
             except Exception as e:
                 self.logger.warning(f"Concentration check failed: {e}")
 
             duration = time.time() - start_time
             scan_progress.complete(f"Done: {len(scan_list)} scanned, {len(stage2_candidates)} analyzed, {len(final_reports)} finalized ({duration:.0f}s)")
-            print(f"\n  Daily Cycle Complete in {duration:.1f}s")
-            print(f"  Processed: {len(scan_list)} -> {len(stage2_candidates)} -> {len(final_reports)}")
-
+            self.logger.info("Daily Cycle Complete in %.1fs | Processed: %d -> %d -> %d",
+                             duration, len(scan_list), len(stage2_candidates), len(final_reports))
             if errors:
-                print(f"  {len(errors)} errors encountered during cycle")
+                self.logger.warning("%d errors encountered during cycle", len(errors))
 
             # Log run
             try:

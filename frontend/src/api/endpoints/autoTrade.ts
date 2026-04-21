@@ -15,6 +15,7 @@ export function useAutoTradeStatus() {
   return useQuery<AutoTradeStatus>({
     queryKey: ['auto-trade-status'],
     queryFn: () => api.get('/api/auto-trade/status').then(r => r.data),
-    staleTime: 30_000,
+    staleTime: 10_000,
+    refetchInterval: 15_000,
   })
 }

@@ -5,10 +5,49 @@ Runs automated scans based on configuration.
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.events import (
+    EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, EVENT_JOB_MISSED,
+    JobExecutionEvent
+)
+from contextlib import contextmanager
 from datetime import datetime, date, time
+import logging
 import pytz
 from core.database import db
 from core.notifications import notifications
+
+logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _job_lock(job_id: str, ttl_minutes: int = 120):
+    """Context manager that skips the wrapped block if job ran recently."""
+    acquired = db.try_acquire_job_lock(job_id, ttl_minutes)
+    if not acquired:
+        logger.warning("Job '%s' skipped — lock held from recent run (TTL=%dm)", job_id, ttl_minutes)
+    try:
+        yield acquired
+    finally:
+        if acquired:
+            db.release_job_lock(job_id)
+
+
+def _job_event_listener(event: JobExecutionEvent) -> None:
+    """Log job execution outcomes to the scheduler_log table."""
+    try:
+        job_id = event.job_id
+        if event.exception:
+            logger.error("Job '%s' raised an exception: %s", job_id, event.exception)
+            db.execute(
+                "INSERT OR IGNORE INTO scheduler_log (tickers_scanned, alerts_sent, errors, duration_seconds) VALUES (0, 0, ?, 0)",
+                (f"[{job_id}] {event.exception}",)
+            )
+        elif event.code == EVENT_JOB_MISSED:
+            logger.warning("Job '%s' missed its execution window", job_id)
+        else:
+            logger.debug("Job '%s' completed successfully", job_id)
+    except Exception:
+        pass  # listener must never raise
 
 # NYSE market holidays for 2026 (format: (month, day))
 US_MARKET_HOLIDAYS_2026 = {
@@ -37,10 +76,13 @@ class InvestmentScheduler:
     _SLEEP_SENSITIVE_JOBS = ['main_scan', 'geopolitical_scan']
 
     def __init__(self):
+        from apscheduler.executors.pool import ThreadPoolExecutor as APSThreadPoolExecutor
         self.scheduler = BackgroundScheduler(
+            executors={'default': APSThreadPoolExecutor(max_workers=4)},
             job_defaults={
                 'coalesce': True,          # merge missed firings into one catch-up run
                 'misfire_grace_time': 600, # 10 min grace after resume from system suspend
+                'max_instances': 1,        # prevent overlapping runs of the same job
             }
         )
         self.is_running = False
@@ -140,32 +182,26 @@ class InvestmentScheduler:
     def run_scan(self, force=False):
         """Run the Daily Analysis Pipeline"""
         if self.is_scanning:
-            print("(!) Scan already in progress")
+            logger.warning("Scan already in progress, skipping")
             return
 
         if not force and self.is_deep_sleep_active():
             intensity = db.get_setting("deep_sleep_intensity") or "deep"
             if intensity == "hibernate":
-                print("(-) Deep Sleep (Hibernate) active, skipping scan")
+                logger.info("Deep Sleep (Hibernate) active, skipping scan")
                 return
-            # For light/deep, we could dynamically skip 1/2 or 5/6 scans, but for simplicity we skip if not forced and deep sleep is active. 
-            # In a full implementation, we'd adjust the APScheduler interval. For now, skipping serves the immediate need.
-            # Wait, the spec says Light: x2, Deep: x6.
-            # To truly handle it simply, we can just log that we are in deep sleep and let it run occasionally, or skip.
-            print("(-) Deep Sleep active, reducing scan frequency (skipped this run)")
+            logger.info("Deep Sleep active, reducing scan frequency (skipped this run)")
             return
 
         if not force and not self._is_active_time():
-            print(f"(-) Outside active hours ({self.active_start}-{self.active_end}), skipping scan")
+            logger.info("Outside active hours (%s-%s), skipping scan", self.active_start, self.active_end)
             return
 
         if not force and self._is_market_holiday():
-            print(f"(-) Market closed today (US holiday) — skipping scan")
+            logger.info("Market closed today (US holiday) — skipping scan")
             return
 
-        print(f"\n{'='*50}")
-        print(f"      SCHEDULED PIPELINE - {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-        print(f"{'='*50}")
+        logger.info("SCHEDULED PIPELINE - %s", datetime.now().strftime('%Y-%m-%d %H:%M'))
 
         self.is_scanning = True
         try:
@@ -174,34 +210,16 @@ class InvestmentScheduler:
             return results
         except ImportError as e:
             error_msg = f"Import Error: {e}. Check if all dependencies are installed."
-            print(f"(Error) {error_msg}")
-            db.log_scheduler_run(
-                tickers_scanned=0,
-                alerts_sent=0,
-                errors=error_msg,
-                duration=0
-            )
-            # Don't raise in background thread, just log
-            # raise Exception(error_msg)
+            logger.error(error_msg)
+            db.log_scheduler_run(tickers_scanned=0, alerts_sent=0, errors=error_msg, duration=0)
         except AttributeError as e:
             error_msg = f"API Method Error: {e}. Check API client configuration."
-            print(f"(Error) {error_msg}")
-            db.log_scheduler_run(
-                tickers_scanned=0,
-                alerts_sent=0,
-                errors=error_msg,
-                duration=0
-            )
+            logger.error(error_msg, exc_info=True)
+            db.log_scheduler_run(tickers_scanned=0, alerts_sent=0, errors=error_msg, duration=0)
         except Exception as e:
             error_msg = f"Pipeline Error: {str(e)}"
-            print(f"(Error) {error_msg}")
-            # Log error
-            db.log_scheduler_run(
-                tickers_scanned=0,
-                alerts_sent=0,
-                errors=error_msg,
-                duration=0
-            )
+            logger.error(error_msg, exc_info=True)
+            db.log_scheduler_run(tickers_scanned=0, alerts_sent=0, errors=error_msg, duration=0)
         finally:
             self.is_scanning = False
     
@@ -225,30 +243,30 @@ class InvestmentScheduler:
                             webhook_notifier.send_custom(title="Macro Rate Alert", message=msg, level="warning")
                         except Exception:
                             pass
-                        print(f"[MACRO] {msg}")
+                        logger.info("[MACRO] %s", msg)
         except Exception as e:
-            print(f"(Error) Macro event check failed: {e}")
+            logger.error("Macro event check failed: %s", e, exc_info=True)
 
     def run_geopolitical_scan(self):
         """Run global geopolitical scan and alert on high-severity events"""
         import re
         from clients.perplexity_client import pplx_client
-        print(f"\n[GEO SCAN] {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        logger.info("GEO SCAN - %s", datetime.now().strftime('%Y-%m-%d %H:%M'))
 
         raw_summary = pplx_client.get_geopolitical_scan()
         if not raw_summary:
-            print("  Geopolitical scan returned no data")
+            logger.warning("Geopolitical scan returned no data")
             return
 
         scan_id = db.save_geopolitical_scan(raw_summary)
-        print(f"  Geopolitical scan saved (id={scan_id})")
+        logger.info("Geopolitical scan saved (id=%s)", scan_id)
 
         # Alert + priority re-analysis on high-severity events (severity >= 8)
         scores = [int(m) for m in re.findall(r'SCHWEREGRAD[:\s/]+(\d+)', raw_summary)]
         max_severity = max(scores) if scores else 0
         if max_severity >= 8:
             notifications.send_geopolitical_alert(raw_summary, max_severity)
-            print(f"  High-severity alert sent (max severity: {max_severity})")
+            logger.info("High-severity alert sent (max severity: %d)", max_severity)
             self._trigger_priority_reanalysis()
 
     def _trigger_priority_reanalysis(self):
@@ -267,15 +285,15 @@ class InvestmentScheduler:
                     now_utc = datetime.now(timezone.utc)
                     elapsed_hours = (now_utc - last_run).total_seconds() / 3600
                     if elapsed_hours < 2:
-                        print(f"  Priority re-analysis skipped — last scan was {elapsed_hours:.1f}h ago (cooldown: 2h)")
+                        logger.info("Priority re-analysis skipped — last scan was %.1fh ago (cooldown: 2h)", elapsed_hours)
                         return
 
-            print("  Triggering priority watchlist re-analysis due to high-severity geo event...")
+            logger.info("Triggering priority watchlist re-analysis due to high-severity geo event")
             import threading
             t = threading.Thread(target=self.run_scan, kwargs={'force': True}, daemon=True)
             t.start()
         except Exception as e:
-            print(f"  Priority re-analysis trigger failed: {e}")
+            logger.error("Priority re-analysis trigger failed: %s", e, exc_info=True)
 
     def run_daily_summary(self):
         """Send daily summary email"""
@@ -290,7 +308,7 @@ class InvestmentScheduler:
         
         if today_analyses:
             notifications.send_daily_summary(today_analyses)
-            print("Daily summary sent")
+            logger.info("Daily summary sent")
 
             # Fire per-signal alerts for strong signals (enables plugin notifiers)
             for analysis in today_analyses:
@@ -305,7 +323,7 @@ class InvestmentScheduler:
                             risk_score=analysis.get('risk_score') or 5,
                         )
                     except Exception as e:
-                        print(f"  send_alert error for {analysis.get('ticker')}: {e}")
+                        logger.error("send_alert error for %s: %s", analysis.get('ticker'), e)
     
     def start(self):
         """Start the scheduler with all cycle jobs"""
@@ -369,7 +387,7 @@ class InvestmentScheduler:
                     replace_existing=True
                 )
             except Exception as e:
-                print(f"(!) Error scheduling discovery jobs: {e}")
+                logger.error("Error scheduling discovery jobs: %s", e, exc_info=True)
 
         # Daily summary job
         if self.daily_summary_enabled:
@@ -661,8 +679,12 @@ class InvestmentScheduler:
                     replace_existing=True
                 )
             except Exception as e:
-                print(f"(!) Could not schedule deep sleep transitions: {e}")
+                logger.error("Could not schedule deep sleep transitions: %s", e, exc_info=True)
 
+        self.scheduler.add_listener(
+            _job_event_listener,
+            EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED
+        )
         self.scheduler.start()
         self.is_running = True
 
@@ -671,14 +693,14 @@ class InvestmentScheduler:
         if deep_sleep_on and self.is_deep_sleep_active():
             self._enter_deep_sleep_mode()
 
-        print(f"Scheduler started: Daily every {self.interval_hours}h, Weekly Sun 20:00, Monthly 28th 18:00")
+        logger.info("Scheduler started: Daily every %sh, Weekly Sun 20:00, Monthly 28th 18:00", self.interval_hours)
 
         # Start two-way Telegram bot (if enabled)
         try:
             from clients.telegram_bot import telegram_bot
             telegram_bot.start()
         except Exception as e:
-            print(f"(Warning) Telegram bot failed to start: {e}")
+            logger.warning("Telegram bot failed to start: %s", e)
 
     def stop(self):
         """Stop the scheduler"""
@@ -696,7 +718,7 @@ class InvestmentScheduler:
             telegram_bot.stop()
         except Exception:
             pass
-        print("Scheduler stopped")
+        logger.info("Scheduler stopped")
     
     @staticmethod
     def _relative_time(dt) -> str:
@@ -758,81 +780,97 @@ class InvestmentScheduler:
     
     def run_discovery(self):
         """Run daily auto-discovery (free strategies)"""
-        try:
-            from engine.auto_discovery import auto_discovery
-            result = auto_discovery.run_daily_discovery()
-            print(f"Discovery completed: {result.get('discoveries', 0)} found, {len(result.get('promoted', []))} promoted")
-        except Exception as e:
-            print(f"(Error) Discovery failed: {e}")
+        with _job_lock('run_discovery', ttl_minutes=60) as locked:
+            if not locked:
+                return
+            try:
+                from engine.auto_discovery import auto_discovery
+                result = auto_discovery.run_daily_discovery()
+                logger.info("Discovery completed: %d found, %d promoted",
+                            result.get('discoveries', 0), len(result.get('promoted', [])))
+            except Exception as e:
+                logger.error("Discovery failed: %s", e, exc_info=True)
 
     def run_ai_discovery(self):
         """Run weekly AI discovery (Perplexity)"""
-        try:
-            from engine.auto_discovery import auto_discovery
-            result = auto_discovery.run_weekly_ai_discovery()
-            print(f"AI Discovery completed: {result.get('discoveries', 0)} found")
-        except Exception as e:
-            print(f"(Error) AI Discovery failed: {e}")
+        with _job_lock('run_ai_discovery', ttl_minutes=360) as locked:
+            if not locked:
+                return
+            try:
+                from engine.auto_discovery import auto_discovery
+                result = auto_discovery.run_weekly_ai_discovery()
+                logger.info("AI Discovery completed: %d found", result.get('discoveries', 0))
+            except Exception as e:
+                logger.error("AI Discovery failed: %s", e, exc_info=True)
 
     def run_weekly_report(self):
         """Generate and send weekly portfolio report."""
-        try:
-            from engine.report_generator import report_generator
-            html = report_generator.generate_weekly_report()
-            if html:
-                report_generator.send_report(html)
-                print("Weekly report generated and sent")
-        except Exception as e:
-            print(f"(Error) Weekly report failed: {e}")
+        with _job_lock('run_weekly_report', ttl_minutes=360) as locked:
+            if not locked:
+                return
+            try:
+                from engine.report_generator import report_generator
+                html = report_generator.generate_weekly_report()
+                if html:
+                    report_generator.send_report(html)
+                    logger.info("Weekly report generated and sent")
+            except Exception as e:
+                logger.error("Weekly report failed: %s", e, exc_info=True)
 
     def run_weekly_letter(self):
         """Generate and send AI weekly investment letter."""
-        try:
-            enabled = db.get_setting('weekly_letter_enabled')
-            if not enabled:
+        with _job_lock('run_weekly_letter', ttl_minutes=360) as locked:
+            if not locked:
                 return
-            from engine.weekly_letter import weekly_letter_generator
-            weekly_letter_generator.generate_and_send()
-        except Exception as e:
-            print(f"(Error) Weekly letter failed: {e}")
+            try:
+                enabled = db.get_setting('weekly_letter_enabled')
+                if not enabled:
+                    return
+                from engine.weekly_letter import weekly_letter_generator
+                weekly_letter_generator.generate_and_send()
+            except Exception as e:
+                logger.error("Weekly letter failed: %s", e, exc_info=True)
 
     def run_nlp_sentiment_scoring(self):
         """Score watchlist ticker sentiment from RSS headlines (#38/#57)."""
-        try:
-            from engine.nlp_scorer import run_hourly_scoring, ensure_schema
-            ensure_schema()
-            results = run_hourly_scoring()
-            if results:
-                print(f"NLP sentiment: scored {len(results)} tickers")
-        except Exception as e:
-            print(f"(Error) NLP sentiment scoring failed: {e}")
+        with _job_lock('run_nlp_sentiment', ttl_minutes=45) as locked:
+            if not locked:
+                return
+            try:
+                from engine.nlp_scorer import run_hourly_scoring, ensure_schema
+                ensure_schema()
+                results = run_hourly_scoring()
+                if results:
+                    logger.info("NLP sentiment: scored %d tickers", len(results))
+            except Exception as e:
+                logger.error("NLP sentiment scoring failed: %s", e, exc_info=True)
 
     def run_pairs_scan(self):
         """Weekly cointegration scan for pairs trading (#40)."""
         try:
             from engine.pairs_trader import run_weekly_scan
             pairs = run_weekly_scan()
-            print(f"Pairs trading scan: {len(pairs)} cointegrated pairs found")
+            logger.info("Pairs trading scan: %d cointegrated pairs found", len(pairs))
         except Exception as e:
-            print(f"(Error) Pairs trading scan failed: {e}")
+            logger.error("Pairs trading scan failed: %s", e, exc_info=True)
 
     def run_supply_chain_refresh(self):
         """Quarterly refresh of supply chain data for stale watchlist tickers (#44/#58)."""
         try:
             from engine.supply_chain import refresh_stale_tickers
             refreshed = refresh_stale_tickers()
-            print(f"Supply chain refresh: {refreshed} tickers updated")
+            logger.info("Supply chain refresh: %d tickers updated", refreshed)
         except Exception as e:
-            print(f"(Error) Supply chain refresh failed: {e}")
+            logger.error("Supply chain refresh failed: %s", e, exc_info=True)
 
     def run_dark_pool_scan(self):
         """Daily dark pool / volume anomaly scan for watchlist tickers (#52)."""
         try:
             from engine.dark_pool_tracker import scan_watchlist
             count = scan_watchlist()
-            print(f"Dark pool scan: {count} signals detected")
+            logger.info("Dark pool scan: %d signals detected", count)
         except Exception as e:
-            print(f"(Error) Dark pool scan failed: {e}")
+            logger.error("Dark pool scan failed: %s", e, exc_info=True)
 
     def check_hit_rates(self):
         """Check discovery hit rates and log outcomes. Also flags stale data."""
@@ -840,9 +878,9 @@ class InvestmentScheduler:
             from engine.discovery_hit_rate import discovery_hit_rate
             result = discovery_hit_rate.check_outcomes()
             checked = result.get('checked', 0) if result else 0
-            print(f"Hit rate check: {checked} outcomes evaluated")
+            logger.info("Hit rate check: %d outcomes evaluated", checked)
         except Exception as e:
-            print(f"(Error) Hit rate check failed: {e}")
+            logger.error("Hit rate check failed: %s", e, exc_info=True)
 
         # Flag stale data using DataFreshnessTracker
         try:
@@ -851,7 +889,7 @@ class InvestmentScheduler:
             if stale_tickers:
                 tickers_str = ', '.join(t['ticker'] for t in stale_tickers)
                 msg = f"Stale data ({len(stale_tickers)} tickers): {tickers_str}"
-                print(f"(!) {msg}")
+                logger.warning(msg)
                 try:
                     from engine.webhook_notifier import webhook_notifier
                     webhook_notifier.send_custom(
@@ -862,7 +900,7 @@ class InvestmentScheduler:
                 except Exception:
                     pass
         except Exception as e:
-            print(f"(Error) Staleness check failed: {e}")
+            logger.error("Staleness check failed: %s", e, exc_info=True)
 
     def check_price_alerts(self):
         """Check all active price alerts and fire notifications when triggered."""
@@ -928,10 +966,10 @@ class InvestmentScheduler:
                         (datetime.now().isoformat(), alert['id'])
                     )
                     triggered += 1
-                    print(f"Price alert triggered: {msg}")
+                    logger.info("Price alert triggered: %s", msg)
 
             if triggered:
-                print(f"Price alerts: {triggered} triggered out of {len(alerts)} active")
+                logger.info("Price alerts: %d triggered out of %d active", triggered, len(alerts))
 
             # Also scan watchlist for intraday breakouts → auto-analysis
             trigger_pct = float(db.get_setting('intraday_trigger_pct') or 3.0)
@@ -942,16 +980,16 @@ class InvestmentScheduler:
                 from engine.auto_paper_trader import auto_paper_trader
                 auto_paper_trader.check_open_positions()
             except Exception as e:
-                print(f"(Warning) Auto-paper-trader position check failed: {e}")
+                logger.warning("Auto-paper-trader position check failed: %s", e)
 
             # Portfolio-level anomaly detection (#46/#55) — run on every 15-min tick
             try:
                 from engine.portfolio_anomaly import run_anomaly_checks
                 run_anomaly_checks()
             except Exception as e:
-                print(f"(Warning) Portfolio anomaly check failed: {e}")
+                logger.warning("Portfolio anomaly check failed: %s", e)
         except Exception as e:
-            print(f"(Error) Price alert check failed: {e}")
+            logger.error("Price alert check failed: %s", e, exc_info=True)
 
     def refresh_13f_holdings(self):
         """Weekly job: refresh top-20 institutional 13F holdings (#25)."""
@@ -959,9 +997,9 @@ class InvestmentScheduler:
             from engine.institutional_tracker import institutional_tracker
             results = institutional_tracker.refresh_top_filer_holdings()
             total = sum(results.values())
-            print(f"13F refresh complete: {len(results)} filers, {total} holdings stored")
+            logger.info("13F refresh complete: %d filers, %d holdings stored", len(results), total)
         except Exception as e:
-            print(f"(Error) 13F holdings refresh failed: {e}")
+            logger.error("13F holdings refresh failed: %s", e, exc_info=True)
 
     def capture_macro_snapshot(self):
         """Daily job: fetch macro market data and store snapshot (#22)."""
@@ -969,10 +1007,10 @@ class InvestmentScheduler:
             from engine.macro_tracker import macro_tracker
             snap = macro_tracker.fetch_and_store_snapshot()
             if snap:
-                print(f"Macro snapshot stored: regime={snap.get('regime_label')}, "
-                      f"vix={snap.get('vix')}, spread={snap.get('spread_2y10y')}")
+                logger.info("Macro snapshot stored: regime=%s, vix=%s, spread=%s",
+                            snap.get("regime_label"), snap.get("vix"), snap.get("spread_2y10y"))
         except Exception as e:
-            print(f"(Error) Macro snapshot failed: {e}")
+            logger.error("Macro snapshot failed: %s", e, exc_info=True)
 
         # Evaluate composite cross-asset signals after each snapshot (#47)
         try:
@@ -980,9 +1018,9 @@ class InvestmentScheduler:
             triggered = evaluate_composite_signals()
             if triggered:
                 names = ", ".join(s["pattern_name"] for s in triggered)
-                print(f"Composite signals triggered: {names}")
+                logger.info("Composite signals triggered: %s", names)
         except Exception as e:
-            print(f"(Warning) Composite signal evaluation failed: {e}")
+            logger.warning("Composite signal evaluation failed: %s", e)
 
     def run_health_check(self):
         """Run daily health checks and weekly cleanups."""
@@ -998,7 +1036,7 @@ class InvestmentScheduler:
                     health_monitor.cleanup_old_data()
                     health_monitor.vacuum_database()
             except Exception as e:
-                print(f"(Error) Health cleanup failed: {e}")
+                logger.error("Health cleanup failed: %s", e, exc_info=True)
                 
             # Alert on critical
             if report.get('overall_status') == 'critical':
@@ -1018,18 +1056,18 @@ class InvestmentScheduler:
                         msg = "🔴 *CRITICAL SYSTEM HEALTH*\n" + "\n".join(msgs_critical)
                         webhook_notifier.send_custom(msg)
                 except Exception as e:
-                    print(f"(Error) Health alert failed: {e}")
+                    logger.error("Health alert failed: %s", e, exc_info=True)
                     
-            print(f"Health check completed. Status: {report.get('overall_status', 'unknown')}")
+            logger.info("Health check completed. Status: %s", report.get("overall_status", "unknown"))
         except Exception as e:
-            print(f"(Error) Health check overall failed: {e}")
+            logger.error("Health check overall failed: %s", e, exc_info=True)
 
     def grade_signals(self):
         """Grade past signals and auto-tune weights."""
         try:
             from engine.signal_grader import signal_grader
             graded = signal_grader.grade_pending_signals()
-            print(f"Signal Grader: Graded {graded} pending signals.")
+            logger.info("Signal Grader: Graded %d pending signals.", graded)
             
             # Auto-tune weights if enough data
             try:
@@ -1041,19 +1079,19 @@ class InvestmentScheduler:
                     except Exception:
                         pass
             except Exception as e:
-                print(f"(Error) Auto tuning quant weights failed: {e}")
+                logger.error("Auto tuning quant weights failed: %s", e, exc_info=True)
                 
         except Exception as e:
-            print(f"(Error) Signal grading failed: {e}")
+            logger.error("Signal grading failed: %s", e, exc_info=True)
 
     def run_auto_paper_entry(self):
         """Enter automated paper trades based on recent strong signals."""
         try:
             from engine.auto_paper_trader import auto_paper_trader
             entered = auto_paper_trader.process_new_signals()
-            print(f"Auto Paper Trader: Entered {entered} new positions.")
+            logger.info("Auto Paper Trader: Entered %d new positions.", entered)
         except Exception as e:
-            print(f"(Error) Auto paper entry failed: {e}")
+            logger.error("Auto paper entry failed: %s", e, exc_info=True)
 
     def run_auto_paper_exit(self):
         """Check open paper trades for exit conditions and expire stale pending confirmations."""
@@ -1061,9 +1099,9 @@ class InvestmentScheduler:
             from engine.auto_paper_trader import auto_paper_trader
             auto_paper_trader.expire_pending()
             exited = auto_paper_trader.check_open_positions()
-            print(f"Auto Paper Trader: Exited {exited} positions.")
+            logger.info("Auto Paper Trader: Exited %d positions.", exited)
         except Exception as e:
-            print(f"(Error) Auto paper exit failed: {e}")
+            logger.error("Auto paper exit failed: %s", e, exc_info=True)
 
     def run_broker_sync(self):
         """Sync positions from real broker (market hours + non-paper mode only). Phase 6."""
@@ -1076,9 +1114,9 @@ class InvestmentScheduler:
             from engine.order_manager import order_manager
             synced = order_manager.sync_broker_positions()
             if synced:
-                print(f"Broker Sync: {synced} positions synced from {mode.upper()}")
+                logger.info("Broker Sync: %d positions synced from %s", synced, mode.upper())
         except Exception as e:
-            print(f"(Error) Broker sync failed: {e}")
+            logger.error("Broker sync failed: %s", e, exc_info=True)
 
     def run_broker_pnl_snapshot(self):
         """Store broker account equity in today's paper_snapshot row (Phase 6)."""
@@ -1096,9 +1134,9 @@ class InvestmentScheduler:
                 "UPDATE paper_snapshots SET broker_value = ? WHERE snapshot_date = ?",
                 (broker_equity, today)
             )
-            print(f"Broker P&L Snapshot: equity ${broker_equity:,.2f} stored for {today}")
+            logger.info("Broker P&L Snapshot: equity $%.2f stored for %s", broker_equity, today)
         except Exception as e:
-            print(f"(Error) Broker P&L snapshot failed: {e}")
+            logger.error("Broker P&L snapshot failed: %s", e, exc_info=True)
 
     def retrain_meta_labeler(self):
         """Retrain the Random Forest meta-labeler on graded signal outcomes."""
@@ -1106,13 +1144,12 @@ class InvestmentScheduler:
             from engine.meta_labeler import meta_labeler
             result = meta_labeler.train()
             if result.get('trained'):
-                print(f"Meta-labeler retrained: v{result.get('model_version')}, "
-                      f"CV accuracy={result.get('cv_accuracy')}, "
-                      f"samples={result.get('training_samples')}")
+                logger.info("Meta-labeler retrained: v%s, CV accuracy=%s, samples=%s",
+                        result.get("model_version"), result.get("cv_accuracy"), result.get("training_samples"))
             else:
-                print(f"Meta-labeler not retrained: {result.get('reason', 'unknown')}")
+                logger.info("Meta-labeler not retrained: %s", result.get("reason", "unknown"))
         except Exception as e:
-            print(f"(Error) Meta-labeler retrain failed: {e}")
+            logger.error("Meta-labeler retrain failed: %s", e, exc_info=True)
 
     def run_mcpt_validation(self):
         """Run Monte Carlo Permutation Test to validate strategy significance."""
@@ -1120,9 +1157,8 @@ class InvestmentScheduler:
             from engine.mcpt_validator import mcpt_validator
             result = mcpt_validator.run_validation()
             if result.get('status') == 'completed':
-                print(f"MCPT Validation: p={result.get('p_value')}, "
-                      f"PF={result.get('actual_pf')}, "
-                      f"significant={result.get('significant')}")
+                logger.info("MCPT Validation: p=%s, PF=%s, significant=%s",
+                        result.get("p_value"), result.get("actual_pf"), result.get("significant"))
                 if not result.get('significant', True):
                     try:
                         from engine.webhook_notifier import webhook_notifier
@@ -1133,10 +1169,10 @@ class InvestmentScheduler:
                     except Exception:
                         pass
             else:
-                print(f"MCPT Validation: {result.get('status', 'unknown')} "
-                      f"({result.get('n_signals', 0)}/{result.get('min_required', 30)} signals)")
+                logger.info("MCPT Validation: %s (%d/%d signals)",
+                        result.get("status", "unknown"), result.get("n_signals", 0), result.get("min_required", 30))
         except Exception as e:
-            print(f"(Error) MCPT validation failed: {e}")
+            logger.error("MCPT validation failed: %s", e, exc_info=True)
 
     def check_rss_geo_trigger(self):
         """Scan RSS feeds for geo keywords; fire an immediate geo scan on hit (60-min cooldown)."""
@@ -1144,13 +1180,13 @@ class InvestmentScheduler:
             from clients.rss_client import rss_geo_scanner
             hits = rss_geo_scanner.scan()
             if rss_geo_scanner.should_trigger(hits):
-                print(f"[RSS GEO] {len(hits)} keyword hit(s) — firing immediate geo scan")
+                logger.info("[RSS GEO] %d keyword hit(s) — firing immediate geo scan", len(hits))
                 for h in hits[:3]:
-                    print(f"  · {h}")
+                    logger.debug("  · %s", h)
                 rss_geo_scanner.mark_triggered()
                 self.run_geopolitical_scan()
         except Exception as e:
-            print(f"(Error) RSS geo trigger failed: {e}")
+            logger.error("RSS geo trigger failed: %s", e, exc_info=True)
 
     def _check_intraday_breakouts(self, threshold_pct: float = 3.0):
         """Check all watchlist tickers for ±threshold_pct% intraday move and queue analysis."""
@@ -1176,7 +1212,7 @@ class InvestmentScheduler:
 
             for ticker, pct in triggered:
                 sign = "+" if pct > 0 else ""
-                print(f"  Breakout: {ticker} {sign}{pct:.1f}% — queuing analysis")
+                logger.info("Breakout: %s %s%.1f%% — queuing analysis", ticker, sign, pct)
                 try:
                     from engine.webhook_notifier import webhook_notifier
                     webhook_notifier.reload()
@@ -1195,13 +1231,13 @@ class InvestmentScheduler:
                         if result and result.get('recommendation'):
                             result.setdefault('anomaly', f'Intraday breakout {p:+.1f}%')
                             db.save_analysis(t, result)
-                            print(f"  Breakout analysis saved for {t}")
+                            logger.info("Breakout analysis saved for %s", t)
                     except Exception as e:
-                        print(f"  Breakout analysis failed for {t}: {e}")
+                        logger.error("Breakout analysis failed for %s: %s", t, e, exc_info=True)
 
                 threading.Thread(target=_analyze, daemon=True).start()
         except Exception as e:
-            print(f"(Error) Intraday breakout check failed: {e}")
+            logger.error("Intraday breakout check failed: %s", e, exc_info=True)
 
     def refresh_corporate_actions(self):
         """Weekly refresh: fetch splits + dividends for all watchlist tickers (#43)."""
@@ -1212,19 +1248,20 @@ class InvestmentScheduler:
             adjusted = corporate_actions_tracker.apply_splits_to_portfolio()
             # Credit any pending dividends to paper portfolio
             credited = corporate_actions_tracker.credit_dividends_to_paper_portfolio()
-            print(f"Corporate actions: {result['tickers']} tickers, {result['splits']} splits, {result['dividends']} dividends | {adjusted} trades adjusted, {credited} dividends credited")
+            logger.info("Corporate actions: %s tickers, %s splits, %s dividends | %d trades adjusted, %d dividends credited",
+                         result["tickers"], result["splits"], result["dividends"], adjusted, credited)
         except Exception as e:
-            print(f"(Error) Corporate actions refresh failed: {e}")
+            logger.error("Corporate actions refresh failed: %s", e, exc_info=True)
 
     def run_db_backup(self):
         """Create a daily DB backup with rotation (7 daily + 4 weekly)."""
         try:
             result = db.backup_db()
             msg = f"DB backup: {result['file']} ({result['size_mb']} MB)"
-            print(msg)
+            logger.info(msg)
             db.log_scheduler_run(tickers_scanned=0, alerts_sent=0, errors="", duration=0)
         except Exception as e:
-            print(f"(Error) DB backup failed: {e}")
+            logger.error("DB backup failed: %s", e, exc_info=True)
 
     def _enter_deep_sleep_mode(self):
         """Pause sleep-sensitive interval jobs so the CPU can reach deep C-states (C6/C7/C8).
@@ -1250,9 +1287,9 @@ class InvestmentScheduler:
             except Exception:
                 pass
         if paused:
-            print(f"[C-state] Deep sleep → paused jobs: {', '.join(paused)}")
+            logger.info("[C-state] Deep sleep → paused jobs: %s", ", ".join(paused))
         else:
-            print("[C-state] Deep sleep entered (no interval jobs to pause)")
+            logger.info("[C-state] Deep sleep entered (no interval jobs to pause)")
 
     def _exit_deep_sleep_mode(self):
         """Resume jobs that were paused by _enter_deep_sleep_mode."""
@@ -1268,9 +1305,9 @@ class InvestmentScheduler:
             except Exception:
                 pass
         if resumed:
-            print(f"[C-state] Deep sleep ended → resumed jobs: {', '.join(resumed)}")
+            logger.info("[C-state] Deep sleep ended → resumed jobs: %s", ", ".join(resumed))
         else:
-            print("[C-state] Deep sleep ended (nothing to resume)")
+            logger.info("[C-state] Deep sleep ended (nothing to resume)")
 
     def run_graham_screen(self):
         """Daily Graham intrinsic value screen across watchlist."""
@@ -1281,10 +1318,10 @@ class InvestmentScheduler:
                 return
             result = graham_screener.screen_watchlist(tickers, discount_factor=0.2)
             buy_count = result.get("buy_candidates", 0)
-            print(f"Graham screen: {result['iv_calculable']}/{len(tickers)} IV-calculable, "
-                  f"{buy_count} buy candidates (AAA yield: {result['aaa_yield']}%)")
+            logger.info("Graham screen: %s/%d IV-calculable, %d buy candidates (AAA yield: %s%%)",
+                     result["iv_calculable"], len(tickers), buy_count, result["aaa_yield"])
         except Exception as e:
-            print(f"(Error) Graham screen failed: {e}")
+            logger.error("Graham screen failed: %s", e, exc_info=True)
 
     def run_fear_greed_snapshot(self):
         """Daily Fear & Greed + VIX snapshot."""
@@ -1293,10 +1330,10 @@ class InvestmentScheduler:
             value = fear_greed_tracker.get_current_fear_greed()
             vix = fear_greed_tracker.get_latest_vix_features()
             label = fear_greed_tracker.get_fg_label(value) if value is not None else "N/A"
-            print(f"Fear & Greed: {value:.1f} ({label}) | "
-                  f"VIX={vix.get('vix'):.1f} MA10={vix.get('vix_ma10'):.1f}")
+            logger.info("Fear & Greed: %.1f (%s) | VIX=%.1f MA10=%.1f",
+                     value, label, vix.get("vix"), vix.get("vix_ma10"))
         except Exception as e:
-            print(f"(Error) Fear & Greed snapshot failed: {e}")
+            logger.error("Fear & Greed snapshot failed: %s", e, exc_info=True)
 
     def run_politician_refresh(self):
         """Daily Senate trade data refresh."""
@@ -1309,18 +1346,17 @@ class InvestmentScheduler:
             trades = politician_tracker.fetch_senate_trades()
             top = politician_tracker.get_top_traded_tickers(days=30, top_n=5)
             ticker_str = ", ".join(t["ticker"] for t in top[:5])
-            print(f"Senate trades: {len(trades)} records loaded. "
-                  f"Top 5 (30d): {ticker_str}")
+            logger.info("Senate trades: %d records loaded. Top 5 (30d): %s", len(trades), ticker_str)
         except Exception as e:
-            print(f"(Error) Politician refresh failed: {e}")
+            logger.error("Politician refresh failed: %s", e, exc_info=True)
 
     def trigger_manual_scan(self):
         """Trigger an immediate scan in background"""
         if self.is_scanning:
-            print("(!) Scan already in progress")
+            logger.warning("Scan already in progress, skipping")
             return False
             
-        print("Manual scan triggered in background")
+        logger.info("Manual scan triggered in background")
         self.scheduler.add_job(
             self.run_scan,
             args=[True], # force=True

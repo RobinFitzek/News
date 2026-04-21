@@ -234,6 +234,11 @@ DEFAULT_SETTINGS = {
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")  # Now safe with auth + HTTPS
 WEB_PORT = int(os.getenv("WEB_PORT", "8443"))
 
+# Configurable timeouts (seconds) — override via environment variables
+DB_TIMEOUT = float(os.getenv("DB_TIMEOUT", "10"))
+PERPLEXITY_TIMEOUT = int(os.getenv("PERPLEXITY_TIMEOUT", "30"))
+GEMINI_TIMEOUT_MS = int(os.getenv("GEMINI_TIMEOUT", "60")) * 1_000  # SDK expects milliseconds
+
 # HTTPS Configuration
 ENABLE_HTTPS = os.getenv("ENABLE_HTTPS", "false").lower() == "true"
 CERT_FILE = BASE_DIR / "certs" / "cert.pem"

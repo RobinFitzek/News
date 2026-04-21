@@ -7,7 +7,7 @@ export function useWatchlist() {
   return useQuery<WatchlistItem[]>({
     queryKey: ['watchlist'],
     queryFn: () => api.get('/api/watchlist').then(r => r.data),
-    staleTime: 30_000,
+    staleTime: 60_000,
   })
 }
 
@@ -30,6 +30,14 @@ export function useSaveWatchlistNote() {
   return useMutation({
     mutationFn: ({ ticker, note }: { ticker: string; note: string }) =>
       api.post('/api/watchlist/note', { ticker, note }).then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['watchlist'] }),
+  })
+}
+
+export function useUpdateWatchlistTier() {
+  return useMutation({
+    mutationFn: ({ ticker, tier }: { ticker: string; tier: string }) =>
+      api.post(`/api/watchlist/${ticker}/tier`, { tier }).then(r => r.data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['watchlist'] }),
   })
 }

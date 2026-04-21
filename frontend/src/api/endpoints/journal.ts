@@ -70,3 +70,11 @@ export function useDeleteJournalEntry() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['journal'] }),
   })
 }
+
+export function useEditJournalEntry() {
+  return useMutation({
+    mutationFn: ({ id, notes }: { id: number; notes: string }) =>
+      api.post(`/api/journal/${id}/edit`, { notes }).then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['journal'] }),
+  })
+}

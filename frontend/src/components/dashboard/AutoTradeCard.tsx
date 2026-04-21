@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useAutoTradeStatus } from '@/api/endpoints/autoTrade'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -9,7 +10,7 @@ function fmtPnl(n: number | null): string {
   return `${n >= 0 ? '+' : ''}$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-export function AutoTradeCard() {
+const AutoTradeCard = memo(function AutoTradeCard() {
   const { data, isLoading } = useAutoTradeStatus()
 
   return (
@@ -67,4 +68,6 @@ export function AutoTradeCard() {
       )}
     </Card>
   )
-}
+})
+
+export { AutoTradeCard }

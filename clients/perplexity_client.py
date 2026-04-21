@@ -6,7 +6,7 @@ Budget-aware: adapts daily request limits from monthly EUR budget.
 import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
-from core.config import PERPLEXITY_API_KEY
+from core.config import PERPLEXITY_API_KEY, PERPLEXITY_TIMEOUT
 from datetime import datetime
 from typing import Dict, Optional
 import json
@@ -76,12 +76,12 @@ class EnhancedPerplexityClient:
         }
 
     def _call_api(self, system_prompt: str, user_query: str,
-                  domains: list = None, recency: str = "day") -> Optional[str]:
+                  domains: list = None, recency: str = "day",
+                  ticker: str = None) -> Optional[str]:
         """Base API call with budget-aware limiting"""
         # Validation checks
         if not self.is_configured():
             self.logger.warning("Perplexity API not configured")
-            print("  Perplexity API not configured")
             return None
 
         if not system_prompt or not user_query:
@@ -91,7 +91,6 @@ class EnhancedPerplexityClient:
         if not self.budget_tracker.can_afford_request('perplexity'):
             daily_limit = self.budget_tracker.get_daily_request_limit('perplexity')
             self.logger.warning(f"Daily budget exhausted (limit: {daily_limit})")
-            print(f"  Perplexity daily budget exhausted (limit: {daily_limit} req/day)")
             return None
 
         headers = {
@@ -128,7 +127,7 @@ class EnhancedPerplexityClient:
                     f"{self.base_url}/chat/completions",
                     headers=headers,
                     json=payload,
-                    timeout=30
+                    timeout=PERPLEXITY_TIMEOUT
                 )
 
                 if response.status_code == 429:
@@ -157,13 +156,12 @@ class EnhancedPerplexityClient:
                 output_tokens = usage.get('completion_tokens', 400)
 
                 cost = self.budget_tracker.log_cost(
-                    'perplexity', 'sonar', input_tokens, output_tokens
+                    'perplexity', 'sonar', input_tokens, output_tokens, ticker=ticker
                 )
 
                 today_count = self.budget_tracker.get_today_request_count('perplexity')
                 daily_limit = self.budget_tracker.get_daily_request_limit('perplexity')
                 self.logger.info(f"API call successful. Usage: {today_count}/{daily_limit} (${cost:.4f})")
-                print(f"  Perplexity: {today_count}/{daily_limit} today (${cost:.4f})")
 
                 # Clear any auth alert on success
                 try:
@@ -193,7 +191,7 @@ class EnhancedPerplexityClient:
                 self.logger.error(f"HTTP error {status_code}: {e}")
 
                 if status_code == 401:
-                    print("  Perplexity API key invalid")
+                    self.logger.error("Perplexity API key invalid (401 Unauthorized)")
                     try:
                         from core.database import db
                         db.raise_system_alert(
@@ -205,7 +203,7 @@ class EnhancedPerplexityClient:
                     except Exception:
                         pass
                 elif status_code == 403:
-                    print("  Perplexity API access forbidden")
+                    self.logger.error("Perplexity API access forbidden (403 Forbidden)")
                     try:
                         from core.database import db
                         db.raise_system_alert(
@@ -261,7 +259,7 @@ CATALYST_ALERT: [Bevorstehende wichtige Events wie Earnings, FDA-Entscheidungen 
 Fokus auf: Kursbewegungen, Analystenratings, Unternehmensnews, Sektortrends.
 Gib nur verifizierte, faktische Informationen."""
 
-        result = self._call_api(system_prompt, query, recency="day")
+        result = self._call_api(system_prompt, query, recency="day", ticker=ticker)
         return {"ticker": ticker, "raw": result, "type": "breaking_news"}
 
     def get_market_sentiment(self, ticker: str) -> Dict:
@@ -285,7 +283,7 @@ INSTITUTIONAL_ACTIVITY: [Beschreibung aktueller Insiderkäufe/-verkäufe]
         query = f"""Aktuelle Marktstimmung und Analystenratings für {ticker}.
 Inkludiere: Kursziele, aktuelle Upgrades/Downgrades, institutionelle Aktivität."""
 
-        result = self._call_api(system_prompt, query)
+        result = self._call_api(system_prompt, query, ticker=ticker)
         return {"ticker": ticker, "raw": result, "type": "sentiment"}
 
     def get_sector_intelligence(self, sector: str) -> Dict:
@@ -335,7 +333,7 @@ OVERALL_ASSESSMENT: [Kurzfassung]
 Aktuelle Risiken, rote Flaggen, regulatorische Probleme, Rechtsstreitigkeiten,
 Wettbewerbsdruck, finanzielle Bedenken, Short-Interest, Insider-Aktivität."""
 
-        result = self._call_api(system_prompt, query)
+        result = self._call_api(system_prompt, query, ticker=ticker)
         return {"ticker": ticker, "raw": result, "type": "risk_scan"}
 
     def get_earnings_preview(self, ticker: str) -> Dict:
@@ -360,7 +358,7 @@ POTENTIAL_MOVERS: [Was könnte den Kurs bewegen]
 Nächstes Earnings-Datum, Erwartungen, historische Performance,
 wichtige Metriken, potenzielle Kursbeweger."""
 
-        result = self._call_api(system_prompt, query)
+        result = self._call_api(system_prompt, query, ticker=ticker)
         return {"ticker": ticker, "raw": result, "type": "earnings"}
 
     def get_competitive_landscape(self, ticker: str) -> Dict:
@@ -383,14 +381,14 @@ RECENT_COMPETITIVE_NEWS: [Aktuelle Entwicklungen]
         query = f"""Wettbewerbsanalyse für {ticker}:
 Marktposition, Hauptkonkurrenten, Wettbewerbsvorteile, Bedrohungen."""
 
-        result = self._call_api(system_prompt, query, recency="week")
+        result = self._call_api(system_prompt, query, recency="week", ticker=ticker)
         return {"ticker": ticker, "raw": result, "type": "competitive"}
 
     # ========== INTEGRATED ANALYSIS METHODS ==========
 
     def full_intelligence_scan(self, ticker: str) -> Dict:
         """Complete intelligence scan combining multiple queries (uses 3 API calls)"""
-        print(f"  Perplexity Full Intelligence Scan for {ticker}...")
+        self.logger.info("Perplexity Full Intelligence Scan for %s", ticker)
 
         news = self.get_breaking_news(ticker)
         sentiment = self.get_market_sentiment(ticker)
@@ -421,7 +419,7 @@ QUICK_TAKE: [1 Satz Investment-Einschätzung]
         query = f"""Schneller Intelligenz-Scan für {ticker}:
 Aktuelle News, Marktstimmung, Risiken, Analystentrend, kommende Events."""
 
-        result = self._call_api(system_prompt, query)
+        result = self._call_api(system_prompt, query, ticker=ticker)
         return {"ticker": ticker, "raw": result, "type": "quick_scan"}
 
     def get_geopolitical_scan(self) -> Optional[str]:

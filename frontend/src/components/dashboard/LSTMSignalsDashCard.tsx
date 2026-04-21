@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useLSTMSignals, useLSTMPerformance } from '@/api/endpoints/lstm'
 import { Card } from '@/components/ui/Card'
@@ -5,7 +6,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import styles from './LSTMSignalsDashCard.module.css'
 
-export function LSTMSignalsDashCard() {
+const LSTMSignalsDashCard = memo(function LSTMSignalsDashCard() {
   const { data: signalsData, isLoading } = useLSTMSignals()
   const { data: perf } = useLSTMPerformance()
   const navigate = useNavigate()
@@ -90,4 +91,6 @@ export function LSTMSignalsDashCard() {
       )}
     </Card>
   )
-}
+})
+
+export { LSTMSignalsDashCard }

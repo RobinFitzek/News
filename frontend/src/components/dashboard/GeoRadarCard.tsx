@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, memo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useGeopolitical, useGeoExposure } from '@/api/endpoints/geopolitical'
 import { Card } from '@/components/ui/Card'
@@ -14,7 +14,7 @@ function severityVariant(n: number): 'danger' | 'warning' | 'neutral' | 'ghost' 
   return 'ghost'
 }
 
-export function GeoRadarCard() {
+const GeoRadarCard = memo(function GeoRadarCard() {
   const { data: geoData, isLoading } = useGeopolitical()
   const { data: exposureData } = useGeoExposure()
   const [expanded, setExpanded] = useState(false)
@@ -122,4 +122,6 @@ export function GeoRadarCard() {
       )}
     </Card>
   )
-}
+})
+
+export { GeoRadarCard }

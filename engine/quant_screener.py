@@ -471,8 +471,8 @@ class QuantScreener:
                     if info:
                         from_cache = True  # Fallback data is partial
                         logger.info(f"Using API fallback ({source}) for {ticker}")
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.warning("Unexpected error: %s", _e)
 
             if not info:
                 return None
@@ -1050,8 +1050,8 @@ class QuantScreener:
                             'direction': 'positive',
                             'description': f"Major volume spike — {best.get('volume_ratio', 0):.1f}x avg, likely institutional block trade"
                         })
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
         return anomalies
 

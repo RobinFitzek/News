@@ -254,8 +254,8 @@ class GeoScenarioRunner:
                         if not h.get('market_value') and info.get('currentPrice'):
                             shares = h.get('shares', h.get('quantity', 0)) or 0
                             h['market_value'] = float(info['currentPrice']) * float(shares)
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.warning("Unexpected error: %s", _e)
                 enriched.append(h)
             return enriched
         except Exception as e:

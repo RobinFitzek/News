@@ -263,10 +263,21 @@ class AutoDiscovery:
         candidates = []
         subset = self._get_rotation_subset(universe, excluded, size=50)
 
+        try:
+            batch = yf.download(
+                subset, period="1mo", auto_adjust=True,
+                progress=False, threads=True, group_by="ticker"
+            )
+        except Exception:
+            batch = None
+
         for ticker in subset:
             try:
-                stock = yf.Ticker(ticker)
-                hist = stock.history(period="1mo")
+                if batch is not None and ticker in batch.columns.get_level_values(0):
+                    hist = batch[ticker].dropna(how='all')
+                else:
+                    hist = yf.Ticker(ticker).history(period="1mo")
+
                 if hist.empty or len(hist) < 5:
                     continue
 
@@ -276,7 +287,7 @@ class AutoDiscovery:
                 if avg_vol > 0 and latest_vol > 2 * avg_vol:
                     ratio = latest_vol / avg_vol
                     price = float(hist['Close'].iloc[-1])
-                    info = stock.info
+                    info = yf.Ticker(ticker).info
                     candidates.append({
                         'ticker': ticker,
                         'signal_type': 'VOLUME_SPIKE',
@@ -637,21 +648,31 @@ class AutoDiscovery:
                 datetime.now() - self._universe_cache_time < self._universe_cache_duration):
             return self._universe_cache
 
-        universe = set(self.SP500_CORE)
-
-        # Add sector peers from quant_screener
         try:
-            from engine.quant_screener import QuantScreener
-            for peers in QuantScreener.SectorCache.SECTOR_PEERS.values():
-                universe.update(peers)
-        except Exception:
-            pass
+            universe = set(self.SP500_CORE)
 
-        universe_list = sorted(universe)[:self.SCAN_UNIVERSE_SIZE]
-        self._universe_cache = universe_list
-        self._universe_cache_time = datetime.now()
+            # Add sector peers from quant_screener
+            try:
+                from engine.quant_screener import QuantScreener
+                for peers in QuantScreener.SectorCache.SECTOR_PEERS.values():
+                    universe.update(peers)
+            except Exception as _e:
+                logger.warning("Unexpected error: %s", _e)
 
-        return universe_list
+            universe_list = sorted(universe)[:self.SCAN_UNIVERSE_SIZE]
+            self._universe_cache = universe_list
+            self._universe_cache_time = datetime.now()
+            return universe_list
+
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Universe build failed, using stale cache or SP500_CORE fallback: {e}"
+            )
+            # Fall back to stale cache if available, otherwise use core list
+            if self._universe_cache is not None:
+                return self._universe_cache
+            return sorted(self.SP500_CORE)[:self.SCAN_UNIVERSE_SIZE]
 
     def _get_exclusion_set(self) -> Set[str]:
         """Get set of tickers to exclude from discovery."""
@@ -663,15 +684,15 @@ class AutoDiscovery:
         try:
             watchlist = db.get_watchlist(active_only=True)
             excluded.update(w['ticker'] for w in watchlist)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
         # Graveyard
         try:
             graveyard = db.query("SELECT ticker FROM ticker_graveyard")
             excluded.update(g['ticker'] for g in graveyard)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
         # Recently dismissed (30 days)
         try:
@@ -681,8 +702,8 @@ class AutoDiscovery:
                   AND dismissed_at >= datetime('now', '-30 days')
             """)
             excluded.update(d['ticker'] for d in dismissed)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
         # Recently discovered (avoid duplicates)
         try:
@@ -691,8 +712,8 @@ class AutoDiscovery:
                 WHERE found_at >= datetime('now', '-7 days')
             """)
             excluded.update(r['ticker'] for r in recent)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
         return excluded
 

@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useSectorMomentum } from '@/api/endpoints/sectorMomentum'
 import type { SectorEntry } from '@/api/endpoints/sectorMomentum'
 import { Card } from '@/components/ui/Card'
@@ -17,7 +18,7 @@ function returnColor(val: number): string {
   return 'var(--text-secondary)'
 }
 
-export function SectorMomentumCard() {
+const SectorMomentumCard = memo(function SectorMomentumCard() {
   const { data, isLoading } = useSectorMomentum()
 
   return (
@@ -83,4 +84,6 @@ export function SectorMomentumCard() {
       )}
     </Card>
   )
-}
+})
+
+export { SectorMomentumCard }

@@ -5,7 +5,7 @@ Cost-aware: tracks spending and adapts model choice to stay within monthly EUR b
 from google import genai
 from google.genai import types
 from google.api_core import exceptions as google_exceptions
-from core.config import GEMINI_API_KEY, GEMINI_MODELS
+from core.config import GEMINI_API_KEY, GEMINI_MODELS, GEMINI_TIMEOUT_MS
 from datetime import datetime, timedelta
 from collections import defaultdict
 from core.database import db
@@ -160,9 +160,9 @@ class AdaptiveGeminiClient:
         wait_count = 0
         while not self._check_rate_limit(tier) and wait_count < 3:
             if not self.budget_tracker.can_afford_request('gemini', tier):
-                print(f"  Gemini {tier} budget exhausted")
+                self.logger.warning("Gemini %s budget exhausted", tier)
                 return False
-            print(f"  Gemini {tier} rate limit, waiting 15s...")
+            self.logger.warning("Gemini %s rate limit, waiting 15s...", tier)
             time.sleep(15)
             wait_count += 1
         return True
@@ -205,7 +205,7 @@ class AdaptiveGeminiClient:
             cheapest_cost = self.budget_tracker.estimate_request_cost('gemini', 'flash-8b')
             if cheapest_cost <= remaining_today:
                 return 'flash-8b'
-            print("  All Gemini models exhausted for today!")
+            self.logger.warning("All Gemini models exhausted for today")
             return None
 
         # When budget is tight (< 20% of daily remaining), prefer cheapest
@@ -284,7 +284,10 @@ class AdaptiveGeminiClient:
             try:
                 response = self.client.models.generate_content(
                     model=model_name,
-                    contents=prompt
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_MS)
+                    )
                 )
 
                 if not response or not hasattr(response, 'text'):
@@ -328,7 +331,6 @@ class AdaptiveGeminiClient:
 
                 today_count = self.budget_tracker.get_today_request_count('gemini')
                 self.logger.info(f"Gemini {tier} OK: ${cost:.5f} ({input_tokens}in/{output_tokens}out)")
-                print(f"  Gemini {tier}: req #{today_count} (${cost:.5f}, {model_name})")
 
                 # Clear any auth alert on success
                 try:

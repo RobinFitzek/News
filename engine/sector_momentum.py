@@ -212,8 +212,8 @@ class SectorMomentum:
                     etf = 'XLRE'
                 elif 'materials' in sector_lower or 'basic' in sector_lower:
                     etf = 'XLB'
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.warning("Unexpected error: %s", _e)
         
         if not etf:
             return None

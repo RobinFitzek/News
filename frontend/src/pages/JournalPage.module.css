@@ -177,6 +177,58 @@
   border-top: 1px solid var(--border-primary);
 }
 
+/* ── Filter row ──────────────────────────────────────────────────────────── */
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 180px;
+}
+
+.filterCount {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ── Entry ticker link ────────────────────────────────────────────────────── */
+
+.entryTickerLink {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: var(--text-base);
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: color var(--duration-fast) var(--ease-smooth);
+}
+.entryTickerLink:hover { color: var(--border-highlight); }
+
+/* ── Edit hint ────────────────────────────────────────────────────────────── */
+
+.editHint {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+}
+
+/* ── Confirm message ─────────────────────────────────────────────────────── */
+
+.confirmMessage {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-6);
+  line-height: 1.6;
+}
+
 /* ── Loading / Empty ─────────────────────────────────────────────────────── */
 
 .loading {

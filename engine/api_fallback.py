@@ -5,8 +5,11 @@ attempts Yahoo Finance v8 JSON endpoint (no API key) before giving up.
 
 Integrates with DataFreshnessTracker to record success/failure.
 """
+import atexit
+import json
 import logging
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Dict, Optional, Tuple
 import yfinance as yf
 
@@ -19,9 +22,13 @@ class APIFallbackChain:
     # Priority order of data sources
     SOURCES = ['yfinance', 'yahoo_json']
 
+    _CACHE_FILE = Path(__file__).parent.parent / 'core' / 'data' / 'api_fallback_cache.json'
+
     def __init__(self):
         self._cache = {}
         self._cache_duration = timedelta(minutes=15)
+        self._load_from_disk()
+        atexit.register(self._save_to_disk)
 
     def get_stock_info(self, ticker: str, retries: int = 2) -> Tuple[Dict, str]:
         """
@@ -139,6 +146,44 @@ class APIFallbackChain:
             logger.debug(f"Yahoo JSON fallback failed for {ticker}: {e}")
 
         return None
+
+
+    def _save_to_disk(self) -> None:
+        """Persist non-stale cache entries to disk on process exit."""
+        now = datetime.now()
+        serializable = {
+            key: {'data': entry['data'], 'source': entry['source'], 'ts': entry['ts'].isoformat()}
+            for key, entry in self._cache.items()
+            if now - entry['ts'] < self._cache_duration
+        }
+        if not serializable:
+            return
+        try:
+            self._CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._CACHE_FILE, 'w') as f:
+                json.dump(serializable, f)
+            logger.info("API fallback cache saved (%d entries)", len(serializable))
+        except Exception as e:
+            logger.warning("Failed to save API fallback cache: %s", e)
+
+    def _load_from_disk(self) -> None:
+        """Warm the cache from the last persisted snapshot."""
+        if not self._CACHE_FILE.exists():
+            return
+        try:
+            with open(self._CACHE_FILE) as f:
+                data = json.load(f)
+            now = datetime.now()
+            loaded = 0
+            for key, entry in data.items():
+                ts = datetime.fromisoformat(entry['ts'])
+                if now - ts < self._cache_duration:
+                    self._cache[key] = {'data': entry['data'], 'source': entry['source'], 'ts': ts}
+                    loaded += 1
+            if loaded:
+                logger.info("API fallback cache warmed (%d fresh entries)", loaded)
+        except Exception as e:
+            logger.warning("Failed to load API fallback cache: %s", e)
 
 
 # Singleton

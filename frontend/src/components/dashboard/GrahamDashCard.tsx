@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGrahamScreen, useGrahamAAAYield } from '@/api/endpoints/graham'
 import { Card } from '@/components/ui/Card'
@@ -5,7 +6,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import styles from './GrahamDashCard.module.css'
 
-export function GrahamDashCard() {
+const GrahamDashCard = memo(function GrahamDashCard() {
   const { data: screen, isLoading } = useGrahamScreen(0.2, true)
   const { data: yieldData } = useGrahamAAAYield()
   const navigate = useNavigate()
@@ -81,4 +82,6 @@ export function GrahamDashCard() {
       )}
     </Card>
   )
-}
+})
+
+export { GrahamDashCard }

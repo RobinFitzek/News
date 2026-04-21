@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useBenchmark } from '@/api/endpoints/portfolio'
 import { Card } from '@/components/ui/Card'
 import { Delta } from '@/components/ui/Delta'
@@ -16,7 +17,7 @@ import styles from './BenchmarkCard.module.css'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip)
 
-export function BenchmarkCard() {
+const BenchmarkCard = memo(function BenchmarkCard() {
   const { data, isLoading, isError } = useBenchmark()
 
   return (
@@ -98,7 +99,7 @@ export function BenchmarkCard() {
       )}
     </Card>
   )
-}
+})
 
 function BenchMetric({
   label,
@@ -112,3 +113,5 @@ function BenchMetric({
     </div>
   )
 }
+
+export { BenchmarkCard }

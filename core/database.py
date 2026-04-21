@@ -4,14 +4,17 @@ Handles settings, watchlist, analysis history, and API keys securely.
 """
 import sqlite3
 import json
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Dict, Any
-from core.config import DB_PATH, DEFAULT_SETTINGS
+from core.config import DB_PATH, DEFAULT_SETTINGS, DB_TIMEOUT
 from core.encryption import encryption
 import logging
 import time
 from contextlib import contextmanager
+
+_SLOW_QUERY_MS = float(os.getenv("SLOW_QUERY_MS", "200"))
 
 class Database:
     def __init__(self, db_path: Path = DB_PATH):
@@ -29,7 +32,7 @@ class Database:
 
         self._init_db()
 
-    def _get_conn(self, timeout: float = 10.0) -> sqlite3.Connection:
+    def _get_conn(self, timeout: float = DB_TIMEOUT) -> sqlite3.Connection:
         """Get database connection with retry logic and proper configuration"""
         max_attempts = 3
         for attempt in range(max_attempts):
@@ -49,6 +52,11 @@ class Database:
 
                 # Set synchronous mode for better performance with WAL
                 conn.execute("PRAGMA synchronous = NORMAL")
+
+                # Performance: 50MB page cache, memory temp store, 256MB mmap I/O
+                conn.execute("PRAGMA cache_size = -50000")
+                conn.execute("PRAGMA temp_store = MEMORY")
+                conn.execute("PRAGMA mmap_size = 268435456")
 
                 return conn
 
@@ -243,6 +251,14 @@ class Database:
                 alerts_sent INTEGER,
                 errors TEXT,
                 duration_seconds REAL
+            )
+        """)
+
+        # Job idempotency locks — prevents double-execution on process restart
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS job_locks (
+                job_id TEXT PRIMARY KEY,
+                locked_at TEXT NOT NULL
             )
         """)
         
@@ -628,6 +644,11 @@ class Database:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cost_api_month ON api_cost_log(api, month)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cost_api_date ON api_cost_log(api, date)")
 
+        # Performance indexes for hot query paths
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_analysis_latest ON analysis_history(ticker, id DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_analysis_timestamp ON analysis_history(timestamp DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_watchlist_active ON watchlist(is_active)")
+
         # AI Cross-Check Log
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS ai_crosscheck_log (
@@ -930,6 +951,8 @@ class Database:
             "ALTER TABLE watchlist ADD COLUMN earnings_date TEXT",
             # Watchlist earnings_suppressed (#23)
             "ALTER TABLE watchlist ADD COLUMN earnings_imminent INTEGER DEFAULT 0",
+            # Ticker context in cost log for per-symbol spend visibility
+            "ALTER TABLE api_cost_log ADD COLUMN ticker TEXT",
         ]
         for sql in migrations:
             try:
@@ -949,36 +972,48 @@ class Database:
             conn = self._get_conn()
             try:
                 cursor = conn.cursor()
+                _t0 = time.perf_counter()
                 cursor.execute(sql, params)
                 rows = cursor.fetchall()
+                _ms = (time.perf_counter() - _t0) * 1000
+                if _ms > _SLOW_QUERY_MS:
+                    self.logger.warning("Slow query (%.0fms): %.120s", _ms, sql.strip())
                 return [dict(row) for row in rows]
             finally:
                 conn.close()
         except Exception as e:
             self.logger.error(f"Query error: {e}", exc_info=True)
             return []
-    
+
     def query_one(self, sql: str, params: tuple = ()) -> Optional[Dict]:
         """Execute SELECT query and return single dict or None"""
         try:
             conn = self._get_conn()
             try:
                 cursor = conn.cursor()
+                _t0 = time.perf_counter()
                 cursor.execute(sql, params)
                 row = cursor.fetchone()
+                _ms = (time.perf_counter() - _t0) * 1000
+                if _ms > _SLOW_QUERY_MS:
+                    self.logger.warning("Slow query_one (%.0fms): %.120s", _ms, sql.strip())
                 return dict(row) if row else None
             finally:
                 conn.close()
         except Exception as e:
             self.logger.error(f"Query one error: {e}", exc_info=True)
             return None
-    
+
     def execute(self, sql: str, params: tuple = ()):
         """Execute INSERT/UPDATE/DELETE query"""
         try:
             with self._get_transaction() as conn:
                 cursor = conn.cursor()
+                _t0 = time.perf_counter()
                 cursor.execute(sql, params)
+                _ms = (time.perf_counter() - _t0) * 1000
+                if _ms > _SLOW_QUERY_MS:
+                    self.logger.warning("Slow execute (%.0fms): %.120s", _ms, sql.strip())
                 return cursor
         except Exception as e:
             self.logger.error(f"Execute error: {e}", exc_info=True)
@@ -1057,18 +1092,32 @@ class Database:
                 """, (key, json_value, datetime.now()))
 
             self.logger.info(f"Setting updated: {key}")
+            self._invalidate_settings_cache()
 
         except Exception as e:
             self.logger.error(f"Error setting {key}: {e}", exc_info=True)
             raise
-    
+
+    _settings_cache: Dict[str, Any] = {}
+    _settings_cache_expires: float = 0.0
+    _SETTINGS_CACHE_TTL: float = 300.0  # 5 minutes
+
+    def _invalidate_settings_cache(self) -> None:
+        self.__class__._settings_cache = {}
+        self.__class__._settings_cache_expires = 0.0
+
     def get_all_settings(self) -> Dict[str, Any]:
+        if time.time() < self.__class__._settings_cache_expires and self.__class__._settings_cache:
+            return dict(self.__class__._settings_cache)
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("SELECT key, value FROM settings")
         rows = cursor.fetchall()
         conn.close()
-        return {row['key']: json.loads(row['value']) for row in rows}
+        result = {row['key']: json.loads(row['value']) for row in rows}
+        self.__class__._settings_cache = result
+        self.__class__._settings_cache_expires = time.time() + self._SETTINGS_CACHE_TTL
+        return dict(result)
     
     # === API Keys ===
     def get_api_key(self, service: str) -> Optional[str]:
@@ -1844,7 +1893,41 @@ class Database:
         rows = cursor.fetchall()
         conn.close()
         return [dict(row) for row in rows]
-    
+
+    def try_acquire_job_lock(self, job_id: str, ttl_minutes: int = 120) -> bool:
+        """Return True and record lock if job_id is not already locked within TTL."""
+        try:
+            conn = self._get_conn()
+            cursor = conn.cursor()
+            expiry = (datetime.now() - timedelta(minutes=ttl_minutes)).isoformat()
+            # Remove stale lock if TTL has passed
+            cursor.execute(
+                "DELETE FROM job_locks WHERE job_id = ? AND locked_at < ?",
+                (job_id, expiry)
+            )
+            # Try to insert — silently ignored if a fresh lock already exists
+            cursor.execute(
+                "INSERT OR IGNORE INTO job_locks (job_id, locked_at) VALUES (?, ?)",
+                (job_id, datetime.now().isoformat())
+            )
+            acquired = cursor.rowcount == 1
+            conn.commit()
+            conn.close()
+            return acquired
+        except Exception as e:
+            self.logger.error("Failed to acquire job lock '%s': %s", job_id, e)
+            return True  # fail-open so jobs still run if DB is unavailable
+
+    def release_job_lock(self, job_id: str) -> None:
+        """Release a job lock."""
+        try:
+            conn = self._get_conn()
+            conn.execute("DELETE FROM job_locks WHERE job_id = ?", (job_id,))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            self.logger.error("Failed to release job lock '%s': %s", job_id, e)
+
     # === Investment Strategies ===
     def get_strategies(self, active_only: bool = True) -> List[Dict]:
         conn = self._get_conn()
@@ -2838,16 +2921,17 @@ class Database:
 
     # === API Cost Tracking ===
     def log_api_cost(self, api: str, model: str, input_tokens: int,
-                     output_tokens: int, estimated_cost: float, month: str, date: str):
+                     output_tokens: int, estimated_cost: float, month: str, date: str,
+                     ticker: str = None):
         """Log an API request with estimated cost."""
         try:
             conn = self._get_conn()
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO api_cost_log (api, model, input_tokens, output_tokens,
-                                          estimated_cost, month, date)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (api, model, input_tokens, output_tokens, estimated_cost, month, date))
+                                          estimated_cost, month, date, ticker)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (api, model, input_tokens, output_tokens, estimated_cost, month, date, ticker))
             conn.commit()
             conn.close()
         except Exception as e:
