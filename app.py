@@ -110,6 +110,20 @@ async def add_security_headers(request: Request, call_next):
         "connect-src 'self';"
     )
 
+    # Cache-Control: differentiate volatile vs stable API responses
+    path = request.url.path
+    if path.startswith('/api/'):
+        if any(path.startswith(p) for p in (
+            '/api/auto-trade/status', '/api/broker/', '/api/orders/'
+        )):
+            response.headers["Cache-Control"] = "no-store"
+        elif any(path.startswith(p) for p in (
+            '/api/settings', '/api/watchlist', '/api/providers'
+        )):
+            response.headers["Cache-Control"] = "private, max-age=300"
+        else:
+            response.headers["Cache-Control"] = "private, max-age=60"
+
     return response
 
 # ==================== AUTHENTICATION ====================

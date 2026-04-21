@@ -10,6 +10,6 @@ export function useHistory(ticker: string | null) {
       if (ticker) params.set('ticker', ticker)
       return api.get(`/api/history?${params.toString()}`).then(r => r.data)
     },
-    staleTime: 30_000,
+    staleTime: 300_000,
   })
 }

@@ -11,6 +11,7 @@ import yfinance as yf
 import numpy as np
 import json
 import threading
+from collections import OrderedDict
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from typing import Dict, List, Optional
@@ -29,7 +30,9 @@ SECTOR_ETFS = {
 }
 
 # Map tickers to sectors (populated at runtime via yfinance info)
-_TICKER_SECTOR_CACHE: Dict[str, str] = {}
+# Bounded to 500 entries to prevent unbounded memory growth on long-running processes
+_TICKER_SECTOR_CACHE: OrderedDict = OrderedDict()
+_TICKER_SECTOR_CACHE_MAX = 500
 
 
 class BacktestEngine:
@@ -342,6 +345,8 @@ class BacktestEngine:
                 sector = info.get('sector')
                 if sector:
                     _TICKER_SECTOR_CACHE[t] = sector
+                    if len(_TICKER_SECTOR_CACHE) > _TICKER_SECTOR_CACHE_MAX:
+                        _TICKER_SECTOR_CACHE.popitem(last=False)  # evict oldest
             except Exception:
                 pass
 

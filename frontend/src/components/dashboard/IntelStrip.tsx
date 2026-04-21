@@ -1,10 +1,11 @@
+import { memo } from 'react'
 import { Link } from 'react-router-dom'
 import { useDiscoveryStats } from '@/api/endpoints/discovery'
 import { useSignalAccuracy } from '@/api/endpoints/settings'
 import { Button } from '@/components/ui/Button'
 import styles from './IntelStrip.module.css'
 
-export function IntelStrip() {
+const IntelStrip = memo(function IntelStrip() {
   const { data: discovery } = useDiscoveryStats()
   const { data: accuracy } = useSignalAccuracy()
 
@@ -46,7 +47,7 @@ export function IntelStrip() {
       </div>
     </div>
   )
-}
+})
 
 function IntelMetric({
   value,
@@ -71,3 +72,5 @@ function IntelMetric({
     </div>
   )
 }
+
+export { IntelStrip }

@@ -284,7 +284,10 @@ class AdaptiveGeminiClient:
             try:
                 response = self.client.models.generate_content(
                     model=model_name,
-                    contents=prompt
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        http_options=types.HttpOptions(timeout=60_000)
+                    )
                 )
 
                 if not response or not hasattr(response, 'text'):

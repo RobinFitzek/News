@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { useFearGreedCurrent } from '@/api/endpoints/fearGreed'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -21,7 +22,7 @@ function fgVariant(label: string | null): 'success' | 'warning' | 'danger' | 'ne
   return 'neutral'
 }
 
-export function FearGreedDashCard() {
+const FearGreedDashCard = memo(function FearGreedDashCard() {
   const { data, isLoading, isError } = useFearGreedCurrent()
 
   const score = data?.fg_value ?? null
@@ -75,4 +76,6 @@ export function FearGreedDashCard() {
       )}
     </Card>
   )
-}
+})
+
+export { FearGreedDashCard }

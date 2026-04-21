@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, memo } from 'react'
 import { motion } from 'framer-motion'
 import { useApiStatus, useScanProgress } from '@/api/endpoints/status'
 import { useStartScheduler, useStopScheduler, useScanNow } from '@/api/endpoints/scheduler'
@@ -32,7 +32,7 @@ function relativeTime(ts: string | null): string {
   }
 }
 
-export function SystemCommandCenter() {
+const SystemCommandCenter = memo(function SystemCommandCenter() {
   const { data: status } = useApiStatus()
   const scheduler = status?.scheduler
   const isScanning = scheduler?.is_scanning ?? false
@@ -151,7 +151,7 @@ export function SystemCommandCenter() {
       </div>
     </motion.div>
   )
-}
+})
 
 function DiagItem({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
@@ -163,3 +163,5 @@ function DiagItem({ label, value, mono }: { label: string; value: string; mono?:
     </div>
   )
 }
+
+export { SystemCommandCenter }

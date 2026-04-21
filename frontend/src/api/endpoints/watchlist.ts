@@ -7,7 +7,7 @@ export function useWatchlist() {
   return useQuery<WatchlistItem[]>({
     queryKey: ['watchlist'],
     queryFn: () => api.get('/api/watchlist').then(r => r.data),
-    staleTime: 30_000,
+    staleTime: 60_000,
   })
 }
 

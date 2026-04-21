@@ -5,7 +5,7 @@ import { Delta } from '@/components/ui/Delta'
 import { Spinner } from '@/components/ui/Spinner'
 import styles from './MarketRegimeCard.module.css'
 
-export function MarketRegimeCard() {
+const MarketRegimeCard = memo(function MarketRegimeCard() {
   const { data, isLoading, isError } = useMarketRegime()
 
   const regimeBadge = data?.regime === 'bull' ? 'success' :
@@ -43,7 +43,7 @@ export function MarketRegimeCard() {
       )}
     </Card>
   )
-}
+})
 
 function MetricRow({ label, value, children }: { label: string; value: string; children?: React.ReactNode }) {
   return (
@@ -68,3 +68,5 @@ function SMAIndicator({ label, active }: { label: string; active: boolean }) {
 }
 
 import type React from 'react'
+
+export { MarketRegimeCard }
