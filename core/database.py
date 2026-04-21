@@ -8,7 +8,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Dict, Any
-from core.config import DB_PATH, DEFAULT_SETTINGS
+from core.config import DB_PATH, DEFAULT_SETTINGS, DB_TIMEOUT
 from core.encryption import encryption
 import logging
 import time
@@ -32,7 +32,7 @@ class Database:
 
         self._init_db()
 
-    def _get_conn(self, timeout: float = 10.0) -> sqlite3.Connection:
+    def _get_conn(self, timeout: float = DB_TIMEOUT) -> sqlite3.Connection:
         """Get database connection with retry logic and proper configuration"""
         max_attempts = 3
         for attempt in range(max_attempts):
@@ -251,6 +251,14 @@ class Database:
                 alerts_sent INTEGER,
                 errors TEXT,
                 duration_seconds REAL
+            )
+        """)
+
+        # Job idempotency locks — prevents double-execution on process restart
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS job_locks (
+                job_id TEXT PRIMARY KEY,
+                locked_at TEXT NOT NULL
             )
         """)
         
@@ -1885,7 +1893,41 @@ class Database:
         rows = cursor.fetchall()
         conn.close()
         return [dict(row) for row in rows]
-    
+
+    def try_acquire_job_lock(self, job_id: str, ttl_minutes: int = 120) -> bool:
+        """Return True and record lock if job_id is not already locked within TTL."""
+        try:
+            conn = self._get_conn()
+            cursor = conn.cursor()
+            expiry = (datetime.now() - timedelta(minutes=ttl_minutes)).isoformat()
+            # Remove stale lock if TTL has passed
+            cursor.execute(
+                "DELETE FROM job_locks WHERE job_id = ? AND locked_at < ?",
+                (job_id, expiry)
+            )
+            # Try to insert — silently ignored if a fresh lock already exists
+            cursor.execute(
+                "INSERT OR IGNORE INTO job_locks (job_id, locked_at) VALUES (?, ?)",
+                (job_id, datetime.now().isoformat())
+            )
+            acquired = cursor.rowcount == 1
+            conn.commit()
+            conn.close()
+            return acquired
+        except Exception as e:
+            self.logger.error("Failed to acquire job lock '%s': %s", job_id, e)
+            return True  # fail-open so jobs still run if DB is unavailable
+
+    def release_job_lock(self, job_id: str) -> None:
+        """Release a job lock."""
+        try:
+            conn = self._get_conn()
+            conn.execute("DELETE FROM job_locks WHERE job_id = ?", (job_id,))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            self.logger.error("Failed to release job lock '%s': %s", job_id, e)
+
     # === Investment Strategies ===
     def get_strategies(self, active_only: bool = True) -> List[Dict]:
         conn = self._get_conn()

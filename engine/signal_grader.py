@@ -295,8 +295,8 @@ class SignalGrader:
                 try:
                     from engine.quant_screener import quant_screener
                     quant_screener.reload_weights()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.warning("Unexpected error: %s", _e)
                 
                 return {"tuned": True, "weights": new_overrides, "message": msg}
                 
@@ -344,8 +344,8 @@ class SignalGrader:
             if mcpt:
                 report['mcpt_p_value'] = mcpt.get('p_value')
                 report['mcpt_significant'] = mcpt.get('significant')
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
         # Include meta-labeler status
         try:
@@ -353,8 +353,8 @@ class SignalGrader:
             report['meta_labeler_ready'] = meta_labeler.is_ready()
             status = meta_labeler.get_status()
             report['meta_labeler_version'] = status.get('model_version', 0)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
         return report
 

@@ -656,8 +656,8 @@ class AutoDiscovery:
                 from engine.quant_screener import QuantScreener
                 for peers in QuantScreener.SectorCache.SECTOR_PEERS.values():
                     universe.update(peers)
-            except Exception:
-                pass
+            except Exception as _e:
+                logger.warning("Unexpected error: %s", _e)
 
             universe_list = sorted(universe)[:self.SCAN_UNIVERSE_SIZE]
             self._universe_cache = universe_list
@@ -684,15 +684,15 @@ class AutoDiscovery:
         try:
             watchlist = db.get_watchlist(active_only=True)
             excluded.update(w['ticker'] for w in watchlist)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
         # Graveyard
         try:
             graveyard = db.query("SELECT ticker FROM ticker_graveyard")
             excluded.update(g['ticker'] for g in graveyard)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
         # Recently dismissed (30 days)
         try:
@@ -702,8 +702,8 @@ class AutoDiscovery:
                   AND dismissed_at >= datetime('now', '-30 days')
             """)
             excluded.update(d['ticker'] for d in dismissed)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
         # Recently discovered (avoid duplicates)
         try:
@@ -712,8 +712,8 @@ class AutoDiscovery:
                 WHERE found_at >= datetime('now', '-7 days')
             """)
             excluded.update(r['ticker'] for r in recent)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
         return excluded
 

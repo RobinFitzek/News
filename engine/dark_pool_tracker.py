@@ -59,12 +59,12 @@ def ensure_schema() -> None:
         # Migrate: add columns if missing (existing DBs)
         try:
             db.execute("ALTER TABLE dark_pool_signals ADD COLUMN estimated_value REAL DEFAULT 0")
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
         try:
             db.execute("ALTER TABLE dark_pool_signals ADD COLUMN is_large_block INTEGER DEFAULT 0")
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
     except Exception as e:
         logger.debug(f"dark_pool_tracker.ensure_schema: {e}")
 

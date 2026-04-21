@@ -172,8 +172,8 @@ def get_supply_chain(ticker: str, force_refresh: bool = False) -> dict:
         row = db.query("SELECT company_name FROM watchlist WHERE ticker = ?", (ticker,))
         if row:
             company_name = row[0].get("company_name")
-    except Exception:
-        pass
+    except Exception as _e:
+        logger.warning("Unexpected error: %s", _e)
 
     entries = _fetch_supply_chain(ticker, company_name)
     if entries:

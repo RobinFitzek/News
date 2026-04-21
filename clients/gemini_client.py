@@ -5,7 +5,7 @@ Cost-aware: tracks spending and adapts model choice to stay within monthly EUR b
 from google import genai
 from google.genai import types
 from google.api_core import exceptions as google_exceptions
-from core.config import GEMINI_API_KEY, GEMINI_MODELS
+from core.config import GEMINI_API_KEY, GEMINI_MODELS, GEMINI_TIMEOUT_MS
 from datetime import datetime, timedelta
 from collections import defaultdict
 from core.database import db
@@ -286,7 +286,7 @@ class AdaptiveGeminiClient:
                     model=model_name,
                     contents=prompt,
                     config=types.GenerateContentConfig(
-                        http_options=types.HttpOptions(timeout=60_000)
+                        http_options=types.HttpOptions(timeout=GEMINI_TIMEOUT_MS)
                     )
                 )
 

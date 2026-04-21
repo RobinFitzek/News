@@ -9,6 +9,7 @@ from apscheduler.events import (
     EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, EVENT_JOB_MISSED,
     JobExecutionEvent
 )
+from contextlib import contextmanager
 from datetime import datetime, date, time
 import logging
 import pytz
@@ -16,6 +17,19 @@ from core.database import db
 from core.notifications import notifications
 
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _job_lock(job_id: str, ttl_minutes: int = 120):
+    """Context manager that skips the wrapped block if job ran recently."""
+    acquired = db.try_acquire_job_lock(job_id, ttl_minutes)
+    if not acquired:
+        logger.warning("Job '%s' skipped — lock held from recent run (TTL=%dm)", job_id, ttl_minutes)
+    try:
+        yield acquired
+    finally:
+        if acquired:
+            db.release_job_lock(job_id)
 
 
 def _job_event_listener(event: JobExecutionEvent) -> None:
@@ -766,55 +780,70 @@ class InvestmentScheduler:
     
     def run_discovery(self):
         """Run daily auto-discovery (free strategies)"""
-        try:
-            from engine.auto_discovery import auto_discovery
-            result = auto_discovery.run_daily_discovery()
-            logger.info("Discovery completed: %d found, %d promoted",
-                        result.get('discoveries', 0), len(result.get('promoted', [])))
-        except Exception as e:
-            logger.error("Discovery failed: %s", e, exc_info=True)
+        with _job_lock('run_discovery', ttl_minutes=60) as locked:
+            if not locked:
+                return
+            try:
+                from engine.auto_discovery import auto_discovery
+                result = auto_discovery.run_daily_discovery()
+                logger.info("Discovery completed: %d found, %d promoted",
+                            result.get('discoveries', 0), len(result.get('promoted', [])))
+            except Exception as e:
+                logger.error("Discovery failed: %s", e, exc_info=True)
 
     def run_ai_discovery(self):
         """Run weekly AI discovery (Perplexity)"""
-        try:
-            from engine.auto_discovery import auto_discovery
-            result = auto_discovery.run_weekly_ai_discovery()
-            logger.info("AI Discovery completed: %d found", result.get('discoveries', 0))
-        except Exception as e:
-            logger.error("AI Discovery failed: %s", e, exc_info=True)
+        with _job_lock('run_ai_discovery', ttl_minutes=360) as locked:
+            if not locked:
+                return
+            try:
+                from engine.auto_discovery import auto_discovery
+                result = auto_discovery.run_weekly_ai_discovery()
+                logger.info("AI Discovery completed: %d found", result.get('discoveries', 0))
+            except Exception as e:
+                logger.error("AI Discovery failed: %s", e, exc_info=True)
 
     def run_weekly_report(self):
         """Generate and send weekly portfolio report."""
-        try:
-            from engine.report_generator import report_generator
-            html = report_generator.generate_weekly_report()
-            if html:
-                report_generator.send_report(html)
-                logger.info("Weekly report generated and sent")
-        except Exception as e:
-            logger.error("Weekly report failed: %s", e, exc_info=True)
+        with _job_lock('run_weekly_report', ttl_minutes=360) as locked:
+            if not locked:
+                return
+            try:
+                from engine.report_generator import report_generator
+                html = report_generator.generate_weekly_report()
+                if html:
+                    report_generator.send_report(html)
+                    logger.info("Weekly report generated and sent")
+            except Exception as e:
+                logger.error("Weekly report failed: %s", e, exc_info=True)
 
     def run_weekly_letter(self):
         """Generate and send AI weekly investment letter."""
-        try:
-            enabled = db.get_setting('weekly_letter_enabled')
-            if not enabled:
+        with _job_lock('run_weekly_letter', ttl_minutes=360) as locked:
+            if not locked:
                 return
-            from engine.weekly_letter import weekly_letter_generator
-            weekly_letter_generator.generate_and_send()
-        except Exception as e:
-            logger.error("Weekly letter failed: %s", e, exc_info=True)
+            try:
+                enabled = db.get_setting('weekly_letter_enabled')
+                if not enabled:
+                    return
+                from engine.weekly_letter import weekly_letter_generator
+                weekly_letter_generator.generate_and_send()
+            except Exception as e:
+                logger.error("Weekly letter failed: %s", e, exc_info=True)
 
     def run_nlp_sentiment_scoring(self):
         """Score watchlist ticker sentiment from RSS headlines (#38/#57)."""
-        try:
-            from engine.nlp_scorer import run_hourly_scoring, ensure_schema
-            ensure_schema()
-            results = run_hourly_scoring()
-            if results:
-                logger.info("NLP sentiment: scored %d tickers", len(results))
-        except Exception as e:
-            logger.error("NLP sentiment scoring failed: %s", e, exc_info=True)
+        with _job_lock('run_nlp_sentiment', ttl_minutes=45) as locked:
+            if not locked:
+                return
+            try:
+                from engine.nlp_scorer import run_hourly_scoring, ensure_schema
+                ensure_schema()
+                results = run_hourly_scoring()
+                if results:
+                    logger.info("NLP sentiment: scored %d tickers", len(results))
+            except Exception as e:
+                logger.error("NLP sentiment scoring failed: %s", e, exc_info=True)
 
     def run_pairs_scan(self):
         """Weekly cointegration scan for pairs trading (#40)."""

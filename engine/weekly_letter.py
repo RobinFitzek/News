@@ -65,8 +65,8 @@ class WeeklyLetterGenerator:
                 'total_pnl_pct': perf['total_pnl_pct'],
                 'open_positions': perf['open_positions'],
             }
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
         strong_buys = [a for a in analyses if 'BUY' in (a.get('signal') or '')]
         strong_sells = [a for a in analyses if 'SELL' in (a.get('signal') or '')]

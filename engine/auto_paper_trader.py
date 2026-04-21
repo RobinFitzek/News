@@ -47,8 +47,8 @@ class AutoPaperTrader:
             ]:
                 try:
                     db.execute(col_sql)
-                except Exception:
-                    pass
+                except Exception as _e:
+                    logger.warning("Unexpected error: %s", _e)
 
             db.execute("""
                 CREATE TABLE IF NOT EXISTS auto_trade_pending (
@@ -263,8 +263,8 @@ class AutoPaperTrader:
                             VALUES (?, ?, ?, ?, ?, 'blocked', ?)
                         """, (sig['id'], ticker, direction,
                               datetime.now().isoformat(), entry_price, gate['reason']))
-                    except Exception:
-                        pass
+                    except Exception as _e:
+                        logger.warning("Unexpected error: %s", _e)
                     continue
 
                 if cfg["require_confirm"]:
@@ -344,8 +344,8 @@ class AutoPaperTrader:
             # Fallback to plain message if keyboard send not supported/configured
             if not sent:
                 webhook_notifier.send_custom(msg)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
         # Email: signed one-click confirm/skip links
         try:
@@ -385,8 +385,8 @@ class AutoPaperTrader:
 </div>
 </body></html>"""
             notifications._send_email(subject, html)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
     def confirm_trade(self, token: str) -> Dict[str, Any]:
         """Approve a pending confirmation. Executes the entry if still valid."""
@@ -404,8 +404,8 @@ class AutoPaperTrader:
                     (datetime.now().isoformat(), token)
                 )
                 return {"success": False, "error": "Confirmation expired"}
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
         try:
             db.execute("""
@@ -548,8 +548,8 @@ class AutoPaperTrader:
                 f"*PnL: {pnl_pct*100:+.2f}%* ({reason})"
             )
             webhook_notifier.send_custom(msg)
-        except Exception:
-            pass
+        except Exception as _e:
+            logger.warning("Unexpected error: %s", _e)
 
     # ------------------------------------------------------------------ #
     #  Queries / reporting                                                 #

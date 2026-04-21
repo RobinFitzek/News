@@ -6,7 +6,7 @@ Budget-aware: adapts daily request limits from monthly EUR budget.
 import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
-from core.config import PERPLEXITY_API_KEY
+from core.config import PERPLEXITY_API_KEY, PERPLEXITY_TIMEOUT
 from datetime import datetime
 from typing import Dict, Optional
 import json
@@ -127,7 +127,7 @@ class EnhancedPerplexityClient:
                     f"{self.base_url}/chat/completions",
                     headers=headers,
                     json=payload,
-                    timeout=30
+                    timeout=PERPLEXITY_TIMEOUT
                 )
 
                 if response.status_code == 429:
