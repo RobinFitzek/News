@@ -33,3 +33,11 @@ export function useSaveWatchlistNote() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['watchlist'] }),
   })
 }
+
+export function useUpdateWatchlistTier() {
+  return useMutation({
+    mutationFn: ({ ticker, tier }: { ticker: string; tier: string }) =>
+      api.post(`/api/watchlist/${ticker}/tier`, { tier }).then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['watchlist'] }),
+  })
+}

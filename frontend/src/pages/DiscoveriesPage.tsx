@@ -15,6 +15,7 @@ import type { SignalType as GlyphSignal } from '@/components/ui/SignalGlyph'
 import { Button } from '@/components/ui/Button'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { Spinner } from '@/components/ui/Spinner'
+import { Modal } from '@/components/ui/Modal'
 import { useToastStore } from '@/stores/toastStore'
 import styles from './DiscoveriesPage.module.css'
 
@@ -164,6 +165,7 @@ export function DiscoveriesPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [pendingPromote, setPendingPromote] = useState<number | null>(null)
   const [pendingDismiss, setPendingDismiss] = useState<number | null>(null)
+  const [dismissConfirm, setDismissConfirm] = useState<Discovery | null>(null)
 
   const { data, isLoading, isError } = useDiscoveries('all')
   const promoteMut = usePromoteDiscovery()
@@ -190,7 +192,15 @@ export function DiscoveriesPage() {
     }
   }
 
-  async function handleDismiss(id: number) {
+  function requestDismiss(id: number) {
+    const discovery = discoveries.find(d => d.id === id) ?? null
+    setDismissConfirm(discovery)
+  }
+
+  async function confirmDismiss() {
+    if (!dismissConfirm) return
+    const { id } = dismissConfirm
+    setDismissConfirm(null)
     setPendingDismiss(id)
     try {
       await dismissMut.mutateAsync(id)
@@ -312,7 +322,7 @@ export function DiscoveriesPage() {
                   key={discovery.id}
                   discovery={discovery}
                   onPromote={handlePromote}
-                  onDismiss={handleDismiss}
+                  onDismiss={requestDismiss}
                   isPromoting={pendingPromote === discovery.id}
                   isDismissing={pendingDismiss === discovery.id}
                 />
@@ -323,6 +333,23 @@ export function DiscoveriesPage() {
       )}
 
       <div style={{ height: 'var(--space-16)' }} />
+
+      {/* ── Dismiss confirmation modal ── */}
+      <Modal
+        open={dismissConfirm !== null}
+        onClose={() => setDismissConfirm(null)}
+        title="Dismiss Discovery"
+        size="sm"
+      >
+        <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-6)', lineHeight: 1.6 }}>
+          Dismiss <strong>{dismissConfirm?.ticker}</strong>{dismissConfirm?.name ? ` (${dismissConfirm.name})` : ''}?
+          This marks it as dismissed and removes it from active review.
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', paddingTop: 'var(--space-4)', borderTop: '1px solid var(--border-primary)' }}>
+          <Button variant="ghost" size="md" onClick={() => setDismissConfirm(null)}>Cancel</Button>
+          <Button variant="danger" size="md" loading={dismissMut.isPending} onClick={confirmDismiss}>Dismiss</Button>
+        </div>
+      </Modal>
     </>
   )
 }

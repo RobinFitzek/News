@@ -5876,6 +5876,23 @@ async def api_remove_watchlist(
     return {"status": "removed", "ticker": ticker}
 
 
+@app.post("/api/watchlist/{ticker}/tier")
+async def api_update_watchlist_tier(
+    request: Request,
+    ticker: str,
+    username: str = Depends(require_auth)
+):
+    """Update watchlist tier — JSON endpoint for React SPA"""
+    _verify_spa_csrf(request)
+    data = await request.json()
+    tier = data.get("tier", "").lower()
+    valid_tiers = {"core", "swing", "research", "earnings_play"}
+    if tier not in valid_tiers:
+        raise HTTPException(status_code=400, detail="Invalid tier")
+    db.update_watchlist_tier(ticker.upper(), tier)
+    return {"status": "updated", "ticker": ticker.upper(), "tier": tier}
+
+
 @app.post("/api/settings/save")
 async def save_settings_json(
     request: Request,
@@ -6110,6 +6127,23 @@ async def api_delete_journal(
     _verify_spa_csrf(request)
     db.delete_journal_entry(entry_id)
     return {"status": "deleted"}
+
+
+@app.post("/api/journal/{entry_id}/edit")
+async def api_edit_journal(
+    request: Request,
+    entry_id: int,
+    username: str = Depends(require_auth)
+):
+    """Edit journal entry notes — JSON for React SPA"""
+    _verify_spa_csrf(request)
+    data = await request.json()
+    notes = data.get("notes", "").strip()
+    db.execute(
+        "UPDATE trade_journal SET notes = ? WHERE id = ?",
+        (notes, entry_id)
+    )
+    return {"status": "updated"}
 
 
 # ── Portfolio (main summary) ──────────────────────────────────────────────────
