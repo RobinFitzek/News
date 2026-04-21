@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+import re
 import uvicorn
 from datetime import datetime, timedelta
 
@@ -36,6 +37,9 @@ from engine.staleness_tracker import staleness_tracker
 from engine.ai_crosscheck import ai_crosscheck
 
 app = FastAPI(title="AI Investment Monitor", version="1.0.0")
+
+# Ticker validation: standard symbols (up to 5 chars) and class-share notation (e.g. BRK.B)
+_TICKER_RE = re.compile(r'^[A-Z]{1,10}(\.[A-Z]{1,2})?$')
 
 from fastapi.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -1162,7 +1166,10 @@ async def add_to_watchlist(
 ):
     """Add stock to watchlist"""
     csrf.verify_token(request, csrf_token)
-    db.add_to_watchlist(ticker.upper(), name)
+    ticker_clean = ticker.upper().strip()
+    if not _TICKER_RE.match(ticker_clean):
+        raise HTTPException(status_code=400, detail="Invalid ticker symbol")
+    db.add_to_watchlist(ticker_clean, name)
     return RedirectResponse(url="/watchlist", status_code=303)
 
 @app.post("/watchlist/remove/{ticker}")
@@ -2174,6 +2181,8 @@ async def run_analysis(
     """Run manual analysis — respects tier frequency unless force=True"""
     csrf.verify_token(request, csrf_token)
     ticker_upper = ticker.upper().strip()
+    if not _TICKER_RE.match(ticker_upper):
+        raise HTTPException(status_code=400, detail="Invalid ticker symbol")
 
     if not force:
         from engine.pipeline import should_scan_ticker

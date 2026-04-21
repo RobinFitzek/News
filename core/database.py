@@ -943,6 +943,8 @@ class Database:
             "ALTER TABLE watchlist ADD COLUMN earnings_date TEXT",
             # Watchlist earnings_suppressed (#23)
             "ALTER TABLE watchlist ADD COLUMN earnings_imminent INTEGER DEFAULT 0",
+            # Ticker context in cost log for per-symbol spend visibility
+            "ALTER TABLE api_cost_log ADD COLUMN ticker TEXT",
         ]
         for sql in migrations:
             try:
@@ -2877,16 +2879,17 @@ class Database:
 
     # === API Cost Tracking ===
     def log_api_cost(self, api: str, model: str, input_tokens: int,
-                     output_tokens: int, estimated_cost: float, month: str, date: str):
+                     output_tokens: int, estimated_cost: float, month: str, date: str,
+                     ticker: str = None):
         """Log an API request with estimated cost."""
         try:
             conn = self._get_conn()
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO api_cost_log (api, model, input_tokens, output_tokens,
-                                          estimated_cost, month, date)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (api, model, input_tokens, output_tokens, estimated_cost, month, date))
+                                          estimated_cost, month, date, ticker)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (api, model, input_tokens, output_tokens, estimated_cost, month, date, ticker))
             conn.commit()
             conn.close()
         except Exception as e:
