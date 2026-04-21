@@ -37,6 +37,9 @@ from engine.ai_crosscheck import ai_crosscheck
 
 app = FastAPI(title="AI Investment Monitor", version="1.0.0")
 
+from fastapi.middleware.gzip import GZipMiddleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 # Configure templates with autoescape for XSS protection
 jinja_env = Environment(
     loader=FileSystemLoader(str(TEMPLATES_DIR)),
@@ -97,10 +100,10 @@ async def add_security_headers(request: Request, call_next):
     # Referrer policy
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
-    # Content Security Policy
+    # Content Security Policy — no unsafe-inline for scripts; all JS comes from bundled /static/
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+        "script-src 'self'; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data:; "

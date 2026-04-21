@@ -50,6 +50,11 @@ class Database:
                 # Set synchronous mode for better performance with WAL
                 conn.execute("PRAGMA synchronous = NORMAL")
 
+                # Performance: 50MB page cache, memory temp store, 256MB mmap I/O
+                conn.execute("PRAGMA cache_size = -50000")
+                conn.execute("PRAGMA temp_store = MEMORY")
+                conn.execute("PRAGMA mmap_size = 268435456")
+
                 return conn
 
             except sqlite3.OperationalError as e:
@@ -628,6 +633,11 @@ class Database:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cost_api_month ON api_cost_log(api, month)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_cost_api_date ON api_cost_log(api, date)")
 
+        # Performance indexes for hot query paths
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_analysis_latest ON analysis_history(ticker, id DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_analysis_timestamp ON analysis_history(timestamp DESC)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_watchlist_active ON watchlist(is_active)")
+
         # AI Cross-Check Log
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS ai_crosscheck_log (
@@ -1057,18 +1067,32 @@ class Database:
                 """, (key, json_value, datetime.now()))
 
             self.logger.info(f"Setting updated: {key}")
+            self._invalidate_settings_cache()
 
         except Exception as e:
             self.logger.error(f"Error setting {key}: {e}", exc_info=True)
             raise
-    
+
+    _settings_cache: Dict[str, Any] = {}
+    _settings_cache_expires: float = 0.0
+    _SETTINGS_CACHE_TTL: float = 300.0  # 5 minutes
+
+    def _invalidate_settings_cache(self) -> None:
+        self.__class__._settings_cache = {}
+        self.__class__._settings_cache_expires = 0.0
+
     def get_all_settings(self) -> Dict[str, Any]:
+        if time.time() < self.__class__._settings_cache_expires and self.__class__._settings_cache:
+            return dict(self.__class__._settings_cache)
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("SELECT key, value FROM settings")
         rows = cursor.fetchall()
         conn.close()
-        return {row['key']: json.loads(row['value']) for row in rows}
+        result = {row['key']: json.loads(row['value']) for row in rows}
+        self.__class__._settings_cache = result
+        self.__class__._settings_cache_expires = time.time() + self._SETTINGS_CACHE_TTL
+        return dict(result)
     
     # === API Keys ===
     def get_api_key(self, service: str) -> Optional[str]:
