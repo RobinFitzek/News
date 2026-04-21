@@ -1570,6 +1570,7 @@ async def logout_single_session(
     return RedirectResponse(url="/settings?saved=1", status_code=303)
 
 @app.post("/settings/api-keys")
+@limiter.limit("10/minute")
 async def save_api_keys(request: Request, username: str = Depends(require_auth)):
     """Save API keys"""
     form = await request.form()
@@ -2167,12 +2168,25 @@ async def run_analysis(
     request: Request,
     ticker: str = Form(...),
     csrf_token: str = Form(...),
+    force: bool = Form(False),
     username: str = Depends(require_auth)
 ):
-    """Run manual analysis"""
+    """Run manual analysis — respects tier frequency unless force=True"""
     csrf.verify_token(request, csrf_token)
-    results = swarm.analyze_single_stock(ticker.upper())
-    analysis_id, signal, confidence = db.save_analysis(ticker.upper(), results)
+    ticker_upper = ticker.upper().strip()
+
+    if not force:
+        from engine.pipeline import should_scan_ticker
+        row = db.query_one("SELECT tier, last_scanned_at FROM watchlist WHERE ticker = ?", (ticker_upper,))
+        if row and not should_scan_ticker(row):
+            age_h = round((datetime.now() - datetime.fromisoformat(row['last_scanned_at'])).total_seconds() / 3600, 1)
+            return RedirectResponse(
+                url=f"/analyze?warning=Recently+analysed+{ticker_upper}+{age_h}h+ago.+Use+force%3D1+to+override.",
+                status_code=303
+            )
+
+    results = swarm.analyze_single_stock(ticker_upper)
+    analysis_id, signal, confidence = db.save_analysis(ticker_upper, results)
 
     # Run AI cross-check against yfinance ground truth
     try:
@@ -2182,11 +2196,11 @@ async def run_analysis(
             results.get('technical', ''),
         ]))
         if analysis_text.strip():
-            crosscheck = ai_crosscheck.check_analysis(ticker.upper(), analysis_text)
-            db.save_crosscheck(ticker.upper(), analysis_id, crosscheck)
+            crosscheck = ai_crosscheck.check_analysis(ticker_upper, analysis_text)
+            db.save_crosscheck(ticker_upper, analysis_id, crosscheck)
     except Exception as e:
         import logging
-        logging.getLogger(__name__).warning(f"Cross-check failed for {ticker}: {e}")
+        logging.getLogger(__name__).warning(f"Cross-check failed for {ticker_upper}: {e}")
 
     return RedirectResponse(url=f"/analysis/{analysis_id}", status_code=303)
 

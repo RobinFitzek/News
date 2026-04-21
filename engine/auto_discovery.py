@@ -263,10 +263,21 @@ class AutoDiscovery:
         candidates = []
         subset = self._get_rotation_subset(universe, excluded, size=50)
 
+        try:
+            batch = yf.download(
+                subset, period="1mo", auto_adjust=True,
+                progress=False, threads=True, group_by="ticker"
+            )
+        except Exception:
+            batch = None
+
         for ticker in subset:
             try:
-                stock = yf.Ticker(ticker)
-                hist = stock.history(period="1mo")
+                if batch is not None and ticker in batch.columns.get_level_values(0):
+                    hist = batch[ticker].dropna(how='all')
+                else:
+                    hist = yf.Ticker(ticker).history(period="1mo")
+
                 if hist.empty or len(hist) < 5:
                     continue
 
@@ -276,7 +287,7 @@ class AutoDiscovery:
                 if avg_vol > 0 and latest_vol > 2 * avg_vol:
                     ratio = latest_vol / avg_vol
                     price = float(hist['Close'].iloc[-1])
-                    info = stock.info
+                    info = yf.Ticker(ticker).info
                     candidates.append({
                         'ticker': ticker,
                         'signal_type': 'VOLUME_SPIKE',

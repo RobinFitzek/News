@@ -9,14 +9,15 @@ export default defineConfig({
   build: {
     outDir: '../static/react',
     emptyOutDir: true,
-    chunkSizeWarningLimit: 800,
+    chunkSizeWarningLimit: 500,
     rollupOptions: {
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'motion': ['framer-motion'],
           'query': ['@tanstack/react-query'],
-          'charts': ['chart.js', 'react-chartjs-2'],
+          'charts': ['chart.js', 'react-chartjs-2', 'chartjs-plugin-annotation'],
+          'utils': ['date-fns', 'clsx', 'axios'],
         },
       },
     },

@@ -5,6 +5,10 @@ Runs automated scans based on configuration.
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.events import (
+    EVENT_JOB_EXECUTED, EVENT_JOB_ERROR, EVENT_JOB_MISSED,
+    JobExecutionEvent
+)
 from datetime import datetime, date, time
 import logging
 import pytz
@@ -12,6 +16,24 @@ from core.database import db
 from core.notifications import notifications
 
 logger = logging.getLogger(__name__)
+
+
+def _job_event_listener(event: JobExecutionEvent) -> None:
+    """Log job execution outcomes to the scheduler_log table."""
+    try:
+        job_id = event.job_id
+        if event.exception:
+            logger.error("Job '%s' raised an exception: %s", job_id, event.exception)
+            db.execute(
+                "INSERT OR IGNORE INTO scheduler_log (tickers_scanned, alerts_sent, errors, duration_seconds) VALUES (0, 0, ?, 0)",
+                (f"[{job_id}] {event.exception}",)
+            )
+        elif event.code == EVENT_JOB_MISSED:
+            logger.warning("Job '%s' missed its execution window", job_id)
+        else:
+            logger.debug("Job '%s' completed successfully", job_id)
+    except Exception:
+        pass  # listener must never raise
 
 # NYSE market holidays for 2026 (format: (month, day))
 US_MARKET_HOLIDAYS_2026 = {
@@ -645,6 +667,10 @@ class InvestmentScheduler:
             except Exception as e:
                 logger.error("Could not schedule deep sleep transitions: %s", e, exc_info=True)
 
+        self.scheduler.add_listener(
+            _job_event_listener,
+            EVENT_JOB_EXECUTED | EVENT_JOB_ERROR | EVENT_JOB_MISSED
+        )
         self.scheduler.start()
         self.is_running = True
 

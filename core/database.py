@@ -4,6 +4,7 @@ Handles settings, watchlist, analysis history, and API keys securely.
 """
 import sqlite3
 import json
+import os
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -12,6 +13,8 @@ from core.encryption import encryption
 import logging
 import time
 from contextlib import contextmanager
+
+_SLOW_QUERY_MS = float(os.getenv("SLOW_QUERY_MS", "200"))
 
 class Database:
     def __init__(self, db_path: Path = DB_PATH):
@@ -959,36 +962,48 @@ class Database:
             conn = self._get_conn()
             try:
                 cursor = conn.cursor()
+                _t0 = time.perf_counter()
                 cursor.execute(sql, params)
                 rows = cursor.fetchall()
+                _ms = (time.perf_counter() - _t0) * 1000
+                if _ms > _SLOW_QUERY_MS:
+                    self.logger.warning("Slow query (%.0fms): %.120s", _ms, sql.strip())
                 return [dict(row) for row in rows]
             finally:
                 conn.close()
         except Exception as e:
             self.logger.error(f"Query error: {e}", exc_info=True)
             return []
-    
+
     def query_one(self, sql: str, params: tuple = ()) -> Optional[Dict]:
         """Execute SELECT query and return single dict or None"""
         try:
             conn = self._get_conn()
             try:
                 cursor = conn.cursor()
+                _t0 = time.perf_counter()
                 cursor.execute(sql, params)
                 row = cursor.fetchone()
+                _ms = (time.perf_counter() - _t0) * 1000
+                if _ms > _SLOW_QUERY_MS:
+                    self.logger.warning("Slow query_one (%.0fms): %.120s", _ms, sql.strip())
                 return dict(row) if row else None
             finally:
                 conn.close()
         except Exception as e:
             self.logger.error(f"Query one error: {e}", exc_info=True)
             return None
-    
+
     def execute(self, sql: str, params: tuple = ()):
         """Execute INSERT/UPDATE/DELETE query"""
         try:
             with self._get_transaction() as conn:
                 cursor = conn.cursor()
+                _t0 = time.perf_counter()
                 cursor.execute(sql, params)
+                _ms = (time.perf_counter() - _t0) * 1000
+                if _ms > _SLOW_QUERY_MS:
+                    self.logger.warning("Slow execute (%.0fms): %.120s", _ms, sql.strip())
                 return cursor
         except Exception as e:
             self.logger.error(f"Execute error: {e}", exc_info=True)
