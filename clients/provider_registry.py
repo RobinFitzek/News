@@ -15,6 +15,8 @@ from clients.adapters.base import BaseProviderAdapter
 from clients.adapters.openai_compatible import OpenAICompatibleAdapter
 from clients.adapters.google_gemini import GoogleGeminiAdapter
 from clients.adapters.perplexity import PerplexityAdapter
+from clients.adapters.anthropic import AnthropicAdapter
+from clients.adapters.azure_openai import AzureOpenAIAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +25,8 @@ ADAPTER_MAP = {
     'openai_compatible': OpenAICompatibleAdapter,
     'google_gemini': GoogleGeminiAdapter,
     'perplexity': PerplexityAdapter,
+    'anthropic': AnthropicAdapter,
+    'azure_openai': AzureOpenAIAdapter,
 }
 
 # Shortcut definitions for quick-add UI
@@ -130,6 +134,115 @@ PROVIDER_SHORTCUTS = {
         'key_url': 'https://build.nvidia.com',
         'description': 'NVIDIA NIM — high-performance inference, 100 free credits/month',
         'icon': 'nvidia',
+    },
+    'anthropic': {
+        'name': 'Anthropic',
+        'adapter_type': 'anthropic',
+        'provider_type': 'llm',
+        'base_url': 'https://api.anthropic.com',
+        'model': 'claude-sonnet-4-6',
+        'models': [
+            'claude-opus-4-7',
+            'claude-sonnet-4-6',
+            'claude-haiku-4-5-20251001',
+            'claude-3-5-sonnet-20241022',
+            'claude-3-5-haiku-20241022',
+        ],
+        'key_placeholder': 'sk-ant-...',
+        'key_url': 'https://console.anthropic.com/settings/keys',
+        'description': 'Anthropic — Claude models, best-in-class reasoning & instruction following',
+        'icon': 'anthropic',
+    },
+    'mistral': {
+        'name': 'Mistral AI',
+        'adapter_type': 'openai_compatible',
+        'provider_type': 'llm',
+        'base_url': 'https://api.mistral.ai/v1',
+        'model': 'mistral-small-latest',
+        'models': [
+            'mistral-small-latest',
+            'mistral-medium-latest',
+            'mistral-large-latest',
+            'open-mistral-nemo',
+            'codestral-latest',
+        ],
+        'key_placeholder': '...',
+        'key_url': 'https://console.mistral.ai/api-keys',
+        'description': 'Mistral AI — efficient European LLMs, strong multilingual support',
+        'icon': 'mistral',
+    },
+    'deepseek': {
+        'name': 'DeepSeek',
+        'adapter_type': 'openai_compatible',
+        'provider_type': 'llm',
+        'base_url': 'https://api.deepseek.com/v1',
+        'model': 'deepseek-chat',
+        'models': ['deepseek-chat', 'deepseek-reasoner'],
+        'key_placeholder': 'sk-...',
+        'key_url': 'https://platform.deepseek.com/api_keys',
+        'description': 'DeepSeek — extremely cost-effective, strong reasoning (R1)',
+        'icon': 'deepseek',
+    },
+    'xai': {
+        'name': 'xAI (Grok)',
+        'adapter_type': 'openai_compatible',
+        'provider_type': 'llm',
+        'base_url': 'https://api.x.ai/v1',
+        'model': 'grok-3-mini',
+        'models': ['grok-3-mini', 'grok-3', 'grok-2-1212', 'grok-2-vision-1212'],
+        'key_placeholder': 'xai-...',
+        'key_url': 'https://console.x.ai',
+        'description': 'xAI Grok — real-time X/Twitter data access, strong analysis',
+        'icon': 'xai',
+    },
+    'cohere': {
+        'name': 'Cohere',
+        'adapter_type': 'openai_compatible',
+        'provider_type': 'llm',
+        'base_url': 'https://api.cohere.com/compatibility/v1',
+        'model': 'command-r-plus-08-2024',
+        'models': ['command-r-plus-08-2024', 'command-r-08-2024', 'command-r7b-12-2024'],
+        'key_placeholder': '...',
+        'key_url': 'https://dashboard.cohere.com/api-keys',
+        'description': 'Cohere — strong retrieval-augmented generation, enterprise-ready',
+        'icon': 'cohere',
+    },
+    'azure': {
+        'name': 'Azure OpenAI',
+        'adapter_type': 'azure_openai',
+        'provider_type': 'llm',
+        'base_url': 'https://{resource}.openai.azure.com/openai/deployments/{deployment}',
+        'model': 'gpt-4o-mini',
+        'models': ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'o3-mini'],
+        'key_placeholder': '(Azure api-key)',
+        'key_url': 'https://portal.azure.com',
+        'description': 'Azure OpenAI — enterprise GPT deployment, EU data residency available',
+        'icon': 'azure',
+        'notes': 'Set base_url to your full deployment URL: https://{resource}.openai.azure.com/openai/deployments/{deployment-name}',
+    },
+    'lmstudio': {
+        'name': 'LM Studio (Local)',
+        'adapter_type': 'openai_compatible',
+        'provider_type': 'llm',
+        'base_url': 'http://localhost:1234/v1',
+        'model': 'local-model',
+        'models': ['local-model'],
+        'key_placeholder': '(not required)',
+        'key_url': 'https://lmstudio.ai',
+        'description': 'LM Studio — local models via GUI, zero cost, full privacy',
+        'icon': 'lmstudio',
+    },
+    'custom': {
+        'name': 'Custom / Self-hosted',
+        'adapter_type': 'openai_compatible',
+        'provider_type': 'llm',
+        'base_url': 'http://localhost:8080/v1',
+        'model': '',
+        'models': [],
+        'key_placeholder': '(optional)',
+        'key_url': '',
+        'description': 'Any OpenAI-compatible endpoint — vLLM, llama.cpp, TabbyAPI, Aphrodite, etc.',
+        'icon': 'custom',
     },
 }
 
