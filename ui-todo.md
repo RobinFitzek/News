@@ -15,7 +15,7 @@
 - **[UI-07]** Journal Ticker-Filter (Freitext-Suche in Einträgen)
 - **[UI-08]** Discovery Bestätigungs-Dialog für Dismiss
 
-## ✅ UI-Konsistenz (Branch: claude/improve-ui-consistency-ByuiX)
+## ✅ UI-Konsistenz — Iteration 2 (Branch: claude/improve-ui-consistency-ByuiX)
 
 - **[UI-C01]** `EmptyState`-Komponente erstellt — einheitlicher leerer Zustand mit `message`, `hint`, `action`-Props
 - **[UI-C02]** EmptyState in 8 Seiten eingesetzt: JournalPage, WatchlistPage, HistoryPage, GrahamPage, PoliticianTradesPage, CorporateActionsPage, DiscoveriesPage, TopPicksPage (ersetzt 5 verschiedene Muster)
@@ -98,14 +98,7 @@
 - **[UI-C11]** PoliticianTradesPage: native `filterBtn`/`clearBtn` → `Button`-Komponente (`secondary md` / `ghost md`); tote CSS-Klassen entfernt
 - **[UI-C12]** `pageEnd` auf allen 18 restlichen Seiten ausgerollt: ArchitecturePage, BacktestPage, CompareStocksPage, CrosscheckPage, DiscoverPage, FearGreedPage, GraveyardPage, InsiderActivityPage, LSTMPage, LearningPage, LogsPage, MacroPage, PaperTradingPage, SectorScreenPage, StockDetailPage, TrustPage, ScenariosPage, GeoHistoryPage
 
----
-
-## 🔲 OFFEN — Konsistenz (nächste Iteration)
-
-### [UI-C08-rest] StockDetailPage statische Inline-Styles
-**Was**: 30+ `style={{ ... }}` Inline-Styles in StockDetailPage.tsx; viele sind dynamisch (berechnet), aber statische sollten in CSS-Module migriert werden  
-**Aufwand**: ~2h (groß, vorsichtig vorgehen — größte Datei mit 1200+ Zeilen)  
-**Datei**: `StockDetailPage.tsx`, `StockDetailPage.module.css`
+- **[UI-C08-rest]** StockDetailPage: alle 37 statischen Inline-Styles → CSS-Klassen (`.collapseContainer`, `.cardPad`, `.cardPadSm`, `.monoXs`, `.mutedXs`, `.mlAuto`, `.riskRowMt`, `.headlineTitleMt`, Graham-Track-Widget-Klassen, Sensitivity-Widget-Klassen, LSTM-Track-Klassen, Trades-Tabellen-Zellen); 8 rein dynamische Styles (computed %-Positionen + `sensColor`) verbleiben legitimerweise inline
 
 ---
 

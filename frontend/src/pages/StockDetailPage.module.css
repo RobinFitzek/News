@@ -413,3 +413,97 @@
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
+
+/* ── Animated collapse (ExpandSection) ──────────────────────────────────── */
+.collapseContainer { overflow: hidden; }
+
+/* ── Card padding variants ───────────────────────────────────────────────── */
+.cardPad { padding: var(--space-4); }
+.cardPadSm { padding: var(--space-3) var(--space-4); }
+
+/* ── Inline layout helpers ───────────────────────────────────────────────── */
+.mlAuto { margin-left: auto; }
+.riskRowMt { margin-top: var(--space-3); }
+.headlineTitleMt { margin-top: var(--space-1); }
+
+/* ── Text size modifiers ─────────────────────────────────────────────────── */
+.monoXs { font-size: var(--text-xs); }
+.mutedXs { font-size: var(--text-xs); }
+
+/* ── Graham price-track widget ───────────────────────────────────────────── */
+.priceTrack { margin-top: var(--space-4); }
+.priceTrackLabels { display: flex; justify-content: space-between; margin-bottom: var(--space-1); }
+.monoLabel { font-family: var(--font-mono); font-size: var(--text-xs); }
+.monoLabelXxs { font-family: var(--font-mono); font-size: 10px; }
+.trackBar { position: relative; height: 6px; background: var(--bg-secondary); }
+.thresholdMarker {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 1px;
+  background: var(--border-highlight);
+  opacity: 0.6;
+}
+.priceDot {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+}
+.priceDotBuy  { background: var(--signal-positive); }
+.priceDotHold { background: var(--signal-negative); }
+.trackLegend { display: flex; justify-content: flex-end; margin-top: var(--space-1); }
+
+/* ── Sensitivity widget ──────────────────────────────────────────────────── */
+.sensContainer { display: flex; align-items: center; gap: var(--space-5); }
+.sensLeft { flex: 1; }
+.sensScaleRow { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-2); }
+.sensEdgeMinus { font-family: var(--font-mono); font-size: var(--text-xs); min-width: 32px; }
+.sensEdgePlus  { font-family: var(--font-mono); font-size: var(--text-xs); min-width: 20px; }
+.sensTrack { flex: 1; position: relative; height: 4px; background: var(--bg-secondary); }
+.centerTick {
+  position: absolute;
+  left: 50%;
+  top: -3px;
+  bottom: -3px;
+  width: 1px;
+  background: var(--border-highlight);
+}
+.sensDot {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  transition: left 0.5s var(--ease-defuse);
+}
+.sensAxisLabels {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-ghost);
+}
+.sensRight { text-align: right; }
+.sensValue { font-family: var(--font-mono); font-size: var(--text-xl); font-weight: 600; }
+.sensInterp { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--text-muted); margin-top: var(--space-1); }
+.sensFooter {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-primary);
+  display: flex;
+  gap: var(--space-4);
+}
+.sensCurrentLabel { font-family: var(--font-mono); font-size: var(--text-xs); }
+.sensCurrentValue { color: var(--text-secondary); }
+
+/* ── LSTM track widget ───────────────────────────────────────────────────── */
+.lstmTrack { flex: 1; position: relative; height: 6px; background: var(--bg-secondary); }
+.thresholdTick { position: absolute; top: -3px; bottom: -3px; width: 1px; background: var(--border-highlight); }
+.lstmConfidenceFill { height: 100%; }
+.lstmNote { font-size: var(--text-xs); margin-top: var(--space-2); }
+
+/* ── Senate trades table cells ───────────────────────────────────────────── */
+.tradeDateCell   { font-size: var(--text-xs); color: var(--text-muted); }
+.tradeSenatorCell { font-size: var(--text-sm); color: var(--text-secondary); }
