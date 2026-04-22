@@ -190,7 +190,7 @@ export function MacroPage() {
         </>
       )}
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }

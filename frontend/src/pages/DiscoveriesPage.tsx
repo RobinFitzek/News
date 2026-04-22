@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/Button'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { Spinner } from '@/components/ui/Spinner'
 import { Modal } from '@/components/ui/Modal'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { useToastStore } from '@/stores/toastStore'
 import styles from './DiscoveriesPage.module.css'
 
@@ -108,7 +109,7 @@ function DiscoveryCard({
 
         {/* Signal label */}
         {signal && (
-          <div className={styles.signal} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div className={styles.signal}>
             {(['BUY','SELL','HOLD','WATCH'] as GlyphSignal[]).includes(signal.toUpperCase() as GlyphSignal) && (
               <SignalGlyph signal={signal.toUpperCase() as GlyphSignal} size={14} />
             )}
@@ -313,9 +314,7 @@ export function DiscoveriesPage() {
             animate="visible"
           >
             {filtered.length === 0 ? (
-              <div className={styles.emptyState}>
-                No discoveries for this filter.
-              </div>
+              <EmptyState message="No discoveries for this filter." />
             ) : (
               filtered.map(discovery => (
                 <DiscoveryCard
@@ -332,7 +331,7 @@ export function DiscoveriesPage() {
         </AnimatePresence>
       )}
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
 
       {/* ── Dismiss confirmation modal ── */}
       <Modal
@@ -341,11 +340,11 @@ export function DiscoveriesPage() {
         title="Dismiss Discovery"
         size="sm"
       >
-        <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)', marginBottom: 'var(--space-6)', lineHeight: 1.6 }}>
+        <p className={styles.confirmMessage}>
           Dismiss <strong>{dismissConfirm?.ticker}</strong>{dismissConfirm?.name ? ` (${dismissConfirm.name})` : ''}?
           This marks it as dismissed and removes it from active review.
         </p>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)', paddingTop: 'var(--space-4)', borderTop: '1px solid var(--border-primary)' }}>
+        <div className={styles.modalActions}>
           <Button variant="ghost" size="md" onClick={() => setDismissConfirm(null)}>Cancel</Button>
           <Button variant="danger" size="md" loading={dismissMut.isPending} onClick={confirmDismiss}>Dismiss</Button>
         </div>

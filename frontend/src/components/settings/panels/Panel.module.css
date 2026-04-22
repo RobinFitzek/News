@@ -213,7 +213,7 @@
   inset: 0;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-primary);
-  transition: background 0.2s;
+  transition: background var(--duration-fast) var(--ease-smooth);
 }
 
 .toggle input:checked ~ .toggleTrack {
@@ -228,7 +228,7 @@
   width: 12px;
   height: 12px;
   background: var(--text-muted);
-  transition: transform 0.2s, background 0.2s;
+  transition: transform var(--duration-fast) var(--ease-smooth), background var(--duration-fast) var(--ease-smooth);
 }
 
 .toggle input:checked ~ .toggleThumb {
@@ -246,7 +246,7 @@
   cursor: pointer;
   position: relative;
   flex-shrink: 0;
-  transition: background 0.2s, border-color 0.2s;
+  transition: background var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth);
   padding: 0;
 }
 .toggle[role='switch']::after {
@@ -257,7 +257,7 @@
   width: 12px;
   height: 12px;
   background: var(--text-muted);
-  transition: transform 0.2s, background 0.2s;
+  transition: transform var(--duration-fast) var(--ease-smooth), background var(--duration-fast) var(--ease-smooth);
 }
 .toggle[role='switch'].toggleOn {
   background: var(--signal-positive);

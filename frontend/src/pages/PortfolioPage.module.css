@@ -58,10 +58,11 @@
 .sectionTitle {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
-  font-weight: 500;
+  margin: var(--space-6) 0 0;
 }
 
 .exportLink {
@@ -281,6 +282,19 @@
   padding-top: var(--space-3);
   margin-top: var(--space-3);
   border-top: 1px solid var(--border-primary);
+}
+
+.confirmMessage {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-6);
+  line-height: 1.6;
+}
+
+.tradeActions {
+  display: flex;
+  gap: var(--space-1);
+  justify-content: flex-end;
 }
 
 /* ── Loading / Empty ─────────────────────────────────────────────────────── */

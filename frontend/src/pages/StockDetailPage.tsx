@@ -185,7 +185,7 @@ function ExpandSection({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.22, ease: 'easeInOut' }}
-            style={{ overflow: 'hidden' }}
+            className={styles.collapseContainer}
           >
             <div className={styles.expandContent}>{content}</div>
           </motion.div>
@@ -597,7 +597,7 @@ function ValuationTab({ ticker }: { ticker: string }) {
               </span>
             </div>
           </div>
-          <div className={styles.riskRow} style={{ marginTop: 'var(--space-3)' }}>
+          <div className={clsx(styles.riskRow, styles.riskRowMt)}>
             <div className={styles.riskItem}>
               <span className={styles.riskItemLabel}>Growth Rate</span>
               <span className={styles.mono}>{dcf.growth_rate !== null ? `${formatNum(dcf.growth_rate * 100)}%` : '—'}</span>
@@ -614,7 +614,7 @@ function ValuationTab({ ticker }: { ticker: string }) {
       <p className={styles.sectionTitle}>Economic Moat</p>
       {moatLoading ? <LoadingPanel /> : moat && !moat.error ? (
         <Card animate>
-          <div style={{ padding: 'var(--space-4)' }}>
+          <div className={styles.cardPad}>
             <div className={styles.signalRow}>
               <span className={styles.signalLabel}>Moat Grade</span>
               <Badge variant={moat.moat_score >= 7 ? 'success' : moat.moat_score >= 4 ? 'neutral' : 'danger'}>
@@ -636,7 +636,7 @@ function ValuationTab({ ticker }: { ticker: string }) {
                         style={{ width: `${(f.score / f.max) * 100}%` }}
                       />
                     </div>
-                    <span className={styles.mono} style={{ fontSize: 'var(--text-xs)' }}>
+                    <span className={clsx(styles.mono, styles.monoXs)}>
                       {f.score}/{f.max}
                     </span>
                   </div>
@@ -653,16 +653,16 @@ function ValuationTab({ ticker }: { ticker: string }) {
         <div className={styles.headlineList}>
           {cats.catalysts.map((c, i) => (
             <Card key={i} animate delay={i * 0.04}>
-              <div style={{ padding: 'var(--space-3) var(--space-4)' }}>
+              <div className={styles.cardPadSm}>
                 <div className={styles.headlineMeta}>
                   <Badge variant="neutral" size="xs">{c.type}</Badge>
                   <span className={styles.headlineSource}>{c.date}</span>
                 </div>
-                <div className={styles.headlineTitle} style={{ marginTop: 'var(--space-1)' }}>
+                <div className={clsx(styles.headlineTitle, styles.headlineTitleMt)}>
                   {c.name}
                 </div>
                 {c.detail && (
-                  <span className={styles.muted} style={{ fontSize: 'var(--text-xs)' }}>{c.detail}</span>
+                  <span className={clsx(styles.muted, styles.mutedXs)}>{c.detail}</span>
                 )}
               </div>
             </Card>
@@ -788,7 +788,7 @@ function SupplyChainTab({ ticker }: { ticker: string }) {
                 </div>
                 <div className={styles.headlineTitle}>{item.name}</div>
                 {item.detail && (
-                  <span className={styles.muted} style={{ fontSize: 'var(--text-xs)' }}>{item.detail}</span>
+                  <span className={clsx(styles.muted, styles.mutedXs)}>{item.detail}</span>
                 )}
               </motion.div>
             ))}
@@ -853,7 +853,7 @@ function SignalsTab({ ticker }: { ticker: string }) {
             <Badge variant={graham.buy_signal ? 'success' : 'neutral'}>
               {graham.buy_signal ? 'BUY' : 'HOLD'}
             </Badge>
-            <span className={styles.signalLabel} style={{ marginLeft: 'auto' }}>
+            <span className={clsx(styles.signalLabel, styles.mlAuto)}>
               {graham.reason}
             </span>
           </div>
@@ -896,38 +896,30 @@ function SignalsTab({ ticker }: { ticker: string }) {
 
           {/* Price vs IV track */}
           {pricePosPct !== null && grahamIV !== null && (
-            <div style={{ marginTop: 'var(--space-4)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 'var(--space-1)' }}>
-                <span className={styles.muted} style={{ fontSize: 'var(--text-xs)', fontFamily: 'var(--font-mono)' }}>$0</span>
-                <span className={styles.muted} style={{ fontSize: 'var(--text-xs)', fontFamily: 'var(--font-mono)' }}>IV ${grahamIV.toFixed(0)} (50%)</span>
-                <span className={styles.muted} style={{ fontSize: 'var(--text-xs)', fontFamily: 'var(--font-mono)' }}>2× IV</span>
+            <div className={styles.priceTrack}>
+              <div className={styles.priceTrackLabels}>
+                <span className={clsx(styles.muted, styles.monoLabel)}>$0</span>
+                <span className={clsx(styles.muted, styles.monoLabel)}>IV ${grahamIV.toFixed(0)} (50%)</span>
+                <span className={clsx(styles.muted, styles.monoLabel)}>2× IV</span>
               </div>
-              <div style={{ position: 'relative', height: '6px', background: 'var(--bg-secondary)' }}>
+              <div className={styles.trackBar}>
                 {/* Buy threshold marker */}
                 {thresholdPosPct !== null && (
-                  <div style={{
-                    position: 'absolute',
-                    left: `${thresholdPosPct}%`,
-                    top: '-4px',
-                    bottom: '-4px',
-                    width: '1px',
-                    background: 'var(--border-highlight)',
-                    opacity: 0.6,
-                  }} title={`Buy threshold $${grahamBuyThreshold?.toFixed(2)}`} />
+                  <div
+                    className={styles.thresholdMarker}
+                    style={{ left: `${thresholdPosPct}%` }}
+                    title={`Buy threshold $${grahamBuyThreshold?.toFixed(2)}`}
+                  />
                 )}
                 {/* Price dot */}
-                <div style={{
-                  position: 'absolute',
-                  left: `${pricePosPct}%`,
-                  top: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  width: '10px',
-                  height: '10px',
-                  background: graham.buy_signal ? 'var(--signal-positive)' : 'var(--signal-negative)',
-                }} title={`Current price $${grahamPrice?.toFixed(2)}`} />
+                <div
+                  className={clsx(styles.priceDot, graham.buy_signal ? styles.priceDotBuy : styles.priceDotHold)}
+                  style={{ left: `${pricePosPct}%` }}
+                  title={`Current price $${grahamPrice?.toFixed(2)}`}
+                />
               </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 'var(--space-1)' }}>
-                <span className={styles.muted} style={{ fontSize: '10px', fontFamily: 'var(--font-mono)' }}>
+              <div className={styles.trackLegend}>
+                <span className={clsx(styles.muted, styles.monoLabelXxs)}>
                   ▲ price &nbsp;│&nbsp; │ buy threshold
                 </span>
               </div>
@@ -940,53 +932,40 @@ function SignalsTab({ ticker }: { ticker: string }) {
       <p className={styles.sectionTitle}>Fear &amp; Greed Sensitivity (60d)</p>
       {sensLoading ? <LoadingPanel /> : (
         <Card animate className={styles.signalCard}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-5)' }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-2)' }}>
-                <span className={styles.muted} style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', minWidth: 32 }}>−1</span>
-                <div style={{ flex: 1, position: 'relative', height: '4px', background: 'var(--bg-secondary)' }}>
-                  <div style={{
-                    position: 'absolute',
-                    left: '50%',
-                    top: '-3px',
-                    bottom: '-3px',
-                    width: '1px',
-                    background: 'var(--border-highlight)',
-                  }} />
+          <div className={styles.sensContainer}>
+            <div className={styles.sensLeft}>
+              <div className={styles.sensScaleRow}>
+                <span className={clsx(styles.muted, styles.sensEdgeMinus)}>−1</span>
+                <div className={styles.sensTrack}>
+                  <div className={styles.centerTick} />
                   {sensPosPct !== null && (
-                    <div style={{
-                      position: 'absolute',
-                      left: `${sensPosPct}%`,
-                      top: '50%',
-                      transform: 'translate(-50%, -50%)',
-                      width: '10px',
-                      height: '10px',
-                      background: sensColor,
-                      transition: 'left 0.5s var(--ease-defuse)',
-                    }} />
+                    <div
+                      className={styles.sensDot}
+                      style={{ left: `${sensPosPct}%`, background: sensColor }}
+                    />
                   )}
                 </div>
-                <span className={styles.muted} style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', minWidth: 20 }}>+1</span>
+                <span className={clsx(styles.muted, styles.sensEdgePlus)}>+1</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)', fontSize: '10px', color: 'var(--text-ghost)' }}>
+              <div className={styles.sensAxisLabels}>
                 <span>Inverse</span>
                 <span>Neutral</span>
                 <span>Aligned</span>
               </div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xl)', fontWeight: 600, color: sensColor }}>
+            <div className={styles.sensRight}>
+              <div className={styles.sensValue} style={{ color: sensColor }}>
                 {sensFactor !== null ? sensFactor.toFixed(2) : '—'}
               </div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--text-muted)', marginTop: 4 }}>
+              <div className={styles.sensInterp}>
                 {sens?.interpretation ?? 'No data'}
               </div>
             </div>
           </div>
           {fg?.fg_value !== null && (
-            <div style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-primary)', display: 'flex', gap: 'var(--space-4)' }}>
-              <span className={styles.muted} style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)' }}>
-                Current F&amp;G: <span style={{ color: 'var(--text-secondary)' }}>{fg.fg_value?.toFixed(0)} — {fg.fg_label}</span>
+            <div className={styles.sensFooter}>
+              <span className={clsx(styles.muted, styles.sensCurrentLabel)}>
+                Current F&amp;G: <span className={styles.sensCurrentValue}>{fg.fg_value?.toFixed(0)} — {fg.fg_label}</span>
               </span>
             </div>
           )}
@@ -1002,32 +981,30 @@ function SignalsTab({ ticker }: { ticker: string }) {
             <Badge variant={lstm.buy_signal ? 'success' : 'neutral'}>
               {lstm.buy_signal ? 'BUY' : 'HOLD'}
             </Badge>
-            <span className={styles.signalLabel} style={{ marginLeft: 'auto' }}>
+            <span className={clsx(styles.signalLabel, styles.mlAuto)}>
               threshold {(lstm.threshold * 100).toFixed(0)}%
             </span>
           </div>
 
           <div className={styles.confidenceRow}>
             <span className={styles.confidenceLabel}>Confidence</span>
-            {/* 100px track with tick at 50% threshold */}
-            <div style={{ flex: 1, position: 'relative', height: '6px', background: 'var(--bg-secondary)' }}>
+            {/* track with tick at threshold */}
+            <div className={styles.lstmTrack}>
               {/* threshold tick */}
-              <div style={{
-                position: 'absolute',
-                left: `${lstm.threshold * 100}%`,
-                top: '-3px', bottom: '-3px',
-                width: '1px',
-                background: 'var(--border-highlight)',
-              }} />
+              <div
+                className={styles.thresholdTick}
+                style={{ left: `${lstm.threshold * 100}%` }}
+              />
               {/* confidence fill */}
               {lstm.confidence !== null && (
                 <div
                   className={clsx(
                     styles.confidenceBarFill,
+                    styles.lstmConfidenceFill,
                     lstm.confidence >= 70 ? styles.high :
                     lstm.confidence >= 40 ? styles.medium : styles.low
                   )}
-                  style={{ width: `${lstm.confidence}%`, height: '100%' }}
+                  style={{ width: `${lstm.confidence}%` }}
                 />
               )}
             </div>
@@ -1036,7 +1013,7 @@ function SignalsTab({ ticker }: { ticker: string }) {
             </span>
           </div>
 
-          <p className={styles.muted} style={{ fontSize: 'var(--text-xs)', marginTop: 'var(--space-2)' }}>
+          <p className={clsx(styles.muted, styles.lstmNote)}>
             28-feature LSTM (price, fundamentals, VIX 10/20/30d, F&amp;G sensitivity, Senate activity).
             Predicts ≥5% return over 20 days.
           </p>
@@ -1073,19 +1050,19 @@ function SignalsTab({ ticker }: { ticker: string }) {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: i * 0.03, duration: 0.2 }}
                   >
-                    <td className={styles.mono} style={{ fontSize: 'var(--text-xs)', color: 'var(--text-muted)' }}>
+                    <td className={clsx(styles.mono, styles.tradeDateCell)}>
                       {new Date(t.date).toLocaleDateString('sv-SE', { month: 'short', day: 'numeric', year: 'numeric' })}
                     </td>
-                    <td style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>{t.senator}</td>
+                    <td className={styles.tradeSenatorCell}>{t.senator}</td>
                     <td>
                       <Badge variant={t.is_buy ? 'success' : t.is_sell ? 'danger' : 'neutral'}>
                         {t.is_buy ? 'BUY' : t.is_sell ? 'SELL' : (t.tx_type || 'OTHER').toUpperCase()}
                       </Badge>
                     </td>
-                    <td className={clsx(styles.mono, styles.muted)} style={{ fontSize: 'var(--text-xs)' }}>
+                    <td className={clsx(styles.mono, styles.tradeDateCell)}>
                       {t.asset_type || '—'}
                     </td>
-                    <td className={clsx(styles.mono, 'right')} style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
+                    <td className={clsx(styles.mono, 'right', styles.tradeSenatorCell)}>
                       {fmtAmount(t.amount_mid)}
                     </td>
                   </motion.tr>
@@ -1199,7 +1176,7 @@ export function StockDetailPage() {
         </AnimatePresence>
       </div>
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }

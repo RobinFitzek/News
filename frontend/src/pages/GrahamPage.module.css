@@ -261,6 +261,12 @@
   line-height: 1.7;
 }
 
+.numWarning {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--signal-warning);
+}
+
 .loading {
   display: flex;
   align-items: center;

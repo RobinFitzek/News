@@ -16,10 +16,17 @@
 .sectionTitle {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
-  margin-bottom: var(--space-3);
+  margin: 0 0 var(--space-3);
+}
+
+.signalBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 /* ── Table ────────────────────────────────────── */

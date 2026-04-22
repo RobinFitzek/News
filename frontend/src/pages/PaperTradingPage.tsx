@@ -369,7 +369,7 @@ export function PaperTradingPage() {
         </div>
       </Card>
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }

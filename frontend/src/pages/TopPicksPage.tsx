@@ -10,6 +10,7 @@ import { SignalGlyph } from '@/components/ui/SignalGlyph'
 import type { SignalType as GlyphSignal } from '@/components/ui/SignalGlyph'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { Spinner } from '@/components/ui/Spinner'
+import { EmptyState } from '@/components/ui/EmptyState'
 import styles from './TopPicksPage.module.css'
 
 function accuracyTier(acc: number): 'Green' | 'Amber' | 'Red' {
@@ -109,7 +110,7 @@ export function TopPicksPage() {
 
           {/* Top Picks table */}
           <div className={styles.section}>
-            <div className={styles.sectionTitle}>Top Picks Ranked</div>
+            <h3 className={styles.sectionTitle}>Top Picks Ranked</h3>
             <Card className={styles.tableCard}>
               <div className={styles.tableWrapper}>
                 <table className={styles.table}>
@@ -152,7 +153,7 @@ export function TopPicksPage() {
                           <span className={styles.mono}>{pick.avg_confidence.toFixed(1)}%</span>
                         </td>
                         <td>
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                          <span className={styles.signalBadge}>
                             {isGlyphSignal(pick.last_signal) && <SignalGlyph signal={pick.last_signal} size={14} />}
                             <Badge variant={signalVariant(pick.last_signal)}>
                               {pick.last_signal}
@@ -181,9 +182,7 @@ export function TopPicksPage() {
                     {topPicks.length === 0 && (
                       <tr>
                         <td colSpan={8}>
-                          <div style={{ padding: 'var(--space-8)', textAlign: 'center', color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-                            No top picks yet.
-                          </div>
+                          <EmptyState message="No top picks yet." />
                         </td>
                       </tr>
                     )}
@@ -195,13 +194,11 @@ export function TopPicksPage() {
 
           {/* Recent High-Confidence Signals */}
           <div className={styles.section}>
-            <div className={styles.sectionTitle}>
+            <h3 className={styles.sectionTitle}>
               Recent High-Confidence Signals — Last 7 days
-            </div>
+            </h3>
             {recentFiltered.length === 0 ? (
-              <div style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>
-                No recent signals in the past 7 days.
-              </div>
+              <EmptyState message="No recent signals in the past 7 days." />
             ) : (
               <div className={styles.signalsGrid}>
                 {recentFiltered.map((sig, i) => (
@@ -214,7 +211,7 @@ export function TopPicksPage() {
                     <Card className={styles.signalCard} delay={i * 0.04}>
                       <div className={styles.signalCardTicker}>{sig.ticker}</div>
                       <div className={styles.signalCardMeta}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <span className={styles.signalBadge}>
                           {isGlyphSignal(sig.signal) && <SignalGlyph signal={sig.signal as GlyphSignal} size={14} />}
                           <Badge variant={signalVariant(sig.signal)}>{sig.signal}</Badge>
                         </span>
@@ -232,7 +229,7 @@ export function TopPicksPage() {
         </>
       )}
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }

@@ -4,6 +4,7 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
+import { EmptyState } from '@/components/ui/EmptyState'
 import styles from './CorporateActionsPage.module.css'
 
 const ACTION_TYPES = [
@@ -92,7 +93,7 @@ export function CorporateActionsPage() {
           {/* Actions table */}
           <Card className={styles.tableCard} delay={0.15}>
             {actions.length === 0 ? (
-              <div className={styles.emptyState}>No corporate actions found.</div>
+              <EmptyState message="No corporate actions found." />
             ) : (
               <div className={styles.tableWrapper}>
                 <table className={styles.table}>
@@ -133,7 +134,7 @@ export function CorporateActionsPage() {
         </>
       )}
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }

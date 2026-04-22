@@ -129,11 +129,6 @@
   padding: var(--space-16);
 }
 
-.emptyState {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--space-16);
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
+.severityHigh { color: var(--signal-negative); }
+.severityMid  { color: var(--signal-warning); }
+.severityLow  { color: var(--signal-positive); }

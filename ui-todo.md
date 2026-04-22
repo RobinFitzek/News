@@ -15,24 +15,23 @@
 - **[UI-07]** Journal Ticker-Filter (Freitext-Suche in Einträgen)
 - **[UI-08]** Discovery Bestätigungs-Dialog für Dismiss
 
+## ✅ UI-Konsistenz — Iteration 2 (Branch: claude/improve-ui-consistency-ByuiX)
+
+- **[UI-C01]** `EmptyState`-Komponente erstellt — einheitlicher leerer Zustand mit `message`, `hint`, `action`-Props
+- **[UI-C02]** EmptyState in 8 Seiten eingesetzt: JournalPage, WatchlistPage, HistoryPage, GrahamPage, PoliticianTradesPage, CorporateActionsPage, DiscoveriesPage, TopPicksPage (ersetzt 5 verschiedene Muster)
+- **[UI-C03]** `.pageEnd`-Utility-Klasse in globals.css — ersetzt 7x `style={{ height: 'var(--space-16)' }}`
+- **[UI-C04]** Inline-Styles → CSS-Module: `signalBadge`-Klassen in HistoryPage, WatchlistPage, TopPicksPage; `grahamCell` + `upsidePositive/Negative` in WatchlistPage; `confirmMessage` + `modalActions` in DiscoveriesPage
+- **[UI-C05]** Abschnittstitel semantisch korrigiert: `<span>` und `<p>` → `<h3>` in PortfolioPage (3×), `<div>` → `<h3>` in TopPicksPage (2×)
+- **[UI-C06]** WatchlistPage Actions-Spalte: Spacer + `danger`-Variante für Remove-Button (analog zu JournalPage)
+- **[UI-C07]** Animation-Token-Fixes: `0.2s`/`0.15s` → `var(--duration-fast)`/`var(--duration-instant)` in `Panel.module.css` (4 Stellen) und `PanelAppearance.module.css`
+
 ---
 
-## 🔲 OFFEN — Mittel-Priorität
+## ✅ Mittel-Priorität — Abgeschlossen
 
-### [UI-09] Watchlist CSV-Export
-**Was**: Button "Export CSV" der die aktuell gefilterte Watchlist als CSV herunterlädt  
-**Aufwand**: ~1h, rein frontend (client-side CSV-Generierung aus geladenen Daten)  
-**Datei**: `WatchlistPage.tsx`
-
-### [UI-10] Portfolio Trade bearbeiten
-**Was**: Edit-Button in der Trades-Tabelle öffnet Modal mit vorausgefüllten Feldern  
-**Aufwand**: ~3h (Backend PATCH /api/portfolio/trade/{id} + Frontend Modal)  
-**Dateien**: `PortfolioPage.tsx`, `app.py`
-
-### [UI-11] Journal Datumsfilter
-**Was**: Von/Bis Datumsauswahl um Einträge zeitlich einzugrenzen  
-**Aufwand**: ~2h, Backend `?from=&to=` Query-Params + Frontend Datepicker  
-**Dateien**: `JournalPage.tsx`, `app.py` (`/api/journal`)
+- **[UI-09]** Watchlist CSV-Export: `handleExportCSV()` generiert CSV aus gefilterter/sortierter View (Ticker, Name, Tier, Signal, Confidence, Graham Upside, Geo Risk, Days, Note); Ghost-Button in Controls-Row, client-side Blob-Download
+- **[UI-10]** Portfolio Trade Edit + Delete: `PATCH /api/portfolio/trade/{id}` + `DELETE`; `useUpdateTrade()`/`useDeleteTrade()` Hooks; Edit-Button in Trade-Log-Zeilen → vorausgefülltes Modal; Delete mit Bestätigungs-Dialog; `db.update_trade()` + `db.delete_trade()` in `core/database.py`
+- **[UI-11]** Journal Datumsfilter: `fromDate`/`toDate` State; ISO-String-Vergleich `slice(0,10)`; zwei `<input type="date">` in Filter-Row; Clear-Button + EmptyState berücksichtigen Datumsfilter; `.dateInput` CSS-Klasse
 
 ### [UI-12] Skeleton Loader statt Spinner
 **Was**: Statt eines mittig platzierten Spinners beim Laden: Platzhalter-Zeilen in Tabellenform  
@@ -80,4 +79,17 @@
 
 ---
 
-*Erstellt: 2026-04-21 | Branch: claude/optimize-existing-systems-q4kuS*
+## 🔲 OFFEN — Konsistenz (nächste Iteration)
+
+- **[UI-C08]** StockDetailPage `pageEnd`-Spacer migriert (Inline-Style → `className="pageEnd"`)
+- **[UI-C09]** ScenariosPage + GeoHistoryPage: `impactColor()`/`severityColor()` Hardcode-Hex → CSS-Klassen (`.impactPositive/.impactNegative`, `.severityHigh/.severityMid/.severityLow`); GeoHistoryPage EmptyState eingesetzt; `pageEnd` angewendet
+- **[UI-C10]** GrahamPage `buy_threshold` Inline-Color → `.numWarning`-Klasse in GrahamPage.module.css
+- **[UI-C11]** PoliticianTradesPage: native `filterBtn`/`clearBtn` → `Button`-Komponente (`secondary md` / `ghost md`); tote CSS-Klassen entfernt
+- **[UI-C12]** `pageEnd` auf allen 18 restlichen Seiten ausgerollt: ArchitecturePage, BacktestPage, CompareStocksPage, CrosscheckPage, DiscoverPage, FearGreedPage, GraveyardPage, InsiderActivityPage, LSTMPage, LearningPage, LogsPage, MacroPage, PaperTradingPage, SectorScreenPage, StockDetailPage, TrustPage, ScenariosPage, GeoHistoryPage
+
+- **[UI-C08-rest]** StockDetailPage: alle 37 statischen Inline-Styles → CSS-Klassen (`.collapseContainer`, `.cardPad`, `.cardPadSm`, `.monoXs`, `.mutedXs`, `.mlAuto`, `.riskRowMt`, `.headlineTitleMt`, Graham-Track-Widget-Klassen, Sensitivity-Widget-Klassen, LSTM-Track-Klassen, Trades-Tabellen-Zellen); 8 rein dynamische Styles (computed %-Positionen + `sensColor`) verbleiben legitimerweise inline
+
+---
+
+*Erstellt: 2026-04-21 | Branch: claude/optimize-existing-systems-q4kuS*  
+*Konsistenz ergänzt: 2026-04-22 | Branch: claude/improve-ui-consistency-ByuiX*

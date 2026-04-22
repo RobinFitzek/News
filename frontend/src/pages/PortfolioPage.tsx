@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import clsx from 'clsx'
-import { usePortfolio, useAddTrade } from '@/api/endpoints/portfolioTracker'
-import type { AddTradePayload } from '@/api/endpoints/portfolioTracker'
+import { usePortfolio, useAddTrade, useUpdateTrade, useDeleteTrade } from '@/api/endpoints/portfolioTracker'
+import type { AddTradePayload, Trade } from '@/api/endpoints/portfolioTracker'
 import { usePortfolioAsk } from '@/api/endpoints/portfolio'
 import type { PortfolioQAResponse } from '@/api/endpoints/portfolio'
 import {
@@ -61,9 +61,9 @@ function PortfolioRiskSection() {
 
   return (
     <>
-      <p className={styles.sectionTitle} style={{ marginTop: 'var(--space-6)' }}>
+      <h3 className={styles.sectionTitle}>
         Risk Analytics
-      </p>
+      </h3>
 
       {/* VaR + Drawdown row */}
       <div className={styles.riskGrid}>
@@ -128,7 +128,7 @@ function PortfolioRiskSection() {
       {concData && !concData.error && (
         <Card className={styles.tableCard} animate={false}>
           <div className={styles.sectionHeader}>
-            <span className={styles.sectionTitle}>Concentration</span>
+            <h3 className={styles.sectionTitle}>Concentration</h3>
             {concData.warnings.length > 0 && (
               <Badge variant="warning" size="xs">{concData.warnings.length} warnings</Badge>
             )}
@@ -173,7 +173,7 @@ function PortfolioRiskSection() {
       {corrData && !corrData.error && corrData.tickers.length >= 2 && (
         <Card className={styles.tableCard} animate={false}>
           <div className={styles.sectionHeader}>
-            <span className={styles.sectionTitle}>Correlation Matrix</span>
+            <h3 className={styles.sectionTitle}>Correlation Matrix</h3>
           </div>
           <div className={styles.tableWrapper}>
             <table className={styles.corrTable}>
@@ -282,12 +282,21 @@ function PortfolioRiskSection() {
 export function PortfolioPage() {
   const { data, isLoading } = usePortfolio()
   const addTradeMut = useAddTrade()
+  const updateTradeMut = useUpdateTrade()
+  const deleteTradeMut = useDeleteTrade()
   const askMut = usePortfolioAsk()
   const { addToast } = useToastStore()
 
   const [showModal, setShowModal] = useState(false)
   const [showTradeLog, setShowTradeLog] = useState(false)
   const [form, setForm] = useState<AddTradePayload>(DEFAULT_FORM)
+
+  // Edit trade modal
+  const [editTrade, setEditTrade] = useState<Trade | null>(null)
+  const [editForm, setEditForm] = useState<AddTradePayload>(DEFAULT_FORM)
+
+  // Delete confirm
+  const [deleteTrade, setDeleteTrade] = useState<Trade | null>(null)
   const [question, setQuestion] = useState('')
   const [qaResult, setQaResult] = useState<PortfolioQAResponse | null>(null)
   const qaInputRef = useRef<HTMLInputElement>(null)
@@ -318,6 +327,49 @@ export function PortfolioPage() {
       setShowModal(false)
     } catch {
       addToast('Failed to add trade', 'error')
+    }
+  }
+
+  function openEditTrade(trade: Trade) {
+    setEditTrade(trade)
+    setEditForm({
+      ticker: trade.ticker,
+      type: trade.type,
+      amount: trade.amount,
+      price: trade.price,
+      date: trade.date,
+      fees: trade.fees ?? 0,
+      notes: trade.notes ?? '',
+      currency: trade.currency ?? 'USD',
+    })
+  }
+
+  async function handleUpdateTrade() {
+    if (!editTrade || !editForm.ticker.trim()) return
+    try {
+      await updateTradeMut.mutateAsync({
+        id: editTrade.id,
+        ...editForm,
+        ticker: editForm.ticker.trim().toUpperCase(),
+        amount: Number(editForm.amount),
+        price: Number(editForm.price),
+        fees: Number(editForm.fees ?? 0),
+      })
+      addToast('Trade updated', 'success')
+      setEditTrade(null)
+    } catch {
+      addToast('Failed to update trade', 'error')
+    }
+  }
+
+  async function handleDeleteTrade() {
+    if (!deleteTrade) return
+    try {
+      await deleteTradeMut.mutateAsync(deleteTrade.id)
+      addToast('Trade deleted', 'info')
+      setDeleteTrade(null)
+    } catch {
+      addToast('Failed to delete trade', 'error')
     }
   }
 
@@ -378,7 +430,7 @@ export function PortfolioPage() {
           {/* Holdings table */}
           <Card className={styles.tableCard} animate={false}>
             <div className={styles.sectionHeader}>
-              <span className={styles.sectionTitle}>Holdings</span>
+              <h3 className={styles.sectionTitle}>Holdings</h3>
               <a className={styles.exportLink} href="/portfolio/export">
                 Export CSV
               </a>
@@ -473,6 +525,7 @@ export function PortfolioPage() {
                           <th>Fees</th>
                           <th>Currency</th>
                           <th>Notes</th>
+                          <th />
                         </tr>
                       </thead>
                       <tbody>
@@ -496,6 +549,12 @@ export function PortfolioPage() {
                             <td>{t.fees ? fmtCurrency(t.fees) : '—'}</td>
                             <td>{t.currency}</td>
                             <td>{t.notes || '—'}</td>
+                            <td>
+                              <div className={styles.tradeActions}>
+                                <Button variant="ghost" size="sm" onClick={() => openEditTrade(t)}>Edit</Button>
+                                <Button variant="danger" size="sm" onClick={() => setDeleteTrade(t)}>Delete</Button>
+                              </div>
+                            </td>
                           </motion.tr>
                         ))}
                       </tbody>
@@ -705,7 +764,98 @@ export function PortfolioPage() {
         </AnimatePresence>
       </Card>
 
-      <div style={{ height: 'var(--space-16)' }} />
+      {/* Edit Trade Modal */}
+      <Modal
+        open={editTrade !== null}
+        onClose={() => setEditTrade(null)}
+        title={`Edit Trade — ${editTrade?.ticker ?? ''}`}
+        size="md"
+      >
+        <div className={styles.formGrid}>
+          <div className={styles.formField}>
+            <label className={styles.label}>Ticker</label>
+            <input className={styles.input} placeholder="AAPL"
+              value={editForm.ticker}
+              onChange={e => setEditForm(p => ({ ...p, ticker: e.target.value.toUpperCase() }))} />
+          </div>
+          <div className={styles.formField}>
+            <label className={styles.label}>Type</label>
+            <select className={styles.select} value={editForm.type}
+              onChange={e => setEditForm(p => ({ ...p, type: e.target.value as 'BUY' | 'SELL' }))}>
+              <option value="BUY">BUY</option>
+              <option value="SELL">SELL</option>
+            </select>
+          </div>
+          <div className={styles.formField}>
+            <label className={styles.label}>Shares / Amount</label>
+            <input className={styles.input} type="number" min="0" step="any" placeholder="100"
+              value={editForm.amount || ''}
+              onChange={e => setEditForm(p => ({ ...p, amount: parseFloat(e.target.value) || 0 }))} />
+          </div>
+          <div className={styles.formField}>
+            <label className={styles.label}>Price</label>
+            <input className={styles.input} type="number" min="0" step="any" placeholder="150.00"
+              value={editForm.price || ''}
+              onChange={e => setEditForm(p => ({ ...p, price: parseFloat(e.target.value) || 0 }))} />
+          </div>
+          <div className={styles.formField}>
+            <label className={styles.label}>Date</label>
+            <input className={styles.input} type="date" value={editForm.date}
+              onChange={e => setEditForm(p => ({ ...p, date: e.target.value }))} />
+          </div>
+          <div className={styles.formField}>
+            <label className={styles.label}>Fees</label>
+            <input className={styles.input} type="number" min="0" step="any" placeholder="0.00"
+              value={editForm.fees || ''}
+              onChange={e => setEditForm(p => ({ ...p, fees: parseFloat(e.target.value) || 0 }))} />
+          </div>
+          <div className={styles.formField}>
+            <label className={styles.label}>Currency</label>
+            <select className={styles.select} value={editForm.currency}
+              onChange={e => setEditForm(p => ({ ...p, currency: e.target.value }))}>
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="SEK">SEK</option>
+              <option value="GBP">GBP</option>
+            </select>
+          </div>
+          <div className={clsx(styles.formField, styles.fullWidth)}>
+            <label className={styles.label}>Notes</label>
+            <textarea className={styles.textarea} placeholder="Optional notes..."
+              value={editForm.notes ?? ''}
+              onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} />
+          </div>
+        </div>
+        <div className={styles.modalActions}>
+          <Button variant="ghost" size="md" onClick={() => setEditTrade(null)}>Cancel</Button>
+          <Button variant="primary" size="md" loading={updateTradeMut.isPending}
+            onClick={handleUpdateTrade}
+            disabled={!editForm.ticker.trim() || !editForm.amount || !editForm.price}>
+            Save Changes
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Delete Trade Confirm */}
+      <Modal
+        open={deleteTrade !== null}
+        onClose={() => setDeleteTrade(null)}
+        title="Delete Trade"
+        size="sm"
+      >
+        <p className={styles.confirmMessage}>
+          Delete the {deleteTrade?.type} trade for <strong>{deleteTrade?.ticker}</strong> on {deleteTrade?.date}?
+          This cannot be undone and will affect your portfolio calculations.
+        </p>
+        <div className={styles.modalActions}>
+          <Button variant="ghost" size="md" onClick={() => setDeleteTrade(null)}>Cancel</Button>
+          <Button variant="danger" size="md" loading={deleteTradeMut.isPending} onClick={handleDeleteTrade}>
+            Delete
+          </Button>
+        </div>
+      </Modal>
+
+      <div className="pageEnd" />
     </>
   )
 }

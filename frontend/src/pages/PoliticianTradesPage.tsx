@@ -6,8 +6,10 @@ import type { PoliticianTrade, TopTicker } from '@/api/endpoints/politicians'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { Spinner } from '@/components/ui/Spinner'
+import { EmptyState } from '@/components/ui/EmptyState'
 import styles from './PoliticianTradesPage.module.css'
 
 const DAYS_OPTIONS = [14, 30, 60, 90]
@@ -94,9 +96,9 @@ export function PoliticianTradesPage() {
             onKeyDown={e => e.key === 'Enter' && applyFilter()}
             maxLength={10}
           />
-          <button className={styles.filterBtn} onClick={applyFilter}>Search</button>
+          <Button size="md" onClick={applyFilter}>Search</Button>
           {activeTicker && (
-            <button className={styles.clearBtn} onClick={clearFilter}>✕ Clear</button>
+            <Button variant="ghost" size="md" onClick={clearFilter}>✕ Clear</Button>
           )}
         </div>
         <div className={styles.daysGroup}>
@@ -173,16 +175,10 @@ export function PoliticianTradesPage() {
           {tradesLoading ? (
             <div className={styles.loading}><Spinner size="lg" /></div>
           ) : trades.length === 0 ? (
-            <div className={styles.emptyState}>
-              <div className={styles.emptyTitle}>No disclosures found</div>
-              <div className={styles.emptyText}>
-                {activeTicker
-                  ? `No Senate trades found for ${activeTicker} in the last ${days} days.`
-                  : 'No disclosures in the selected window.'
-                }<br />
-                Remember: the STOCK Act allows a 45-day filing lag.
-              </div>
-            </div>
+            <EmptyState
+              message="No disclosures found"
+              hint={`${activeTicker ? `No Senate trades found for ${activeTicker} in the last ${days} days.` : 'No disclosures in the selected window.'} Remember: the STOCK Act allows a 45-day filing lag.`}
+            />
           ) : (
             <div className={styles.tableWrapper}>
               <table className={styles.table}>
@@ -224,7 +220,7 @@ export function PoliticianTradesPage() {
         </Card>
       </div>
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }
