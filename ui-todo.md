@@ -27,22 +27,11 @@
 
 ---
 
-## 🔲 OFFEN — Mittel-Priorität
+## ✅ Mittel-Priorität — Abgeschlossen
 
-### [UI-09] Watchlist CSV-Export
-**Was**: Button "Export CSV" der die aktuell gefilterte Watchlist als CSV herunterlädt  
-**Aufwand**: ~1h, rein frontend (client-side CSV-Generierung aus geladenen Daten)  
-**Datei**: `WatchlistPage.tsx`
-
-### [UI-10] Portfolio Trade bearbeiten
-**Was**: Edit-Button in der Trades-Tabelle öffnet Modal mit vorausgefüllten Feldern  
-**Aufwand**: ~3h (Backend PATCH /api/portfolio/trade/{id} + Frontend Modal)  
-**Dateien**: `PortfolioPage.tsx`, `app.py`
-
-### [UI-11] Journal Datumsfilter
-**Was**: Von/Bis Datumsauswahl um Einträge zeitlich einzugrenzen  
-**Aufwand**: ~2h, Backend `?from=&to=` Query-Params + Frontend Datepicker  
-**Dateien**: `JournalPage.tsx`, `app.py` (`/api/journal`)
+- **[UI-09]** Watchlist CSV-Export: `handleExportCSV()` generiert CSV aus gefilterter/sortierter View (Ticker, Name, Tier, Signal, Confidence, Graham Upside, Geo Risk, Days, Note); Ghost-Button in Controls-Row, client-side Blob-Download
+- **[UI-10]** Portfolio Trade Edit + Delete: `PATCH /api/portfolio/trade/{id}` + `DELETE`; `useUpdateTrade()`/`useDeleteTrade()` Hooks; Edit-Button in Trade-Log-Zeilen → vorausgefülltes Modal; Delete mit Bestätigungs-Dialog; `db.update_trade()` + `db.delete_trade()` in `core/database.py`
+- **[UI-11]** Journal Datumsfilter: `fromDate`/`toDate` State; ISO-String-Vergleich `slice(0,10)`; zwei `<input type="date">` in Filter-Row; Clear-Button + EmptyState berücksichtigen Datumsfilter; `.dateInput` CSS-Klasse
 
 ### [UI-12] Skeleton Loader statt Spinner
 **Was**: Statt eines mittig platzierten Spinners beim Laden: Platzhalter-Zeilen in Tabellenform  
