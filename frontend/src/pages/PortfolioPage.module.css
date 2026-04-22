@@ -284,6 +284,19 @@
   border-top: 1px solid var(--border-primary);
 }
 
+.confirmMessage {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-6);
+  line-height: 1.6;
+}
+
+.tradeActions {
+  display: flex;
+  gap: var(--space-1);
+  justify-content: flex-end;
+}
+
 /* ── Loading / Empty ─────────────────────────────────────────────────────── */
 
 .loading {

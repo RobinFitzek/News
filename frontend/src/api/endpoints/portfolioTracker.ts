@@ -68,3 +68,19 @@ export function useAddTrade() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['portfolio'] }),
   })
 }
+
+export function useUpdateTrade() {
+  return useMutation({
+    mutationFn: ({ id, ...payload }: AddTradePayload & { id: number }) =>
+      api.patch(`/api/portfolio/trade/${id}`, payload).then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['portfolio'] }),
+  })
+}
+
+export function useDeleteTrade() {
+  return useMutation({
+    mutationFn: (id: number) =>
+      api.delete(`/api/portfolio/trade/${id}`).then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['portfolio'] }),
+  })
+}

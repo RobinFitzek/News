@@ -2084,6 +2084,21 @@ class Database:
         conn.commit()
         conn.close()
 
+    def update_trade(self, trade_id: int, ticker: str, trade_type: str, amount: float,
+                     price: float, date: str, fees: float = 0, notes: str = "",
+                     currency: str = "USD"):
+        """Update an existing portfolio trade."""
+        self.execute("""
+            UPDATE portfolio_trades
+            SET ticker=?, type=?, amount=?, price=?, date=?, fees=?, notes=?, currency=?
+            WHERE id=?
+        """, (ticker.upper(), trade_type.upper(), amount, price, date, fees, notes,
+              currency.upper(), trade_id))
+
+    def delete_trade(self, trade_id: int):
+        """Delete a portfolio trade by id."""
+        self.execute("DELETE FROM portfolio_trades WHERE id=?", (trade_id,))
+
     def save_fx_snapshot(self, from_currency: str, to_currency: str, rate: float):
         """Save an FX rate snapshot."""
         self.execute(

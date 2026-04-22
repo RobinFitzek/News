@@ -6184,6 +6184,45 @@ async def api_add_trade(
     return {"status": "added"}
 
 
+@app.patch("/api/portfolio/trade/{trade_id}")
+async def api_update_trade(
+    trade_id: int,
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """Update an existing portfolio trade — JSON for React SPA"""
+    _verify_spa_csrf(request)
+    data = await request.json()
+    ticker = data.get("ticker", "").upper()
+    if not ticker:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="ticker required")
+    db.update_trade(
+        trade_id=trade_id,
+        ticker=ticker,
+        trade_type=data.get("type", "BUY"),
+        amount=float(data.get("amount", 0)),
+        price=float(data.get("price", 0)),
+        date=data.get("date"),
+        fees=float(data.get("fees", 0)),
+        notes=data.get("notes", ""),
+        currency=data.get("currency", "USD").upper(),
+    )
+    return {"status": "updated"}
+
+
+@app.delete("/api/portfolio/trade/{trade_id}")
+async def api_delete_trade(
+    trade_id: int,
+    request: Request,
+    username: str = Depends(require_auth)
+):
+    """Delete a portfolio trade — JSON for React SPA"""
+    _verify_spa_csrf(request)
+    db.delete_trade(trade_id)
+    return {"status": "deleted"}
+
+
 # ── Paper Trading ─────────────────────────────────────────────────────────────
 
 @app.get("/api/paper-trading")
