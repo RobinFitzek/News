@@ -8,6 +8,7 @@ import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { Spinner } from '@/components/ui/Spinner'
+import { EmptyState } from '@/components/ui/EmptyState'
 import styles from './PoliticianTradesPage.module.css'
 
 const DAYS_OPTIONS = [14, 30, 60, 90]
@@ -173,16 +174,10 @@ export function PoliticianTradesPage() {
           {tradesLoading ? (
             <div className={styles.loading}><Spinner size="lg" /></div>
           ) : trades.length === 0 ? (
-            <div className={styles.emptyState}>
-              <div className={styles.emptyTitle}>No disclosures found</div>
-              <div className={styles.emptyText}>
-                {activeTicker
-                  ? `No Senate trades found for ${activeTicker} in the last ${days} days.`
-                  : 'No disclosures in the selected window.'
-                }<br />
-                Remember: the STOCK Act allows a 45-day filing lag.
-              </div>
-            </div>
+            <EmptyState
+              message="No disclosures found"
+              hint={`${activeTicker ? `No Senate trades found for ${activeTicker} in the last ${days} days.` : 'No disclosures in the selected window.'} Remember: the STOCK Act allows a 45-day filing lag.`}
+            />
           ) : (
             <div className={styles.tableWrapper}>
               <table className={styles.table}>
@@ -224,7 +219,7 @@ export function PoliticianTradesPage() {
         </Card>
       </div>
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }

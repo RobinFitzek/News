@@ -14,7 +14,7 @@
   background: none;
   cursor: pointer;
   width: 80px;
-  transition: border-color 0.15s;
+  transition: border-color var(--duration-instant) var(--ease-smooth);
 }
 
 .themeOption:hover { border-color: var(--border-highlight); }

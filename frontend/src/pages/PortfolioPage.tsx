@@ -61,9 +61,9 @@ function PortfolioRiskSection() {
 
   return (
     <>
-      <p className={styles.sectionTitle} style={{ marginTop: 'var(--space-6)' }}>
+      <h3 className={styles.sectionTitle}>
         Risk Analytics
-      </p>
+      </h3>
 
       {/* VaR + Drawdown row */}
       <div className={styles.riskGrid}>
@@ -128,7 +128,7 @@ function PortfolioRiskSection() {
       {concData && !concData.error && (
         <Card className={styles.tableCard} animate={false}>
           <div className={styles.sectionHeader}>
-            <span className={styles.sectionTitle}>Concentration</span>
+            <h3 className={styles.sectionTitle}>Concentration</h3>
             {concData.warnings.length > 0 && (
               <Badge variant="warning" size="xs">{concData.warnings.length} warnings</Badge>
             )}
@@ -173,7 +173,7 @@ function PortfolioRiskSection() {
       {corrData && !corrData.error && corrData.tickers.length >= 2 && (
         <Card className={styles.tableCard} animate={false}>
           <div className={styles.sectionHeader}>
-            <span className={styles.sectionTitle}>Correlation Matrix</span>
+            <h3 className={styles.sectionTitle}>Correlation Matrix</h3>
           </div>
           <div className={styles.tableWrapper}>
             <table className={styles.corrTable}>
@@ -378,7 +378,7 @@ export function PortfolioPage() {
           {/* Holdings table */}
           <Card className={styles.tableCard} animate={false}>
             <div className={styles.sectionHeader}>
-              <span className={styles.sectionTitle}>Holdings</span>
+              <h3 className={styles.sectionTitle}>Holdings</h3>
               <a className={styles.exportLink} href="/portfolio/export">
                 Export CSV
               </a>
@@ -705,7 +705,7 @@ export function PortfolioPage() {
         </AnimatePresence>
       </Card>
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }

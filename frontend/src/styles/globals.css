@@ -82,6 +82,9 @@ input, textarea, select {
   color: var(--text-primary);
 }
 
+/* Page bottom spacer */
+.pageEnd { height: var(--space-16); }
+
 /* Main container */
 .main-container {
   max-width: 1440px;

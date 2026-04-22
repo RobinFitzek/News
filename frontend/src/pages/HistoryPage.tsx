@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { SignalGlyph } from '@/components/ui/SignalGlyph'
 import { Spinner } from '@/components/ui/Spinner'
+import { EmptyState } from '@/components/ui/EmptyState'
 import type { SignalType } from '@/types/api'
 import styles from './HistoryPage.module.css'
 
@@ -15,7 +16,7 @@ function SignalBadge({ signal }: { signal: SignalType }) {
   if (!signal) return null
   const v = signal === 'BUY' ? 'success' : signal === 'SELL' ? 'danger' : 'neutral'
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+    <span className={styles.signalBadge}>
       <SignalGlyph signal={signal} size={14} />
       <Badge variant={v}>{signal}</Badge>
     </span>
@@ -159,18 +160,16 @@ export function HistoryPage() {
             </table>
 
             {analyses.length === 0 && (
-              <div className={styles.emptyState}>
-                <p>No analyses found.</p>
-                <a href="/analyze">
-                  <Button variant="primary" size="md">Run Analysis</Button>
-                </a>
-              </div>
+              <EmptyState
+                message="No analyses found."
+                action={<a href="/analyze"><Button variant="primary" size="md">Run Analysis</Button></a>}
+              />
             )}
           </div>
         </Card>
       )}
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }

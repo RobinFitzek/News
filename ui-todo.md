@@ -15,6 +15,16 @@
 - **[UI-07]** Journal Ticker-Filter (Freitext-Suche in Einträgen)
 - **[UI-08]** Discovery Bestätigungs-Dialog für Dismiss
 
+## ✅ UI-Konsistenz (Branch: claude/improve-ui-consistency-ByuiX)
+
+- **[UI-C01]** `EmptyState`-Komponente erstellt — einheitlicher leerer Zustand mit `message`, `hint`, `action`-Props
+- **[UI-C02]** EmptyState in 8 Seiten eingesetzt: JournalPage, WatchlistPage, HistoryPage, GrahamPage, PoliticianTradesPage, CorporateActionsPage, DiscoveriesPage, TopPicksPage (ersetzt 5 verschiedene Muster)
+- **[UI-C03]** `.pageEnd`-Utility-Klasse in globals.css — ersetzt 7x `style={{ height: 'var(--space-16)' }}`
+- **[UI-C04]** Inline-Styles → CSS-Module: `signalBadge`-Klassen in HistoryPage, WatchlistPage, TopPicksPage; `grahamCell` + `upsidePositive/Negative` in WatchlistPage; `confirmMessage` + `modalActions` in DiscoveriesPage
+- **[UI-C05]** Abschnittstitel semantisch korrigiert: `<span>` und `<p>` → `<h3>` in PortfolioPage (3×), `<div>` → `<h3>` in TopPicksPage (2×)
+- **[UI-C06]** WatchlistPage Actions-Spalte: Spacer + `danger`-Variante für Remove-Button (analog zu JournalPage)
+- **[UI-C07]** Animation-Token-Fixes: `0.2s`/`0.15s` → `var(--duration-fast)`/`var(--duration-instant)` in `Panel.module.css` (4 Stellen) und `PanelAppearance.module.css`
+
 ---
 
 ## 🔲 OFFEN — Mittel-Priorität
@@ -80,4 +90,29 @@
 
 ---
 
-*Erstellt: 2026-04-21 | Branch: claude/optimize-existing-systems-q4kuS*
+## 🔲 OFFEN — Konsistenz (nächste Iteration)
+
+### [UI-C08] StockDetailPage Inline-Styles
+**Was**: 30+ `style={{ ... }}` Inline-Styles in StockDetailPage.tsx; viele sind dynamisch (berechnet), aber statische sollten in CSS-Module migriert werden  
+**Aufwand**: ~2h (groß, vorsichtig vorgehen — größte Datei mit 1200+ Zeilen)  
+**Datei**: `StockDetailPage.tsx`, `StockDetailPage.module.css`
+
+### [UI-C09] ScenariosPage + GeoHistoryPage Inline-Styles
+**Was**: Farb-Inline-Styles für `impactColor()` und `severityColor()` Funktionen; könnten als CSS-Klassen umgesetzt werden  
+**Aufwand**: ~1h  
+**Dateien**: `ScenariosPage.tsx`, `GeoHistoryPage.tsx`
+
+### [UI-C10] GrahamPage sectionTitle (buy_threshold)
+**Was**: `<span className={styles.num} style={{ color: 'var(--signal-warning)' }}>` — einziger verbleibender Inline-Color-Style in GrahamPage  
+**Aufwand**: 15min — neue `.numWarning`-Klasse in GrahamPage.module.css  
+**Datei**: `GrahamPage.tsx`, `GrahamPage.module.css`
+
+### [UI-C11] PoliticianTradesPage native Buttons → Button-Komponente
+**Was**: PoliticianTradesPage nutzt native `<button className={styles.filterBtn}>` statt der `Button`-Komponente — inkonsistent mit allen anderen Seiten  
+**Aufwand**: ~30min  
+**Datei**: `PoliticianTradesPage.tsx`, `PoliticianTradesPage.module.css`
+
+---
+
+*Erstellt: 2026-04-21 | Branch: claude/optimize-existing-systems-q4kuS*  
+*Konsistenz ergänzt: 2026-04-22 | Branch: claude/improve-ui-consistency-ByuiX*

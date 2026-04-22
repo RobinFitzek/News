@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { Spinner } from '@/components/ui/Spinner'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { useToastStore } from '@/stores/toastStore'
 import styles from './GrahamPage.module.css'
 
@@ -176,14 +177,12 @@ export function GrahamPage() {
         {isLoading ? (
           <div className={styles.loading}><Spinner size="lg" /></div>
         ) : rows.length === 0 ? (
-          <div className={styles.emptyState}>
-            <div className={styles.emptyTitle}>No stocks match this filter</div>
-            <div className={styles.emptyText}>
-              {tab === 'buy'
-                ? 'No stocks are trading below the Graham threshold. Reduce the margin of safety or add more tickers to your watchlist.'
-                : 'Could not calculate intrinsic value for any watchlist ticker. Ensure tickers have EPS data available.'}
-            </div>
-          </div>
+          <EmptyState
+            message="No stocks match this filter"
+            hint={tab === 'buy'
+              ? 'No stocks are trading below the Graham threshold. Reduce the margin of safety or add more tickers to your watchlist.'
+              : 'Could not calculate intrinsic value for any watchlist ticker. Ensure tickers have EPS data available.'}
+          />
         ) : (
           <div className={styles.tableWrapper}>
             <table className={styles.table}>
@@ -240,7 +239,7 @@ export function GrahamPage() {
         )}
       </Card>
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }

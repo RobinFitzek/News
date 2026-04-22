@@ -18,6 +18,7 @@ import { Modal } from '@/components/ui/Modal'
 import { SignalGlyph } from '@/components/ui/SignalGlyph'
 import { Delta } from '@/components/ui/Delta'
 import { Spinner } from '@/components/ui/Spinner'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { useToastStore } from '@/stores/toastStore'
 import type { WatchlistTier, SignalType } from '@/types/api'
 import styles from './WatchlistPage.module.css'
@@ -79,7 +80,7 @@ function SignalBadge({ signal }: { signal: SignalType }) {
   if (!signal) return null
   const v = signal === 'BUY' ? 'success' : signal === 'SELL' ? 'danger' : 'neutral'
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+    <span className={styles.signalBadge}>
       <SignalGlyph signal={signal} size={14} />
       <Badge variant={v}>{signal}</Badge>
     </span>
@@ -445,14 +446,10 @@ export function WatchlistPage() {
                         const g = grahamMap.get(item.ticker)
                         if (!g || g.intrinsic_value === null) return <span className={styles.muted}>—</span>
                         return (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div className={styles.grahamCell}>
                             <Badge variant={g.buy_signal ? 'success' : 'ghost'}>{g.buy_signal ? 'BUY' : 'HOLD'}</Badge>
                             {g.upside_pct !== null && (
-                              <span style={{
-                                fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)',
-                                color: g.upside_pct >= 0 ? 'var(--signal-positive)' : 'var(--signal-negative)',
-                                fontWeight: 600,
-                              }}>
+                              <span className={g.upside_pct >= 0 ? styles.upsidePositive : styles.upsideNegative}>
                                 {g.upside_pct >= 0 ? '+' : ''}{g.upside_pct.toFixed(0)}%
                               </span>
                             )}
@@ -516,8 +513,9 @@ export function WatchlistPage() {
                         <a href={`/analyze?ticker=${item.ticker}`}>
                           <Button variant="secondary" size="sm">Analyze</Button>
                         </a>
+                        <span className={styles.spacer} />
                         <Button variant="ghost" size="sm" onClick={() => confirmArchive(item.ticker)}>Archive</Button>
-                        <Button variant="ghost" size="sm" onClick={() => confirmRemove(item.ticker)}>Remove</Button>
+                        <Button variant="danger" size="sm" onClick={() => confirmRemove(item.ticker)}>Remove</Button>
                       </div>
                     </td>
                   </motion.tr>
@@ -526,9 +524,9 @@ export function WatchlistPage() {
             </table>
 
             {processed.length === 0 && (
-              <div className={styles.emptyState}>
-                {search ? `No tickers matching "${search}".` : 'No tickers in this category.'}
-              </div>
+              <EmptyState
+                message={search ? `No tickers matching "${search}".` : 'No tickers in this category.'}
+              />
             )}
           </div>
         </Card>
@@ -554,7 +552,7 @@ export function WatchlistPage() {
         </div>
       </Modal>
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }

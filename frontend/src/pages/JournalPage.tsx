@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
 import { Modal } from '@/components/ui/Modal'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { useToastStore } from '@/stores/toastStore'
 import styles from './JournalPage.module.css'
 
@@ -228,9 +229,9 @@ export function JournalPage() {
       {isLoading ? (
         <div className={styles.loading}><Spinner size="lg" /></div>
       ) : entries.length === 0 ? (
-        <div className={styles.emptyState}>
-          {search || typeFilter !== 'ALL' ? 'No entries match your filter.' : 'No journal entries yet.'}
-        </div>
+        <EmptyState
+          message={search || typeFilter !== 'ALL' ? 'No entries match your filter.' : 'No journal entries yet.'}
+        />
       ) : (
         <div className={styles.entriesList}>
           {entries.map((entry, i) => (
@@ -328,7 +329,7 @@ export function JournalPage() {
         </div>
       </Modal>
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }
