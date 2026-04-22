@@ -263,6 +263,35 @@ export function WatchlistPage() {
   const sortArrow = (key: SortKey) =>
     sortKey === key ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''
 
+  function handleExportCSV() {
+    const headers = ['Ticker', 'Name', 'Tier', 'Signal', 'Confidence %', 'Graham Upside', 'Geo Risk', 'Days Since Analysis', 'Note']
+    const escape = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const rows = processed.map(item => {
+      const g = grahamMap.get(item.ticker)
+      return [
+        item.ticker,
+        item.name ?? '',
+        item.tier,
+        item.signal ?? '',
+        item.confidence ?? '',
+        g?.upside_pct != null ? `${g.upside_pct.toFixed(1)}%` : '',
+        item.geo_risk_score ?? '',
+        item.days_since_analysis ?? '',
+        (item.note ?? '').replace(/\n/g, ' '),
+      ].map(escape).join(',')
+    })
+    const csv = [headers.map(escape).join(','), ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `watchlist-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <>
       <PageHeader title="Watchlist" subtitle="Monitor and track your target securities" />
@@ -356,6 +385,15 @@ export function WatchlistPage() {
           >
             {sortDir === 'asc' ? '↑' : '↓'}
           </button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleExportCSV}
+            disabled={processed.length === 0}
+            title="Export current view as CSV"
+          >
+            Export CSV
+          </Button>
         </div>
       </div>
 

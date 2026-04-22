@@ -68,15 +68,19 @@ export function JournalPage() {
   // Confirm delete dialog
   const [confirmDelete, setConfirmDelete] = useState<{ open: boolean; entry: JournalEntry | null }>({ open: false, entry: null })
 
-  // Ticker / type filter
+  // Ticker / type / date filter
   const [search, setSearch] = useState('')
   const [typeFilter, setTypeFilter] = useState<JournalEntryType | 'ALL'>('ALL')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
 
   const allEntries = data?.entries ?? []
 
   const entries = useMemo(() => {
     let list = [...allEntries]
     if (typeFilter !== 'ALL') list = list.filter(e => e.type === typeFilter)
+    if (fromDate) list = list.filter(e => e.created_at.slice(0, 10) >= fromDate)
+    if (toDate)   list = list.filter(e => e.created_at.slice(0, 10) <= toDate)
     if (search.trim()) {
       const q = search.trim().toLowerCase()
       list = list.filter(e =>
@@ -85,7 +89,7 @@ export function JournalPage() {
       )
     }
     return list
-  }, [allEntries, typeFilter, search])
+  }, [allEntries, typeFilter, fromDate, toDate, search])
 
   function setAddField<K extends keyof AddJournalEntryPayload>(key: K, value: AddJournalEntryPayload[K]) {
     setAddForm(prev => ({ ...prev, [key]: value }))
@@ -215,8 +219,22 @@ export function JournalPage() {
           <option value="ALL">All Types</option>
           {ENTRY_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
-        {(search || typeFilter !== 'ALL') && (
-          <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setTypeFilter('ALL') }}>
+        <input
+          type="date"
+          className={clsx(styles.input, styles.dateInput)}
+          value={fromDate}
+          onChange={e => setFromDate(e.target.value)}
+          title="From date"
+        />
+        <input
+          type="date"
+          className={clsx(styles.input, styles.dateInput)}
+          value={toDate}
+          onChange={e => setToDate(e.target.value)}
+          title="To date"
+        />
+        {(search || typeFilter !== 'ALL' || fromDate || toDate) && (
+          <Button variant="ghost" size="sm" onClick={() => { setSearch(''); setTypeFilter('ALL'); setFromDate(''); setToDate('') }}>
             Clear
           </Button>
         )}
@@ -230,7 +248,7 @@ export function JournalPage() {
         <div className={styles.loading}><Spinner size="lg" /></div>
       ) : entries.length === 0 ? (
         <EmptyState
-          message={search || typeFilter !== 'ALL' ? 'No entries match your filter.' : 'No journal entries yet.'}
+          message={search || typeFilter !== 'ALL' || fromDate || toDate ? 'No entries match your filter.' : 'No journal entries yet.'}
         />
       ) : (
         <div className={styles.entriesList}>
