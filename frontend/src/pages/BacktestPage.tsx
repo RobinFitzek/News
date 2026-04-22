@@ -199,7 +199,7 @@ export function BacktestPage() {
       {/* Random baseline comparison */}
       {baseline && <RandomBaselineCard baseline={baseline} />}
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }

@@ -31,39 +31,6 @@
   border-color: var(--border-highlight);
 }
 
-.filterBtn {
-  height: 34px;
-  padding: 0 var(--space-4);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-primary);
-  color: var(--text-secondary);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-smooth);
-}
-
-.filterBtn:hover {
-  border-color: var(--border-highlight);
-  color: var(--text-primary);
-}
-
-.clearBtn {
-  height: 34px;
-  padding: 0 var(--space-3);
-  background: transparent;
-  border: 1px solid var(--border-primary);
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  cursor: pointer;
-  transition: all var(--duration-fast) var(--ease-smooth);
-}
-
-.clearBtn:hover {
-  color: var(--signal-negative);
-  border-color: var(--signal-negative);
-}
 
 .daysGroup {
   display: flex;

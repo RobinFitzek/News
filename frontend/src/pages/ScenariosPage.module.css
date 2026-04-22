@@ -85,3 +85,10 @@
 .exposurePnl { font-family: var(--font-mono); }
 
 .noPositions { font-size: 0.75rem; color: var(--text-muted); margin-top: var(--space-2); }
+
+.impactPositive { color: var(--signal-positive); }
+.impactNegative { color: var(--signal-negative); }
+.barPositive { background: var(--signal-positive); }
+.barNegative { background: var(--signal-negative); }
+.resultError { color: var(--signal-negative); }
+.runBtn { width: 100%; }

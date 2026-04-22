@@ -4,13 +4,14 @@ import { PageHeader } from '@/components/layout/PageHeader'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Spinner } from '@/components/ui/Spinner'
+import { EmptyState } from '@/components/ui/EmptyState'
 import type { GeoScan } from '@/types/api'
 import styles from './GeoHistoryPage.module.css'
 
-function severityColor(score: number): string {
-  if (score >= 7) return '#ef4444'
-  if (score >= 4) return '#f59e0b'
-  return '#10b981'
+function severityClass(score: number): string {
+  if (score >= 7) return styles.severityHigh
+  if (score >= 4) return styles.severityMid
+  return styles.severityLow
 }
 
 export function GeoHistoryPage() {
@@ -38,10 +39,7 @@ export function GeoHistoryPage() {
             <Card className={styles.severityCard} delay={0}>
               <div className={styles.severityHeader}>
                 <div className={styles.severityTitle}>Current Severity</div>
-                <div
-                  className={styles.severityScore}
-                  style={{ color: severityColor(data.overall_severity) }}
-                >
+                <div className={`${styles.severityScore} ${severityClass(data.overall_severity)}`}>
                   {data.overall_severity.toFixed(1)}
                   <span className={styles.scoreSuffix}>/10</span>
                 </div>
@@ -61,7 +59,7 @@ export function GeoHistoryPage() {
           {/* Events table */}
           <Card className={styles.tableCard} delay={0.1}>
             {events.length === 0 ? (
-              <div className={styles.emptyState}>No geopolitical events recorded.</div>
+              <EmptyState message="No geopolitical events recorded." />
             ) : (
               <div className={styles.tableWrapper}>
                 <table className={styles.table}>
@@ -86,10 +84,7 @@ export function GeoHistoryPage() {
                           </Badge>
                         </td>
                         <td>
-                          <span
-                            className={styles.severityNum}
-                            style={{ color: severityColor(event.severity) }}
-                          >
+                          <span className={`${styles.severityNum} ${severityClass(event.severity)}`}>
                             {event.severity.toFixed(1)}
                           </span>
                         </td>
@@ -111,7 +106,7 @@ export function GeoHistoryPage() {
         </>
       )}
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }

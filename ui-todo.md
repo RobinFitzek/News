@@ -92,25 +92,20 @@
 
 ## 🔲 OFFEN — Konsistenz (nächste Iteration)
 
-### [UI-C08] StockDetailPage Inline-Styles
+- **[UI-C08]** StockDetailPage `pageEnd`-Spacer migriert (Inline-Style → `className="pageEnd"`)
+- **[UI-C09]** ScenariosPage + GeoHistoryPage: `impactColor()`/`severityColor()` Hardcode-Hex → CSS-Klassen (`.impactPositive/.impactNegative`, `.severityHigh/.severityMid/.severityLow`); GeoHistoryPage EmptyState eingesetzt; `pageEnd` angewendet
+- **[UI-C10]** GrahamPage `buy_threshold` Inline-Color → `.numWarning`-Klasse in GrahamPage.module.css
+- **[UI-C11]** PoliticianTradesPage: native `filterBtn`/`clearBtn` → `Button`-Komponente (`secondary md` / `ghost md`); tote CSS-Klassen entfernt
+- **[UI-C12]** `pageEnd` auf allen 18 restlichen Seiten ausgerollt: ArchitecturePage, BacktestPage, CompareStocksPage, CrosscheckPage, DiscoverPage, FearGreedPage, GraveyardPage, InsiderActivityPage, LSTMPage, LearningPage, LogsPage, MacroPage, PaperTradingPage, SectorScreenPage, StockDetailPage, TrustPage, ScenariosPage, GeoHistoryPage
+
+---
+
+## 🔲 OFFEN — Konsistenz (nächste Iteration)
+
+### [UI-C08-rest] StockDetailPage statische Inline-Styles
 **Was**: 30+ `style={{ ... }}` Inline-Styles in StockDetailPage.tsx; viele sind dynamisch (berechnet), aber statische sollten in CSS-Module migriert werden  
 **Aufwand**: ~2h (groß, vorsichtig vorgehen — größte Datei mit 1200+ Zeilen)  
 **Datei**: `StockDetailPage.tsx`, `StockDetailPage.module.css`
-
-### [UI-C09] ScenariosPage + GeoHistoryPage Inline-Styles
-**Was**: Farb-Inline-Styles für `impactColor()` und `severityColor()` Funktionen; könnten als CSS-Klassen umgesetzt werden  
-**Aufwand**: ~1h  
-**Dateien**: `ScenariosPage.tsx`, `GeoHistoryPage.tsx`
-
-### [UI-C10] GrahamPage sectionTitle (buy_threshold)
-**Was**: `<span className={styles.num} style={{ color: 'var(--signal-warning)' }}>` — einziger verbleibender Inline-Color-Style in GrahamPage  
-**Aufwand**: 15min — neue `.numWarning`-Klasse in GrahamPage.module.css  
-**Datei**: `GrahamPage.tsx`, `GrahamPage.module.css`
-
-### [UI-C11] PoliticianTradesPage native Buttons → Button-Komponente
-**Was**: PoliticianTradesPage nutzt native `<button className={styles.filterBtn}>` statt der `Button`-Komponente — inkonsistent mit allen anderen Seiten  
-**Aufwand**: ~30min  
-**Datei**: `PoliticianTradesPage.tsx`, `PoliticianTradesPage.module.css`
 
 ---
 

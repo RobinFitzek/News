@@ -285,7 +285,7 @@ export function FearGreedPage() {
         </>
       )}
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }

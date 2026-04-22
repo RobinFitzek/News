@@ -263,7 +263,7 @@ export function DiscoverPage() {
         )}
       </AnimatePresence>
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }

@@ -8,10 +8,6 @@ import { Button } from '@/components/ui/Button'
 import { Spinner } from '@/components/ui/Spinner'
 import styles from './ScenariosPage.module.css'
 
-function impactColor(pct: number): string {
-  return pct >= 0 ? '#10b981' : '#ef4444'
-}
-
 function formatSector(key: string): string {
   return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
@@ -65,13 +61,10 @@ function ScenarioCard({
                 <div key={sector} className={styles.impactRow}>
                   <span className={styles.sectorName}>{formatSector(sector)}</span>
                   <div
-                    className={styles.barFill}
-                    style={{
-                      width: `${barWidth}px`,
-                      background: impactColor(pct),
-                    }}
+                    className={`${styles.barFill} ${pct >= 0 ? styles.barPositive : styles.barNegative}`}
+                    style={{ width: `${barWidth}px` }}
                   />
-                  <span className={styles.pct} style={{ color: impactColor(pct) }}>
+                  <span className={`${styles.pct} ${pct >= 0 ? styles.impactPositive : styles.impactNegative}`}>
                     {pct >= 0 ? '+' : ''}{pct.toFixed(0)}%
                   </span>
                 </div>
@@ -86,13 +79,13 @@ function ScenarioCard({
             <Button
               onClick={handleRun}
               disabled={runMut.isPending}
-              style={{ width: '100%' }}
+              className={styles.runBtn}
             >
               {runMut.isPending ? 'Running...' : result ? 'Run Again' : 'Run Scenario'}
             </Button>
 
             {runMut.isError && (
-              <div className={styles.resultBox} style={{ color: '#ef4444' }}>
+              <div className={`${styles.resultBox} ${styles.resultError}`}>
                 Scenario failed. Check your portfolio data.
               </div>
             )}
@@ -102,8 +95,7 @@ function ScenarioCard({
                 <div className={styles.impactLabel}>
                   Estimated Portfolio Impact:{' '}
                   <span
-                    className={styles.impactValue}
-                    style={{ color: impactColor(result.portfolio_impact_pct) }}
+                    className={`${styles.impactValue} ${result.portfolio_impact_pct >= 0 ? styles.impactPositive : styles.impactNegative}`}
                   >
                     {result.portfolio_impact_pct >= 0 ? '+' : ''}
                     {result.portfolio_impact_pct.toFixed(2)}%
@@ -116,10 +108,7 @@ function ScenarioCard({
                     {result.holdings_impact.slice(0, 5).map(h => (
                       <div key={h.ticker} className={styles.exposureRow}>
                         <span className={styles.exposureTicker}>{h.ticker}</span>
-                        <span
-                          className={styles.exposurePnl}
-                          style={{ color: impactColor(h.estimated_pnl_pct) }}
-                        >
+                        <span className={`${styles.exposurePnl} ${h.estimated_pnl_pct >= 0 ? styles.impactPositive : styles.impactNegative}`}>
                           {h.estimated_pnl_pct >= 0 ? '+' : ''}{h.estimated_pnl_pct.toFixed(2)}%
                         </span>
                       </div>
@@ -194,7 +183,7 @@ export function ScenariosPage() {
         </div>
       )}
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }

@@ -106,7 +106,7 @@ export function CrosscheckPage() {
         </Card>
       )}
 
-      <div style={{ height: 'var(--space-16)' }} />
+      <div className="pageEnd" />
     </>
   )
 }

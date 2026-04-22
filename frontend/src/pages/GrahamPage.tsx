@@ -217,7 +217,7 @@ export function GrahamPage() {
                     <td><span className={styles.num}>{fmtPrice(r.current_price)}</span></td>
                     <td><span className={styles.num}>{fmtPrice(r.intrinsic_value)}</span></td>
                     <td>
-                      <span className={styles.num} style={{ color: 'var(--signal-warning)' }}>
+                      <span className={styles.numWarning}>
                         {fmtPrice(r.buy_threshold)}
                       </span>
                     </td>
