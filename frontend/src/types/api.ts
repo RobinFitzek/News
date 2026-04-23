@@ -298,6 +298,8 @@ export interface Plugin {
   version: string
   last_run: string | null
   has_settings: boolean
+  plugin_type?: string
+  last_error?: string | null
 }
 
 export interface SettingsData {

@@ -1576,6 +1576,86 @@ async def logout_single_session(
     db.delete_user_session_for_user(username, session_id)
     return RedirectResponse(url="/settings?saved=1", status_code=303)
 
+
+# JSON API equivalents for the React SPA
+@app.get("/api/sessions")
+async def api_get_sessions(
+    request: Request,
+    username: str = Depends(require_api_key_or_session)
+):
+    """Return active sessions for the current user."""
+    sessions = db.get_user_sessions(username)
+    current_session_id = request.cookies.get("session_id")
+    for s in sessions:
+        s["is_current"] = s.get("session_id") == current_session_id
+    return {"sessions": sessions}
+
+
+@app.post("/api/sessions/logout-others")
+async def api_logout_other_sessions(
+    request: Request,
+    username: str = Depends(require_api_key_or_session)
+):
+    """End all other active sessions (JSON API)."""
+    current_session_id = request.cookies.get("session_id")
+    db.delete_other_user_sessions(username, current_session_id)
+    return {"success": True}
+
+
+@app.post("/api/sessions/logout/{session_id}")
+async def api_logout_single_session(
+    request: Request,
+    session_id: str,
+    username: str = Depends(require_api_key_or_session)
+):
+    """End one specific session (JSON API)."""
+    current_session_id = request.cookies.get("session_id")
+    if session_id == current_session_id:
+        return {"success": False, "error": "Cannot log out current session"}
+    db.delete_user_session_for_user(username, session_id)
+    return {"success": True}
+
+
+@app.post("/api/notifications/test-telegram")
+async def api_test_telegram(
+    request: Request,
+    username: str = Depends(require_api_key_or_session)
+):
+    """Send a test Telegram message (JSON API)."""
+    payload = await request.json()
+    token = payload.get("telegram_bot_token") or db.get_setting("telegram_bot_token")
+    chat_id = payload.get("telegram_chat_id") or db.get_setting("telegram_chat_id")
+    from engine.webhook_notifier import TelegramNotifier
+    ok, msg = TelegramNotifier().test(token=token or None, chat_id=chat_id or None)
+    return {"success": ok, "message": msg}
+
+
+@app.post("/api/notifications/test-discord")
+async def api_test_discord(
+    request: Request,
+    username: str = Depends(require_api_key_or_session)
+):
+    """Send a test Discord message (JSON API)."""
+    payload = await request.json()
+    webhook_url = payload.get("discord_webhook_url") or db.get_setting("discord_webhook_url")
+    from engine.webhook_notifier import DiscordNotifier
+    ok, msg = DiscordNotifier().test(webhook_url=webhook_url or None)
+    return {"success": ok, "message": msg}
+
+
+@app.post("/api/notifications/test-email")
+async def api_test_email(
+    request: Request,
+    username: str = Depends(require_api_key_or_session)
+):
+    """Send a test email (JSON API)."""
+    from core.notifications import notifications
+    try:
+        await notifications.send_test_email()
+        return {"success": True, "message": "Test email sent"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
 @app.post("/settings/api-keys")
 @limiter.limit("10/minute")
 async def save_api_keys(request: Request, username: str = Depends(require_auth)):

@@ -5,32 +5,45 @@ import { PanelAPIConnections } from '@/components/settings/panels/PanelAPIConnec
 import { PanelScheduler } from '@/components/settings/panels/PanelScheduler'
 import { PanelAnalysis } from '@/components/settings/panels/PanelAnalysis'
 import { PanelBudget } from '@/components/settings/panels/PanelBudget'
+import { PanelNotifications } from '@/components/settings/panels/PanelNotifications'
+import { PanelPortfolioRules } from '@/components/settings/panels/PanelPortfolioRules'
+import { PanelAutoDiscovery } from '@/components/settings/panels/PanelAutoDiscovery'
+import { PanelAutoTrading } from '@/components/settings/panels/PanelAutoTrading'
 import { PanelSecurity } from '@/components/settings/panels/PanelSecurity'
 import { PanelAppearance } from '@/components/settings/panels/PanelAppearance'
 import { PanelPlugins } from '@/components/settings/panels/PanelPlugins'
 import styles from './SettingsPage.module.css'
 import clsx from 'clsx'
+import type React from 'react'
 
 const PANELS = [
-  { id: 'api',        label: 'API Connections',  icon: '⬡' },
-  { id: 'scheduler',  label: 'Scheduler',         icon: '◷' },
-  { id: 'analysis',   label: 'Analysis',          icon: '◈' },
-  { id: 'budget',     label: 'Budget',            icon: '◎' },
-  { id: 'security',   label: 'Security',          icon: '◉' },
-  { id: 'appearance', label: 'Appearance',        icon: '◐' },
-  { id: 'plugins',    label: 'Plugins',           icon: '◧' },
+  { id: 'api',            label: 'API Connections',  icon: '⬡' },
+  { id: 'scheduler',      label: 'Scheduler',        icon: '◷' },
+  { id: 'analysis',       label: 'Analysis',         icon: '◈' },
+  { id: 'budget',         label: 'Budget',           icon: '◎' },
+  { id: 'notifications',  label: 'Notifications',    icon: '◈' },
+  { id: 'portfolio',      label: 'Portfolio Rules',  icon: '◉' },
+  { id: 'discovery',      label: 'Auto-Discovery',   icon: '⊕' },
+  { id: 'trading',        label: 'Auto-Trading',     icon: '⊗' },
+  { id: 'security',       label: 'Security',         icon: '◉' },
+  { id: 'appearance',     label: 'Appearance',       icon: '◐' },
+  { id: 'plugins',        label: 'Plugins',          icon: '◧' },
 ] as const
 
 type PanelId = typeof PANELS[number]['id']
 
 const panelComponents: Record<PanelId, React.ComponentType> = {
-  api:        PanelAPIConnections,
-  scheduler:  PanelScheduler,
-  analysis:   PanelAnalysis,
-  budget:     PanelBudget,
-  security:   PanelSecurity,
-  appearance: PanelAppearance,
-  plugins:    PanelPlugins,
+  api:           PanelAPIConnections,
+  scheduler:     PanelScheduler,
+  analysis:      PanelAnalysis,
+  budget:        PanelBudget,
+  notifications: PanelNotifications,
+  portfolio:     PanelPortfolioRules,
+  discovery:     PanelAutoDiscovery,
+  trading:       PanelAutoTrading,
+  security:      PanelSecurity,
+  appearance:    PanelAppearance,
+  plugins:       PanelPlugins,
 }
 
 const panelVariants = {
@@ -38,8 +51,6 @@ const panelVariants = {
   animate: { opacity: 1, x: 0, transition: { duration: 0.2, ease: [0.34, 1.2, 0.64, 1] as const } },
   exit:    { opacity: 0, x: -8, transition: { duration: 0.12 } },
 }
-
-import type React from 'react'
 
 export function SettingsPage() {
   const [activePanel, setActivePanel] = useState<PanelId>('api')
