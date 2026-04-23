@@ -2134,16 +2134,22 @@ class Database:
         """)
         return rows if rows else []
 
-    def get_trades(self, ticker: str = None) -> List[Dict]:
-        """Get trading history"""
+    def get_trades(self, ticker: str = None, limit: int = None) -> List[Dict]:
+        """Get trading history. limit=None returns all rows (needed for holdings computation)."""
         conn = self._get_conn()
         cursor = conn.cursor()
-        
+
         if ticker:
-            cursor.execute("SELECT * FROM portfolio_trades WHERE ticker = ? ORDER BY date DESC", (ticker.upper(),))
+            sql = "SELECT * FROM portfolio_trades WHERE ticker = ? ORDER BY date DESC"
+            params: tuple = (ticker.upper(),)
         else:
-            cursor.execute("SELECT * FROM portfolio_trades ORDER BY date DESC")
-            
+            sql = "SELECT * FROM portfolio_trades ORDER BY date DESC"
+            params = ()
+
+        if limit is not None:
+            sql += f" LIMIT {int(limit)}"
+
+        cursor.execute(sql, params)
         rows = cursor.fetchall()
         conn.close()
         return [dict(row) for row in rows]

@@ -6235,7 +6235,7 @@ async def api_portfolio(
 ):
     """Portfolio summary + trades — JSON for React SPA"""
     summary = db.get_portfolio_summary()
-    trades = db.get_trades()
+    trades = db.get_trades(limit=500)
     return {"summary": summary, "trades": trades or []}
 
 
@@ -6301,6 +6301,112 @@ async def api_delete_trade(
     _verify_spa_csrf(request)
     db.delete_trade(trade_id)
     return {"status": "deleted"}
+
+
+@app.post("/api/portfolio/import")
+async def api_portfolio_import(
+    request: Request,
+    username: str = Depends(require_auth),
+):
+    """Import portfolio trades from CSV (multipart/form-data, field name: file).
+
+    Accepted columns (case-insensitive): date, type, ticker, amount, price, fees, notes.
+    Matches the export format produced by /portfolio/export and /api/portfolio/export.csv.
+    Returns {"imported": N, "skipped": N, "errors": [...]}.
+    """
+    import csv
+    import io
+
+    _verify_spa_csrf(request)
+
+    form = await request.form()
+    uploaded = form.get("file")
+    if uploaded is None or not hasattr(uploaded, "read"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="No CSV file provided")
+
+    raw = await uploaded.read()
+    try:
+        content = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        content = raw.decode("latin-1")
+
+    reader = csv.DictReader(io.StringIO(content))
+    if not reader.fieldnames:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="Could not parse CSV header")
+
+    lower_map = {f.strip().lower(): f for f in reader.fieldnames}
+
+    def col(row: dict, *candidates: str) -> str:
+        for c in candidates:
+            if c in lower_map:
+                return row.get(lower_map[c], "").strip()
+        return ""
+
+    imported = skipped = 0
+    errors: list = []
+
+    for i, row in enumerate(reader, start=2):
+        try:
+            ticker = col(row, "ticker", "symbol").upper()
+            trade_type = col(row, "type", "transaction type", "action").upper()
+            amount_str = col(row, "amount", "shares", "quantity", "qty")
+            price_str = col(row, "price", "unit price", "trade price")
+            date_val = col(row, "date", "trade date", "transaction date")
+
+            if not ticker or not trade_type or not amount_str or not price_str:
+                skipped += 1
+                continue
+
+            if trade_type not in ("BUY", "SELL"):
+                trade_type = "BUY" if trade_type in ("B", "BOT", "BUY", "BOUGHT") else "SELL"
+
+            fees_str = col(row, "fees", "commission", "fee")
+            notes_val = col(row, "notes", "note", "memo", "description")
+            currency_val = col(row, "currency", "curr") or "USD"
+
+            db.add_trade(
+                ticker=ticker,
+                trade_type=trade_type,
+                amount=float(amount_str.replace(",", "")),
+                price=float(price_str.replace(",", "").replace("$", "").replace("€", "")),
+                date=date_val or None,
+                fees=float(fees_str.replace(",", "")) if fees_str else 0.0,
+                notes=notes_val,
+                currency=currency_val.upper()[:3],
+            )
+            imported += 1
+        except Exception as e:
+            errors.append(f"Row {i}: {e}")
+
+    return {"imported": imported, "skipped": skipped, "errors": errors[:20]}
+
+
+@app.get("/api/admin/backup")
+async def api_admin_backup(
+    request: Request,
+    username: str = Depends(require_auth),
+    download: bool = False,
+):
+    """Trigger a manual DB backup. Pass ?download=true to stream the file."""
+    from fastapi.responses import FileResponse
+
+    result = db.backup_db()
+    if not download:
+        return result
+
+    backup_dir = db.db_path.parent / "backups"
+    backup_path = backup_dir / result["file"]
+    if not backup_path.exists():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Backup file not found")
+
+    return FileResponse(
+        path=str(backup_path),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename={result['file']}"},
+    )
 
 
 # ── Paper Trading ─────────────────────────────────────────────────────────────

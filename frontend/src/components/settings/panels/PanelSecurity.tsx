@@ -4,6 +4,7 @@ import { useChangePassword, useSettingsData, useSaveSettings, useSessions, useLo
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { useToastStore } from '@/stores/toastStore'
+import api from '@/api/client'
 import styles from './Panel.module.css'
 
 export function PanelSecurity() {
@@ -14,6 +15,7 @@ export function PanelSecurity() {
   const logoutSession = useLogoutSession()
   const logoutOthers = useLogoutOtherSessions()
   const { addToast } = useToastStore()
+  const [backupPending, setBackupPending] = useState(false)
 
   const [current, setCurrent] = useState('')
   const [newPwd, setNewPwd] = useState('')
@@ -183,6 +185,48 @@ export function PanelSecurity() {
               Save Auth Settings
             </Button>
           </div>
+        </div>
+      </Card>
+
+      <Card className={styles.section}>
+        <h3 className={styles.sectionTitle}>Database Backup</h3>
+        <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', margin: 'var(--space-2) 0 var(--space-4)' }}>
+          Create a point-in-time backup of the SQLite database. Scheduled backups run nightly at 03:30; use this to snapshot before risky operations.
+        </p>
+        <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+          <Button
+            variant="secondary"
+            size="sm"
+            loading={backupPending}
+            onClick={async () => {
+              setBackupPending(true)
+              try {
+                const r = await api.get('/api/admin/backup').then(res => res.data)
+                addToast(`Backup created: ${r.file} (${r.size_mb} MB)`, 'success')
+              } catch {
+                addToast('Backup failed', 'error')
+              } finally {
+                setBackupPending(false)
+              }
+            }}
+          >
+            Create Backup
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            loading={backupPending}
+            onClick={async () => {
+              setBackupPending(true)
+              try {
+                window.location.href = '/api/admin/backup?download=true'
+              } finally {
+                setBackupPending(false)
+              }
+            }}
+          >
+            Backup &amp; Download
+          </Button>
         </div>
       </Card>
     </div>

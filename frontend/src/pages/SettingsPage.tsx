@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { PageHeader } from '@/components/layout/PageHeader'
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { PanelAPIConnections } from '@/components/settings/panels/PanelAPIConnections'
 import { PanelScheduler } from '@/components/settings/panels/PanelScheduler'
 import { PanelAnalysis } from '@/components/settings/panels/PanelAnalysis'
@@ -102,7 +103,9 @@ export function SettingsPage() {
               animate="animate"
               exit="exit"
             >
-              <ActivePanel />
+              <ErrorBoundary label={`${PANELS.find(p => p.id === activePanel)?.label ?? 'Settings'} panel unavailable`}>
+                <ActivePanel />
+              </ErrorBoundary>
             </motion.div>
           </AnimatePresence>
         </main>

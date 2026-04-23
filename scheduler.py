@@ -342,10 +342,10 @@ class InvestmentScheduler:
             replace_existing=True
         )
         
-        # Weekly Deep Analysis (Sunday 20:00)
+        # Weekly Deep Analysis (Sunday 21:00) — staggered 2.5h after weekly_letter (18:30)
         self.scheduler.add_job(
             lambda: cycle_processor.run_weekly_cycle(),
-            CronTrigger(day_of_week='sun', hour=20, minute=0,
+            CronTrigger(day_of_week='sun', hour=21, minute=0,
                        timezone=self.timezone),
             id='weekly_analysis',
             name='Weekly Deep Analysis',
@@ -401,20 +401,20 @@ class InvestmentScheduler:
                 replace_existing=True
             )
 
-        # Weekly report (Sunday evening at 18:00)
+        # Weekly report (Sunday 16:00) — PDF/stats only, no AI, runs first
         self.scheduler.add_job(
             self.run_weekly_report,
-            CronTrigger(day_of_week='sun', hour=18, minute=0,
+            CronTrigger(day_of_week='sun', hour=16, minute=0,
                        timezone=self.timezone),
             id='weekly_report',
             name='Weekly Report',
             replace_existing=True
         )
 
-        # Weekly AI letter (Sunday 19:00)
+        # Weekly AI letter (Sunday 18:30) — staggered 2.5h after report, 2.5h before deep analysis
         self.scheduler.add_job(
             self.run_weekly_letter,
-            CronTrigger(day_of_week='sun', hour=19, minute=0,
+            CronTrigger(day_of_week='sun', hour=18, minute=30,
                        timezone=self.timezone),
             id='weekly_letter',
             name='Weekly AI Letter',
