@@ -84,3 +84,16 @@ export function useDeleteTrade() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['portfolio'] }),
   })
 }
+
+export function useImportPortfolio() {
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData()
+      form.append('file', file)
+      return api.post('/api/portfolio/import', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      }).then(r => r.data as { imported: number; skipped: number; errors: string[] })
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['portfolio'] }),
+  })
+}

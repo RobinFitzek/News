@@ -3,12 +3,12 @@ Signal Performance Feedback Loop
 Grades past AI/Quant signals based on actual 30/60/90 day forward returns.
 Provides self-tuning weight adjustments based on accuracy.
 """
-import yfinance as yf
 import logging
 from datetime import datetime, timedelta
 import pandas as pd
 from typing import Dict, List, Any
 
+from clients.yf_client import yf_client
 from core.database import db
 
 logger = logging.getLogger(__name__)
@@ -72,9 +72,13 @@ class SignalGrader:
         
         if not records:
             return 0
-            
+
+        # Pre-fetch all unique tickers in one batch request
+        unique_tickers = list({r['ticker'] for r in records})
+        batch_hist = yf_client.get_history(unique_tickers, period="6mo")
+
         count = 0
-        
+
         for rec in records:
             ticker = rec['ticker']
             signal_date_str = rec['signal_date']
@@ -82,10 +86,9 @@ class SignalGrader:
                 sig_dt = datetime.fromisoformat(signal_date_str)
             except ValueError:
                 sig_dt = datetime.strptime(signal_date_str, '%Y-%m-%d %H:%M:%S')
-                
+
             try:
-                # Need at least 6 months of data to cover 90d checks plus some padding
-                hist = yf.Ticker(ticker).history(period="6mo")
+                hist = batch_hist.get(ticker.upper(), pd.DataFrame())
                 if hist.empty:
                     continue
                     

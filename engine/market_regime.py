@@ -3,10 +3,11 @@ Market Regime Detection
 Classifies current market as Bull, Bear, or Choppy based on SPY SMAs, VIX, and 10Y yield.
 Used by quant screener for confidence adjustment and by dashboard for macro awareness.
 """
-import yfinance as yf
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 import logging
+
+from clients.yf_client import yf_client
 
 logger = logging.getLogger(__name__)
 
@@ -40,17 +41,16 @@ class MarketRegime:
             'updated_at': datetime.now().isoformat(),
         }
 
+        # Fetch SPY (1y for SMA-200), VIX and TNX (5d for latest reading) in one batch
         try:
-            # SPY price and SMAs
-            spy = yf.Ticker('SPY')
-            hist = spy.history(period='1y')
-            if not hist.empty and len(hist) >= 200:
+            spy_data = yf_client.get_history(['SPY'], period='1y')
+            hist = spy_data.get('SPY')
+            if hist is not None and not hist.empty and len(hist) >= 200:
                 close = hist['Close']
                 result['spy_price'] = round(float(close.iloc[-1]), 2)
                 result['sma50'] = round(float(close.rolling(50).mean().iloc[-1]), 2)
                 result['sma200'] = round(float(close.rolling(200).mean().iloc[-1]), 2)
 
-                # Regime classification
                 price = result['spy_price']
                 sma50 = result['sma50']
                 sma200 = result['sma200']
@@ -61,7 +61,7 @@ class MarketRegime:
                     result['regime'] = 'bear'
                 else:
                     result['regime'] = 'choppy'
-            elif not hist.empty:
+            elif hist is not None and not hist.empty:
                 close = hist['Close']
                 result['spy_price'] = round(float(close.iloc[-1]), 2)
                 if len(hist) >= 50:
@@ -69,23 +69,26 @@ class MarketRegime:
         except Exception as e:
             logger.warning(f"Failed to fetch SPY data: {e}")
 
-        # VIX
+        # VIX and 10Y yield — 5d period, one batch request for both
+        macro = {}
         try:
-            vix = yf.Ticker('^VIX')
-            vix_hist = vix.history(period='5d')
-            if not vix_hist.empty:
+            macro = yf_client.get_history(['^VIX', '^TNX'], period='5d')
+        except Exception as e:
+            logger.warning(f"Failed to fetch macro tickers: {e}")
+
+        try:
+            vix_hist = macro.get('^VIX')
+            if vix_hist is not None and not vix_hist.empty:
                 result['vix'] = round(float(vix_hist['Close'].iloc[-1]), 2)
         except Exception as e:
-            logger.warning(f"Failed to fetch VIX: {e}")
+            logger.warning(f"Failed to parse VIX data: {e}")
 
-        # 10-Year Treasury Yield
         try:
-            tnx = yf.Ticker('^TNX')
-            tnx_hist = tnx.history(period='5d')
-            if not tnx_hist.empty:
+            tnx_hist = macro.get('^TNX')
+            if tnx_hist is not None and not tnx_hist.empty:
                 result['ten_year_yield'] = round(float(tnx_hist['Close'].iloc[-1]), 2)
         except Exception as e:
-            logger.warning(f"Failed to fetch 10Y yield: {e}")
+            logger.warning(f"Failed to parse 10Y yield: {e}")
 
         self._cache = result
         self._cache_time = datetime.now()

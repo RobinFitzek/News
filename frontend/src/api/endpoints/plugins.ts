@@ -23,3 +23,14 @@ export function useRunPlugin() {
     mutationFn: (id: string) => api.post(`/api/plugins/${id}/run`).then(r => r.data),
   })
 }
+
+export function useInstallPlugin() {
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData()
+      form.append('file', file)
+      return api.post('/api/plugins/install', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['plugins'] }),
+  })
+}

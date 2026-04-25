@@ -7,7 +7,6 @@ Key constraint: only technical (RSI, SMA, Bollinger, 52w range) and momentum
 current-day fundamentals. The backtest scores a 50/50 blend of technicals +
 momentum instead of the full 4-factor composite.
 """
-import yfinance as yf
 import numpy as np
 import json
 import threading
@@ -15,6 +14,7 @@ from collections import OrderedDict
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from typing import Dict, List, Optional
+from clients.yf_client import yf_client
 from core.database import db
 from engine.quant_screener import SectorCache
 import logging
@@ -284,12 +284,14 @@ class BacktestEngine:
     # ------------------------------------------------------------------
 
     def _download_history(self, tickers: List[str], months: int) -> Dict:
-        """Bulk download — 3 years of daily data for each ticker."""
+        """Bulk download — 3 years of daily data for each ticker in one request."""
         period = '3y' if months <= 36 else '5y'
+        batch = yf_client.get_history(tickers, period=period)
         hists = {}
         for t in tickers:
-            h = self._download_single(t, months, period)
+            h = batch.get(t.upper())
             if h is not None and not h.empty and len(h) >= 60:
+                self._hist_cache[t] = h
                 hists[t] = h
         return hists
 
@@ -297,7 +299,7 @@ class BacktestEngine:
         if ticker in self._hist_cache:
             return self._hist_cache[ticker]
         try:
-            h = yf.Ticker(ticker).history(period=period)
+            h = yf_client.get_history_single(ticker, period=period)
             if h is not None and not h.empty:
                 self._hist_cache[ticker] = h
                 return h
@@ -341,7 +343,7 @@ class BacktestEngine:
             if t in _TICKER_SECTOR_CACHE:
                 continue
             try:
-                info = yf.Ticker(t).info
+                import yfinance as _yf; info = _yf.Ticker(t).info
                 sector = info.get('sector')
                 if sector:
                     _TICKER_SECTOR_CACHE[t] = sector

@@ -38,3 +38,46 @@ export function useSignalAccuracy() {
     staleTime: 60_000,
   })
 }
+
+export function useSessions() {
+  return useQuery({
+    queryKey: ['sessions'],
+    queryFn: () => api.get('/api/sessions').then(r => r.data),
+    staleTime: 30_000,
+  })
+}
+
+export function useLogoutOtherSessions() {
+  return useMutation({
+    mutationFn: () => api.post('/api/sessions/logout-others').then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions'] }),
+  })
+}
+
+export function useLogoutSession() {
+  return useMutation({
+    mutationFn: (sessionId: string) =>
+      api.post(`/api/sessions/logout/${sessionId}`).then(r => r.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sessions'] }),
+  })
+}
+
+export function useTestTelegram() {
+  return useMutation({
+    mutationFn: (data: { telegram_bot_token: string; telegram_chat_id: string }) =>
+      api.post('/api/notifications/test-telegram', data).then(r => r.data),
+  })
+}
+
+export function useTestDiscord() {
+  return useMutation({
+    mutationFn: (data: { discord_webhook_url: string }) =>
+      api.post('/api/notifications/test-discord', data).then(r => r.data),
+  })
+}
+
+export function useTestEmail() {
+  return useMutation({
+    mutationFn: () => api.post('/api/notifications/test-email').then(r => r.data),
+  })
+}

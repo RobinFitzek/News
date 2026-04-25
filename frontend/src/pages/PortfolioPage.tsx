@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react'
+import React, { useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import clsx from 'clsx'
-import { usePortfolio, useAddTrade, useUpdateTrade, useDeleteTrade } from '@/api/endpoints/portfolioTracker'
+import { usePortfolio, useAddTrade, useUpdateTrade, useDeleteTrade, useImportPortfolio } from '@/api/endpoints/portfolioTracker'
 import type { AddTradePayload, Trade } from '@/api/endpoints/portfolioTracker'
 import { usePortfolioAsk } from '@/api/endpoints/portfolio'
 import type { PortfolioQAResponse } from '@/api/endpoints/portfolio'
@@ -284,8 +284,24 @@ export function PortfolioPage() {
   const addTradeMut = useAddTrade()
   const updateTradeMut = useUpdateTrade()
   const deleteTradeMut = useDeleteTrade()
+  const importMut = useImportPortfolio()
   const askMut = usePortfolioAsk()
   const { addToast } = useToastStore()
+  const importRef = useRef<HTMLInputElement>(null)
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const r = await importMut.mutateAsync(file)
+      addToast(`Imported ${r.imported} trades${r.skipped ? `, skipped ${r.skipped}` : ''}`, 'success')
+      if (r.errors.length) addToast(r.errors[0], 'error')
+    } catch {
+      addToast('Import failed', 'error')
+    } finally {
+      if (importRef.current) importRef.current.value = ''
+    }
+  }
 
   const [showModal, setShowModal] = useState(false)
   const [showTradeLog, setShowTradeLog] = useState(false)
@@ -431,9 +447,19 @@ export function PortfolioPage() {
           <Card className={styles.tableCard} animate={false}>
             <div className={styles.sectionHeader}>
               <h3 className={styles.sectionTitle}>Holdings</h3>
-              <a className={styles.exportLink} href="/portfolio/export">
-                Export CSV
-              </a>
+              <div style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+                <button
+                  className={styles.exportLink}
+                  onClick={() => importRef.current?.click()}
+                  disabled={importMut.isPending}
+                  style={{ cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+                >
+                  {importMut.isPending ? 'Importing…' : 'Import CSV'}
+                </button>
+                <input ref={importRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={handleImport} />
+                <span style={{ color: 'var(--border-primary)' }}>·</span>
+                <a className={styles.exportLink} href="/portfolio/export">Export CSV</a>
+              </div>
             </div>
             <div className={styles.tableWrapper}>
               <table className={styles.table}>
