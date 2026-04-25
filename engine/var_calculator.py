@@ -2,12 +2,12 @@
 Value at Risk (VaR) Calculator
 Historical simulation VaR from portfolio price history.
 """
-import yfinance as yf
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 import logging
 
+from clients.yf_client import yf_client
 from core.database import db
 
 logger = logging.getLogger(__name__)
@@ -55,16 +55,17 @@ class VaRCalculator:
 
         weights = np.array(weights)
 
-        # Fetch price history and compute daily returns per ticker
+        # Fetch price history in one batch call
+        period = f"{lookback_days + 30}d"
+        batch = yf_client.get_history(tickers, period=period)
+
         all_returns = []
         failed_tickers = []
 
         for ticker in tickers:
             try:
-                stock = yf.Ticker(ticker)
-                hist = stock.history(period=f"{lookback_days + 30}d")
-
-                if hist.empty or len(hist) < 20:
+                hist = batch.get(ticker.upper())
+                if hist is None or hist.empty or len(hist) < 20:
                     failed_tickers.append(ticker)
                     continue
 

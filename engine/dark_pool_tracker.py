@@ -15,8 +15,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
-import yfinance as yf
 import numpy as np
+from clients.yf_client import yf_client
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,7 @@ def _analyze_ticker(ticker: str) -> list[dict]:
     Returns list of signal dicts for the last 30 days.
     """
     try:
-        hist = yf.Ticker(ticker).history(period=f"{HISTORY_DAYS + 5}d")
+        hist = yf_client.get_history_single(ticker, period=f"{HISTORY_DAYS + 5}d")
         if hist is None or hist.empty or len(hist) < 5:
             return []
 

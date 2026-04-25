@@ -1022,10 +1022,24 @@ class Database:
     # === Settings ===
     
     def get_setting(self, key: str) -> Any:
-        """Get setting with error handling and default fallback"""
+        """Get setting with error handling and default fallback.
+
+        Reads from the shared settings cache when available so the hot-path
+        (pipeline.py calls this on every scan cycle) avoids a DB round-trip.
+        email_smtp_password is never stored in the cache — it is always
+        fetched and decrypted fresh.
+        """
         if not key or not isinstance(key, str):
             self.logger.error("Invalid setting key")
             return None
+
+        # Serve from cache for non-sensitive keys
+        if key != 'email_smtp_password':
+            cache = self.__class__._settings_cache
+            if cache and time.time() < self.__class__._settings_cache_expires:
+                if key in cache:
+                    return cache[key]
+                return DEFAULT_SETTINGS.get(key)
 
         try:
             conn = self._get_conn()
@@ -1038,7 +1052,7 @@ class Database:
                     try:
                         value = json.loads(row['value'])
 
-                        # Decrypt email password
+                        # Decrypt email password — never cache this
                         if key == 'email_smtp_password' and value:
                             try:
                                 return encryption.decrypt(value)

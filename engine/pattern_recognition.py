@@ -9,10 +9,10 @@ SUPPORTED PATTERNS:
 - Ascending Triangle (bullish breakout)
 - Head and Shoulders (bearish reversal)
 """
-import yfinance as yf
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
+from clients.yf_client import yf_client
 from core.database import db
 import logging
 
@@ -39,8 +39,7 @@ class PatternRecognizer:
                 return entry['data']
 
         try:
-            stock = yf.Ticker(ticker)
-            hist = stock.history(period='6mo')
+            hist = yf_client.get_history_single(ticker, period='6mo')
 
             if hist.empty or len(hist) < 60:
                 logger.debug(f"{ticker}: insufficient price history for pattern detection ({len(hist) if not hist.empty else 0} bars)")

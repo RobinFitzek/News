@@ -3,10 +3,10 @@ Multi-Timeframe Confirmation Module
 Adds weekly/monthly trend overlay to validate daily signals.
 Higher timeframe confirmation increases signal reliability.
 """
-import yfinance as yf
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
+from clients.yf_client import yf_client
 import logging
 
 logger = logging.getLogger(__name__)
@@ -41,10 +41,8 @@ class MultiTimeframe:
             return self._cache[cache_key]['data']
         
         try:
-            stock = yf.Ticker(ticker)
-            
             # Get enough history for monthly analysis
-            hist = stock.history(period="1y")
+            hist = yf_client.get_history_single(ticker, period="1y")
             
             if hist.empty or len(hist) < 50:
                 return {

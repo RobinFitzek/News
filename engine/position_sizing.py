@@ -4,10 +4,10 @@ Calculates optimal position sizes using Kelly Criterion and volatility-adjusted 
 The goal: Never bet too much on any single position.
 """
 import math
-import yfinance as yf
 import numpy as np
 from datetime import datetime, timedelta
 from typing import Dict, Optional
+from clients.yf_client import yf_client
 import logging
 
 logger = logging.getLogger(__name__)
@@ -240,8 +240,7 @@ class PositionSizer:
                 return entry['data']
         
         try:
-            stock = yf.Ticker(ticker)
-            hist = stock.history(period="3mo")
+            hist = yf_client.get_history_single(ticker, period="3mo")
             
             if hist.empty or len(hist) < 20:
                 return {'annual_vol': 30.0, 'current_price': 0, 'error': 'Insufficient data'}
